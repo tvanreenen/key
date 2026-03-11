@@ -4,6 +4,10 @@ Package.resolved
 build/
 *.xcarchive
 *.zip
+*.dmg
+*.pkg
+*.provisionprofile
+*.mobileprovision
 
 .DS_Store
 

@@ -1,0 +1,784 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0E471F29FE657B084CEAD58B /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
+		1B7D7F2E9AE24855D9046ED3 /* VaultKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */; };
+		240E840B493F129EF5D4413B /* RuntimeConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = F19B0116010713B57BC705BE /* RuntimeConfiguration.swift */; };
+		2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */; };
+		2FF48E342F108FF694BDB515 /* InputOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 855E71C8AF61988A885402D9 /* InputOutput.swift */; };
+		3977AF2E72E7FFA097AB98E8 /* SecretGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3059ADF8144F62D87A2813 /* SecretGenerator.swift */; };
+		3E06CBB9790C0F544B940F1B /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE09A18FF4CC11995E958F80 /* AppError.swift */; };
+		545DE475C8F5F883DB08A529 /* KeyServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55257994DEF9CC6144A32E16 /* KeyServiceProtocol.swift */; };
+		6D30C98FDE1EE6358276BB25 /* KeyUtilityApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5545BFD05D0DBC600CFCEDA7 /* KeyUtilityApp.swift */; };
+		70A1989598F246AF88CA0C88 /* ClipboardWriting.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EE5012D730E62376078026 /* ClipboardWriting.swift */; };
+		851434753ACA4A4ED0733FEB /* KeyServiceHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */; };
+		873C78C8D57CEF7EBA418B73 /* SecretFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */; };
+		8B2342C883974B121AB07C37 /* KeyXPCClientTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */; };
+		A15F350B2230881FFC292742 /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
+		AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA3251E5B71729E191F7889A /* Command.swift */; };
+		B4BE69F25B811392D2FBBE3C /* KeyCLIApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */; };
+		B611695A8D40D95DE0EF69BD /* CLIParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF28C31FF780A4FCCB3294D7 /* CLIParser.swift */; };
+		BCE7D9A786F2E2489DE3ACCB /* SystemClipboardWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E827F7A4531EEAF53BCF3AA5 /* SystemClipboardWriter.swift */; };
+		CC2B47A4B45D4DA85E9C209D /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76DB380BC4A9ECD7FE009152 /* main.swift */; };
+		D4D0ACDBCDB375050F096CEC /* EntryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E585E32FBAF3D8FD5F64230 /* EntryStore.swift */; };
+		E50676FB896C20975843E925 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E80100701CDE5C7C14F9AB /* main.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		4CF304A12EB3EC377735DC81 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 986EA7B2F1EA72BF555E9C36 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A776B37E9AF0E71BC5A8C3F2;
+			remoteInfo = KeyXPCService;
+		};
+		6BEBF4FC67DD0DDFC45FD37F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 986EA7B2F1EA72BF555E9C36 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8ADEB08555D7682AFB0C97A3;
+			remoteInfo = KeyCore;
+		};
+		D38F777BCA0735089ACD3916 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 986EA7B2F1EA72BF555E9C36 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8ADEB08555D7682AFB0C97A3;
+			remoteInfo = KeyCore;
+		};
+		FEE385630CE7022994C7D053 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 986EA7B2F1EA72BF555E9C36 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1CF695AE4EB1034DF9A169D2;
+			remoteInfo = KeyCLI;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyXPCClientTransport.swift; sourceTree = "<group>"; };
+		395A88A800D635A7EF9FE33F /* libKeyCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libKeyCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		3BA14FD6F79F2CBF3291CEE5 /* KeyXPCService.xpc */ = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; includeInIndex = 0; path = KeyXPCService.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
+		4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCLIApplication.swift; sourceTree = "<group>"; };
+		55257994DEF9CC6144A32E16 /* KeyServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyServiceProtocol.swift; sourceTree = "<group>"; };
+		5545BFD05D0DBC600CFCEDA7 /* KeyUtilityApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyUtilityApp.swift; sourceTree = "<group>"; };
+		5E585E32FBAF3D8FD5F64230 /* EntryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryStore.swift; sourceTree = "<group>"; };
+		76DB380BC4A9ECD7FE009152 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretFile.swift; sourceTree = "<group>"; };
+		855E71C8AF61988A885402D9 /* InputOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputOutput.swift; sourceTree = "<group>"; };
+		9A3059ADF8144F62D87A2813 /* SecretGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretGenerator.swift; sourceTree = "<group>"; };
+		9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyServiceHandler.swift; sourceTree = "<group>"; };
+		B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultKeyStore.swift; sourceTree = "<group>"; };
+		B4EE3B938E39AE66CAB3E79B /* Key.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Key.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BA3251E5B71729E191F7889A /* Command.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Command.swift; sourceTree = "<group>"; };
+		DE09A18FF4CC11995E958F80 /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
+		E1EE5012D730E62376078026 /* ClipboardWriting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWriting.swift; sourceTree = "<group>"; };
+		E75E106051E70081357FBACF /* key */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = key; sourceTree = BUILT_PRODUCTS_DIR; };
+		E7E80100701CDE5C7C14F9AB /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		E827F7A4531EEAF53BCF3AA5 /* SystemClipboardWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemClipboardWriter.swift; sourceTree = "<group>"; };
+		F19B0116010713B57BC705BE /* RuntimeConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeConfiguration.swift; sourceTree = "<group>"; };
+		F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultCipher.swift; sourceTree = "<group>"; };
+		FF28C31FF780A4FCCB3294D7 /* CLIParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIParser.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		51F8103CDC11EA9369126185 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0E471F29FE657B084CEAD58B /* libKeyCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DF3E0B2A38CCF99634DE573D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A15F350B2230881FFC292742 /* libKeyCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		020AE8C28223A19B373FD085 /* KeyCore */ = {
+			isa = PBXGroup;
+			children = (
+				DE09A18FF4CC11995E958F80 /* AppError.swift */,
+				FF28C31FF780A4FCCB3294D7 /* CLIParser.swift */,
+				E1EE5012D730E62376078026 /* ClipboardWriting.swift */,
+				BA3251E5B71729E191F7889A /* Command.swift */,
+				5E585E32FBAF3D8FD5F64230 /* EntryStore.swift */,
+				855E71C8AF61988A885402D9 /* InputOutput.swift */,
+				4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */,
+				9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */,
+				55257994DEF9CC6144A32E16 /* KeyServiceProtocol.swift */,
+				0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */,
+				F19B0116010713B57BC705BE /* RuntimeConfiguration.swift */,
+				81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */,
+				9A3059ADF8144F62D87A2813 /* SecretGenerator.swift */,
+				F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */,
+				B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */,
+			);
+			path = KeyCore;
+			sourceTree = "<group>";
+		};
+		10D44FDB6A804BEA712BCF6F /* KeyXPCService */ = {
+			isa = PBXGroup;
+			children = (
+				E7E80100701CDE5C7C14F9AB /* main.swift */,
+			);
+			path = KeyXPCService;
+			sourceTree = "<group>";
+		};
+		68E3A48CE4AE472480CEDDC2 = {
+			isa = PBXGroup;
+			children = (
+				F9171D8593E4DE4782F5D9AA /* Sources */,
+				85F4BBC8E3480B2592A6D5A0 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		85F4BBC8E3480B2592A6D5A0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E75E106051E70081357FBACF /* key */,
+				B4EE3B938E39AE66CAB3E79B /* Key.app */,
+				3BA14FD6F79F2CBF3291CEE5 /* KeyXPCService.xpc */,
+				395A88A800D635A7EF9FE33F /* libKeyCore.a */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A6DD4F6C04D16AE950103C90 /* key */ = {
+			isa = PBXGroup;
+			children = (
+				76DB380BC4A9ECD7FE009152 /* main.swift */,
+				E827F7A4531EEAF53BCF3AA5 /* SystemClipboardWriter.swift */,
+			);
+			path = key;
+			sourceTree = "<group>";
+		};
+		F5F1F817A4860CC7EB2F9AF2 /* KeyUtilityApp */ = {
+			isa = PBXGroup;
+			children = (
+				5545BFD05D0DBC600CFCEDA7 /* KeyUtilityApp.swift */,
+			);
+			path = KeyUtilityApp;
+			sourceTree = "<group>";
+		};
+		F9171D8593E4DE4782F5D9AA /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				A6DD4F6C04D16AE950103C90 /* key */,
+				020AE8C28223A19B373FD085 /* KeyCore */,
+				F5F1F817A4860CC7EB2F9AF2 /* KeyUtilityApp */,
+				10D44FDB6A804BEA712BCF6F /* KeyXPCService */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1CF695AE4EB1034DF9A169D2 /* KeyCLI */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 53ADE4DE8C914B3EBDDD6370 /* Build configuration list for PBXNativeTarget "KeyCLI" */;
+			buildPhases = (
+				90638F7C1BF7B98B7E684DC1 /* Sources */,
+				51F8103CDC11EA9369126185 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BBB2766C39026BFE78EA2124 /* PBXTargetDependency */,
+			);
+			name = KeyCLI;
+			packageProductDependencies = (
+			);
+			productName = KeyCLI;
+			productReference = E75E106051E70081357FBACF /* key */;
+			productType = "com.apple.product-type.tool";
+		};
+		32CD73D21740FC60396C1DA0 /* KeyApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7F01659A6EE6B0DA349AB9EB /* Build configuration list for PBXNativeTarget "KeyApp" */;
+			buildPhases = (
+				EC35535AF35CA2336C0A9114 /* Sources */,
+				7A27356F69610045B0D25F0F /* Embed CLI and XPC service */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				91A56FC9496C0E9FA19ECA87 /* PBXTargetDependency */,
+				85D5705D21D6DF41A9C94EEB /* PBXTargetDependency */,
+			);
+			name = KeyApp;
+			packageProductDependencies = (
+			);
+			productName = KeyApp;
+			productReference = B4EE3B938E39AE66CAB3E79B /* Key.app */;
+			productType = "com.apple.product-type.application";
+		};
+		8ADEB08555D7682AFB0C97A3 /* KeyCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6E2826F49F33D976AECE1ABF /* Build configuration list for PBXNativeTarget "KeyCore" */;
+			buildPhases = (
+				CCA0E08CEA58FC9136784A92 /* Sources */,
+				A8FB063C683BB17899FB3E36 /* Copy Swift Objective-C Interface Header */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KeyCore;
+			packageProductDependencies = (
+			);
+			productName = KeyCore;
+			productReference = 395A88A800D635A7EF9FE33F /* libKeyCore.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		A776B37E9AF0E71BC5A8C3F2 /* KeyXPCService */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 26D72E7DD31747DC5F271ED1 /* Build configuration list for PBXNativeTarget "KeyXPCService" */;
+			buildPhases = (
+				18FF1448408D41606F455BB0 /* Sources */,
+				DF3E0B2A38CCF99634DE573D /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9A16BC62F53FE6ED1C89A585 /* PBXTargetDependency */,
+			);
+			name = KeyXPCService;
+			packageProductDependencies = (
+			);
+			productName = KeyXPCService;
+			productReference = 3BA14FD6F79F2CBF3291CEE5 /* KeyXPCService.xpc */;
+			productType = "com.apple.product-type.xpc-service";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		986EA7B2F1EA72BF555E9C36 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					1CF695AE4EB1034DF9A169D2 = {
+						DevelopmentTeam = 9Q355KSV85;
+					};
+					32CD73D21740FC60396C1DA0 = {
+						DevelopmentTeam = 9Q355KSV85;
+					};
+					8ADEB08555D7682AFB0C97A3 = {
+						DevelopmentTeam = 9Q355KSV85;
+					};
+				};
+			};
+			buildConfigurationList = A9C7896D2EC46A7749553536 /* Build configuration list for PBXProject "Key" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 68E3A48CE4AE472480CEDDC2;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 85F4BBC8E3480B2592A6D5A0 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				32CD73D21740FC60396C1DA0 /* KeyApp */,
+				1CF695AE4EB1034DF9A169D2 /* KeyCLI */,
+				8ADEB08555D7682AFB0C97A3 /* KeyCore */,
+				A776B37E9AF0E71BC5A8C3F2 /* KeyXPCService */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		7A27356F69610045B0D25F0F /* Embed CLI and XPC service */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Embed CLI and XPC service";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/key",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/XPCServices/KeyXPCService.xpc",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nmacos_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS\"\nxpc_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/XPCServices\"\nmkdir -p \"${macos_dir}\" \"${xpc_dir}\"\nditto \"${BUILT_PRODUCTS_DIR}/key\" \"${macos_dir}/key\"\nditto \"${BUILT_PRODUCTS_DIR}/KeyXPCService.xpc\" \"${xpc_dir}/KeyXPCService.xpc\"\nif [[ \"${CODE_SIGNING_ALLOWED:-NO}\" == \"YES\" && \"${CONFIGURATION}\" == \"Release\" ]]; then\n  resolved_group=\"$(/usr/libexec/PlistBuddy -c 'Print :KeychainAccessGroup' \"${xpc_dir}/KeyXPCService.xpc/Contents/Info.plist\")\"\n  temp_entitlements=\"${TARGET_TEMP_DIR}/EmbeddedKeyXPCService.entitlements\"\n  cat > \"${temp_entitlements}\" <<EOF\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n  <key>keychain-access-groups</key>\n  <array>\n    <string>${resolved_group}</string>\n  </array>\n</dict>\n</plist>\nEOF\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --entitlements \"${temp_entitlements}\" --generate-entitlement-der \"${xpc_dir}/KeyXPCService.xpc\"\nfi\n";
+		};
+		A8FB063C683BB17899FB3E36 /* Copy Swift Objective-C Interface Header */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(DERIVED_SOURCES_DIR)/$(SWIFT_OBJC_INTERFACE_HEADER_NAME)",
+			);
+			name = "Copy Swift Objective-C Interface Header";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/include/$(PRODUCT_MODULE_NAME)/$(SWIFT_OBJC_INTERFACE_HEADER_NAME)",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "ditto \"${SCRIPT_INPUT_FILE_0}\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		18FF1448408D41606F455BB0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E50676FB896C20975843E925 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		90638F7C1BF7B98B7E684DC1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BCE7D9A786F2E2489DE3ACCB /* SystemClipboardWriter.swift in Sources */,
+				CC2B47A4B45D4DA85E9C209D /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CCA0E08CEA58FC9136784A92 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3E06CBB9790C0F544B940F1B /* AppError.swift in Sources */,
+				B611695A8D40D95DE0EF69BD /* CLIParser.swift in Sources */,
+				70A1989598F246AF88CA0C88 /* ClipboardWriting.swift in Sources */,
+				AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */,
+				D4D0ACDBCDB375050F096CEC /* EntryStore.swift in Sources */,
+				2FF48E342F108FF694BDB515 /* InputOutput.swift in Sources */,
+				B4BE69F25B811392D2FBBE3C /* KeyCLIApplication.swift in Sources */,
+				851434753ACA4A4ED0733FEB /* KeyServiceHandler.swift in Sources */,
+				545DE475C8F5F883DB08A529 /* KeyServiceProtocol.swift in Sources */,
+				8B2342C883974B121AB07C37 /* KeyXPCClientTransport.swift in Sources */,
+				240E840B493F129EF5D4413B /* RuntimeConfiguration.swift in Sources */,
+				873C78C8D57CEF7EBA418B73 /* SecretFile.swift in Sources */,
+				3977AF2E72E7FFA097AB98E8 /* SecretGenerator.swift in Sources */,
+				2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */,
+				1B7D7F2E9AE24855D9046ED3 /* VaultKeyStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EC35535AF35CA2336C0A9114 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6D30C98FDE1EE6358276BB25 /* KeyUtilityApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		85D5705D21D6DF41A9C94EEB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A776B37E9AF0E71BC5A8C3F2 /* KeyXPCService */;
+			targetProxy = 4CF304A12EB3EC377735DC81 /* PBXContainerItemProxy */;
+		};
+		91A56FC9496C0E9FA19ECA87 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1CF695AE4EB1034DF9A169D2 /* KeyCLI */;
+			targetProxy = FEE385630CE7022994C7D053 /* PBXContainerItemProxy */;
+		};
+		9A16BC62F53FE6ED1C89A585 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8ADEB08555D7682AFB0C97A3 /* KeyCore */;
+			targetProxy = 6BEBF4FC67DD0DDFC45FD37F /* PBXContainerItemProxy */;
+		};
+		BBB2766C39026BFE78EA2124 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8ADEB08555D7682AFB0C97A3 /* KeyCore */;
+			targetProxy = D38F777BCA0735089ACD3916 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0F8AA84E0B96DC7202C20341 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Config/Key.entitlements;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				EXECUTABLE_NAME = KeyHost;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Config/Key-Info.plist";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.app;
+				PRODUCT_NAME = Key;
+				PROVISIONING_PROFILE_SPECIFIER = "Key Developer ID App";
+				REMOVE_STATIC_EXECUTABLES_FROM_EMBEDDED_BUNDLES = NO;
+				SDKROOT = macosx;
+				SKIP_INSTALL = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Release;
+		};
+		2EAFF9DCF95D07F3F0066EAC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				EXECUTABLE_NAME = key;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_NAME = key;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Debug;
+		};
+		4B695AFEF8B7B5C12F50EE03 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 9Q355KSV85;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		577164093649376F4ABEA3BB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/KeyXPCService.entitlements;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 9Q355KSV85;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Config/KeyXPCService-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.xpc;
+				PRODUCT_NAME = KeyXPCService;
+				PROVISIONING_PROFILE_SPECIFIER = "Key Developer ID XPC";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		5DF5C6AD65504853888FA540 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACH_O_TYPE = staticlib;
+				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.core;
+				PRODUCT_NAME = KeyCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		6BBBF7FB903460A13A25835F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/KeyXPCService.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Config/KeyXPCService-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.xpc;
+				PRODUCT_NAME = KeyXPCService;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		7FA8DBAD2649844B0DD7F3D5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 9Q355KSV85;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		BBE4AE36C6E98EC40DE9DEA3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				EXECUTABLE_NAME = key;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_NAME = key;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Release;
+		};
+		E4C3FDA4554E08704C0B0598 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Config/Key.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				EXECUTABLE_NAME = KeyHost;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Config/Key-Info.plist";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.app;
+				PRODUCT_NAME = Key;
+				REMOVE_STATIC_EXECUTABLES_FROM_EMBEDDED_BUNDLES = NO;
+				SDKROOT = macosx;
+				SKIP_INSTALL = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Debug;
+		};
+		FCE9BDA97EE2BEB466D8ECEE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACH_O_TYPE = staticlib;
+				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.core;
+				PRODUCT_NAME = KeyCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		26D72E7DD31747DC5F271ED1 /* Build configuration list for PBXNativeTarget "KeyXPCService" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6BBBF7FB903460A13A25835F /* Debug */,
+				577164093649376F4ABEA3BB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		53ADE4DE8C914B3EBDDD6370 /* Build configuration list for PBXNativeTarget "KeyCLI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2EAFF9DCF95D07F3F0066EAC /* Debug */,
+				BBE4AE36C6E98EC40DE9DEA3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		6E2826F49F33D976AECE1ABF /* Build configuration list for PBXNativeTarget "KeyCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FCE9BDA97EE2BEB466D8ECEE /* Debug */,
+				5DF5C6AD65504853888FA540 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7F01659A6EE6B0DA349AB9EB /* Build configuration list for PBXNativeTarget "KeyApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E4C3FDA4554E08704C0B0598 /* Debug */,
+				0F8AA84E0B96DC7202C20341 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A9C7896D2EC46A7749553536 /* Build configuration list for PBXProject "Key" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4B695AFEF8B7B5C12F50EE03 /* Debug */,
+				7FA8DBAD2649844B0DD7F3D5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 986EA7B2F1EA72BF555E9C36 /* Project object */;
+}
