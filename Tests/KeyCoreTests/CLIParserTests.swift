@@ -9,15 +9,15 @@ struct CLIParserTests {
     }
 
     @Test
-    func parsesGeneratedPutOptions() throws {
-        let command = try CLIParser.parse(arguments: ["put", "api/token", "--generate", "--length", "48", "--show"])
-        #expect(command == .put(name: "api/token", mode: .generated(length: 48, revealMode: .show), force: false))
+    func parsesGeneratedAddOptions() throws {
+        let command = try CLIParser.parse(arguments: ["add", "api/token", "--generate", "--length", "48"])
+        #expect(command == .add(name: "api/token", mode: .generated(length: 48, revealMode: .none)))
     }
 
     @Test
     func rejectsInvalidLength() throws {
         #expect(throws: AppError.invalidLength("Length must be a positive integer.")) {
-            try CLIParser.parse(arguments: ["put", "api/token", "--generate", "--length", "0"])
+            try CLIParser.parse(arguments: ["add", "api/token", "--generate", "--length", "0"])
         }
     }
 
@@ -42,9 +42,16 @@ struct CLIParserTests {
     }
 
     @Test
-    func rejectsCopyWithoutGenerateForPut() throws {
-        #expect(throws: AppError.usage("--show and --copy require --generate.\n\n\(CLIParser.usageText)")) {
-            try CLIParser.parse(arguments: ["put", "api/token", "--copy"])
+    func rejectsLegacyPutCommand() throws {
+        #expect(throws: AppError.usage("Unknown command 'put'.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["put", "api/token"])
+        }
+    }
+
+    @Test
+    func rejectsUnsupportedAddOptions() throws {
+        #expect(throws: AppError.usage("Unknown option '--copy' for add.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["add", "api/token", "--copy"])
         }
     }
 }

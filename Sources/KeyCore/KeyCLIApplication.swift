@@ -44,14 +44,14 @@ public final class KeyCLIApplication {
             }
             try clipboard.copy(value)
             return EXIT_SUCCESS
-        case let .put(name, mode, force):
+        case let .add(name, mode):
             switch mode {
             case .manual:
                 let secret = try readSecretFromInput()
-                response = try transport.send(.putManual(name: name, secret: secret, force: force))
+                response = try transport.send(.putManual(name: name, secret: secret, force: false))
             case let .generated(length, revealMode):
                 response = try transport.send(
-                    .putGenerated(name: name, length: length, force: force, revealMode: revealMode)
+                    .putGenerated(name: name, length: length, force: false, revealMode: revealMode)
                 )
             }
 
@@ -60,7 +60,7 @@ public final class KeyCLIApplication {
                 return exitCode
             }
 
-            if case let .put(_, .generated(_, revealMode), _) = command,
+            if case let .add(_, .generated(_, revealMode)) = command,
                let value = response.value {
                 switch revealMode {
                 case .none:
@@ -93,7 +93,7 @@ public final class KeyCLIApplication {
             if !copy, let value = response.value {
                 io.writeStdout(value)
             }
-        case .put:
+        case .add:
             break
         }
 

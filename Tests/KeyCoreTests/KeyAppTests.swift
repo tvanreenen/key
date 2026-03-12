@@ -19,48 +19,33 @@ struct KeyCLIApplicationTests {
     }
 
     @Test
-    func manualPutReadsPipedInputAndSendsItToService() throws {
+    func manualAddReadsPipedInputAndSendsItToService() throws {
         let transport = MemoryTransport { request in
-            #expect(request == .putManual(name: "aws/prod/token", secret: "hunter2", force: true))
+            #expect(request == .putManual(name: "aws/prod/token", secret: "hunter2", force: false))
             return .success()
         }
         let io = MemoryIO(stdinIsTTY: false, pipedInput: "hunter2")
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["put", "aws/prod/token", "--force"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["add", "aws/prod/token"]) == EXIT_SUCCESS)
         #expect(io.stdout == "")
         #expect(io.stderr == "")
     }
 
     @Test
-    func generatedPutShowPrintsReturnedSecret() throws {
+    func generatedAddSucceedsWithoutOutput() throws {
         let transport = MemoryTransport { request in
-            #expect(request == .putGenerated(name: "demo/token", length: 32, force: false, revealMode: .show))
-            return .success("GENERATED")
+            #expect(request == .putGenerated(name: "demo/token", length: 32, force: false, revealMode: .none))
+            return .success()
         }
         let io = MemoryIO(stdinIsTTY: false)
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["put", "demo/token", "--generate", "--length", "32", "--show"]) == EXIT_SUCCESS)
-        #expect(io.stdout == "GENERATED")
-        #expect(clipboard.copiedText == nil)
-    }
-
-    @Test
-    func generatedPutCopyWritesToClipboard() throws {
-        let transport = MemoryTransport { request in
-            #expect(request == .putGenerated(name: "demo/token", length: 24, force: false, revealMode: .copy))
-            return .success("GENERATED")
-        }
-        let io = MemoryIO(stdinIsTTY: false)
-        let clipboard = MemoryClipboard()
-        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
-
-        #expect(app.run(arguments: ["put", "demo/token", "--generate", "--copy"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["add", "demo/token", "--generate", "--length", "32"]) == EXIT_SUCCESS)
         #expect(io.stdout == "")
-        #expect(clipboard.copiedText == "GENERATED")
+        #expect(clipboard.copiedText == nil)
     }
 }
 

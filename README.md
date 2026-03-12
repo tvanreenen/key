@@ -32,8 +32,8 @@ The current CLI is intentionally small:
 ```bash
 key ls
 key show <name> [--copy]
-key put <name> [--force]
-key put <name> --generate [--length N] [--force] [--show | --copy]
+key add <name>
+key add <name> --generate [--length N]
 ```
 
 Examples:
@@ -42,8 +42,8 @@ Examples:
 key ls
 key show github/personal
 key show github/personal --copy
-printf 'hunter2' | key put github/personal --force
-key put aws/prod/token --generate --show
+printf 'hunter2' | key add github/personal
+key add aws/prod/token --generate --length 32
 ```
 
 Secrets are stored as encrypted files under:
