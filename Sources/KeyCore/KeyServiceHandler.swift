@@ -45,22 +45,19 @@ public final class KeyServiceHandler {
                 )
                 let decrypted = try cipher.decrypt(encrypted, keyData: keyData)
                 return .success(decrypted)
-            case let .putManual(name, secret, force):
-                let keyData = try keyStore.loadKey(
-                    reason: "Unlock key vault to store '\(name)'.",
-                    createIfMissing: true
-                )
-                let encrypted = try cipher.encrypt(secret, keyData: keyData)
-                try entryStore.save(encrypted, as: name, overwrite: force)
+            case let .addManual(name, secret):
+                try storeAddedSecret(secret, as: name)
                 return .success()
-            case let .putGenerated(name, length, force, revealMode):
+            case let .addGenerated(name, length, revealMode):
                 let secret = try generator.generate(length: length)
-                let keyData = try keyStore.loadKey(
-                    reason: "Unlock key vault to store '\(name)'.",
-                    createIfMissing: true
-                )
-                let encrypted = try cipher.encrypt(secret, keyData: keyData)
-                try entryStore.save(encrypted, as: name, overwrite: force)
+                try storeAddedSecret(secret, as: name)
+                return revealMode == .none ? .success() : .success(secret)
+            case let .editManual(name, secret):
+                try storeEditedSecret(secret, as: name)
+                return .success()
+            case let .editGenerated(name, length, revealMode):
+                let secret = try generator.generate(length: length)
+                try storeEditedSecret(secret, as: name)
                 return revealMode == .none ? .success() : .success(secret)
             }
         } catch let error as AppError {
@@ -68,5 +65,27 @@ public final class KeyServiceHandler {
         } catch {
             return .failure(error.localizedDescription)
         }
+    }
+
+    private func storeAddedSecret(_ secret: String, as name: String) throws {
+        let keyData = try keyStore.loadKey(
+            reason: "Unlock key vault to store '\(name)'.",
+            createIfMissing: true
+        )
+        let encrypted = try cipher.encrypt(secret, keyData: keyData)
+        try entryStore.save(encrypted, as: name, overwrite: false)
+    }
+
+    private func storeEditedSecret(_ secret: String, as name: String) throws {
+        guard try entryStore.exists(name) else {
+            throw AppError.entryNotFound("Secret '\(name)' was not found.")
+        }
+
+        let keyData = try keyStore.loadKey(
+            reason: "Unlock key vault to update '\(name)'.",
+            createIfMissing: false
+        )
+        let encrypted = try cipher.encrypt(secret, keyData: keyData)
+        try entryStore.save(encrypted, as: name, overwrite: true)
     }
 }

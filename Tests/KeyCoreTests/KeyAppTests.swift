@@ -21,7 +21,7 @@ struct KeyCLIApplicationTests {
     @Test
     func manualAddReadsPipedInputAndSendsItToService() throws {
         let transport = MemoryTransport { request in
-            #expect(request == .putManual(name: "aws/prod/token", secret: "hunter2", force: false))
+            #expect(request == .addManual(name: "aws/prod/token", secret: "hunter2"))
             return .success()
         }
         let io = MemoryIO(stdinIsTTY: false, pipedInput: "hunter2")
@@ -36,7 +36,7 @@ struct KeyCLIApplicationTests {
     @Test
     func generatedAddSucceedsWithoutOutput() throws {
         let transport = MemoryTransport { request in
-            #expect(request == .putGenerated(name: "demo/token", length: 32, force: false, revealMode: .none))
+            #expect(request == .addGenerated(name: "demo/token", length: 32, revealMode: .none))
             return .success()
         }
         let io = MemoryIO(stdinIsTTY: false)
@@ -44,6 +44,36 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
         #expect(app.run(arguments: ["add", "demo/token", "--generate", "--length", "32"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "")
+        #expect(clipboard.copiedText == nil)
+    }
+
+    @Test
+    func manualEditReadsPipedInputAndSendsItToService() throws {
+        let transport = MemoryTransport { request in
+            #expect(request == .editManual(name: "aws/prod/token", secret: "hunter2"))
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false, pipedInput: "hunter2")
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["edit", "aws/prod/token"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "")
+        #expect(io.stderr == "")
+    }
+
+    @Test
+    func generatedEditSucceedsWithoutOutput() throws {
+        let transport = MemoryTransport { request in
+            #expect(request == .editGenerated(name: "demo/token", length: 32, revealMode: .none))
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["edit", "demo/token", "--generate", "--length", "32"]) == EXIT_SUCCESS)
         #expect(io.stdout == "")
         #expect(clipboard.copiedText == nil)
     }
@@ -60,7 +90,7 @@ struct KeyServiceHandlerTests {
         let keyStore = MemoryVaultKeyStore()
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
-        let putResponse = handler.handle(.putManual(name: "mail/personal", secret: "hunter2", force: false))
+        let putResponse = handler.handle(.addManual(name: "mail/personal", secret: "hunter2"))
         #expect(putResponse == .success())
 
         let getResponse = handler.handle(.get(name: "mail/personal"))
@@ -83,7 +113,7 @@ struct KeyServiceHandlerTests {
             generator: generator
         )
 
-        let putResponse = handler.handle(.putGenerated(name: "aws/prod/token", length: 8, force: false, revealMode: .none))
+        let putResponse = handler.handle(.addGenerated(name: "aws/prod/token", length: 8, revealMode: .none))
         #expect(putResponse == .success())
 
         let getResponse = handler.handle(.get(name: "aws/prod/token"))
@@ -102,11 +132,30 @@ struct KeyServiceHandlerTests {
             entryStore: EntryStore(rootURL: tempDirectory)
         )
 
-        #expect(handler.handle(.putManual(name: "dup", secret: "one", force: false)) == .success())
+        #expect(handler.handle(.addManual(name: "dup", secret: "one")) == .success())
 
-        let secondResponse = handler.handle(.putManual(name: "dup", secret: "two", force: false))
+        let secondResponse = handler.handle(.addManual(name: "dup", secret: "two"))
         #expect(secondResponse.exitCode == EXIT_FAILURE)
         #expect(secondResponse.errorMessage?.contains("already exists") == true)
+    }
+
+    @Test
+    func editUpdatesExistingSecretAndFailsForMissingEntry() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let keyStore = MemoryVaultKeyStore()
+        let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
+
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "one")) == .success())
+        #expect(handler.handle(.editManual(name: "mail/personal", secret: "two")) == .success())
+        #expect(handler.handle(.get(name: "mail/personal")) == .success("two"))
+
+        let missingResponse = handler.handle(.editManual(name: "missing", secret: "value"))
+        #expect(missingResponse.exitCode == EXIT_FAILURE)
+        #expect(missingResponse.errorMessage?.contains("was not found") == true)
     }
 
     @Test
@@ -144,8 +193,8 @@ struct KeyServiceHandlerTests {
             entryStore: EntryStore(rootURL: tempDirectory)
         )
 
-        #expect(handler.handle(.putManual(name: "zeta/one", secret: "one", force: false)) == .success())
-        #expect(handler.handle(.putManual(name: "alpha/two", secret: "two", force: false)) == .success())
+        #expect(handler.handle(.addManual(name: "zeta/one", secret: "one")) == .success())
+        #expect(handler.handle(.addManual(name: "alpha/two", secret: "two")) == .success())
 
         let listResponse = handler.handle(.list)
         #expect(listResponse == .success("alpha/two\nzeta/one\n"))

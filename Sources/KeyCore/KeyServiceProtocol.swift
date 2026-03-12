@@ -14,14 +14,15 @@ public enum PutMode: Equatable {
 public enum KeyServiceRequest: Codable, Equatable {
     case list
     case get(name: String)
-    case putManual(name: String, secret: String, force: Bool)
-    case putGenerated(name: String, length: Int, force: Bool, revealMode: RevealMode)
+    case addManual(name: String, secret: String)
+    case addGenerated(name: String, length: Int, revealMode: RevealMode)
+    case editManual(name: String, secret: String)
+    case editGenerated(name: String, length: Int, revealMode: RevealMode)
 
     private enum CodingKeys: String, CodingKey {
         case kind
         case name
         case secret
-        case force
         case length
         case revealMode
     }
@@ -29,8 +30,10 @@ public enum KeyServiceRequest: Codable, Equatable {
     private enum Kind: String, Codable {
         case list
         case get
-        case putManual
-        case putGenerated
+        case addManual
+        case addGenerated
+        case editManual
+        case editGenerated
     }
 
     public init(from decoder: Decoder) throws {
@@ -40,17 +43,26 @@ public enum KeyServiceRequest: Codable, Equatable {
             self = .list
         case .get:
             self = .get(name: try container.decode(String.self, forKey: .name))
-        case .putManual:
-            self = .putManual(
+        case .addManual:
+            self = .addManual(
                 name: try container.decode(String.self, forKey: .name),
-                secret: try container.decode(String.self, forKey: .secret),
-                force: try container.decode(Bool.self, forKey: .force)
+                secret: try container.decode(String.self, forKey: .secret)
             )
-        case .putGenerated:
-            self = .putGenerated(
+        case .addGenerated:
+            self = .addGenerated(
                 name: try container.decode(String.self, forKey: .name),
                 length: try container.decode(Int.self, forKey: .length),
-                force: try container.decode(Bool.self, forKey: .force),
+                revealMode: try container.decode(RevealMode.self, forKey: .revealMode)
+            )
+        case .editManual:
+            self = .editManual(
+                name: try container.decode(String.self, forKey: .name),
+                secret: try container.decode(String.self, forKey: .secret)
+            )
+        case .editGenerated:
+            self = .editGenerated(
+                name: try container.decode(String.self, forKey: .name),
+                length: try container.decode(Int.self, forKey: .length),
                 revealMode: try container.decode(RevealMode.self, forKey: .revealMode)
             )
         }
@@ -64,16 +76,23 @@ public enum KeyServiceRequest: Codable, Equatable {
         case let .get(name):
             try container.encode(Kind.get, forKey: .kind)
             try container.encode(name, forKey: .name)
-        case let .putManual(name, secret, force):
-            try container.encode(Kind.putManual, forKey: .kind)
+        case let .addManual(name, secret):
+            try container.encode(Kind.addManual, forKey: .kind)
             try container.encode(name, forKey: .name)
             try container.encode(secret, forKey: .secret)
-            try container.encode(force, forKey: .force)
-        case let .putGenerated(name, length, force, revealMode):
-            try container.encode(Kind.putGenerated, forKey: .kind)
+        case let .addGenerated(name, length, revealMode):
+            try container.encode(Kind.addGenerated, forKey: .kind)
             try container.encode(name, forKey: .name)
             try container.encode(length, forKey: .length)
-            try container.encode(force, forKey: .force)
+            try container.encode(revealMode, forKey: .revealMode)
+        case let .editManual(name, secret):
+            try container.encode(Kind.editManual, forKey: .kind)
+            try container.encode(name, forKey: .name)
+            try container.encode(secret, forKey: .secret)
+        case let .editGenerated(name, length, revealMode):
+            try container.encode(Kind.editGenerated, forKey: .kind)
+            try container.encode(name, forKey: .name)
+            try container.encode(length, forKey: .length)
             try container.encode(revealMode, forKey: .revealMode)
         }
     }

@@ -15,6 +15,12 @@ struct CLIParserTests {
     }
 
     @Test
+    func parsesGeneratedEditOptions() throws {
+        let command = try CLIParser.parse(arguments: ["edit", "api/token", "--generate", "--length", "48"])
+        #expect(command == .edit(name: "api/token", mode: .generated(length: 48, revealMode: .none)))
+    }
+
+    @Test
     func rejectsInvalidLength() throws {
         #expect(throws: AppError.invalidLength("Length must be a positive integer.")) {
             try CLIParser.parse(arguments: ["add", "api/token", "--generate", "--length", "0"])
@@ -52,6 +58,13 @@ struct CLIParserTests {
     func rejectsUnsupportedAddOptions() throws {
         #expect(throws: AppError.usage("Unknown option '--copy' for add.\n\n\(CLIParser.usageText)")) {
             try CLIParser.parse(arguments: ["add", "api/token", "--copy"])
+        }
+    }
+
+    @Test
+    func rejectsUnsupportedEditOptions() throws {
+        #expect(throws: AppError.usage("Unknown option '--copy' for edit.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["edit", "api/token", "--copy"])
         }
     }
 }

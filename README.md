@@ -34,6 +34,8 @@ key ls
 key show <name> [--copy]
 key add <name>
 key add <name> --generate [--length N]
+key edit <name>
+key edit <name> --generate [--length N]
 ```
 
 Examples:
@@ -42,8 +44,12 @@ Examples:
 key ls
 key show github/personal
 key show github/personal --copy
-printf 'hunter2' | key add github/personal
-key add aws/prod/token --generate --length 32
+key add github/personal                             # prompt in the terminal
+openssl rand -base64 24 | key add github/personal  # read from stdin
+key add aws/prod/token --generate --length 32      # built-in generator
+key edit github/personal                            # prompt in the terminal
+openssl rand -base64 32 | key edit github/personal # read from stdin
+key edit aws/prod/token --generate --length 48     # built-in generator
 ```
 
 Secrets are stored as encrypted files under:
