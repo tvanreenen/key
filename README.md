@@ -33,9 +33,7 @@ The CLI is intentionally small:
 key ls
 key show <name> [--copy]
 key add <name>
-key add <name> --generate [--length N]
 key edit <name>
-key edit <name> --generate [--length N]
 key cp <src> <dst> [--force]
 key mv <src> <dst> [--force]
 key rm <name> [--force]
@@ -49,13 +47,73 @@ key show github/personal
 key show github/personal --copy
 key add github/personal                             # prompt in the terminal
 openssl rand -base64 24 | key add github/personal  # read from stdin
-key add aws/prod/token --generate --length 32      # built-in generator
 key edit github/personal                            # prompt in the terminal
 openssl rand -base64 32 | key edit github/personal # read from stdin
-key edit aws/prod/token --generate --length 48     # built-in generator
 key cp github/personal github/archive/personal     # copy without decrypting
 key mv github/archive/personal github/team/personal
 key rm github/team/personal                        # prompts before deleting
+```
+
+`key` intentionally leans on stdin for generated values rather than shipping its own password generator. That keeps the command set smaller and makes it easy to compose with tools you already use.
+
+Common generator examples:
+
+```bash
+# OpenSSL (hex)
+openssl rand -hex 32
+
+# OpenSSL (base64)
+openssl rand -base64 32
+
+# pwgen (secure random password, 24 chars)
+pwgen -s 24 1
+
+# pwgen (include symbols)
+pwgen -sy 24 1
+
+# apg (random password between 16–32 chars)
+apg -a 1 -m 16 -x 32 -n 1
+
+# gpg (ASCII-armored random data)
+gpg --gen-random --armor 1 32
+
+# urandom + base64
+head -c 32 /dev/urandom | base64
+
+# urandom + alphanumeric only
+tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24
+
+# urandom + printable ASCII
+tr -dc '[:print:]' < /dev/urandom | head -c 24
+
+# diceware (6-word passphrase)
+diceware -n 6
+
+# xkcd-style passphrase
+xkcdpass -n 5
+
+# uuid (useful for tokens / API keys)
+uuidgen
+
+# uuid without dashes
+uuidgen | tr -d '-'
+
+# mkpasswd (32 char password)
+mkpasswd -l 32
+
+# base32 random string
+head -c 20 /dev/urandom | base32
+
+# hex via xxd
+head -c 32 /dev/urandom | xxd -p
+```
+
+Pipe those directly into `key`, for example:
+
+```bash
+openssl rand -base64 32 | key add aws/prod/token
+pwgen -sy 24 1 | key edit github/personal
+diceware -n 6 | key add personal/passphrase
 ```
 
 Secrets are stored as encrypted files under:

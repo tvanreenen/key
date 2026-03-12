@@ -37,15 +37,6 @@ struct CryptoAndStorageTests {
         }
     }
 
-    @Test
-    func generatorUsesConfiguredAlphabetAndLength() throws {
-        let generator = SecretGenerator(alphabet: "ab")
-        let secret = try generator.generate(length: 12)
-        #expect(secret.count == 12)
-        #expect(secret.allSatisfy { $0 == "a" || $0 == "b" })
-    }
-
-    @Test
     func entryStoreListsSortedEntries() throws {
         let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

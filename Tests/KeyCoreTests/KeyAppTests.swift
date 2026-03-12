@@ -34,21 +34,6 @@ struct KeyCLIApplicationTests {
     }
 
     @Test
-    func generatedAddSucceedsWithoutOutput() throws {
-        let transport = MemoryTransport { request in
-            #expect(request == .addGenerated(name: "demo/token", length: 32, revealMode: .none))
-            return .success()
-        }
-        let io = MemoryIO(stdinIsTTY: false)
-        let clipboard = MemoryClipboard()
-        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
-
-        #expect(app.run(arguments: ["add", "demo/token", "--generate", "--length", "32"]) == EXIT_SUCCESS)
-        #expect(io.stdout == "")
-        #expect(clipboard.copiedText == nil)
-    }
-
-    @Test
     func manualEditReadsPipedInputAndSendsItToService() throws {
         let transport = MemoryTransport { request in
             #expect(request == .editManual(name: "aws/prod/token", secret: "hunter2"))
@@ -61,21 +46,6 @@ struct KeyCLIApplicationTests {
         #expect(app.run(arguments: ["edit", "aws/prod/token"]) == EXIT_SUCCESS)
         #expect(io.stdout == "")
         #expect(io.stderr == "")
-    }
-
-    @Test
-    func generatedEditSucceedsWithoutOutput() throws {
-        let transport = MemoryTransport { request in
-            #expect(request == .editGenerated(name: "demo/token", length: 32, revealMode: .none))
-            return .success()
-        }
-        let io = MemoryIO(stdinIsTTY: false)
-        let clipboard = MemoryClipboard()
-        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
-
-        #expect(app.run(arguments: ["edit", "demo/token", "--generate", "--length", "32"]) == EXIT_SUCCESS)
-        #expect(io.stdout == "")
-        #expect(clipboard.copiedText == nil)
     }
 
     @Test
@@ -168,28 +138,6 @@ struct KeyServiceHandlerTests {
         let getResponse = handler.handle(.get(name: "mail/personal"))
         #expect(getResponse == .success("hunter2"))
         #expect(keyStore.loadCount == 2)
-    }
-
-    @Test
-    func generatedAddStoresSecretAndSuppressesRevealByDefault() throws {
-        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDirectory) }
-
-        let keyStore = MemoryVaultKeyStore()
-        let generator = SecretGenerator(alphabet: "A")
-        let handler = KeyServiceHandler(
-            keyStore: keyStore,
-            entryStore: EntryStore(rootURL: tempDirectory),
-            generator: generator
-        )
-
-        let putResponse = handler.handle(.addGenerated(name: "aws/prod/token", length: 8, revealMode: .none))
-        #expect(putResponse == .success())
-
-        let getResponse = handler.handle(.get(name: "aws/prod/token"))
-        #expect(getResponse == .success("AAAAAAAA"))
     }
 
     @Test

@@ -4,18 +4,15 @@ public final class KeyServiceHandler {
     private let keyStore: VaultKeyStoring
     private let entryStore: EntryStore
     private let cipher: VaultCipher
-    private let generator: SecretGenerator
 
     public init(
         keyStore: VaultKeyStoring,
         entryStore: EntryStore,
-        cipher: VaultCipher = VaultCipher(),
-        generator: SecretGenerator = SecretGenerator()
+        cipher: VaultCipher = VaultCipher()
     ) {
         self.keyStore = keyStore
         self.entryStore = entryStore
         self.cipher = cipher
-        self.generator = generator
     }
 
     public static func live(bundle: Bundle = .main) -> KeyServiceHandler {
@@ -48,17 +45,9 @@ public final class KeyServiceHandler {
             case let .addManual(name, secret):
                 try storeAddedSecret(secret, as: name)
                 return .success()
-            case let .addGenerated(name, length, revealMode):
-                let secret = try generator.generate(length: length)
-                try storeAddedSecret(secret, as: name)
-                return revealMode == .none ? .success() : .success(secret)
             case let .editManual(name, secret):
                 try storeEditedSecret(secret, as: name)
                 return .success()
-            case let .editGenerated(name, length, revealMode):
-                let secret = try generator.generate(length: length)
-                try storeEditedSecret(secret, as: name)
-                return revealMode == .none ? .success() : .success(secret)
             case let .copyEntry(source, destination, force):
                 try entryStore.copyEntry(from: source, to: destination, overwrite: force)
                 return .success()

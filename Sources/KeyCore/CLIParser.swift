@@ -32,9 +32,7 @@ public enum CLIParser {
     Usage:
       key show <name> [--copy]
       key add <name>
-      key add <name> --generate [--length <n>]
       key edit <name>
-      key edit <name> --generate [--length <n>]
       key cp <src> <dst> [--force]
       key mv <src> <dst> [--force]
       key rm <name> [--force]
@@ -45,80 +43,20 @@ public enum CLIParser {
         guard let name = arguments.first else {
             throw AppError.usage("Missing entry name for add.\n\n\(usageText)")
         }
-
-        var generate = false
-        var length = 24
-        var index = 1
-
-        while index < arguments.count {
-            let argument = arguments[index]
-            switch argument {
-            case "--generate":
-                generate = true
-                index += 1
-            case "--length":
-                let valueIndex = index + 1
-                guard valueIndex < arguments.count else {
-                    throw AppError.usage("Missing value for --length.\n\n\(usageText)")
-                }
-                guard let parsedLength = Int(arguments[valueIndex]), parsedLength > 0 else {
-                    throw AppError.invalidLength("Length must be a positive integer.")
-                }
-                length = parsedLength
-                index += 2
-            default:
-                throw AppError.usage("Unknown option '\(argument)' for add.\n\n\(usageText)")
-            }
+        guard arguments.count == 1 else {
+            throw AppError.usage("Unknown option '\(arguments[1])' for add.\n\n\(usageText)")
         }
-
-        guard generate || length == 24 else {
-            throw AppError.usage("--length requires --generate.\n\n\(usageText)")
-        }
-
-        if generate {
-            return .add(name: name, mode: .generated(length: length, revealMode: .none))
-        }
-        return .add(name: name, mode: .manual)
+        return .add(name: name)
     }
 
     private static func parseEdit(arguments: [String]) throws -> Command {
         guard let name = arguments.first else {
             throw AppError.usage("Missing entry name for edit.\n\n\(usageText)")
         }
-
-        var generate = false
-        var length = 24
-        var index = 1
-
-        while index < arguments.count {
-            let argument = arguments[index]
-            switch argument {
-            case "--generate":
-                generate = true
-                index += 1
-            case "--length":
-                let valueIndex = index + 1
-                guard valueIndex < arguments.count else {
-                    throw AppError.usage("Missing value for --length.\n\n\(usageText)")
-                }
-                guard let parsedLength = Int(arguments[valueIndex]), parsedLength > 0 else {
-                    throw AppError.invalidLength("Length must be a positive integer.")
-                }
-                length = parsedLength
-                index += 2
-            default:
-                throw AppError.usage("Unknown option '\(argument)' for edit.\n\n\(usageText)")
-            }
+        guard arguments.count == 1 else {
+            throw AppError.usage("Unknown option '\(arguments[1])' for edit.\n\n\(usageText)")
         }
-
-        guard generate || length == 24 else {
-            throw AppError.usage("--length requires --generate.\n\n\(usageText)")
-        }
-
-        if generate {
-            return .edit(name: name, mode: .generated(length: length, revealMode: .none))
-        }
-        return .edit(name: name, mode: .manual)
+        return .edit(name: name)
     }
 
     private static func parseCopy(arguments: [String]) throws -> Command {

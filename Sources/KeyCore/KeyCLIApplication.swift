@@ -44,64 +44,14 @@ public final class KeyCLIApplication {
             }
             try clipboard.copy(value)
             return EXIT_SUCCESS
-        case let .add(name, mode):
-            switch mode {
-            case .manual:
-                let secret = try readSecretFromInput()
-                response = try transport.send(.addManual(name: name, secret: secret))
-            case let .generated(length, revealMode):
-                response = try transport.send(
-                    .addGenerated(name: name, length: length, revealMode: revealMode)
-                )
-            }
-
-            let exitCode = try handle(response, for: command)
-            guard exitCode == EXIT_SUCCESS else {
-                return exitCode
-            }
-
-            if case let .add(_, .generated(_, revealMode)) = command,
-               let value = response.value {
-                switch revealMode {
-                case .none:
-                    break
-                case .show:
-                    io.writeStdout(value)
-                case .copy:
-                    try clipboard.copy(value)
-                }
-            }
-
-            return EXIT_SUCCESS
-        case let .edit(name, mode):
-            switch mode {
-            case .manual:
-                let secret = try readSecretFromInput()
-                response = try transport.send(.editManual(name: name, secret: secret))
-            case let .generated(length, revealMode):
-                response = try transport.send(
-                    .editGenerated(name: name, length: length, revealMode: revealMode)
-                )
-            }
-
-            let exitCode = try handle(response, for: command)
-            guard exitCode == EXIT_SUCCESS else {
-                return exitCode
-            }
-
-            if case let .edit(_, .generated(_, revealMode)) = command,
-               let value = response.value {
-                switch revealMode {
-                case .none:
-                    break
-                case .show:
-                    io.writeStdout(value)
-                case .copy:
-                    try clipboard.copy(value)
-                }
-            }
-
-            return EXIT_SUCCESS
+        case let .add(name):
+            let secret = try readSecretFromInput()
+            response = try transport.send(.addManual(name: name, secret: secret))
+            return try handle(response, for: command)
+        case let .edit(name):
+            let secret = try readSecretFromInput()
+            response = try transport.send(.editManual(name: name, secret: secret))
+            return try handle(response, for: command)
         case let .copy(source, destination, force):
             response = try transport.send(.copyEntry(source: source, destination: destination, force: force))
             return try handle(response, for: command)

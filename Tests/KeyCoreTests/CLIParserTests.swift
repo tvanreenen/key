@@ -9,21 +9,21 @@ struct CLIParserTests {
     }
 
     @Test
-    func parsesGeneratedAddOptions() throws {
-        let command = try CLIParser.parse(arguments: ["add", "api/token", "--generate", "--length", "48"])
-        #expect(command == .add(name: "api/token", mode: .generated(length: 48, revealMode: .none)))
-    }
-
-    @Test
-    func parsesGeneratedEditOptions() throws {
-        let command = try CLIParser.parse(arguments: ["edit", "api/token", "--generate", "--length", "48"])
-        #expect(command == .edit(name: "api/token", mode: .generated(length: 48, revealMode: .none)))
+    func parsesAdd() throws {
+        let command = try CLIParser.parse(arguments: ["add", "api/token"])
+        #expect(command == .add(name: "api/token"))
     }
 
     @Test
     func parsesCopyWithForce() throws {
         let command = try CLIParser.parse(arguments: ["cp", "src/token", "dst/token", "--force"])
         #expect(command == .copy(source: "src/token", destination: "dst/token", force: true))
+    }
+
+    @Test
+    func parsesEdit() throws {
+        let command = try CLIParser.parse(arguments: ["edit", "api/token"])
+        #expect(command == .edit(name: "api/token"))
     }
 
     @Test
@@ -36,13 +36,6 @@ struct CLIParserTests {
     func parsesRemoveWithForce() throws {
         let command = try CLIParser.parse(arguments: ["rm", "src/token", "--force"])
         #expect(command == .remove(name: "src/token", force: true))
-    }
-
-    @Test
-    func rejectsInvalidLength() throws {
-        #expect(throws: AppError.invalidLength("Length must be a positive integer.")) {
-            try CLIParser.parse(arguments: ["add", "api/token", "--generate", "--length", "0"])
-        }
     }
 
     @Test
@@ -74,15 +67,15 @@ struct CLIParserTests {
 
     @Test
     func rejectsUnsupportedAddOptions() throws {
-        #expect(throws: AppError.usage("Unknown option '--copy' for add.\n\n\(CLIParser.usageText)")) {
-            try CLIParser.parse(arguments: ["add", "api/token", "--copy"])
+        #expect(throws: AppError.usage("Unknown option '--generate' for add.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["add", "api/token", "--generate"])
         }
     }
 
     @Test
     func rejectsUnsupportedEditOptions() throws {
-        #expect(throws: AppError.usage("Unknown option '--copy' for edit.\n\n\(CLIParser.usageText)")) {
-            try CLIParser.parse(arguments: ["edit", "api/token", "--copy"])
+        #expect(throws: AppError.usage("Unknown option '--generate' for edit.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["edit", "api/token", "--generate"])
         }
     }
 
