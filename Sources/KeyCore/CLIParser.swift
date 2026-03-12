@@ -11,7 +11,7 @@ public enum CLIParser {
             return try parseGet(arguments: Array(arguments.dropFirst()))
         case "put":
             return try parsePut(arguments: Array(arguments.dropFirst()))
-        case "list":
+        case "ls":
             return try parseList(arguments: Array(arguments.dropFirst()))
         case "help", "--help", "-h":
             throw AppError.usage(usageText)
@@ -25,7 +25,7 @@ public enum CLIParser {
       key get <name> [--copy]
       key put <name> [--force]
       key put <name> --generate [--length <n>] [--force] [--show | --copy]
-      key list
+      key ls
     """
 
     private static func parsePut(arguments: [String]) throws -> Command {
@@ -108,7 +108,7 @@ public enum CLIParser {
 
     private static func parseList(arguments: [String]) throws -> Command {
         guard arguments.isEmpty else {
-            throw AppError.usage("Unknown option '\(arguments[0])' for list.\n\n\(usageText)")
+            throw AppError.usage("Unknown option '\(arguments[0])' for ls.\n\n\(usageText)")
         }
 
         return .list

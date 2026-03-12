@@ -30,7 +30,7 @@ When the vault key does not exist yet, `key` generates a fresh random 256-bit sy
 The current CLI is intentionally small:
 
 ```bash
-key list
+key ls
 key get <name> [--copy]
 key put <name> [--force]
 key put <name> --generate [--length N] [--force] [--show | --copy]
@@ -39,7 +39,7 @@ key put <name> --generate [--length N] [--force] [--show | --copy]
 Examples:
 
 ```bash
-key list
+key ls
 key get github/personal
 key get github/personal --copy
 printf 'hunter2' | key put github/personal --force

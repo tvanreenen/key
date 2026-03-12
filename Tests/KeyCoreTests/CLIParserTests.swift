@@ -22,9 +22,16 @@ struct CLIParserTests {
     }
 
     @Test
-    func parsesList() throws {
-        let command = try CLIParser.parse(arguments: ["list"])
+    func parsesLs() throws {
+        let command = try CLIParser.parse(arguments: ["ls"])
         #expect(command == .list)
+    }
+
+    @Test
+    func rejectsLegacyListCommand() throws {
+        #expect(throws: AppError.usage("Unknown command 'list'.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["list"])
+        }
     }
 
     @Test
