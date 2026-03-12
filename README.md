@@ -45,16 +45,24 @@ Examples:
 key ls
 key show github/personal
 key show github/personal --copy
-key add github/personal                             # prompt in the terminal
-openssl rand -base64 24 | key add github/personal  # read from stdin
-key edit github/personal                            # prompt in the terminal
-openssl rand -base64 32 | key edit github/personal # read from stdin
-key cp github/personal github/archive/personal     # copy without decrypting
-key mv github/archive/personal github/team/personal
-key rm github/team/personal                        # prompts before deleting
+key add github/personal
+key edit github/personal
+key cp github/personal github/work/personal
+key mv github/work/personal github/archive/personal
+key rm github/archive/personal
 ```
 
-`key` intentionally leans on stdin for generated values rather than shipping its own password generator. That keeps the command set smaller and makes it easy to compose with tools you already use.
+## Stdin
+
+`key` intentionally leans on stdin rather than shipping its own password generator. That keeps the command set smaller and makes it easy to compose with tools you already use.
+
+Any command that writes a secret can read it from a pipe instead of prompting in the terminal:
+
+```bash
+openssl rand -base64 32 | key add aws/prod/token
+pwgen -sy 24 1 | key edit github/personal
+diceware -n 6 | key add personal/passphrase
+```
 
 Common generator examples:
 
@@ -106,14 +114,6 @@ head -c 20 /dev/urandom | base32
 
 # hex via xxd
 head -c 32 /dev/urandom | xxd -p
-```
-
-Pipe those directly into `key`, for example:
-
-```bash
-openssl rand -base64 32 | key add aws/prod/token
-pwgen -sy 24 1 | key edit github/personal
-diceware -n 6 | key add personal/passphrase
 ```
 
 Secrets are stored as encrypted files under:
