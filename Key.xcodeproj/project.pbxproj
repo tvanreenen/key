@@ -12,9 +12,9 @@
 		240E840B493F129EF5D4413B /* RuntimeConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = F19B0116010713B57BC705BE /* RuntimeConfiguration.swift */; };
 		2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */; };
 		2FF48E342F108FF694BDB515 /* InputOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 855E71C8AF61988A885402D9 /* InputOutput.swift */; };
-		3977AF2E72E7FFA097AB98E8 /* SecretGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3059ADF8144F62D87A2813 /* SecretGenerator.swift */; };
 		3E06CBB9790C0F544B940F1B /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE09A18FF4CC11995E958F80 /* AppError.swift */; };
 		545DE475C8F5F883DB08A529 /* KeyServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55257994DEF9CC6144A32E16 /* KeyServiceProtocol.swift */; };
+		57EEC874B15B0F76B486E12A /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 55AE435B2F63568900124FD6 /* AppIcon.icon */; };
 		6D30C98FDE1EE6358276BB25 /* KeyUtilityApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5545BFD05D0DBC600CFCEDA7 /* KeyUtilityApp.swift */; };
 		70A1989598F246AF88CA0C88 /* ClipboardWriting.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EE5012D730E62376078026 /* ClipboardWriting.swift */; };
 		851434753ACA4A4ED0733FEB /* KeyServiceHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */; };
@@ -68,11 +68,11 @@
 		4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCLIApplication.swift; sourceTree = "<group>"; };
 		55257994DEF9CC6144A32E16 /* KeyServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyServiceProtocol.swift; sourceTree = "<group>"; };
 		5545BFD05D0DBC600CFCEDA7 /* KeyUtilityApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyUtilityApp.swift; sourceTree = "<group>"; };
+		55AE435B2F63568900124FD6 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		5E585E32FBAF3D8FD5F64230 /* EntryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryStore.swift; sourceTree = "<group>"; };
 		76DB380BC4A9ECD7FE009152 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretFile.swift; sourceTree = "<group>"; };
 		855E71C8AF61988A885402D9 /* InputOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputOutput.swift; sourceTree = "<group>"; };
-		9A3059ADF8144F62D87A2813 /* SecretGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretGenerator.swift; sourceTree = "<group>"; };
 		9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyServiceHandler.swift; sourceTree = "<group>"; };
 		B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultKeyStore.swift; sourceTree = "<group>"; };
 		B4EE3B938E39AE66CAB3E79B /* Key.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Key.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -122,7 +122,6 @@
 				0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */,
 				F19B0116010713B57BC705BE /* RuntimeConfiguration.swift */,
 				81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */,
-				9A3059ADF8144F62D87A2813 /* SecretGenerator.swift */,
 				F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */,
 				B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */,
 			);
@@ -142,6 +141,7 @@
 			children = (
 				F9171D8593E4DE4782F5D9AA /* Sources */,
 				85F4BBC8E3480B2592A6D5A0 /* Products */,
+				55AE435B2F63568900124FD6 /* AppIcon.icon */,
 			);
 			sourceTree = "<group>";
 		};
@@ -211,6 +211,7 @@
 			buildConfigurationList = 7F01659A6EE6B0DA349AB9EB /* Build configuration list for PBXNativeTarget "KeyApp" */;
 			buildPhases = (
 				EC35535AF35CA2336C0A9114 /* Sources */,
+				43CB91789D0D98659395FA60 /* Resources */,
 				7A27356F69610045B0D25F0F /* Embed CLI and XPC service */,
 			);
 			buildRules = (
@@ -305,6 +306,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		43CB91789D0D98659395FA60 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				57EEC874B15B0F76B486E12A /* AppIcon.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXShellScriptBuildPhase section */
 		7A27356F69610045B0D25F0F /* Embed CLI and XPC service */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -378,7 +390,6 @@
 				8B2342C883974B121AB07C37 /* KeyXPCClientTransport.swift in Sources */,
 				240E840B493F129EF5D4413B /* RuntimeConfiguration.swift in Sources */,
 				873C78C8D57CEF7EBA418B73 /* SecretFile.swift in Sources */,
-				3977AF2E72E7FFA097AB98E8 /* SecretGenerator.swift in Sources */,
 				2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */,
 				1B7D7F2E9AE24855D9046ED3 /* VaultKeyStore.swift in Sources */,
 			);
