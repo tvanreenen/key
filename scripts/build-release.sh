@@ -60,5 +60,4 @@ echo "  zip:     ${final_zip}"
 echo "  sha256:  ${sha256}"
 echo
 echo "Next:"
-echo "  1. Upload ${final_zip} to a GitHub release"
-echo "  2. Run scripts/publish-release.sh \"${version}\" \"${final_zip}\""
+echo "  just publish-release \"${version}\" \"${final_zip}\""

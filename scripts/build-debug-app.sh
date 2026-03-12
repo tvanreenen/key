@@ -28,3 +28,7 @@ echo "Bundled CLI:"
 echo "  ${cli_path}"
 echo "Bundled XPC service:"
 echo "  ${service_path}"
+echo
+echo "Next:"
+echo "  just verify-signing \"${app_path}\""
+echo "  \"${cli_path}\" ls"

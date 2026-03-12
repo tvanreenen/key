@@ -55,6 +55,8 @@ git clone https://github.com/tvanreenen/homebrew-tap ~/Code/homebrew-tap
 just verify-signing "$HOME/Library/Developer/Xcode/Archives/<date>/<archive>.xcarchive/Products/Applications/Key.app"
 ```
 
+Use `just verify-release ...` after notarization and stapling if you want the full Gatekeeper check as well.
+
 ## Notarize and staple
 
 `just build-release <version>` uses the `key-notary` `notarytool` keychain profile directly.

@@ -20,3 +20,12 @@ ditto -c -k --keepParent "${app_path}" "${zip_path}"
 xcrun notarytool submit "${zip_path}" --keychain-profile "${notary_profile}" --wait
 xcrun stapler staple "${app_path}"
 spctl --assess --type execute --verbose "${app_path}"
+
+echo
+echo "Notarized archive:"
+echo "  ${archive_path}"
+echo "Stapled app:"
+echo "  ${app_path}"
+echo
+echo "Next:"
+echo "  just verify-release \"${app_path}\""

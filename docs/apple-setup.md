@@ -113,6 +113,7 @@ just publish-release v0.1.0-alpha.1 "$HOME/Library/Developer/Xcode/Releases/key/
 Supporting scripts:
 
 - [verify-signing.sh](../scripts/verify-signing.sh)
+- [verify-release.sh](../scripts/verify-release.sh)
 - [Justfile](../Justfile)
 
 ## Sanity checks
@@ -121,6 +122,12 @@ Before debugging Keychain issues, verify the signed app and XPC service actually
 
 ```bash
 just verify-signing "$HOME/Library/Developer/Xcode/Archives/<date>/<archive>.xcarchive/Products/Applications/Key.app"
+```
+
+After notarization and stapling, run:
+
+```bash
+just verify-release "$HOME/Library/Developer/Xcode/Archives/<date>/<archive>.xcarchive/Products/Applications/Key.app"
 ```
 
 The XPC service should show:

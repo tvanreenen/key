@@ -1,12 +1,13 @@
 #!/bin/zsh
 set -euo pipefail
 
-if [[ $# -ne 1 ]]; then
+if [[ $# -eq 1 ]]; then
+  app_path="$1"
+else
   echo "usage: $0 <app-path>" >&2
   exit 1
 fi
 
-app_path="$1"
 cli_path="${app_path}/Contents/MacOS/key"
 xpc_service_path="${app_path}/Contents/XPCServices/KeyXPCService.xpc"
 xpc_executable_path="${xpc_service_path}/Contents/MacOS/KeyXPCService"
@@ -58,7 +59,3 @@ print_entitlements "${xpc_service_path}"
 echo
 echo "== XPC executable entitlements =="
 print_entitlements "${xpc_executable_path}"
-
-echo
-echo "== Gatekeeper =="
-spctl --assess --type execute --verbose "${app_path}"
