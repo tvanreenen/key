@@ -33,6 +33,12 @@ struct CLIParserTests {
     }
 
     @Test
+    func parsesRemoveWithForce() throws {
+        let command = try CLIParser.parse(arguments: ["rm", "src/token", "--force"])
+        #expect(command == .remove(name: "src/token", force: true))
+    }
+
+    @Test
     func rejectsInvalidLength() throws {
         #expect(throws: AppError.invalidLength("Length must be a positive integer.")) {
             try CLIParser.parse(arguments: ["add", "api/token", "--generate", "--length", "0"])
@@ -91,6 +97,13 @@ struct CLIParserTests {
     func rejectsMoveWithoutDestination() throws {
         #expect(throws: AppError.usage("Missing destination entry name for mv.\n\n\(CLIParser.usageText)")) {
             try CLIParser.parse(arguments: ["mv", "src/token"])
+        }
+    }
+
+    @Test
+    func rejectsRemoveWithoutName() throws {
+        #expect(throws: AppError.usage("Missing entry name for rm.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["rm"])
         }
     }
 }

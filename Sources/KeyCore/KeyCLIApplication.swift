@@ -108,6 +108,10 @@ public final class KeyCLIApplication {
         case let .move(source, destination, force):
             response = try transport.send(.moveEntry(source: source, destination: destination, force: force))
             return try handle(response, for: command)
+        case let .remove(name, force):
+            try confirmRemovalIfNeeded(name: name, force: force)
+            response = try transport.send(.removeEntry(name: name))
+            return try handle(response, for: command)
         }
     }
 
@@ -128,7 +132,7 @@ public final class KeyCLIApplication {
             if !copy, let value = response.value {
                 io.writeStdout(value)
             }
-        case .add, .edit, .copy, .move:
+        case .add, .edit, .copy, .move, .remove:
             break
         }
 
@@ -140,5 +144,22 @@ public final class KeyCLIApplication {
             return try io.readSecureLine(prompt: "Secret: ")
         }
         return try io.readPipedInput()
+    }
+
+    private func confirmRemovalIfNeeded(name: String, force: Bool) throws {
+        guard !force else {
+            return
+        }
+
+        guard io.stdinIsTTY else {
+            throw AppError.operationRefused("Refusing to remove '\(name)' without --force in non-interactive mode.")
+        }
+
+        let answer = try io.readLine(prompt: "Remove '\(name)'? [y/N]: ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard answer == "y" || answer == "yes" else {
+            throw AppError.operationRefused("Removal cancelled.")
+        }
     }
 }

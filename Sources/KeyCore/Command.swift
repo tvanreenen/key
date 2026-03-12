@@ -6,5 +6,6 @@ public enum Command: Equatable {
     case edit(name: String, mode: PutMode)
     case copy(source: String, destination: String, force: Bool)
     case move(source: String, destination: String, force: Bool)
+    case remove(name: String, force: Bool)
     case list
 }

@@ -65,6 +65,9 @@ public final class KeyServiceHandler {
             case let .moveEntry(source, destination, force):
                 try entryStore.moveEntry(from: source, to: destination, overwrite: force)
                 return .success()
+            case let .removeEntry(name):
+                try entryStore.removeEntry(name)
+                return .success()
             }
         } catch let error as AppError {
             return .failure(error.localizedDescription)

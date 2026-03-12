@@ -107,6 +107,48 @@ struct KeyCLIApplicationTests {
         #expect(io.stdout == "")
         #expect(io.stderr == "")
     }
+
+    @Test
+    func removePromptsOnTTYAndSendsDeleteRequest() throws {
+        let transport = MemoryTransport { request in
+            #expect(request == .removeEntry(name: "src/token"))
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: true, lineInput: "y")
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["rm", "src/token"]) == EXIT_SUCCESS)
+        #expect(io.stderr == "Remove 'src/token'? [y/N]: ")
+    }
+
+    @Test
+    func removeRequiresForceWhenNonInteractive() throws {
+        let transport = MemoryTransport { _ in
+            Issue.record("transport should not be called")
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["rm", "src/token"]) == EXIT_FAILURE)
+        #expect(io.stderr.contains("without --force in non-interactive mode") == true)
+    }
+
+    @Test
+    func removeForceSkipsPrompt() throws {
+        let transport = MemoryTransport { request in
+            #expect(request == .removeEntry(name: "src/token"))
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["rm", "src/token", "--force"]) == EXIT_SUCCESS)
+        #expect(io.stderr == "")
+    }
 }
 
 struct KeyServiceHandlerTests {
@@ -235,6 +277,31 @@ struct KeyServiceHandlerTests {
         let conflictResponse = handler.handle(.moveEntry(source: "mail/personal", destination: "mail/work", force: false))
         #expect(conflictResponse.exitCode == EXIT_FAILURE)
         #expect(conflictResponse.errorMessage?.contains("already exists") == true)
+    }
+
+    @Test
+    func removeDeletesEntryWithoutKeyAccessAndCleansEmptyDirectories() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let keyStore = MemoryVaultKeyStore()
+        let store = EntryStore(rootURL: tempDirectory)
+        let handler = KeyServiceHandler(keyStore: keyStore, entryStore: store)
+
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "one")) == .success())
+        let loadCountBeforeRemove = keyStore.loadCount
+
+        #expect(handler.handle(.removeEntry(name: "mail/personal")) == .success())
+        #expect(keyStore.loadCount == loadCountBeforeRemove)
+
+        let missingResponse = handler.handle(.get(name: "mail/personal"))
+        #expect(missingResponse.exitCode == EXIT_FAILURE)
+        #expect(missingResponse.errorMessage?.contains("was not found") == true)
+
+        let parentDirectory = tempDirectory.appendingPathComponent("mail", isDirectory: true)
+        #expect(FileManager.default.fileExists(atPath: parentDirectory.path(percentEncoded: false)) == false)
     }
 
     @Test

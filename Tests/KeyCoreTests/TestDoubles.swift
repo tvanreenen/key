@@ -22,18 +22,25 @@ final class MemoryVaultKeyStore: VaultKeyStoring {
 final class MemoryIO: InputOutput {
     let stdinIsTTY: Bool
     var pipedInput: String
+    var lineInput: String
     var secureInput: String
     private(set) var stdout = ""
     private(set) var stderr = ""
 
-    init(stdinIsTTY: Bool, pipedInput: String = "", secureInput: String = "") {
+    init(stdinIsTTY: Bool, pipedInput: String = "", lineInput: String = "", secureInput: String = "") {
         self.stdinIsTTY = stdinIsTTY
         self.pipedInput = pipedInput
+        self.lineInput = lineInput
         self.secureInput = secureInput
     }
 
     func readPipedInput() throws -> String {
         pipedInput
+    }
+
+    func readLine(prompt: String) throws -> String {
+        stderr += prompt
+        return lineInput
     }
 
     func readSecureLine(prompt: String) throws -> String {

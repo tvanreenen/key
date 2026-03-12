@@ -4,6 +4,7 @@ import Foundation
 public protocol InputOutput {
     var stdinIsTTY: Bool { get }
     func readPipedInput() throws -> String
+    func readLine(prompt: String) throws -> String
     func readSecureLine(prompt: String) throws -> String
     func writeStdout(_ text: String)
     func writeStderr(_ text: String)
@@ -22,6 +23,14 @@ public final class SystemIO: InputOutput {
             throw AppError.io("Standard input is not valid UTF-8.")
         }
         return string
+    }
+
+    public func readLine(prompt: String) throws -> String {
+        writeStderr(prompt)
+        guard let line = Swift.readLine(strippingNewline: true) else {
+            throw AppError.io("No input received.")
+        }
+        return line
     }
 
     public func readSecureLine(prompt: String) throws -> String {

@@ -208,4 +208,34 @@ public struct EntryStore {
             throw AppError.io("Failed to move secret '\(sourceName)' to '\(destinationName)': \(error.localizedDescription)")
         }
     }
+
+    public func removeEntry(_ name: String) throws {
+        let url = try url(for: name)
+        guard fileManager.fileExists(atPath: url.path(percentEncoded: false)) else {
+            throw AppError.entryNotFound("Secret '\(name)' was not found.")
+        }
+
+        do {
+            try fileManager.removeItem(at: url)
+            try pruneEmptyDirectories(startingAt: url.deletingLastPathComponent())
+        } catch let error as AppError {
+            throw error
+        } catch {
+            throw AppError.io("Failed to remove secret '\(name)': \(error.localizedDescription)")
+        }
+    }
+
+    private func pruneEmptyDirectories(startingAt directory: URL) throws {
+        let normalizedRoot = rootURL.standardizedFileURL
+        var current = directory.standardizedFileURL
+
+        while current.path.hasPrefix(normalizedRoot.path), current != normalizedRoot {
+            let contents = try fileManager.contentsOfDirectory(atPath: current.path(percentEncoded: false))
+            guard contents.isEmpty else {
+                return
+            }
+            try fileManager.removeItem(at: current)
+            current = current.deletingLastPathComponent().standardizedFileURL
+        }
+    }
 }

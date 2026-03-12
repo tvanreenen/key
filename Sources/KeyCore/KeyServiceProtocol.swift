@@ -20,6 +20,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     case editGenerated(name: String, length: Int, revealMode: RevealMode)
     case copyEntry(source: String, destination: String, force: Bool)
     case moveEntry(source: String, destination: String, force: Bool)
+    case removeEntry(name: String)
 
     private enum CodingKeys: String, CodingKey {
         case kind
@@ -41,6 +42,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case editGenerated
         case copyEntry
         case moveEntry
+        case removeEntry
     }
 
     public init(from decoder: Decoder) throws {
@@ -84,6 +86,8 @@ public enum KeyServiceRequest: Codable, Equatable {
                 destination: try container.decode(String.self, forKey: .destination),
                 force: try container.decode(Bool.self, forKey: .force)
             )
+        case .removeEntry:
+            self = .removeEntry(name: try container.decode(String.self, forKey: .name))
         }
     }
 
@@ -123,6 +127,9 @@ public enum KeyServiceRequest: Codable, Equatable {
             try container.encode(source, forKey: .source)
             try container.encode(destination, forKey: .destination)
             try container.encode(force, forKey: .force)
+        case let .removeEntry(name):
+            try container.encode(Kind.removeEntry, forKey: .kind)
+            try container.encode(name, forKey: .name)
         }
     }
 }

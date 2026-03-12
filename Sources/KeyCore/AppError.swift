@@ -13,6 +13,7 @@ public enum AppError: Error, LocalizedError, Equatable {
     case keychain(String)
     case io(String)
     case service(String)
+    case operationRefused(String)
 
     public var errorDescription: String? {
         switch self {
@@ -27,7 +28,8 @@ public enum AppError: Error, LocalizedError, Equatable {
             let .invalidConfiguration(message),
             let .keychain(message),
             let .io(message),
-            let .service(message):
+            let .service(message),
+            let .operationRefused(message):
             return message
         }
     }
