@@ -33,7 +33,3 @@ scripts/notarize-release.sh "$HOME/Library/Developer/Xcode/Archives/<date>/<arch
 ```
 
 The script expects `KEY_NOTARY_PROFILE` to reference a configured `notarytool` keychain profile.
-
-## Homebrew Cask
-
-Use [packaging/homebrew/Casks/key.rb](/Users/tim.vanreenen/Code/key/packaging/homebrew/Casks/key.rb) as the release cask. Update the `url`, `sha256`, and `version` fields for each release.

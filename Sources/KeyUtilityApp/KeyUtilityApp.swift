@@ -38,7 +38,7 @@ private struct ContentView: View {
                 labeledValue("Vault Directory", "~/Library/Application Support/key/vault")
             }
 
-            Text("If installed through Homebrew Cask, the `key` command should already be symlinked into your PATH and will talk to the bundled XPC service on demand.")
+            Text("The bundled `key` command talks to the XPC service on demand.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
