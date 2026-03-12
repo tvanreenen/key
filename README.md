@@ -179,16 +179,17 @@ That is the tradeoff that makes the native macOS auth path possible while keepin
 
 The checked-in Xcode project is the source of truth:
 
-- [Key.xcodeproj](/Users/tim.vanreenen/Code/key/Key.xcodeproj)
+- [Key.xcodeproj](Key.xcodeproj)
 
 Useful commands:
 
 ```bash
-swift test
-scripts/build-debug-app.sh
-scripts/build-release-archive.sh
+just test
+just build-debug
+just build-release-archive
 ```
 
 The release and signing workflow is described in:
 
-- [release.md](/Users/tim.vanreenen/Code/key/docs/release.md)
+- [release.md](docs/release.md)
+- [apple-setup.md](docs/apple-setup.md)
