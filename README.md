@@ -37,6 +37,7 @@ key add <name> --generate [--length N]
 key edit <name>
 key edit <name> --generate [--length N]
 key cp <src> <dst> [--force]
+key mv <src> <dst> [--force]
 ```
 
 Examples:
@@ -52,6 +53,7 @@ key edit github/personal                            # prompt in the terminal
 openssl rand -base64 32 | key edit github/personal # read from stdin
 key edit aws/prod/token --generate --length 48     # built-in generator
 key cp github/personal github/archive/personal     # copy without decrypting
+key mv github/archive/personal github/team/personal
 ```
 
 Secrets are stored as encrypted files under:

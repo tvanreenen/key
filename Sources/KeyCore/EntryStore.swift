@@ -171,4 +171,41 @@ public struct EntryStore {
             throw AppError.io("Failed to copy secret '\(sourceName)' to '\(destinationName)': \(error.localizedDescription)")
         }
     }
+
+    public func moveEntry(from sourceName: String, to destinationName: String, overwrite: Bool) throws {
+        let source = try url(for: sourceName)
+        let destination = try url(for: destinationName)
+
+        guard fileManager.fileExists(atPath: source.path(percentEncoded: false)) else {
+            throw AppError.entryNotFound("Secret '\(sourceName)' was not found.")
+        }
+
+        if source.standardizedFileURL == destination.standardizedFileURL {
+            return
+        }
+
+        let directory = destination.deletingLastPathComponent()
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        if fileManager.fileExists(atPath: destination.path(percentEncoded: false)), !overwrite {
+            throw AppError.entryExists("Secret '\(destinationName)' already exists. Use --force to overwrite it.")
+        }
+
+        do {
+            if fileManager.fileExists(atPath: destination.path(percentEncoded: false)) {
+                let tempURL = directory.appendingPathComponent(".\(destination.lastPathComponent).\(UUID().uuidString).tmp")
+                defer {
+                    try? fileManager.removeItem(at: tempURL)
+                }
+                try fileManager.moveItem(at: source, to: tempURL)
+                _ = try fileManager.replaceItemAt(destination, withItemAt: tempURL)
+            } else {
+                try fileManager.moveItem(at: source, to: destination)
+            }
+        } catch let error as AppError {
+            throw error
+        } catch {
+            throw AppError.io("Failed to move secret '\(sourceName)' to '\(destinationName)': \(error.localizedDescription)")
+        }
+    }
 }

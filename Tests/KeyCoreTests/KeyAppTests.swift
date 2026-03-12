@@ -92,6 +92,21 @@ struct KeyCLIApplicationTests {
         #expect(io.stdout == "")
         #expect(io.stderr == "")
     }
+
+    @Test
+    func moveSendsEncryptedMoveRequest() throws {
+        let transport = MemoryTransport { request in
+            #expect(request == .moveEntry(source: "src/token", destination: "dst/token", force: true))
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["mv", "src/token", "dst/token", "--force"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "")
+        #expect(io.stderr == "")
+    }
 }
 
 struct KeyServiceHandlerTests {
@@ -191,6 +206,33 @@ struct KeyServiceHandlerTests {
         #expect(handler.handle(.get(name: "mail/work")) == .success("one"))
 
         let conflictResponse = handler.handle(.copyEntry(source: "mail/personal", destination: "mail/work", force: false))
+        #expect(conflictResponse.exitCode == EXIT_FAILURE)
+        #expect(conflictResponse.errorMessage?.contains("already exists") == true)
+    }
+
+    @Test
+    func moveRenamesEncryptedEntryWithoutKeyAccess() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let keyStore = MemoryVaultKeyStore()
+        let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
+
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "one")) == .success())
+        let loadCountBeforeMove = keyStore.loadCount
+
+        #expect(handler.handle(.moveEntry(source: "mail/personal", destination: "mail/work", force: false)) == .success())
+        #expect(keyStore.loadCount == loadCountBeforeMove)
+        #expect(handler.handle(.get(name: "mail/work")) == .success("one"))
+
+        let oldResponse = handler.handle(.get(name: "mail/personal"))
+        #expect(oldResponse.exitCode == EXIT_FAILURE)
+        #expect(oldResponse.errorMessage?.contains("was not found") == true)
+
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "two")) == .success())
+        let conflictResponse = handler.handle(.moveEntry(source: "mail/personal", destination: "mail/work", force: false))
         #expect(conflictResponse.exitCode == EXIT_FAILURE)
         #expect(conflictResponse.errorMessage?.contains("already exists") == true)
     }

@@ -15,6 +15,8 @@ public enum CLIParser {
             return try parseEdit(arguments: Array(arguments.dropFirst()))
         case "cp":
             return try parseCopy(arguments: Array(arguments.dropFirst()))
+        case "mv":
+            return try parseMove(arguments: Array(arguments.dropFirst()))
         case "ls":
             return try parseList(arguments: Array(arguments.dropFirst()))
         case "help", "--help", "-h":
@@ -32,6 +34,7 @@ public enum CLIParser {
       key edit <name>
       key edit <name> --generate [--length <n>]
       key cp <src> <dst> [--force]
+      key mv <src> <dst> [--force]
       key ls
     """
 
@@ -139,6 +142,32 @@ public enum CLIParser {
         }
 
         return .copy(source: source, destination: destination, force: force)
+    }
+
+    private static func parseMove(arguments: [String]) throws -> Command {
+        guard let source = arguments.first else {
+            throw AppError.usage("Missing source entry name for mv.\n\n\(usageText)")
+        }
+        guard arguments.count >= 2 else {
+            throw AppError.usage("Missing destination entry name for mv.\n\n\(usageText)")
+        }
+
+        let destination = arguments[1]
+        var force = false
+        var index = 2
+
+        while index < arguments.count {
+            let argument = arguments[index]
+            switch argument {
+            case "--force":
+                force = true
+                index += 1
+            default:
+                throw AppError.usage("Unknown option '\(argument)' for mv.\n\n\(usageText)")
+            }
+        }
+
+        return .move(source: source, destination: destination, force: force)
     }
 
     private static func parseShow(arguments: [String]) throws -> Command {
