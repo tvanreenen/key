@@ -102,6 +102,9 @@ public final class KeyCLIApplication {
             }
 
             return EXIT_SUCCESS
+        case let .copy(source, destination, force):
+            response = try transport.send(.copyEntry(source: source, destination: destination, force: force))
+            return try handle(response, for: command)
         }
     }
 
@@ -122,7 +125,7 @@ public final class KeyCLIApplication {
             if !copy, let value = response.value {
                 io.writeStdout(value)
             }
-        case .add, .edit:
+        case .add, .edit, .copy:
             break
         }
 

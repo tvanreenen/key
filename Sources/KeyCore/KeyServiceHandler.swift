@@ -59,6 +59,9 @@ public final class KeyServiceHandler {
                 let secret = try generator.generate(length: length)
                 try storeEditedSecret(secret, as: name)
                 return revealMode == .none ? .success() : .success(secret)
+            case let .copyEntry(source, destination, force):
+                try entryStore.copyEntry(from: source, to: destination, overwrite: force)
+                return .success()
             }
         } catch let error as AppError {
             return .failure(error.localizedDescription)

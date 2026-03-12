@@ -137,4 +137,38 @@ public struct EntryStore {
             throw AppError.io("Failed to store secret '\(name)': \(error.localizedDescription)")
         }
     }
+
+    public func copyEntry(from sourceName: String, to destinationName: String, overwrite: Bool) throws {
+        let source = try url(for: sourceName)
+        let destination = try url(for: destinationName)
+
+        guard fileManager.fileExists(atPath: source.path(percentEncoded: false)) else {
+            throw AppError.entryNotFound("Secret '\(sourceName)' was not found.")
+        }
+
+        let directory = destination.deletingLastPathComponent()
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        if fileManager.fileExists(atPath: destination.path(percentEncoded: false)), !overwrite {
+            throw AppError.entryExists("Secret '\(destinationName)' already exists. Use --force to overwrite it.")
+        }
+
+        let tempURL = directory.appendingPathComponent(".\(destination.lastPathComponent).\(UUID().uuidString).tmp")
+        defer {
+            try? fileManager.removeItem(at: tempURL)
+        }
+
+        do {
+            try fileManager.copyItem(at: source, to: tempURL)
+            if fileManager.fileExists(atPath: destination.path(percentEncoded: false)) {
+                _ = try fileManager.replaceItemAt(destination, withItemAt: tempURL)
+            } else {
+                try fileManager.moveItem(at: tempURL, to: destination)
+            }
+        } catch let error as AppError {
+            throw error
+        } catch {
+            throw AppError.io("Failed to copy secret '\(sourceName)' to '\(destinationName)': \(error.localizedDescription)")
+        }
+    }
 }

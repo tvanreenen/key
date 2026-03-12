@@ -21,6 +21,12 @@ struct CLIParserTests {
     }
 
     @Test
+    func parsesCopyWithForce() throws {
+        let command = try CLIParser.parse(arguments: ["cp", "src/token", "dst/token", "--force"])
+        #expect(command == .copy(source: "src/token", destination: "dst/token", force: true))
+    }
+
+    @Test
     func rejectsInvalidLength() throws {
         #expect(throws: AppError.invalidLength("Length must be a positive integer.")) {
             try CLIParser.parse(arguments: ["add", "api/token", "--generate", "--length", "0"])
@@ -65,6 +71,13 @@ struct CLIParserTests {
     func rejectsUnsupportedEditOptions() throws {
         #expect(throws: AppError.usage("Unknown option '--copy' for edit.\n\n\(CLIParser.usageText)")) {
             try CLIParser.parse(arguments: ["edit", "api/token", "--copy"])
+        }
+    }
+
+    @Test
+    func rejectsCopyWithoutDestination() throws {
+        #expect(throws: AppError.usage("Missing destination entry name for cp.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["cp", "src/token"])
         }
     }
 }

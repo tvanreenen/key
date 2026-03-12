@@ -18,11 +18,15 @@ public enum KeyServiceRequest: Codable, Equatable {
     case addGenerated(name: String, length: Int, revealMode: RevealMode)
     case editManual(name: String, secret: String)
     case editGenerated(name: String, length: Int, revealMode: RevealMode)
+    case copyEntry(source: String, destination: String, force: Bool)
 
     private enum CodingKeys: String, CodingKey {
         case kind
         case name
+        case source
+        case destination
         case secret
+        case force
         case length
         case revealMode
     }
@@ -34,6 +38,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case addGenerated
         case editManual
         case editGenerated
+        case copyEntry
     }
 
     public init(from decoder: Decoder) throws {
@@ -65,6 +70,12 @@ public enum KeyServiceRequest: Codable, Equatable {
                 length: try container.decode(Int.self, forKey: .length),
                 revealMode: try container.decode(RevealMode.self, forKey: .revealMode)
             )
+        case .copyEntry:
+            self = .copyEntry(
+                source: try container.decode(String.self, forKey: .source),
+                destination: try container.decode(String.self, forKey: .destination),
+                force: try container.decode(Bool.self, forKey: .force)
+            )
         }
     }
 
@@ -94,6 +105,11 @@ public enum KeyServiceRequest: Codable, Equatable {
             try container.encode(name, forKey: .name)
             try container.encode(length, forKey: .length)
             try container.encode(revealMode, forKey: .revealMode)
+        case let .copyEntry(source, destination, force):
+            try container.encode(Kind.copyEntry, forKey: .kind)
+            try container.encode(source, forKey: .source)
+            try container.encode(destination, forKey: .destination)
+            try container.encode(force, forKey: .force)
         }
     }
 }
