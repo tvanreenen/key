@@ -36,7 +36,7 @@ public final class KeyCLIApplication {
         case .list:
             response = try transport.send(.list)
             return try handle(response, for: command)
-        case let .get(name, copy):
+        case let .show(name, copy):
             response = try transport.send(.get(name: name))
             let exitCode = try handle(response, for: command)
             guard exitCode == EXIT_SUCCESS, copy, let value = response.value else {
@@ -89,7 +89,7 @@ public final class KeyCLIApplication {
             if let value = response.value, !value.isEmpty {
                 io.writeStdout(value)
             }
-        case let .get(_, copy):
+        case let .show(_, copy):
             if !copy, let value = response.value {
                 io.writeStdout(value)
             }

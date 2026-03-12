@@ -7,8 +7,8 @@ public enum CLIParser {
         }
 
         switch subcommand {
-        case "get":
-            return try parseGet(arguments: Array(arguments.dropFirst()))
+        case "show":
+            return try parseShow(arguments: Array(arguments.dropFirst()))
         case "put":
             return try parsePut(arguments: Array(arguments.dropFirst()))
         case "ls":
@@ -22,7 +22,7 @@ public enum CLIParser {
 
     public static let usageText = """
     Usage:
-      key get <name> [--copy]
+      key show <name> [--copy]
       key put <name> [--force]
       key put <name> --generate [--length <n>] [--force] [--show | --copy]
       key ls
@@ -88,9 +88,9 @@ public enum CLIParser {
         return .put(name: name, mode: .manual, force: force)
     }
 
-    private static func parseGet(arguments: [String]) throws -> Command {
+    private static func parseShow(arguments: [String]) throws -> Command {
         guard let name = arguments.first else {
-            throw AppError.usage("Missing entry name for get.\n\n\(usageText)")
+            throw AppError.usage("Missing entry name for show.\n\n\(usageText)")
         }
 
         var copy = false
@@ -99,11 +99,11 @@ public enum CLIParser {
             case "--copy":
                 copy = true
             default:
-                throw AppError.usage("Unknown option '\(argument)' for get.\n\n\(usageText)")
+                throw AppError.usage("Unknown option '\(argument)' for show.\n\n\(usageText)")
             }
         }
 
-        return .get(name: name, copy: copy)
+        return .show(name: name, copy: copy)
     }
 
     private static func parseList(arguments: [String]) throws -> Command {

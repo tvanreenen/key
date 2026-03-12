@@ -31,7 +31,7 @@ The current CLI is intentionally small:
 
 ```bash
 key ls
-key get <name> [--copy]
+key show <name> [--copy]
 key put <name> [--force]
 key put <name> --generate [--length N] [--force] [--show | --copy]
 ```
@@ -40,8 +40,8 @@ Examples:
 
 ```bash
 key ls
-key get github/personal
-key get github/personal --copy
+key show github/personal
+key show github/personal --copy
 printf 'hunter2' | key put github/personal --force
 key put aws/prod/token --generate --show
 ```
@@ -94,9 +94,9 @@ The XPC service is the privileged side of the system. It is launched on demand b
 
 This split is what gives `key` native macOS integration without turning the CLI itself into the privileged actor.
 
-Conceptually, a `get` looks like this:
+Conceptually, a `show` looks like this:
 
-1. `key get github/personal`
+1. `key show github/personal`
 2. the CLI sends a request to the bundled XPC service
 3. the XPC service asks macOS for access to the vault key
 4. macOS enforces the Keychain item's [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence) requirement through its normal local-authentication path, using whatever user-presence mechanism the OS makes available for that machine and state

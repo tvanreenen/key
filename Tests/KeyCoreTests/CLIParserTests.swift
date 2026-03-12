@@ -3,9 +3,9 @@ import Testing
 
 struct CLIParserTests {
     @Test
-    func parsesGetCopy() throws {
-        let command = try CLIParser.parse(arguments: ["get", "github/personal", "--copy"])
-        #expect(command == .get(name: "github/personal", copy: true))
+    func parsesShowCopy() throws {
+        let command = try CLIParser.parse(arguments: ["show", "github/personal", "--copy"])
+        #expect(command == .show(name: "github/personal", copy: true))
     }
 
     @Test
@@ -31,6 +31,13 @@ struct CLIParserTests {
     func rejectsLegacyListCommand() throws {
         #expect(throws: AppError.usage("Unknown command 'list'.\n\n\(CLIParser.usageText)")) {
             try CLIParser.parse(arguments: ["list"])
+        }
+    }
+
+    @Test
+    func rejectsLegacyGetCommand() throws {
+        #expect(throws: AppError.usage("Unknown command 'get'.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["get", "github/personal"])
         }
     }
 

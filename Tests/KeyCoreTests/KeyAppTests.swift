@@ -4,7 +4,7 @@ import Testing
 
 struct KeyCLIApplicationTests {
     @Test
-    func getCopyWritesToClipboardWithoutStdout() throws {
+    func showCopyWritesToClipboardWithoutStdout() throws {
         let transport = MemoryTransport { request in
             #expect(request == .get(name: "mail/personal"))
             return .success("hunter2")
@@ -13,7 +13,7 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["get", "mail/personal", "--copy"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["show", "mail/personal", "--copy"]) == EXIT_SUCCESS)
         #expect(io.stdout == "")
         #expect(clipboard.copiedText == "hunter2")
     }
