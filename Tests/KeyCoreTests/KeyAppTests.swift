@@ -153,7 +153,7 @@ struct KeyCLIApplicationTests {
 
 struct KeyServiceHandlerTests {
     @Test
-    func putThenGetRoundTripsSecret() throws {
+    func addThenGetRoundTripsSecret() throws {
         let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
@@ -171,7 +171,7 @@ struct KeyServiceHandlerTests {
     }
 
     @Test
-    func generatedPutStoresSecretAndSuppressesRevealByDefault() throws {
+    func generatedAddStoresSecretAndSuppressesRevealByDefault() throws {
         let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)

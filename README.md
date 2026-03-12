@@ -27,7 +27,7 @@ When the vault key does not exist yet, `key` generates a fresh random 256-bit sy
 
 ## CLI
 
-The current CLI is intentionally small:
+The CLI is intentionally small:
 
 ```bash
 key ls
