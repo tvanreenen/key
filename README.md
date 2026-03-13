@@ -1,11 +1,8 @@
-# key
-
-> [!WARNING]
-> `key` is still in early development. There is not a public release yet. The project is being worked toward an alpha release.
+# Key
 
 ![Key](.github/assets/hero.png)
 
-`key` is a macOS secret manager for people who like what [`pass`](https://www.passwordstore.org/) gets right:
+`key` is a macOS secret manager for people who like what the venerable [`pass`](https://www.passwordstore.org/) gets right:
 
 - Secrets are stored as encrypted files, not in an opaque, app-specific database
 - Flexible directory structure lets you organize and reason about secrets hierarchically
@@ -23,15 +20,30 @@
 
 The result: your secrets stay encrypted on the filesystem, protected by a single key, and only you can access that key thanks to native macOS authentication.
 
-## CLI
+## Install
 
-The CLI is intentionally small and closely modeled after `pass`:
+Install via Homebrew from the [tvanreenen/tap](https://github.com/tvanreenen/homebrew-tap) tap:
 
 ```bash
-key ls
-key show <name> [--copy]
+brew tap tvanreenen/tap
+brew install --cask key
+```
+
+> [!WARNING]
+> `key` is still in early development. There is not a public release yet.
+
+## CLI
+
+The CLI is intentionally small:
+
+```bash
+# Creating and refreshing secrets
 key add <name>
 key edit <name>
+# Listing and retrieving secrets
+key ls
+key show <name> [--copy]
+# Organizing and removing secrets
 key cp <src> <dst> [--force]
 key mv <src> <dst> [--force]
 key rm <name> [--force]
@@ -47,8 +59,8 @@ openssl rand -hex 32 | key add api/key
 pwgen -sy 24 1 | key edit github/personal
 diceware -n 6 | key add personal/passphrase
 xkcdpass -n 4 | key add outlook/work
-head -c 32 /dev/urandom | base64 | key add backup/recovery
 uuidgen | key add app/token
+head -c 32 /dev/urandom | base64 | key add backup/recovery
 ```
 
 ## Security without the lock-in
@@ -116,14 +128,3 @@ Conceptually, a `show` looks like this:
 6. the CLI prints the result or copies it to the pasteboard
 
 That is the tradeoff that makes the native macOS auth path possible while keeping the day-to-day interface CLI-first. This is intentionally macOS-specific and optimizes for native platform integration over cross-platform portability.
-
-## Development notes
-
-The checked-in Xcode project is the source of truth:
-
-- [Key.xcodeproj](Key.xcodeproj)
-
-The release and signing workflow is described in:
-
-- [apple-setup.md](docs/apple-setup.md)
-- [release.md](docs/release.md)
