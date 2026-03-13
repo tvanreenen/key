@@ -86,7 +86,7 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["cp", "src/token", "dst/token", "--force"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["copy", "src/token", "dst/token", "--force"]) == EXIT_SUCCESS)
         #expect(io.stdout == "")
         #expect(io.stderr == "")
     }
@@ -101,7 +101,7 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["mv", "src/token", "dst/token", "--force"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["move", "src/token", "dst/token", "--force"]) == EXIT_SUCCESS)
         #expect(io.stdout == "")
         #expect(io.stderr == "")
     }
@@ -116,7 +116,7 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["rm", "src/token"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["remove", "src/token"]) == EXIT_SUCCESS)
         #expect(io.stderr == "Remove 'src/token'? [y/N]: ")
     }
 
@@ -130,7 +130,7 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["rm", "src/token"]) == EXIT_FAILURE)
+        #expect(app.run(arguments: ["remove", "src/token"]) == EXIT_FAILURE)
         #expect(io.stderr.contains("without --force in non-interactive mode") == true)
     }
 
@@ -144,7 +144,7 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["rm", "src/token", "--force"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["remove", "src/token", "--force"]) == EXIT_SUCCESS)
         #expect(io.stderr == "")
     }
 }

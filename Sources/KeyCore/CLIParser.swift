@@ -13,14 +13,14 @@ public enum CLIParser {
             return try parseAdd(arguments: Array(arguments.dropFirst()))
         case "edit":
             return try parseEdit(arguments: Array(arguments.dropFirst()))
-        case "cp":
-            return try parseCopy(arguments: Array(arguments.dropFirst()))
-        case "mv":
-            return try parseMove(arguments: Array(arguments.dropFirst()))
-        case "rm":
-            return try parseRemove(arguments: Array(arguments.dropFirst()))
-        case "ls":
-            return try parseList(arguments: Array(arguments.dropFirst()))
+        case "copy", "cp":
+            return try parseCopy(arguments: Array(arguments.dropFirst()), commandName: subcommand)
+        case "move", "mv":
+            return try parseMove(arguments: Array(arguments.dropFirst()), commandName: subcommand)
+        case "remove", "rm":
+            return try parseRemove(arguments: Array(arguments.dropFirst()), commandName: subcommand)
+        case "list", "ls":
+            return try parseList(arguments: Array(arguments.dropFirst()), commandName: subcommand)
         case "help", "--help", "-h":
             throw AppError.usage(usageText)
         default:
@@ -35,10 +35,10 @@ public enum CLIParser {
       key show <name> [--copy]
       key add <name>
       key edit <name>
-      key cp <src> <dst> [--force]
-      key mv <src> <dst> [--force]
-      key rm <name> [--force]
-      key ls
+      key copy <src> <dst> [--force]
+      key move <src> <dst> [--force]
+      key remove <name> [--force]
+      key list
     """
 
     private static func parseAdd(arguments: [String]) throws -> Command {
@@ -61,12 +61,12 @@ public enum CLIParser {
         return .edit(name: name)
     }
 
-    private static func parseCopy(arguments: [String]) throws -> Command {
+    private static func parseCopy(arguments: [String], commandName: String) throws -> Command {
         guard let source = arguments.first else {
-            throw AppError.usage("Missing source entry name for cp.\n\n\(usageText)")
+            throw AppError.usage("Missing source entry name for \(commandName).\n\n\(usageText)")
         }
         guard arguments.count >= 2 else {
-            throw AppError.usage("Missing destination entry name for cp.\n\n\(usageText)")
+            throw AppError.usage("Missing destination entry name for \(commandName).\n\n\(usageText)")
         }
 
         let destination = arguments[1]
@@ -80,19 +80,19 @@ public enum CLIParser {
                 force = true
                 index += 1
             default:
-                throw AppError.usage("Unknown option '\(argument)' for cp.\n\n\(usageText)")
+                throw AppError.usage("Unknown option '\(argument)' for \(commandName).\n\n\(usageText)")
             }
         }
 
         return .copy(source: source, destination: destination, force: force)
     }
 
-    private static func parseMove(arguments: [String]) throws -> Command {
+    private static func parseMove(arguments: [String], commandName: String) throws -> Command {
         guard let source = arguments.first else {
-            throw AppError.usage("Missing source entry name for mv.\n\n\(usageText)")
+            throw AppError.usage("Missing source entry name for \(commandName).\n\n\(usageText)")
         }
         guard arguments.count >= 2 else {
-            throw AppError.usage("Missing destination entry name for mv.\n\n\(usageText)")
+            throw AppError.usage("Missing destination entry name for \(commandName).\n\n\(usageText)")
         }
 
         let destination = arguments[1]
@@ -106,16 +106,16 @@ public enum CLIParser {
                 force = true
                 index += 1
             default:
-                throw AppError.usage("Unknown option '\(argument)' for mv.\n\n\(usageText)")
+                throw AppError.usage("Unknown option '\(argument)' for \(commandName).\n\n\(usageText)")
             }
         }
 
         return .move(source: source, destination: destination, force: force)
     }
 
-    private static func parseRemove(arguments: [String]) throws -> Command {
+    private static func parseRemove(arguments: [String], commandName: String) throws -> Command {
         guard let name = arguments.first else {
-            throw AppError.usage("Missing entry name for rm.\n\n\(usageText)")
+            throw AppError.usage("Missing entry name for \(commandName).\n\n\(usageText)")
         }
 
         var force = false
@@ -128,7 +128,7 @@ public enum CLIParser {
                 force = true
                 index += 1
             default:
-                throw AppError.usage("Unknown option '\(argument)' for rm.\n\n\(usageText)")
+                throw AppError.usage("Unknown option '\(argument)' for \(commandName).\n\n\(usageText)")
             }
         }
 
@@ -153,9 +153,9 @@ public enum CLIParser {
         return .show(name: name, copy: copy)
     }
 
-    private static func parseList(arguments: [String]) throws -> Command {
+    private static func parseList(arguments: [String], commandName: String) throws -> Command {
         guard arguments.isEmpty else {
-            throw AppError.usage("Unknown option '\(arguments[0])' for ls.\n\n\(usageText)")
+            throw AppError.usage("Unknown option '\(arguments[0])' for \(commandName).\n\n\(usageText)")
         }
 
         return .list

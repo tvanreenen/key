@@ -41,12 +41,12 @@ The CLI is intentionally small:
 key add <name>
 key edit <name>
 # Listing and retrieving secrets
-key ls
+key list
 key show <name> [--copy]
 # Organizing and removing secrets
-key cp <src> <dst> [--force]
-key mv <src> <dst> [--force]
-key rm <name> [--force]
+key copy <src> <dst> [--force]
+key move <src> <dst> [--force]
+key remove <name> [--force]
 ```
 
 ## Generating passwords
