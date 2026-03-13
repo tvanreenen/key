@@ -3,6 +3,7 @@ import Foundation
 
 public protocol InputOutput {
     var stdinIsTTY: Bool { get }
+    var stdoutIsTTY: Bool { get }
     func readPipedInput() throws -> String
     func readLine(prompt: String) throws -> String
     func readSecureLine(prompt: String) throws -> String
@@ -15,6 +16,10 @@ public final class SystemIO: InputOutput {
 
     public var stdinIsTTY: Bool {
         isatty(STDIN_FILENO) == 1
+    }
+
+    public var stdoutIsTTY: Bool {
+        isatty(STDOUT_FILENO) == 1
     }
 
     public func readPipedInput() throws -> String {

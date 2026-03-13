@@ -1,136 +1,90 @@
-# key
+# Key
 
-> [!WARNING]
-> `key` is still in early development. There is not a public release yet. The project is being worked toward an alpha release.
+![Key](.github/assets/hero.png)
 
-`key` is a macOS secret manager for people who like what [`pass`](https://www.passwordstore.org/) gets right: secrets live as encrypted files in a normal directory tree, not inside an opaque app-specific database. That makes the store easy to inspect, back up, move around, and reason about from the shell.
+`key` is a macOS secret manager for people who like what the venerable [`pass`](https://www.passwordstore.org/) gets right:
 
-`key` keeps that file-oriented, CLI-first model, but replaces the GPG-centered unlock story with native macOS key handling. A single random vault key is stored in Keychain, protected with Apple's [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence) access control, and used to encrypt and decrypt the per-secret files on disk.
+- Secrets are stored as encrypted files, not in an opaque, app-specific database
+- Flexible directory structure lets you organize and reason about secrets hierarchically
+- Small, CLI-first command set with full flexibility from the shell
 
-The result is meant to sit in the gap between `pass` and a full GUI password manager: low surface area, easy to understand, and tightly integrated with macOS authentication instead of a separate agent-driven crypto workflow.
-
-## Why this exists
-
-`pass` is a great fit if you want a Unix-native store built around GPG and Git. `key` is for the narrower macOS case where you want the same basic file-oriented model, but you would rather lean on the OS for protected key access than carry a separate GPG and agent workflow.
+`key` uses the same model, but instead of pass’s GPG agent workflow, it relies on native macOS encryption and authentication. This means secrets can be unlocked with Touch ID, Apple Watch, or your system password through [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence).
 
 ## How it works
 
-`key` separates storage, key management, and authentication:
+- Each secret is stored as an individually encrypted file on disk, under `~/Library/Application Support/key/vault`.
+- All secret files are encrypted and decrypted using a single, randomly generated 256-bit symmetric vault key.
+- That vault key is stored securely in your macOS Keychain (not the secrets themselves!).
+- Access to the vault key in Keychain is protected by macOS local authentication—Touch ID, Apple Watch, or your system password—using [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence).
+- Whenever you unlock a secret, `key` retrieves the vault key from Keychain (prompting for authentication), then uses it to decrypt the requested secret file.
 
-- the secret values themselves are stored as encrypted files on disk
-- a single random vault key is stored in Keychain
-- macOS local authentication controls access to that Keychain item through [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence)
+The result: your secrets stay encrypted on the filesystem, protected by a single key, and only you can access that key thanks to native macOS authentication.
 
-That means Keychain is not the database of secrets. The filesystem holds the encrypted secret files, and Keychain holds only the one key that can decrypt them.
+## Install
 
-When the vault key does not exist yet, `key` generates a fresh random 256-bit symmetric key, stores it in Keychain, and marks that item as [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence)-protected. That same vault key is then used to encrypt and decrypt the per-secret files.
+Install via Homebrew from the [tvanreenen/tap](https://github.com/tvanreenen/homebrew-tap) tap:
+
+```bash
+brew tap tvanreenen/tap
+brew install --cask key
+```
+
+> [!WARNING]
+> `key` is still in early development. There is not a public release yet.
 
 ## CLI
 
 The CLI is intentionally small:
 
 ```bash
-key ls
-key show <name> [--copy]
+# Creating and refreshing secrets
 key add <name>
 key edit <name>
-key cp <src> <dst> [--force]
-key mv <src> <dst> [--force]
-key rm <name> [--force]
+# Listing and retrieving secrets
+key list
+key show <name> [--copy]
+# Organizing and removing secrets
+key copy <src> <dst> [--force]
+key move <src> <dst> [--force]
+key remove <name> [--force]
 ```
 
-Examples:
+## Generating passwords
 
-```bash
-key ls
-key show github/personal
-key show github/personal --copy
-key add github/personal
-key edit github/personal
-key cp github/personal github/work/personal
-key mv github/work/personal github/archive/personal
-key rm github/archive/personal
-```
-
-## Stdin
-
-`key` intentionally leans on stdin rather than shipping its own password generator. That keeps the command set smaller and makes it easy to compose with tools you already use.
-
-Any command that writes a secret can read it from a pipe instead of prompting in the terminal:
+Unlike most password managers, `key` does not include a built-in password generator. Instead, it is designed to accept input via stdin, so you can add or edit secrets either by securely typing them in (using your terminal's secure input), or by piping in passwords generated by any tool or method you prefer:
 
 ```bash
 openssl rand -base64 32 | key add aws/prod/token
+openssl rand -hex 32 | key add api/key
 pwgen -sy 24 1 | key edit github/personal
 diceware -n 6 | key add personal/passphrase
+xkcdpass -n 4 | key add outlook/work
+uuidgen | key add app/token
+head -c 32 /dev/urandom | base64 | key add backup/recovery
 ```
 
-Common generator examples:
+## Security without the lock-in
 
-```bash
-# OpenSSL (hex)
-openssl rand -hex 32
+`key` uses standard AES-256-GCM encryption with zero custom cryptography. If you have both the vault key and your `.secret` files, you're not locked in: you can decrypt your secrets using any tool that supports AES-GCM, letting you move your data or audit it without relying on the app.
 
-# OpenSSL (base64)
-openssl rand -base64 32
+**Where the files live:** Secrets are under `~/Library/Application Support/key/vault`. An entry like `github/personal` is stored as `~/Library/Application Support/key/vault/github/personal.secret`.
 
-# pwgen (secure random password, 24 chars)
-pwgen -s 24 1
+**Payload format:** Each `.secret` file contains a JSON object:
 
-# pwgen (include symbols)
-pwgen -sy 24 1
-
-# apg (random password between 16–32 chars)
-apg -a 1 -m 16 -x 32 -n 1
-
-# gpg (ASCII-armored random data)
-gpg --gen-random --armor 1 32
-
-# urandom + base64
-head -c 32 /dev/urandom | base64
-
-# urandom + alphanumeric only
-tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24
-
-# urandom + printable ASCII
-tr -dc '[:print:]' < /dev/urandom | head -c 24
-
-# diceware (6-word passphrase)
-diceware -n 6
-
-# xkcd-style passphrase
-xkcdpass -n 5
-
-# uuid (useful for tokens / API keys)
-uuidgen
-
-# uuid without dashes
-uuidgen | tr -d '-'
-
-# mkpasswd (32 char password)
-mkpasswd -l 32
-
-# base32 random string
-head -c 20 /dev/urandom | base32
-
-# hex via xxd
-head -c 32 /dev/urandom | xxd -p
+```json
+{
+  "version": 1,
+  "alg": "AES.GCM",
+  "nonce": "<base64-encoded 96-bit nonce>",
+  "ciphertext": "<base64-encoded AES-GCM ciphertext + 16-byte auth tag>"
+}
 ```
 
-Secrets are stored as encrypted files under:
+Without the vault key (the 256-bit secret kept in your Keychain), the file contents are completely opaque.
 
-```text
-~/Library/Application Support/key/vault
-```
+**How to decrypt:** To unlock a secret yourself, parse the JSON and base64-decode both `nonce` and `ciphertext`. Split the decoded ciphertext into the payload (everything except the final 16 bytes) and the authentication tag (the last 16 bytes). Decrypt the payload using the vault key and nonce with AES-256-GCM—the result will be your UTF-8 plaintext.
 
-An entry like `github/personal` becomes:
-
-```text
-~/Library/Application Support/key/vault/github/personal.secret
-```
-
-Each file is an encrypted JSON envelope. The plaintext secret is never stored in the repo.
-
-## Native macOS integration
+## Nerdy details about the macOS integration
 
 `key` is not just a standalone CLI binary. To use the stronger macOS Keychain and user-presence path correctly, it is structured as three pieces:
 
@@ -174,22 +128,3 @@ Conceptually, a `show` looks like this:
 6. the CLI prints the result or copies it to the pasteboard
 
 That is the tradeoff that makes the native macOS auth path possible while keeping the day-to-day interface CLI-first. This is intentionally macOS-specific and optimizes for native platform integration over cross-platform portability.
-
-## Development notes
-
-The checked-in Xcode project is the source of truth:
-
-- [Key.xcodeproj](Key.xcodeproj)
-
-Useful commands:
-
-```bash
-just test
-just build-debug
-just build-release-archive
-```
-
-The release and signing workflow is described in:
-
-- [release.md](docs/release.md)
-- [apple-setup.md](docs/apple-setup.md)

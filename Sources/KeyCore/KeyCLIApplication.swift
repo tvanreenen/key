@@ -80,13 +80,21 @@ public final class KeyCLIApplication {
             }
         case let .show(_, copy):
             if !copy, let value = response.value {
-                io.writeStdout(value)
+                io.writeStdout(formattedShowOutput(value))
             }
         case .add, .edit, .copy, .move, .remove:
             break
         }
 
         return response.exitCode
+    }
+
+    private func formattedShowOutput(_ value: String) -> String {
+        guard io.stdoutIsTTY, !value.hasSuffix("\n") else {
+            return value
+        }
+
+        return value + "\n"
     }
 
     private func readSecretFromInput() throws -> String {

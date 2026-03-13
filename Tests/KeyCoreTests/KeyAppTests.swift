@@ -4,6 +4,34 @@ import Testing
 
 struct KeyCLIApplicationTests {
     @Test
+    func showAddsTrailingNewlineForTerminalOutput() throws {
+        let transport = MemoryTransport { request in
+            #expect(request == .get(name: "demo/test"))
+            return .success("k9W2mQ7pL4xR")
+        }
+        let io = MemoryIO(stdinIsTTY: false, stdoutIsTTY: true)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["show", "demo/test"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "k9W2mQ7pL4xR\n")
+    }
+
+    @Test
+    func showPreservesExactOutputWhenStdoutIsNotATerminal() throws {
+        let transport = MemoryTransport { request in
+            #expect(request == .get(name: "demo/test"))
+            return .success("k9W2mQ7pL4xR")
+        }
+        let io = MemoryIO(stdinIsTTY: false, stdoutIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["show", "demo/test"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "k9W2mQ7pL4xR")
+    }
+
+    @Test
     func showCopyWritesToClipboardWithoutStdout() throws {
         let transport = MemoryTransport { request in
             #expect(request == .get(name: "mail/personal"))
@@ -58,7 +86,7 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["cp", "src/token", "dst/token", "--force"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["copy", "src/token", "dst/token", "--force"]) == EXIT_SUCCESS)
         #expect(io.stdout == "")
         #expect(io.stderr == "")
     }
@@ -73,7 +101,7 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["mv", "src/token", "dst/token", "--force"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["move", "src/token", "dst/token", "--force"]) == EXIT_SUCCESS)
         #expect(io.stdout == "")
         #expect(io.stderr == "")
     }
@@ -88,7 +116,7 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["rm", "src/token"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["remove", "src/token"]) == EXIT_SUCCESS)
         #expect(io.stderr == "Remove 'src/token'? [y/N]: ")
     }
 
@@ -102,7 +130,7 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["rm", "src/token"]) == EXIT_FAILURE)
+        #expect(app.run(arguments: ["remove", "src/token"]) == EXIT_FAILURE)
         #expect(io.stderr.contains("without --force in non-interactive mode") == true)
     }
 
@@ -116,7 +144,7 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["rm", "src/token", "--force"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["remove", "src/token", "--force"]) == EXIT_SUCCESS)
         #expect(io.stderr == "")
     }
 }
