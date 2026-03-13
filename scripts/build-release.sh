@@ -17,11 +17,13 @@ notary_profile="key-notary"
 release_root="${HOME}/Library/Developer/Xcode/Releases/key/${version}"
 archive_path="${release_root}/Key.xcarchive"
 staging_app="${release_root}/Key.app"
+package_root="${release_root}/package"
 submission_zip="${release_root}/Key-${version}-for-notary.zip"
 final_zip="${release_root}/Key-${version}.zip"
+completion_source="${repo_root}/completions/_key"
 
 mkdir -p "${release_root}"
-rm -rf "${archive_path}" "${staging_app}" "${submission_zip}" "${final_zip}"
+rm -rf "${archive_path}" "${staging_app}" "${package_root}" "${submission_zip}" "${final_zip}"
 
 cd "${repo_root}"
 
@@ -47,8 +49,20 @@ xcrun notarytool submit "${submission_zip}" --keychain-profile "${notary_profile
 xcrun stapler staple "${staging_app}"
 spctl --assess --type execute --verbose "${staging_app}"
 
+if [[ ! -f "${completion_source}" ]]; then
+  echo "missing zsh completion at ${completion_source}" >&2
+  exit 1
+fi
+
+mkdir -p "${package_root}/completions"
+cp -R "${staging_app}" "${package_root}/Key.app"
+cp "${completion_source}" "${package_root}/completions/_key"
+
 rm -f "${submission_zip}"
-ditto -c -k --keepParent "${staging_app}" "${final_zip}"
+(
+  cd "${package_root}"
+  /usr/bin/zip -qry "${final_zip}" "Key.app" "completions"
+)
 
 sha256="$(shasum -a 256 "${final_zip}" | awk '{print $1}')"
 
@@ -56,6 +70,7 @@ echo "Prepared release:"
 echo "  version: ${version}"
 echo "  archive: ${archive_path}"
 echo "  app:     ${staging_app}"
+echo "  zsh:     ${package_root}/completions/_key"
 echo "  zip:     ${final_zip}"
 echo "  sha256:  ${sha256}"
 echo

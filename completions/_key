@@ -1,0 +1,112 @@
+#compdef key
+
+typeset -ga _key_commands
+_key_commands=(
+  'show:write a secret to stdout'
+  'add:add a new secret'
+  'edit:update an existing secret'
+  'copy:copy a secret to a new name'
+  'move:move a secret to a new name'
+  'remove:remove a secret'
+  'list:list stored secrets'
+)
+
+_key_vault_root() {
+  local vault_root
+
+  zstyle -s ':completion:*:*:key:*' vault-root vault_root ||
+    vault_root="${HOME}/Library/Application Support/key/vault"
+
+  print -r -- "${vault_root}"
+}
+
+_key_collect_entries() {
+  local vault_root
+  local -a entries
+
+  vault_root="$(_key_vault_root)"
+  [[ -d "${vault_root}" ]] || return 1
+
+  entries=("${(@f)$(command find -L "${vault_root}" -type f -name '*.secret' -print 2>/dev/null | sed -e "s#^${vault_root}/##" -e 's/\.secret$//' | LC_ALL=C sort -u)}")
+  (( ${#entries[@]} )) || return 1
+
+  print -rl -- "${entries[@]}"
+}
+
+_key_collect_paths() {
+  local vault_root
+  local -a paths
+
+  vault_root="$(_key_vault_root)"
+  [[ -d "${vault_root}" ]] || return 1
+
+  paths=("${(@f)$(command find -L "${vault_root}" \( -type d -o -type f -name '*.secret' \) -print 2>/dev/null | sed -e "s#^${vault_root}/##" -e 's/\.secret$//' -e '/^$/d' -e '/\.secret$/d' | LC_ALL=C sort -u)}")
+  (( ${#paths[@]} )) || return 1
+
+  print -rl -- "${paths[@]}"
+}
+
+_key_complete_entries() {
+  local expl
+  local -a entries
+
+  entries=("${(@f)$(_key_collect_entries)}") || return 1
+  _wanted key-entries expl 'key entry' compadd -Q -a entries
+}
+
+_key_complete_paths() {
+  local expl
+  local -a paths
+
+  paths=("${(@f)$(_key_collect_paths)}") || return 1
+  _wanted key-paths expl 'key path' compadd -Q -a paths
+}
+
+local curcontext="$curcontext" state line
+typeset -A opt_args
+
+_arguments -C \
+  '1:command:->command' \
+  '*::arg:->args'
+
+case "${state}" in
+  command)
+    _describe -t commands 'key command' _key_commands
+    ;;
+  args)
+    case "${words[1]}" in
+      show)
+        _arguments \
+          '1:entry:_key_complete_entries' \
+          '--copy[copy the secret to the clipboard]'
+        ;;
+      add)
+        _arguments \
+          '1:path:_key_complete_paths'
+        ;;
+      edit)
+        _arguments \
+          '1:entry:_key_complete_entries'
+        ;;
+      copy)
+        _arguments \
+          '1:source entry:_key_complete_entries' \
+          '2:destination path:_key_complete_paths' \
+          '--force[overwrite an existing destination]'
+        ;;
+      move)
+        _arguments \
+          '1:source entry:_key_complete_entries' \
+          '2:destination path:_key_complete_paths' \
+          '--force[overwrite an existing destination]'
+        ;;
+      remove)
+        _arguments \
+          '1:entry:_key_complete_entries' \
+          '--force[skip the confirmation prompt]'
+        ;;
+      list|help|-h|--help)
+        ;;
+    esac
+    ;;
+esac

@@ -35,7 +35,7 @@ just publish-release <version> <zip-path>
 Use tags and release names like `v0.1.0`, `v0.1.1`, or `v0.2.0-alpha.1`.
 Versions with a prerelease suffix such as `-alpha.1`, `-beta.1`, or `-rc.1` will be published as GitHub prereleases automatically.
 
-`build-release.sh` builds, notarizes, staples, and zips the app.
+`build-release.sh` builds, notarizes, staples, and zips the app. The final zip includes both `Key.app` and `completions/_key` for Homebrew-installed zsh completion.
 `update-homebrew-tap.sh` updates `Casks/key.rb` in a local tap checkout. It defaults to `~/Code/homebrew-tap` and can be overridden with `KEY_TAP_REPO`.
 `publish-release.sh` uses `gh` to create or update a GitHub release, upload the zip asset, and then refresh the tap cask automatically. It uses the version as the release title and GitHub's generated release notes.
 
@@ -48,6 +48,43 @@ One-time local setup:
 ```bash
 git clone https://github.com/tvanreenen/homebrew-tap ~/Code/homebrew-tap
 ```
+
+## Test zsh completion locally
+
+Use an isolated shell so the completion path and `compinit` order are unambiguous:
+
+```zsh
+zsh -f
+autoload -Uz compinit
+fpath=(/Users/tim.vanreenen/Code/key/completions $fpath)
+compinit -i
+```
+
+The `fpath` update must happen before `compinit`.
+If you change the completion file and want to reload it in the same shell, rerun `compinit -i`.
+
+To test dynamic entry completion against a fake vault:
+
+```zsh
+mkdir -p /tmp/keycomp/github /tmp/keycomp/personal
+touch /tmp/keycomp/github/personal.secret
+touch /tmp/keycomp/personal/gmail.secret
+zstyle ':completion:*:*:key:*' vault-root /tmp/keycomp
+```
+
+Then verify:
+
+```zsh
+key <TAB><TAB>
+key show <TAB><TAB>
+key edit <TAB><TAB>
+key copy <TAB><TAB>
+```
+
+Expected behavior:
+
+- `key <TAB><TAB>` offers `show`, `add`, `edit`, `copy`, `move`, `remove`, and `list`
+- `key show <TAB><TAB>` offers `github/personal` and `personal/gmail`
 
 ## Verify signing inputs
 

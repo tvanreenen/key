@@ -39,6 +39,15 @@ public enum CLIParser {
       key move <src> <dst> [--force]
       key remove <name> [--force]
       key list
+
+    Commands:
+      show    Write a secret to stdout.
+      add     Add a new secret.
+      edit    Update an existing secret.
+      copy    Copy a secret to a new name.
+      move    Move a secret to a new name.
+      remove  Remove a secret.
+      list    List stored secrets.
     """
 
     private static func parseAdd(arguments: [String]) throws -> Command {
