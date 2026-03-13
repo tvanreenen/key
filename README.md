@@ -38,15 +38,15 @@ The CLI is intentionally small:
 
 ```bash
 # Creating and refreshing secrets
-key add <name>
-key edit <name>
+key add <name>                  # add a new secret
+key edit <name>                 # update an existing secret
 # Listing and retrieving secrets
-key list
-key show <name> [--copy]
+key list                        # list stored secrets
+key show <name> [--copy]        # write a secret to stdout
 # Organizing and removing secrets
-key copy <src> <dst> [--force]
-key move <src> <dst> [--force]
-key remove <name> [--force]
+key copy <src> <dst> [--force]  # copy a secret to a new name
+key move <src> <dst> [--force]  # move a secret to a new name
+key remove <name> [--force]     # remove a secret
 ```
 
 ## Generating passwords
@@ -62,6 +62,19 @@ xkcdpass -n 4 | key add outlook/work
 uuidgen | key add app/token
 head -c 32 /dev/urandom | base64 | key add backup/recovery
 ```
+
+## Fuzzy picking with fzf
+
+If you use [`fzf`](https://github.com/junegunn/fzf), `key list` composes cleanly with it:
+
+```bash
+key show "$(key list | fzf)"
+key show "$(key list | fzf)" --copy
+key edit "$(key list | fzf)"
+key remove "$(key list | fzf)"
+```
+
+This stays fully optional. `key` does not depend on `fzf`, but the combination works well when you want fuzzy selection across a larger store.
 
 ## Security without the lock-in
 

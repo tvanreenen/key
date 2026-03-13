@@ -36,6 +36,7 @@ cask "key" do
 
   app "Key.app"
   binary "#{appdir}/Key.app/Contents/MacOS/key", target: "key"
+  zsh_completion "completions/_key"
 end
 EOF
 
