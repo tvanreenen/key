@@ -35,7 +35,7 @@ cask "key" do
   homepage "${homepage}"
 
   app "Key.app"
-  binary "\#{appdir}/Key.app/Contents/MacOS/key", target: "key"
+  binary "#{appdir}/Key.app/Contents/MacOS/key", target: "key"
 end
 EOF
 
