@@ -22,6 +22,9 @@ The result: your secrets stay encrypted on the filesystem, protected by a single
 
 ## Install
 
+> [!WARNING]
+> `key` is still in early development. There is not a public release yet.
+
 Install via Homebrew from the [tvanreenen/tap](https://github.com/tvanreenen/homebrew-tap) tap:
 
 ```bash
@@ -29,21 +32,15 @@ brew tap tvanreenen/tap
 brew install --cask key
 ```
 
-> [!WARNING]
-> `key` is still in early development. There is not a public release yet.
-
 ## CLI
 
 The CLI is intentionally small:
 
 ```bash
-# Creating and refreshing secrets
 key add <name>                  # add a new secret
 key edit <name>                 # update an existing secret
-# Listing and retrieving secrets
 key list                        # list stored secrets
 key show <name> [--copy]        # write a secret to stdout
-# Organizing and removing secrets
 key copy <src> <dst> [--force]  # copy a secret to a new name
 key move <src> <dst> [--force]  # move a secret to a new name
 key remove <name> [--force]     # remove a secret
