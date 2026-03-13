@@ -29,6 +29,8 @@ public enum CLIParser {
     }
 
     public static let usageText = """
+    macOS file-based secret manager with native auth
+
     Usage:
       key show <name> [--copy]
       key add <name>
