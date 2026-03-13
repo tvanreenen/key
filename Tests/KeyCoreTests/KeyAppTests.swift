@@ -4,6 +4,34 @@ import Testing
 
 struct KeyCLIApplicationTests {
     @Test
+    func showAddsTrailingNewlineForTerminalOutput() throws {
+        let transport = MemoryTransport { request in
+            #expect(request == .get(name: "demo/test"))
+            return .success("k9W2mQ7pL4xR")
+        }
+        let io = MemoryIO(stdinIsTTY: false, stdoutIsTTY: true)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["show", "demo/test"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "k9W2mQ7pL4xR\n")
+    }
+
+    @Test
+    func showPreservesExactOutputWhenStdoutIsNotATerminal() throws {
+        let transport = MemoryTransport { request in
+            #expect(request == .get(name: "demo/test"))
+            return .success("k9W2mQ7pL4xR")
+        }
+        let io = MemoryIO(stdinIsTTY: false, stdoutIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["show", "demo/test"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "k9W2mQ7pL4xR")
+    }
+
+    @Test
     func showCopyWritesToClipboardWithoutStdout() throws {
         let transport = MemoryTransport { request in
             #expect(request == .get(name: "mail/personal"))
