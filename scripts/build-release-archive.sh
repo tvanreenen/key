@@ -11,7 +11,7 @@ mkdir -p "${archive_date_dir}"
 archive_path="${archive_date_dir}/Key $(date '+%m-%d-%y, %H.%M').xcarchive"
 app_path="${archive_path}/Products/Applications/Key.app"
 cli_path="${app_path}/Contents/MacOS/key"
-helper_path="${app_path}/Contents/Library/Helpers/KeyLaunchAgentHelper"
+helper_path="${app_path}/Contents/Helpers/KeyLaunchAgentHelper.app"
 launch_agent_plist="${app_path}/Contents/Library/LaunchAgents/work.tvr.key.agent.plist"
 
 xcodebuild \

@@ -1,4 +1,5 @@
 import KeyCore
+import OSLog
 import ServiceManagement
 import SwiftUI
 
@@ -18,6 +19,7 @@ private final class HelperRegistrationModel: ObservableObject {
     @Published private(set) var statusDetail = "The app will register the on-demand LaunchAgent helper on first launch."
 
     private let configuration: RuntimeConfiguration
+    private let logger = Logger(subsystem: "work.tvr.key.app", category: "helper-registration")
 
     init(configuration: RuntimeConfiguration) {
         self.configuration = configuration
@@ -25,18 +27,26 @@ private final class HelperRegistrationModel: ObservableObject {
 
     func refresh() {
         let service = SMAppService.agent(plistName: configuration.launchAgentPlistName)
+        logger.notice("Checking helper registration for plist \(self.configuration.launchAgentPlistName, privacy: .public); current status = \(String(describing: service.status), privacy: .public)")
 
         do {
-            if service.status == .notRegistered {
+            switch service.status {
+            case .notRegistered, .notFound:
+                logger.notice("Registering helper service for \(self.configuration.launchAgentPlistName, privacy: .public)")
                 try service.register()
+                logger.notice("Helper registration returned successfully")
+            default:
+                break
             }
             updateStatus(from: service.status, error: nil)
         } catch {
+            logger.error("Helper registration failed with status \(String(describing: service.status), privacy: .public): \(error.localizedDescription, privacy: .public)")
             updateStatus(from: service.status, error: error)
         }
     }
 
     private func updateStatus(from status: SMAppService.Status, error: Error?) {
+        logger.notice("Helper status update: \(String(describing: status), privacy: .public); error = \(error?.localizedDescription ?? "none", privacy: .public)")
         switch status {
         case .enabled:
             statusTitle = "LaunchAgent helper is registered."
@@ -48,8 +58,8 @@ private final class HelperRegistrationModel: ObservableObject {
             statusTitle = "LaunchAgent helper is not registered."
             statusDetail = error?.localizedDescription ?? "Open the app again to retry registration."
         case .notFound:
-            statusTitle = "LaunchAgent helper assets were not found."
-            statusDetail = error?.localizedDescription ?? "The bundled LaunchAgent plist or helper executable is missing."
+            statusTitle = "LaunchAgent helper is not registered."
+            statusDetail = error?.localizedDescription ?? "The system has not recorded the helper yet. Open the app again to retry registration."
         @unknown default:
             statusTitle = "LaunchAgent helper status is unknown."
             statusDetail = error?.localizedDescription ?? "ServiceManagement returned an unrecognized status."
@@ -65,7 +75,7 @@ private struct ContentView: View {
         .appendingPathComponent("Contents/MacOS/key")
         .path
     private let helperPath = Bundle.main.bundleURL
-        .appendingPathComponent("Contents/Library/Helpers/KeyLaunchAgentHelper")
+        .appendingPathComponent("Contents/Helpers/KeyLaunchAgentHelper.app")
         .path
     private let launchAgentPlistPath = Bundle.main.bundleURL
         .appendingPathComponent("Contents/Library/LaunchAgents/work.tvr.key.agent.plist")

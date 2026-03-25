@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0E471F29FE657B084CEAD58B /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
+		11A1C24BB4C342B4948D95FE /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
 		1B7D7F2E9AE24855D9046ED3 /* VaultKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */; };
 		240E840B493F129EF5D4413B /* RuntimeConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = F19B0116010713B57BC705BE /* RuntimeConfiguration.swift */; };
 		2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */; };
@@ -65,7 +66,7 @@
 /* Begin PBXFileReference section */
 		0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyXPCClientTransport.swift; sourceTree = "<group>"; };
 		395A88A800D635A7EF9FE33F /* libKeyCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libKeyCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
-		3BA14FD6F79F2CBF3291CEE5 /* KeyLaunchAgentHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = KeyLaunchAgentHelper; sourceTree = BUILT_PRODUCTS_DIR; };
+		3BA14FD6F79F2CBF3291CEE5 /* KeyLaunchAgentHelper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KeyLaunchAgentHelper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCLIApplication.swift; sourceTree = "<group>"; };
 		4E30B55D83074B50959E72C6 /* SessionVaultKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionVaultKeyStore.swift; sourceTree = "<group>"; };
 		55257994DEF9CC6144A32E16 /* KeyServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyServiceProtocol.swift; sourceTree = "<group>"; };
@@ -90,6 +91,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		2B31DF9D21304F93B6A5D2FB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				11A1C24BB4C342B4948D95FE /* libKeyCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		51F8103CDC11EA9369126185 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -153,7 +162,7 @@
 			children = (
 				E75E106051E70081357FBACF /* key */,
 				B4EE3B938E39AE66CAB3E79B /* Key.app */,
-				3BA14FD6F79F2CBF3291CEE5 /* KeyLaunchAgentHelper */,
+				3BA14FD6F79F2CBF3291CEE5 /* KeyLaunchAgentHelper.app */,
 				395A88A800D635A7EF9FE33F /* libKeyCore.a */,
 			);
 			name = Products;
@@ -214,6 +223,7 @@
 			buildConfigurationList = 7F01659A6EE6B0DA349AB9EB /* Build configuration list for PBXNativeTarget "KeyApp" */;
 			buildPhases = (
 				EC35535AF35CA2336C0A9114 /* Sources */,
+				2B31DF9D21304F93B6A5D2FB /* Frameworks */,
 				43CB91789D0D98659395FA60 /* Resources */,
 				7A27356F69610045B0D25F0F /* Embed CLI and LaunchAgent helper */,
 			);
@@ -222,6 +232,7 @@
 			dependencies = (
 				91A56FC9496C0E9FA19ECA87 /* PBXTargetDependency */,
 				85D5705D21D6DF41A9C94EEB /* PBXTargetDependency */,
+				9D839F63C6D6474A87854EAF /* PBXTargetDependency */,
 			);
 			name = KeyApp;
 			packageProductDependencies = (
@@ -264,8 +275,8 @@
 			packageProductDependencies = (
 			);
 			productName = KeyLaunchAgentHelper;
-			productReference = 3BA14FD6F79F2CBF3291CEE5 /* KeyLaunchAgentHelper */;
-			productType = "com.apple.product-type.tool";
+			productReference = 3BA14FD6F79F2CBF3291CEE5 /* KeyLaunchAgentHelper.app */;
+			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
@@ -335,12 +346,12 @@
 			);
 			outputPaths = (
 				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/key",
-				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Library/Helpers/KeyLaunchAgentHelper",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/KeyLaunchAgentHelper.app",
 				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Library/LaunchAgents/work.tvr.key.agent.plist",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -euo pipefail\nmacos_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS\"\nhelpers_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Library/Helpers\"\nlaunch_agents_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Library/LaunchAgents\"\nembedded_cli_path=\"${macos_dir}/key\"\nembedded_helper_path=\"${helpers_dir}/KeyLaunchAgentHelper\"\nembedded_launch_agent_path=\"${launch_agents_dir}/work.tvr.key.agent.plist\"\nmkdir -p \"${macos_dir}\" \"${helpers_dir}\" \"${launch_agents_dir}\"\nditto \"${BUILT_PRODUCTS_DIR}/key\" \"${embedded_cli_path}\"\nditto \"${BUILT_PRODUCTS_DIR}/KeyLaunchAgentHelper\" \"${embedded_helper_path}\"\nditto \"${PROJECT_DIR}/Config/work.tvr.key.agent.plist\" \"${embedded_launch_agent_path}\"\nif [[ \"${CODE_SIGNING_ALLOWED:-NO}\" == \"YES\" && \"${CONFIGURATION}\" == \"Release\" ]]; then\n  helper_entitlements=\"${PROJECT_DIR}/Config/KeyLaunchAgentHelper.entitlements\"\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp --options runtime --generate-entitlement-der \"${embedded_cli_path}\"\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp --options runtime --entitlements \"${helper_entitlements}\" --generate-entitlement-der \"${embedded_helper_path}\"\nfi\n";
+			shellScript = "set -euo pipefail\nmacos_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS\"\nhelpers_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers\"\nlaunch_agents_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Library/LaunchAgents\"\nembedded_cli_path=\"${macos_dir}/key\"\nembedded_helper_path=\"${helpers_dir}/KeyLaunchAgentHelper.app\"\nembedded_launch_agent_path=\"${launch_agents_dir}/work.tvr.key.agent.plist\"\nmkdir -p \"${macos_dir}\" \"${helpers_dir}\" \"${launch_agents_dir}\"\nditto \"${BUILT_PRODUCTS_DIR}/key\" \"${embedded_cli_path}\"\nditto \"${BUILT_PRODUCTS_DIR}/KeyLaunchAgentHelper.app\" \"${embedded_helper_path}\"\nditto \"${PROJECT_DIR}/Config/work.tvr.key.agent.plist\" \"${embedded_launch_agent_path}\"\nif [[ \"${CODE_SIGNING_ALLOWED:-NO}\" == \"YES\" && \"${CONFIGURATION}\" == \"Release\" ]]; then\n  helper_entitlements=\"${PROJECT_DIR}/Config/KeyLaunchAgentHelper.entitlements\"\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp --options runtime --generate-entitlement-der \"${embedded_cli_path}\"\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp --options runtime --entitlements \"${helper_entitlements}\" --generate-entitlement-der \"${embedded_helper_path}\"\nfi\n";
 		};
 		A8FB063C683BB17899FB3E36 /* Copy Swift Objective-C Interface Header */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -427,6 +438,11 @@
 			targetProxy = 6BEBF4FC67DD0DDFC45FD37F /* PBXContainerItemProxy */;
 		};
 		BBB2766C39026BFE78EA2124 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8ADEB08555D7682AFB0C97A3 /* KeyCore */;
+			targetProxy = D38F777BCA0735089ACD3916 /* PBXContainerItemProxy */;
+		};
+		9D839F63C6D6474A87854EAF /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 8ADEB08555D7682AFB0C97A3 /* KeyCore */;
 			targetProxy = D38F777BCA0735089ACD3916 /* PBXContainerItemProxy */;
@@ -561,6 +577,8 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 9Q355KSV85;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Config/KeyLaunchAgentHelper-Info.plist";
 				ENABLE_HARDENED_RUNTIME = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -602,6 +620,8 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Config/KeyLaunchAgentHelper-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

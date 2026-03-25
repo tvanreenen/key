@@ -9,7 +9,8 @@ else
 fi
 
 cli_path="${app_path}/Contents/MacOS/key"
-helper_path="${app_path}/Contents/Library/Helpers/KeyLaunchAgentHelper"
+helper_path="${app_path}/Contents/Helpers/KeyLaunchAgentHelper.app"
+helper_executable_path="${helper_path}/Contents/MacOS/KeyLaunchAgentHelper"
 launch_agent_plist="${app_path}/Contents/Library/LaunchAgents/work.tvr.key.agent.plist"
 
 if [[ ! -d "${app_path}" ]]; then
@@ -22,8 +23,13 @@ if [[ ! -x "${cli_path}" ]]; then
   exit 1
 fi
 
-if [[ ! -x "${helper_path}" ]]; then
-  echo "missing bundled helper executable at ${helper_path}" >&2
+if [[ ! -d "${helper_path}" ]]; then
+  echo "missing bundled helper app at ${helper_path}" >&2
+  exit 1
+fi
+
+if [[ ! -x "${helper_executable_path}" ]]; then
+  echo "missing bundled helper executable at ${helper_executable_path}" >&2
   exit 1
 fi
 
