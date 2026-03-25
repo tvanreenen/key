@@ -6,6 +6,12 @@ repo_root="$(cd "${script_dir}/.." && pwd)"
 
 cd "${repo_root}"
 
+app_id="work.tvr.key.app"
+agent_label="work.tvr.key.agent"
+
+osascript -e "tell application id \"${app_id}\" to quit" >/dev/null 2>&1 || true
+launchctl bootout "gui/$(id -u)/${agent_label}" >/dev/null 2>&1 || true
+
 xcodebuild \
   -project Key.xcodeproj \
   -scheme Key \
