@@ -74,8 +74,11 @@ private struct ContentView: View {
     private let cliPath = Bundle.main.bundleURL
         .appendingPathComponent("Contents/MacOS/key")
         .path
-    private let helperPath = Bundle.main.bundleURL
-        .appendingPathComponent("Contents/Helpers/KeyLaunchAgentHelper.app")
+    private let helperAppPath = Bundle.main.bundleURL
+        .appendingPathComponent("Contents/Helpers/Key Agent.app")
+        .path
+    private let helperExecutablePath = Bundle.main.bundleURL
+        .appendingPathComponent("Contents/Helpers/Key Agent.app/Contents/MacOS/Key Agent")
         .path
     private let launchAgentPlistPath = Bundle.main.bundleURL
         .appendingPathComponent("Contents/Library/LaunchAgents/work.tvr.key.agent.plist")
@@ -100,7 +103,8 @@ private struct ContentView: View {
 
             Group {
                 labeledValue("CLI Path", cliPath)
-                labeledValue("Helper Executable", helperPath)
+                labeledValue("Helper App", helperAppPath)
+                labeledValue("Helper Executable", helperExecutablePath)
                 labeledValue("LaunchAgent Plist", launchAgentPlistPath)
                 labeledValue("Mach Service", configuration.helperMachServiceName)
                 labeledValue("LaunchAgent Name", configuration.launchAgentPlistName)

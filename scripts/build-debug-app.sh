@@ -29,7 +29,7 @@ rm -rf "${installed_app_path}"
 ditto "${app_path}" "${installed_app_path}"
 
 cli_path="${installed_app_path}/Contents/MacOS/key"
-helper_path="${installed_app_path}/Contents/Helpers/KeyLaunchAgentHelper.app"
+helper_path="${installed_app_path}/Contents/Helpers/Key Agent.app"
 launch_agent_plist="${installed_app_path}/Contents/Library/LaunchAgents/work.tvr.key.agent.plist"
 
 echo "Built debug app:"

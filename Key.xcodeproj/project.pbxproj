@@ -66,7 +66,7 @@
 /* Begin PBXFileReference section */
 		0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyXPCClientTransport.swift; sourceTree = "<group>"; };
 		395A88A800D635A7EF9FE33F /* libKeyCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libKeyCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
-		3BA14FD6F79F2CBF3291CEE5 /* KeyLaunchAgentHelper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KeyLaunchAgentHelper.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3BA14FD6F79F2CBF3291CEE5 /* Key Agent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Key Agent.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCLIApplication.swift; sourceTree = "<group>"; };
 		4E30B55D83074B50959E72C6 /* SessionVaultKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionVaultKeyStore.swift; sourceTree = "<group>"; };
 		55257994DEF9CC6144A32E16 /* KeyServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyServiceProtocol.swift; sourceTree = "<group>"; };
@@ -162,7 +162,7 @@
 			children = (
 				E75E106051E70081357FBACF /* key */,
 				B4EE3B938E39AE66CAB3E79B /* Key.app */,
-				3BA14FD6F79F2CBF3291CEE5 /* KeyLaunchAgentHelper.app */,
+				3BA14FD6F79F2CBF3291CEE5 /* Key Agent.app */,
 				395A88A800D635A7EF9FE33F /* libKeyCore.a */,
 			);
 			name = Products;
@@ -275,7 +275,7 @@
 			packageProductDependencies = (
 			);
 			productName = KeyLaunchAgentHelper;
-			productReference = 3BA14FD6F79F2CBF3291CEE5 /* KeyLaunchAgentHelper.app */;
+			productReference = 3BA14FD6F79F2CBF3291CEE5 /* Key Agent.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -346,12 +346,12 @@
 			);
 			outputPaths = (
 				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/key",
-				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/KeyLaunchAgentHelper.app",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/Key Agent.app",
 				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Library/LaunchAgents/work.tvr.key.agent.plist",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -euo pipefail\nmacos_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS\"\nhelpers_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers\"\nlaunch_agents_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Library/LaunchAgents\"\nembedded_cli_path=\"${macos_dir}/key\"\nembedded_helper_path=\"${helpers_dir}/KeyLaunchAgentHelper.app\"\nembedded_launch_agent_path=\"${launch_agents_dir}/work.tvr.key.agent.plist\"\nmkdir -p \"${macos_dir}\" \"${helpers_dir}\" \"${launch_agents_dir}\"\nditto \"${BUILT_PRODUCTS_DIR}/key\" \"${embedded_cli_path}\"\nditto \"${BUILT_PRODUCTS_DIR}/KeyLaunchAgentHelper.app\" \"${embedded_helper_path}\"\nditto \"${PROJECT_DIR}/Config/work.tvr.key.agent.plist\" \"${embedded_launch_agent_path}\"\nif [[ \"${CODE_SIGNING_ALLOWED:-NO}\" == \"YES\" && \"${CONFIGURATION}\" == \"Release\" ]]; then\n  helper_entitlements=\"${PROJECT_DIR}/Config/KeyLaunchAgentHelper.entitlements\"\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp --options runtime --generate-entitlement-der \"${embedded_cli_path}\"\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp --options runtime --entitlements \"${helper_entitlements}\" --generate-entitlement-der \"${embedded_helper_path}\"\nfi\n";
+			shellScript = "set -euo pipefail\nmacos_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS\"\nhelpers_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers\"\nlaunch_agents_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Library/LaunchAgents\"\nbuilt_helper_path=\"${BUILT_PRODUCTS_DIR}/Key Agent.app\"\nembedded_cli_path=\"${macos_dir}/key\"\nembedded_helper_path=\"${helpers_dir}/Key Agent.app\"\nembedded_launch_agent_path=\"${launch_agents_dir}/work.tvr.key.agent.plist\"\nmkdir -p \"${macos_dir}\" \"${helpers_dir}\" \"${launch_agents_dir}\"\nditto \"${BUILT_PRODUCTS_DIR}/key\" \"${embedded_cli_path}\"\nrm -rf \"${embedded_helper_path}\"\nditto \"${built_helper_path}\" \"${embedded_helper_path}\"\nditto \"${PROJECT_DIR}/Config/work.tvr.key.agent.plist\" \"${embedded_launch_agent_path}\"\nif [[ \"${CODE_SIGNING_ALLOWED:-NO}\" == \"YES\" && \"${CONFIGURATION}\" == \"Release\" ]]; then\n  helper_entitlements=\"${PROJECT_DIR}/Config/KeyLaunchAgentHelper.entitlements\"\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp --options runtime --generate-entitlement-der \"${embedded_cli_path}\"\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp --options runtime --entitlements \"${helper_entitlements}\" --generate-entitlement-der \"${embedded_helper_path}\"\nfi\n";
 		};
 		A8FB063C683BB17899FB3E36 /* Copy Swift Objective-C Interface Header */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -579,6 +579,7 @@
 				DEVELOPMENT_TEAM = 9Q355KSV85;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Config/KeyLaunchAgentHelper-Info.plist";
+				EXECUTABLE_NAME = "Key Agent";
 				ENABLE_HARDENED_RUNTIME = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -589,7 +590,7 @@
 					"-ObjC",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.xpc;
-				PRODUCT_NAME = KeyLaunchAgentHelper;
+				PRODUCT_NAME = "Key Agent";
 				PROVISIONING_PROFILE_SPECIFIER = "Key Developer ID XPC";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -620,6 +621,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
+				EXECUTABLE_NAME = "Key Agent";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Config/KeyLaunchAgentHelper-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -631,7 +633,7 @@
 					"-ObjC",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.xpc;
-				PRODUCT_NAME = KeyLaunchAgentHelper;
+				PRODUCT_NAME = "Key Agent";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 			};

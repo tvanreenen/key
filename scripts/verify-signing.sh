@@ -9,8 +9,8 @@ else
 fi
 
 cli_path="${app_path}/Contents/MacOS/key"
-helper_path="${app_path}/Contents/Helpers/KeyLaunchAgentHelper.app"
-helper_executable_path="${helper_path}/Contents/MacOS/KeyLaunchAgentHelper"
+helper_path="${app_path}/Contents/Helpers/Key Agent.app"
+helper_executable_path="${helper_path}/Contents/MacOS/Key Agent"
 launch_agent_plist="${app_path}/Contents/Library/LaunchAgents/work.tvr.key.agent.plist"
 
 if [[ ! -d "${app_path}" ]]; then
