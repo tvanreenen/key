@@ -22,7 +22,7 @@ just build-release-archive
 
 The release archive script archives the checked-in [Key.xcodeproj](../Key.xcodeproj) with the signing identities and provisioning profiles already recorded in the project and writes the archive under `~/Library/Developer/Xcode/Archives/<date>/`.
 Debug builds remain automatic or unsigned for local iteration.
-The bundled CLI now lives at `Key.app/Contents/MacOS/key`, and the privileged runtime lives in `Key.app/Contents/XPCServices/KeyXPCService.xpc`.
+The bundled CLI now lives at `Key.app/Contents/MacOS/key`, the LaunchAgent helper executable lives at `Key.app/Contents/Library/Helpers/KeyLaunchAgentHelper`, and the LaunchAgent plist lives at `Key.app/Contents/Library/LaunchAgents/work.tvr.key.agent.plist`.
 
 For a semver release flow, this repo also includes:
 
@@ -83,7 +83,7 @@ key copy <TAB><TAB>
 
 Expected behavior:
 
-- `key <TAB><TAB>` offers `show`, `add`, `edit`, `copy`, `move`, `remove`, and `list`
+- `key <TAB><TAB>` offers `unlock`, `show`, `add`, `edit`, `copy`, `move`, `remove`, and `list`
 - `key show <TAB><TAB>` offers `github/personal` and `personal/gmail`
 
 ## Verify signing inputs

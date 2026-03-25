@@ -4,6 +4,21 @@ import Testing
 
 struct KeyCLIApplicationTests {
     @Test
+    func unlockSendsUnlockRequest() throws {
+        let transport = MemoryTransport { request in
+            #expect(request == .unlock)
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["unlock"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "")
+        #expect(io.stderr == "")
+    }
+
+    @Test
     func showAddsTrailingNewlineForTerminalOutput() throws {
         let transport = MemoryTransport { request in
             #expect(request == .get(name: "demo/test"))
@@ -150,6 +165,21 @@ struct KeyCLIApplicationTests {
 }
 
 struct KeyServiceHandlerTests {
+    @Test
+    func unlockAuthenticatesWithoutReturningOutput() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let keyStore = MemoryVaultKeyStore()
+        let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
+
+        #expect(handler.handle(.unlock) == .success())
+        #expect(keyStore.loadCount == 1)
+        #expect(keyStore.requests.last?.createIfMissing == true)
+    }
+
     @Test
     func addThenGetRoundTripsSecret() throws {
         let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
@@ -320,5 +350,85 @@ struct KeyServiceHandlerTests {
 
         let listResponse = handler.handle(.list)
         #expect(listResponse == .success("alpha/two\nzeta/one\n"))
+    }
+}
+
+struct SessionVaultKeyStoreTests {
+    @Test
+    func reusesUnlockedSessionWithinTimeout() throws {
+        let underlying = MemoryVaultKeyStore()
+        let start = Date(timeIntervalSince1970: 1_000)
+        var currentTime = start
+        let store = SessionVaultKeyStore(
+            underlying: underlying,
+            inactivityTimeout: 60,
+            now: { currentTime }
+        )
+
+        _ = try store.loadKey(reason: "first", createIfMissing: true)
+        currentTime = start.addingTimeInterval(30)
+        _ = try store.loadKey(reason: "second", createIfMissing: false)
+
+        #expect(underlying.loadCount == 1)
+        #expect(store.isUnlocked(at: currentTime) == true)
+    }
+
+    @Test
+    func reauthenticatesAfterExpiry() throws {
+        let underlying = MemoryVaultKeyStore()
+        let start = Date(timeIntervalSince1970: 2_000)
+        var currentTime = start
+        let store = SessionVaultKeyStore(
+            underlying: underlying,
+            inactivityTimeout: 60,
+            now: { currentTime }
+        )
+
+        _ = try store.loadKey(reason: "first", createIfMissing: true)
+        currentTime = start.addingTimeInterval(61)
+        _ = try store.loadKey(reason: "second", createIfMissing: false)
+
+        #expect(underlying.loadCount == 2)
+    }
+
+    @Test
+    func addThenGetReusesSessionAcrossHandlerRequests() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let underlying = MemoryVaultKeyStore()
+        let store = SessionVaultKeyStore(underlying: underlying)
+        let handler = KeyServiceHandler(keyStore: store, entryStore: EntryStore(rootURL: tempDirectory))
+
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "hunter2")) == .success())
+        #expect(handler.handle(.get(name: "mail/personal")) == .success("hunter2"))
+        #expect(underlying.loadCount == 1)
+    }
+
+    @Test
+    func authFailureDoesNotLeaveSessionUnlocked() throws {
+        let underlying = MemoryVaultKeyStore()
+        underlying.error = AppError.authFailed("Authentication was cancelled or failed.")
+        let store = SessionVaultKeyStore(underlying: underlying)
+
+        #expect(throws: AppError.authFailed("Authentication was cancelled or failed.")) {
+            _ = try store.loadKey(reason: "unlock", createIfMissing: false)
+        }
+        #expect(store.isUnlocked() == false)
+    }
+
+    @Test
+    func invalidateClearsSession() throws {
+        let underlying = MemoryVaultKeyStore()
+        let store = SessionVaultKeyStore(underlying: underlying)
+
+        _ = try store.loadKey(reason: "unlock", createIfMissing: true)
+        #expect(store.isUnlocked() == true)
+
+        store.invalidate()
+
+        #expect(store.isUnlocked() == false)
     }
 }

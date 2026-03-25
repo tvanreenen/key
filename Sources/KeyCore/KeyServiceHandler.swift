@@ -28,6 +28,12 @@ public final class KeyServiceHandler {
     public func handle(_ request: KeyServiceRequest) -> KeyServiceResponse {
         do {
             switch request {
+            case .unlock:
+                _ = try keyStore.loadKey(
+                    reason: "Unlock key vault.",
+                    createIfMissing: true
+                )
+                return .success()
             case .list:
                 let entries = try entryStore.listEntries()
                 guard !entries.isEmpty else {
@@ -66,10 +72,7 @@ public final class KeyServiceHandler {
     }
 
     private func storeAddedSecret(_ secret: String, as name: String) throws {
-        let keyData = try keyStore.loadKey(
-            reason: "Unlock key vault to store '\(name)'.",
-            createIfMissing: true
-        )
+        let keyData = try keyStore.loadKey(reason: "Unlock key vault to store '\(name)'.", createIfMissing: true)
         let encrypted = try cipher.encrypt(secret, keyData: keyData)
         try entryStore.save(encrypted, as: name, overwrite: false)
     }

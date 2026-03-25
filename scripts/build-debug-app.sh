@@ -20,14 +20,17 @@ if [[ -z "${app_path}" ]]; then
 fi
 
 cli_path="${app_path}/Contents/MacOS/key"
-service_path="${app_path}/Contents/XPCServices/KeyXPCService.xpc"
+helper_path="${app_path}/Contents/Library/Helpers/KeyLaunchAgentHelper"
+launch_agent_plist="${app_path}/Contents/Library/LaunchAgents/work.tvr.key.agent.plist"
 
 echo "Built unsigned debug app:"
 echo "  ${app_path}"
 echo "Bundled CLI:"
 echo "  ${cli_path}"
-echo "Bundled XPC service:"
-echo "  ${service_path}"
+echo "Bundled helper:"
+echo "  ${helper_path}"
+echo "LaunchAgent plist:"
+echo "  ${launch_agent_plist}"
 echo
 echo "Next:"
 echo "  just verify-signing \"${app_path}\""

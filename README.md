@@ -8,7 +8,7 @@
 - Flexible directory structure lets you organize and reason about secrets hierarchically
 - Small, CLI-first command set with full flexibility from the shell
 
-`key` uses the same model, but instead of pass’s GPG agent workflow, it relies on native macOS encryption and authentication. This means secrets can be unlocked with Touch ID, Apple Watch, or your system password through [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence).
+`key` uses the same model, but instead of pass’s GPG agent workflow, it relies on native macOS encryption and authentication. Under the hood it works a bit like `ssh-agent` or `gpg-agent`: a short-lived helper caches unlocked key material in memory. The difference is that `key` does it the native macOS way, using `launchd`, XPC, Mach services, and Keychain [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence).
 
 ## How it works
 
@@ -16,7 +16,9 @@
 - All secret files are encrypted and decrypted using a single, randomly generated 256-bit symmetric vault key.
 - That vault key is stored securely in your macOS Keychain (not the secrets themselves!).
 - Access to the vault key in Keychain is protected by macOS local authentication—Touch ID, Apple Watch, or your system password—using [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence).
-- Whenever you unlock a secret, `key` retrieves the vault key from Keychain (prompting for authentication), then uses it to decrypt the requested secret file.
+- The CLI talks to an on-demand LaunchAgent helper over XPC using a Mach service.
+- After a successful unlock, the helper keeps the vault key in memory for a short idle window and reuses it across separate CLI invocations without prompting again.
+- When the helper has been idle long enough, it clears the in-memory key and exits.
 
 The result: your secrets stay encrypted on the filesystem, protected by a single key, and only you can access that key thanks to native macOS authentication.
 
@@ -32,11 +34,14 @@ brew tap tvanreenen/tap
 brew install --cask key
 ```
 
+Open `Key.app` once after install so it can register the bundled LaunchAgent helper with macOS.
+
 ## CLI
 
 The CLI is intentionally small:
 
 ```bash
+key unlock                      # authenticate and warm the helper session
 key add <name>                  # add a new secret
 key edit <name>                 # update an existing secret
 key list                        # list stored secrets
@@ -100,11 +105,11 @@ Without the vault key (the 256-bit secret kept in your Keychain), the file conte
 
 1. `Key.app`
 2. `key` CLI client
-3. `KeyXPCService.xpc`
+3. LaunchAgent helper
 
 ### `Key.app`
 
-The host app exists primarily to give the project a proper macOS app identity, signing context, entitlements, and release shape. It is not intended to be a full GUI password manager.
+The host app exists to give the project a proper macOS app identity, signing context, entitlements, and release shape, and to register the bundled LaunchAgent helper on first launch. It is not intended to be a full GUI password manager.
 
 ### `key` CLI client
 
@@ -117,24 +122,47 @@ The CLI is the user-facing interface. It handles:
 
 The CLI does **not** directly access the protected vault key.
 
-### `KeyXPCService.xpc`
+### LaunchAgent helper
 
-The XPC service is the privileged side of the system. It is launched on demand by macOS and owns:
+The helper is the privileged side of the system. It is managed by `launchd`, reachable through a Mach service, and owns:
 
 - Keychain access
 - [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence)-gated vault key retrieval
 - encryption and decryption
 - on-disk secret file access
+- the short-lived in-memory unlock session
 
-This split is what gives `key` native macOS integration without turning the CLI itself into the privileged actor.
+This split gives `key` a shape that is similar in spirit to `ssh-agent` or `gpg-agent`: a user-session helper keeps unlocked key material in memory so repeated CLI commands can reuse it. The difference is that `key` uses the native macOS service model instead of a Unix socket convention:
+
+- `launchd` starts the helper on demand
+- the CLI talks to it over XPC using a Mach service
+- the helper exits when it has been idle, so nothing is permanently running
+
+That gives `key` a few nice properties:
+
+- reliable unlock reuse across separate CLI invocations
+- no long-lived decrypted secrets on disk
+- no permanently running background process when idle
+- native macOS process management, signing, and IPC
 
 Conceptually, a `show` looks like this:
 
 1. `key show github/personal`
-2. the CLI sends a request to the bundled XPC service
-3. the XPC service asks macOS for access to the vault key
-4. macOS enforces the Keychain item's [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence) requirement through its normal local-authentication path, using whatever user-presence mechanism the OS makes available for that machine and state
-5. the service decrypts the secret file
-6. the CLI prints the result or copies it to the pasteboard
+2. if needed, `launchd` starts the helper when the CLI connects to its Mach service
+3. the CLI sends a request to the helper over XPC
+4. if the helper is locked, it asks macOS for access to the vault key
+5. macOS enforces the Keychain item's [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence) requirement through its normal local-authentication path
+6. the helper decrypts the secret file
+7. the CLI prints the result or copies it to the pasteboard
+
+Conceptually, an explicit unlock looks like this:
+
+1. `key unlock`
+2. the CLI connects to the helper's Mach service
+3. if needed, `launchd` starts the helper
+4. the helper asks macOS for access to the vault key
+5. on success, the helper keeps the vault key in memory for a short idle window
+6. later `show`, `add`, or `edit` requests can reuse that in-memory authorization without prompting again
+7. after the helper has been idle long enough, it drops the key and exits
 
 That is the tradeoff that makes the native macOS auth path possible while keeping the day-to-day interface CLI-first. This is intentionally macOS-specific and optimizes for native platform integration over cross-platform portability.
