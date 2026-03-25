@@ -22,6 +22,14 @@ private final class HelperLifecycleController {
         }
     }
 
+    func shutdown() {
+        queue.async {
+            self.timer?.cancel()
+            self.timer = nil
+            self.onIdle()
+        }
+    }
+
     private func rescheduleTimer() {
         timer?.cancel()
 
@@ -60,8 +68,6 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
     }
 
     func sendRequest(_ requestData: NSData, withReply reply: @escaping (NSData?, NSString?) -> Void) {
-        lifecycleController.recordActivity()
-
         let request: KeyServiceRequest
         do {
             request = try decoder.decode(KeyServiceRequest.self, from: requestData as Data)
@@ -70,10 +76,15 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
             return
         }
 
+        lifecycleController.recordActivity()
+
         do {
             let response = handler.handle(request)
             let responseData = try encoder.encode(response)
             reply(responseData as NSData, nil)
+            if request == .lock, response.exitCode == EXIT_SUCCESS {
+                lifecycleController.shutdown()
+            }
         } catch {
             reply(nil, "Failed to encode response." as NSString)
         }

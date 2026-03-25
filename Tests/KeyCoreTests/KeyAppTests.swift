@@ -19,6 +19,21 @@ struct KeyCLIApplicationTests {
     }
 
     @Test
+    func lockSendsLockRequest() throws {
+        let transport = MemoryTransport { request in
+            #expect(request == .lock)
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["lock"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "")
+        #expect(io.stderr == "")
+    }
+
+    @Test
     func showAddsTrailingNewlineForTerminalOutput() throws {
         let transport = MemoryTransport { request in
             #expect(request == .get(name: "demo/test"))
@@ -178,6 +193,20 @@ struct KeyServiceHandlerTests {
         #expect(handler.handle(.unlock) == .success())
         #expect(keyStore.loadCount == 1)
         #expect(keyStore.requests.last?.createIfMissing == true)
+    }
+
+    @Test
+    func lockInvalidatesSessionWithoutReturningOutput() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let keyStore = MemoryVaultKeyStore()
+        let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
+
+        #expect(handler.handle(.lock) == .success())
+        #expect(keyStore.invalidateCount == 1)
     }
 
     @Test
@@ -405,6 +434,24 @@ struct SessionVaultKeyStoreTests {
         #expect(handler.handle(.addManual(name: "mail/personal", secret: "hunter2")) == .success())
         #expect(handler.handle(.get(name: "mail/personal")) == .success("hunter2"))
         #expect(underlying.loadCount == 1)
+    }
+
+    @Test
+    func lockForcesNextKeyBackedRequestToReauthenticate() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let underlying = MemoryVaultKeyStore()
+        let store = SessionVaultKeyStore(underlying: underlying)
+        let handler = KeyServiceHandler(keyStore: store, entryStore: EntryStore(rootURL: tempDirectory))
+
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "hunter2")) == .success())
+        #expect(handler.handle(.lock) == .success())
+        #expect(store.isUnlocked() == false)
+        #expect(handler.handle(.get(name: "mail/personal")) == .success("hunter2"))
+        #expect(underlying.loadCount == 2)
     }
 
     @Test

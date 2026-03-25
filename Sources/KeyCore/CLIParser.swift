@@ -9,6 +9,8 @@ public enum CLIParser {
         switch subcommand {
         case "unlock":
             return try parseUnlock(arguments: Array(arguments.dropFirst()))
+        case "lock":
+            return try parseLock(arguments: Array(arguments.dropFirst()))
         case "show":
             return try parseShow(arguments: Array(arguments.dropFirst()))
         case "add":
@@ -35,6 +37,7 @@ public enum CLIParser {
 
     Usage:
       key unlock
+      key lock
       key show <name> [--copy]
       key add <name>
       key edit <name>
@@ -45,6 +48,7 @@ public enum CLIParser {
 
     Commands:
       unlock  Authenticate and warm the helper session.
+      lock    Clear the helper session and stop the helper.
       show    Write a secret to stdout.
       add     Add a new secret.
       edit    Update an existing secret.
@@ -60,6 +64,14 @@ public enum CLIParser {
         }
 
         return .unlock
+    }
+
+    private static func parseLock(arguments: [String]) throws -> Command {
+        guard arguments.isEmpty else {
+            throw AppError.usage("Unknown option '\(arguments[0])' for lock.\n\n\(usageText)")
+        }
+
+        return .lock
     }
 
     private static func parseAdd(arguments: [String]) throws -> Command {

@@ -34,6 +34,9 @@ public final class KeyServiceHandler {
                     createIfMissing: true
                 )
                 return .success()
+            case .lock:
+                keyStore.invalidate()
+                return .success()
             case .list:
                 let entries = try entryStore.listEntries()
                 guard !entries.isEmpty else {

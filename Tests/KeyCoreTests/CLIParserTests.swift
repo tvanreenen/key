@@ -15,6 +15,12 @@ struct CLIParserTests {
     }
 
     @Test
+    func parsesLock() throws {
+        let command = try CLIParser.parse(arguments: ["lock"])
+        #expect(command == .lock)
+    }
+
+    @Test
     func parsesAdd() throws {
         let command = try CLIParser.parse(arguments: ["add", "api/token"])
         #expect(command == .add(name: "api/token"))
@@ -127,6 +133,13 @@ struct CLIParserTests {
     func rejectsUnlockOptions() throws {
         #expect(throws: AppError.usage("Unknown option '--force' for unlock.\n\n\(CLIParser.usageText)")) {
             try CLIParser.parse(arguments: ["unlock", "--force"])
+        }
+    }
+
+    @Test
+    func rejectsLockOptions() throws {
+        #expect(throws: AppError.usage("Unknown option '--force' for lock.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["lock", "--force"])
         }
     }
 }

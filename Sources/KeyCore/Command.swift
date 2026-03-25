@@ -2,6 +2,7 @@ import Foundation
 
 public enum Command: Equatable {
     case unlock
+    case lock
     case show(name: String, copy: Bool)
     case add(name: String)
     case edit(name: String)

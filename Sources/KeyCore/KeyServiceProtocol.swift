@@ -2,6 +2,7 @@ import Foundation
 
 public enum KeyServiceRequest: Codable, Equatable {
     case unlock
+    case lock
     case list
     case get(name: String)
     case addManual(name: String, secret: String)
@@ -21,6 +22,7 @@ public enum KeyServiceRequest: Codable, Equatable {
 
     private enum Kind: String, Codable {
         case unlock
+        case lock
         case list
         case get
         case addManual
@@ -35,6 +37,8 @@ public enum KeyServiceRequest: Codable, Equatable {
         switch try container.decode(Kind.self, forKey: .kind) {
         case .unlock:
             self = .unlock
+        case .lock:
+            self = .lock
         case .list:
             self = .list
         case .get:
@@ -71,6 +75,8 @@ public enum KeyServiceRequest: Codable, Equatable {
         switch self {
         case .unlock:
             try container.encode(Kind.unlock, forKey: .kind)
+        case .lock:
+            try container.encode(Kind.lock, forKey: .kind)
         case .list:
             try container.encode(Kind.list, forKey: .kind)
         case let .get(name):

@@ -5,6 +5,7 @@ import Security
 
 public protocol VaultKeyStoring {
     func loadKey(reason: String, createIfMissing: Bool) throws -> Data
+    func invalidate()
 }
 
 public final class VaultKeyStore: VaultKeyStoring {
@@ -112,6 +113,10 @@ public final class VaultKeyStore: VaultKeyStoring {
         }
 
         return data
+    }
+
+    public func invalidate() {
+        // Stateless key access has no in-memory session to clear.
     }
 
     private func baseQuery() throws -> [String: Any] {
