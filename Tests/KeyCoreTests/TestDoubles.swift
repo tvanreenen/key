@@ -3,10 +3,17 @@ import Foundation
 
 final class MemoryVaultKeyStore: VaultKeyStoring {
     var keyData: Data?
+    var error: Error?
     var loadCount = 0
+    var invalidateCount = 0
+    private(set) var requests: [(reason: String, createIfMissing: Bool)] = []
 
     func loadKey(reason: String, createIfMissing: Bool) throws -> Data {
         loadCount += 1
+        requests.append((reason, createIfMissing))
+        if let error {
+            throw error
+        }
         if let keyData {
             return keyData
         }
@@ -16,6 +23,11 @@ final class MemoryVaultKeyStore: VaultKeyStoring {
         let generated = Data((0..<32).map(UInt8.init))
         keyData = generated
         return generated
+    }
+
+    func invalidate() {
+        invalidateCount += 1
+        keyData = nil
     }
 }
 

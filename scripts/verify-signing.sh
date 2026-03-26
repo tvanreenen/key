@@ -9,8 +9,9 @@ else
 fi
 
 cli_path="${app_path}/Contents/MacOS/key"
-xpc_service_path="${app_path}/Contents/XPCServices/KeyXPCService.xpc"
-xpc_executable_path="${xpc_service_path}/Contents/MacOS/KeyXPCService"
+helper_path="${app_path}/Contents/Helpers/Key Agent.app"
+helper_executable_path="${helper_path}/Contents/MacOS/Key Agent"
+launch_agent_plist="${app_path}/Contents/Library/LaunchAgents/work.tvr.key.agent.plist"
 
 if [[ ! -d "${app_path}" ]]; then
   echo "missing app bundle at ${app_path}" >&2
@@ -22,13 +23,18 @@ if [[ ! -x "${cli_path}" ]]; then
   exit 1
 fi
 
-if [[ ! -d "${xpc_service_path}" ]]; then
-  echo "missing bundled XPC service at ${xpc_service_path}" >&2
+if [[ ! -d "${helper_path}" ]]; then
+  echo "missing bundled helper app at ${helper_path}" >&2
   exit 1
 fi
 
-if [[ ! -x "${xpc_executable_path}" ]]; then
-  echo "missing bundled XPC service executable at ${xpc_executable_path}" >&2
+if [[ ! -x "${helper_executable_path}" ]]; then
+  echo "missing bundled helper executable at ${helper_executable_path}" >&2
+  exit 1
+fi
+
+if [[ ! -f "${launch_agent_plist}" ]]; then
+  echo "missing bundled LaunchAgent plist at ${launch_agent_plist}" >&2
   exit 1
 fi
 
@@ -53,9 +59,9 @@ echo "== CLI executable entitlements =="
 print_entitlements "${cli_path}"
 
 echo
-echo "== XPC service entitlements =="
-print_entitlements "${xpc_service_path}"
+echo "== Helper executable entitlements =="
+print_entitlements "${helper_path}"
 
 echo
-echo "== XPC executable entitlements =="
-print_entitlements "${xpc_executable_path}"
+echo "== LaunchAgent plist =="
+plutil -p "${launch_agent_plist}"

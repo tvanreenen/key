@@ -33,6 +33,12 @@ public final class KeyCLIApplication {
         let response: KeyServiceResponse
 
         switch command {
+        case .unlock:
+            response = try transport.send(.unlock)
+            return try handle(response, for: command)
+        case .lock:
+            response = try transport.send(.lock)
+            return try handle(response, for: command)
         case .list:
             response = try transport.send(.list)
             return try handle(response, for: command)
@@ -74,7 +80,7 @@ public final class KeyCLIApplication {
         }
 
         switch command {
-        case .list:
+        case .unlock, .lock, .list:
             if let value = response.value, !value.isEmpty {
                 io.writeStdout(value)
             }

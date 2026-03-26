@@ -10,6 +10,10 @@ test:
 build-debug:
   scripts/build-debug-app.sh
 
+# Clear stale LaunchAgent/debug-install state so the next debug build starts clean.
+reset-debug-helper-state:
+  scripts/reset-debug-helper-state.sh
+
 # Create a signed Release archive in Xcode's archive location.
 build-release-archive:
   scripts/build-release-archive.sh

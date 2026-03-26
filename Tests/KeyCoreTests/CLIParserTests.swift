@@ -9,6 +9,18 @@ struct CLIParserTests {
     }
 
     @Test
+    func parsesUnlock() throws {
+        let command = try CLIParser.parse(arguments: ["unlock"])
+        #expect(command == .unlock)
+    }
+
+    @Test
+    func parsesLock() throws {
+        let command = try CLIParser.parse(arguments: ["lock"])
+        #expect(command == .lock)
+    }
+
+    @Test
     func parsesAdd() throws {
         let command = try CLIParser.parse(arguments: ["add", "api/token"])
         #expect(command == .add(name: "api/token"))
@@ -114,6 +126,20 @@ struct CLIParserTests {
     func rejectsRemoveWithoutName() throws {
         #expect(throws: AppError.usage("Missing entry name for remove.\n\n\(CLIParser.usageText)")) {
             try CLIParser.parse(arguments: ["remove"])
+        }
+    }
+
+    @Test
+    func rejectsUnlockOptions() throws {
+        #expect(throws: AppError.usage("Unknown option '--force' for unlock.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["unlock", "--force"])
+        }
+    }
+
+    @Test
+    func rejectsLockOptions() throws {
+        #expect(throws: AppError.usage("Unknown option '--force' for lock.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["lock", "--force"])
         }
     }
 }

@@ -4,38 +4,35 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
-	<key>CFBundleDisplayName</key>
-	<string>Key</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleDisplayName</key>
+	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
-	<string>XPC!</string>
+	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>HelperMachServiceName</key>
+	<string>work.tvr.key.agent</string>
 	<key>KeychainAccessGroup</key>
 	<string>9Q355KSV85.work.tvr.key.shared</string>
+	<key>LaunchAgentPlistName</key>
+	<string>work.tvr.key.agent.plist</string>
+	<key>LSBackgroundOnly</key>
+	<true/>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>VaultKeyAccount</key>
 	<string>default-vault</string>
 	<key>VaultKeyService</key>
 	<string>work.tvr.key.secure-vault</string>
-	<key>XPCService</key>
-	<dict>
-		<key>JoinExistingSession</key>
-		<true/>
-		<key>ServiceType</key>
-		<string>Application</string>
-	</dict>
-	<key>XPCServiceIdentifier</key>
-	<string>work.tvr.key.xpc</string>
 </dict>
 </plist>

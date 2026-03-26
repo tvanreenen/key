@@ -10,7 +10,7 @@ Keep these identifiers and profiles in the Apple Developer portal:
 
 - Team ID: `9Q355KSV85`
 - App ID: `work.tvr.key.app`
-- App ID: `work.tvr.key.xpc`
+- Helper signing ID: `work.tvr.key.xpc`
 - Shared keychain access group: `9Q355KSV85.work.tvr.key.shared`
 - Developer ID provisioning profile: `Key Developer ID App`
 - Developer ID provisioning profile: `Key Developer ID XPC`
@@ -23,19 +23,20 @@ The current project expects these values:
 
 - [Key.xcodeproj](../Key.xcodeproj)
 - app bundle ID: `work.tvr.key.app`
-- XPC bundle ID: `work.tvr.key.xpc`
+- helper signing ID: `work.tvr.key.xpc`
+- helper Mach service: `work.tvr.key.agent`
+- LaunchAgent plist: `work.tvr.key.agent.plist`
 - vault key service: `work.tvr.key.secure-vault`
 - vault key account: `default-vault`
 
 The shared keychain group is recorded in:
 
-- [KeyXPCService.entitlements](../Config/KeyXPCService.entitlements)
+- [KeyLaunchAgentHelper.entitlements](../Config/KeyLaunchAgentHelper.entitlements)
 - [Key-Info.plist](../Config/Key-Info.plist)
-- [KeyXPCService-Info.plist](../Config/KeyXPCService-Info.plist)
 
 ## Portal setup
 
-Create and keep two explicit App IDs:
+Create and keep the app App ID plus the helper signing identifier:
 
 1. `work.tvr.key.app`
 2. `work.tvr.key.xpc`
@@ -56,7 +57,7 @@ Download and install those profiles locally so Xcode can use them for Release ar
 In Xcode, the important targets are:
 
 - `KeyApp`
-- `KeyXPCService`
+- `KeyLaunchAgentHelper`
 
 Expected Release signing values:
 
@@ -67,7 +68,7 @@ Expected Release signing values:
 - `Provisioning Profile`: `Key Developer ID App`
 - `Product Bundle Identifier`: `work.tvr.key.app`
 
-### `KeyXPCService`
+### `KeyLaunchAgentHelper`
 
 - `Code Signing Identity`: `Developer ID Application`
 - `Code Signing Style`: `Manual`
@@ -118,7 +119,7 @@ Supporting scripts:
 
 ## Sanity checks
 
-Before debugging Keychain issues, verify the signed app and XPC service actually carry the expected entitlements:
+Before debugging Keychain issues, verify the signed app and helper actually carry the expected entitlements:
 
 ```bash
 just verify-signing "$HOME/Library/Developer/Xcode/Archives/<date>/<archive>.xcarchive/Products/Applications/Key.app"
@@ -130,9 +131,9 @@ After notarization and stapling, run:
 just verify-release "$HOME/Library/Developer/Xcode/Archives/<date>/<archive>.xcarchive/Products/Applications/Key.app"
 ```
 
-The XPC service should show:
+The helper executable should show:
 
 - `com.apple.application-identifier = 9Q355KSV85.work.tvr.key.xpc`
 - `keychain-access-groups = [9Q355KSV85.work.tvr.key.shared]`
 
-If the keychain access group is missing from the signed XPC service, the protected vault-key path will not work.
+If the keychain access group is missing from the signed helper executable, the protected vault-key path will not work.

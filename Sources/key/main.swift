@@ -2,7 +2,7 @@ import Foundation
 import KeyCore
 
 let configuration = RuntimeConfiguration.live()
-let transport = KeyXPCClientTransport(serviceName: configuration.xpcServiceIdentifier)
+let transport = KeyXPCClientTransport(machServiceName: configuration.helperMachServiceName)
 let app = KeyCLIApplication(
     transport: transport,
     io: SystemIO(),

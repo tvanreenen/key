@@ -5,17 +5,17 @@ import Foundation
 }
 
 public final class KeyXPCClientTransport: KeyServiceTransport {
-    private let serviceName: String
+    private let machServiceName: String
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    public init(serviceName: String) {
-        self.serviceName = serviceName
+    public init(machServiceName: String) {
+        self.machServiceName = machServiceName
     }
 
     public func send(_ request: KeyServiceRequest) throws -> KeyServiceResponse {
         let requestData = try encoder.encode(request)
-        let connection = NSXPCConnection(serviceName: serviceName)
+        let connection = NSXPCConnection(machServiceName: machServiceName, options: [])
         connection.remoteObjectInterface = NSXPCInterface(with: KeyXPCProtocol.self)
         connection.resume()
         defer {
