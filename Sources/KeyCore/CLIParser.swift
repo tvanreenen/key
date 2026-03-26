@@ -7,28 +7,30 @@ public enum CLIParser {
         }
 
         switch subcommand {
+        case "help":
+            return try parseHelp(arguments: Array(arguments.dropFirst()))
         case "version":
             return try parseVersion(arguments: Array(arguments.dropFirst()))
         case "unlock":
             return try parseUnlock(arguments: Array(arguments.dropFirst()))
         case "lock":
             return try parseLock(arguments: Array(arguments.dropFirst()))
-        case "show":
-            return try parseShow(arguments: Array(arguments.dropFirst()))
+        case "get":
+            return try parseGet(arguments: Array(arguments.dropFirst()))
+        case "copy":
+            return try parseCopy(arguments: Array(arguments.dropFirst()))
         case "add":
             return try parseAdd(arguments: Array(arguments.dropFirst()))
         case "edit":
             return try parseEdit(arguments: Array(arguments.dropFirst()))
-        case "copy", "cp":
-            return try parseCopy(arguments: Array(arguments.dropFirst()), commandName: subcommand)
-        case "move", "mv":
-            return try parseMove(arguments: Array(arguments.dropFirst()), commandName: subcommand)
-        case "remove", "rm":
+        case "duplicate":
+            return try parseDuplicate(arguments: Array(arguments.dropFirst()))
+        case "rename":
+            return try parseRename(arguments: Array(arguments.dropFirst()))
+        case "remove":
             return try parseRemove(arguments: Array(arguments.dropFirst()), commandName: subcommand)
-        case "list", "ls":
+        case "list":
             return try parseList(arguments: Array(arguments.dropFirst()), commandName: subcommand)
-        case "help", "--help", "-h":
-            throw AppError.usage(usageText)
         default:
             throw AppError.usage("Unknown command '\(subcommand)'.\n\n\(usageText)")
         }
@@ -39,23 +41,31 @@ public enum CLIParser {
       key <command> [arguments]
 
     Commands:
-      show <name> [--copy]        Print a secret.
-      add <name>                  Add a new secret from stdin or prompt.
-      edit <name>                 Replace a secret from stdin or prompt.
-      copy <src> <dst> [--force]  Copy a secret. Alias: cp
-      move <src> <dst> [--force]  Move a secret. Alias: mv
-      remove <name> [--force]     Remove a secret. Alias: rm
-      list                        List stored secrets. Alias: ls
-      unlock                      Warm the helper session.
-      lock                        Clear the helper session and stop the helper.
-      version [--json]            Print the CLI version.
-      help                        Show this help.
+      get <name>                       Print a secret.
+      copy <name>                      Copy a secret to the clipboard.
+      add <name>                       Add a new secret from stdin or prompt.
+      edit <name>                      Update a secret from stdin or prompt.
+      duplicate <src> <dst> [--force]  Duplicate an entry.
+      rename <src> <dst> [--force]     Rename an entry.
+      remove <name> [--force]          Remove a secret.
+      list                             List stored secrets.
+      unlock                           Warm the helper session.
+      lock                             Clear the helper session and stop the helper.
+      version [--json]                 Print the CLI version.
+      help                             Show this help.
 
     Options:
-      --copy   Copy a shown secret to the clipboard.
       --force  Skip overwrite or removal confirmation.
       --json   Print version info as JSON.
     """
+
+    private static func parseHelp(arguments: [String]) throws -> Command {
+        guard arguments.isEmpty else {
+            throw AppError.usage("Unknown option '\(arguments[0])' for help.\n\n\(usageText)")
+        }
+
+        return .help
+    }
 
     private static func parseVersion(arguments: [String]) throws -> Command {
         guard arguments.count <= 1 else {
@@ -88,6 +98,28 @@ public enum CLIParser {
         return .lock
     }
 
+    private static func parseGet(arguments: [String]) throws -> Command {
+        guard let name = arguments.first else {
+            throw AppError.usage("Missing entry name for get.\n\n\(usageText)")
+        }
+        guard arguments.count == 1 else {
+            throw AppError.usage("Unknown option '\(arguments[1])' for get.\n\n\(usageText)")
+        }
+
+        return .get(name: name)
+    }
+
+    private static func parseCopy(arguments: [String]) throws -> Command {
+        guard let name = arguments.first else {
+            throw AppError.usage("Missing entry name for copy.\n\n\(usageText)")
+        }
+        guard arguments.count == 1 else {
+            throw AppError.usage("Unknown option '\(arguments[1])' for copy.\n\n\(usageText)")
+        }
+
+        return .copy(name: name)
+    }
+
     private static func parseAdd(arguments: [String]) throws -> Command {
         guard let name = arguments.first else {
             throw AppError.usage("Missing entry name for add.\n\n\(usageText)")
@@ -108,33 +140,23 @@ public enum CLIParser {
         return .edit(name: name)
     }
 
-    private static func parseCopy(arguments: [String], commandName: String) throws -> Command {
-        guard let source = arguments.first else {
-            throw AppError.usage("Missing source entry name for \(commandName).\n\n\(usageText)")
+    private static func parseDuplicate(arguments: [String]) throws -> Command {
+        try parseEntryTransfer(arguments: arguments, commandName: "duplicate") { source, destination, force in
+            .duplicate(source: source, destination: destination, force: force)
         }
-        guard arguments.count >= 2 else {
-            throw AppError.usage("Missing destination entry name for \(commandName).\n\n\(usageText)")
-        }
-
-        let destination = arguments[1]
-        var force = false
-        var index = 2
-
-        while index < arguments.count {
-            let argument = arguments[index]
-            switch argument {
-            case "--force":
-                force = true
-                index += 1
-            default:
-                throw AppError.usage("Unknown option '\(argument)' for \(commandName).\n\n\(usageText)")
-            }
-        }
-
-        return .copy(source: source, destination: destination, force: force)
     }
 
-    private static func parseMove(arguments: [String], commandName: String) throws -> Command {
+    private static func parseRename(arguments: [String]) throws -> Command {
+        try parseEntryTransfer(arguments: arguments, commandName: "rename") { source, destination, force in
+            .rename(source: source, destination: destination, force: force)
+        }
+    }
+
+    private static func parseEntryTransfer(
+        arguments: [String],
+        commandName: String,
+        build: (String, String, Bool) -> Command
+    ) throws -> Command {
         guard let source = arguments.first else {
             throw AppError.usage("Missing source entry name for \(commandName).\n\n\(usageText)")
         }
@@ -157,7 +179,7 @@ public enum CLIParser {
             }
         }
 
-        return .move(source: source, destination: destination, force: force)
+        return build(source, destination, force)
     }
 
     private static func parseRemove(arguments: [String], commandName: String) throws -> Command {
@@ -180,24 +202,6 @@ public enum CLIParser {
         }
 
         return .remove(name: name, force: force)
-    }
-
-    private static func parseShow(arguments: [String]) throws -> Command {
-        guard let name = arguments.first else {
-            throw AppError.usage("Missing entry name for show.\n\n\(usageText)")
-        }
-
-        var copy = false
-        for argument in arguments.dropFirst() {
-            switch argument {
-            case "--copy":
-                copy = true
-            default:
-                throw AppError.usage("Unknown option '\(argument)' for show.\n\n\(usageText)")
-            }
-        }
-
-        return .show(name: name, copy: copy)
     }
 
     private static func parseList(arguments: [String], commandName: String) throws -> Command {

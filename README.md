@@ -42,12 +42,13 @@ The CLI is intentionally small:
 
 ```bash
 key unlock                      # authenticate and warm the helper session
-key add <name>                  # add a new secret
-key edit <name>                 # update an existing secret
+key add <name>                  # add a new secret from stdin or prompt
+key edit <name>                 # update a secret from stdin or prompt
 key list                        # list stored secrets
-key show <name> [--copy]        # write a secret to stdout
-key copy <src> <dst> [--force]  # copy a secret to a new name
-key move <src> <dst> [--force]  # move a secret to a new name
+key get <name>                  # print a secret
+key copy <name>                 # copy a secret to the clipboard
+key duplicate <src> <dst> [--force]  # duplicate an entry
+key rename <src> <dst> [--force]     # rename an entry
 key remove <name> [--force]     # remove a secret
 ```
 
@@ -70,8 +71,8 @@ head -c 32 /dev/urandom | base64 | key add backup/recovery
 If you use [`fzf`](https://github.com/junegunn/fzf), `key list` composes cleanly with it:
 
 ```bash
-key show "$(key list | fzf)"
-key show "$(key list | fzf)" --copy
+key get "$(key list | fzf)"
+key copy "$(key list | fzf)"
 key edit "$(key list | fzf)"
 key remove "$(key list | fzf)"
 ```
@@ -118,7 +119,7 @@ The CLI is the user-facing interface. It handles:
 - command parsing
 - stdin and secure prompt input
 - stdout and stderr output
-- clipboard writes for `--copy`
+- clipboard writes for `key copy`
 
 The CLI does **not** directly access the protected vault key.
 
@@ -145,15 +146,15 @@ That gives `key` a few nice properties:
 - no permanently running background process when idle
 - native macOS process management, signing, and IPC
 
-Conceptually, a `show` looks like this:
+Conceptually, a `get` looks like this:
 
-1. `key show github/personal`
+1. `key get github/personal`
 2. if needed, `launchd` starts the helper when the CLI connects to its Mach service
 3. the CLI sends a request to the helper over XPC
 4. if the helper is locked, it asks macOS for access to the vault key
 5. macOS enforces the Keychain item's [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence) requirement through its normal local-authentication path
 6. the helper decrypts the secret file
-7. the CLI prints the result or copies it to the pasteboard
+7. the CLI prints the result to stdout
 
 Conceptually, an explicit unlock looks like this:
 
@@ -162,7 +163,7 @@ Conceptually, an explicit unlock looks like this:
 3. if needed, `launchd` starts the helper
 4. the helper asks macOS for access to the vault key
 5. on success, the helper keeps the vault key in memory for a short idle window
-6. later `show`, `add`, or `edit` requests can reuse that in-memory authorization without prompting again
+6. later `get`, `copy`, `add`, or `edit` requests can reuse that in-memory authorization without prompting again
 7. after the helper has been idle long enough, it drops the key and exits
 
 That is the tradeoff that makes the native macOS auth path possible while keeping the day-to-day interface CLI-first. This is intentionally macOS-specific and optimizes for native platform integration over cross-platform portability.

@@ -36,6 +36,9 @@ public final class KeyCLIApplication {
         let response: KeyServiceResponse
 
         switch command {
+        case .help:
+            io.writeStdout(CLIParser.usageText + "\n")
+            return EXIT_SUCCESS
         case let .version(json):
             writeVersion(json: json)
             return EXIT_SUCCESS
@@ -48,10 +51,13 @@ public final class KeyCLIApplication {
         case .list:
             response = try transport.send(.list)
             return try handle(response, for: command)
-        case let .show(name, copy):
+        case let .get(name):
+            response = try transport.send(.get(name: name))
+            return try handle(response, for: command)
+        case let .copy(name):
             response = try transport.send(.get(name: name))
             let exitCode = try handle(response, for: command)
-            guard exitCode == EXIT_SUCCESS, copy, let value = response.value else {
+            guard exitCode == EXIT_SUCCESS, let value = response.value else {
                 return exitCode
             }
             try clipboard.copy(value)
@@ -64,10 +70,10 @@ public final class KeyCLIApplication {
             let secret = try readSecretFromInput()
             response = try transport.send(.editManual(name: name, secret: secret))
             return try handle(response, for: command)
-        case let .copy(source, destination, force):
+        case let .duplicate(source, destination, force):
             response = try transport.send(.copyEntry(source: source, destination: destination, force: force))
             return try handle(response, for: command)
-        case let .move(source, destination, force):
+        case let .rename(source, destination, force):
             response = try transport.send(.moveEntry(source: source, destination: destination, force: force))
             return try handle(response, for: command)
         case let .remove(name, force):
@@ -86,24 +92,26 @@ public final class KeyCLIApplication {
         }
 
         switch command {
+        case .help:
+            break
         case .version(json: _):
             break
         case .unlock, .lock, .list:
             if let value = response.value, !value.isEmpty {
                 io.writeStdout(value)
             }
-        case let .show(_, copy):
-            if !copy, let value = response.value {
-                io.writeStdout(formattedShowOutput(value))
+        case .get(name: _):
+            if let value = response.value {
+                io.writeStdout(formattedGetOutput(value))
             }
-        case .add, .edit, .copy, .move, .remove:
+        case .copy(name: _), .add, .edit, .duplicate, .rename, .remove:
             break
         }
 
         return response.exitCode
     }
 
-    private func formattedShowOutput(_ value: String) -> String {
+    private func formattedGetOutput(_ value: String) -> String {
         guard io.stdoutIsTTY, !value.hasSuffix("\n") else {
             return value
         }

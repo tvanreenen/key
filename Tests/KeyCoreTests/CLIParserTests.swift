@@ -3,6 +3,12 @@ import Testing
 
 struct CLIParserTests {
     @Test
+    func parsesHelp() throws {
+        let command = try CLIParser.parse(arguments: ["help"])
+        #expect(command == .help)
+    }
+
+    @Test
     func parsesVersion() throws {
         let command = try CLIParser.parse(arguments: ["version"])
         #expect(command == .version(json: false))
@@ -15,9 +21,15 @@ struct CLIParserTests {
     }
 
     @Test
-    func parsesShowCopy() throws {
-        let command = try CLIParser.parse(arguments: ["show", "github/personal", "--copy"])
-        #expect(command == .show(name: "github/personal", copy: true))
+    func parsesGet() throws {
+        let command = try CLIParser.parse(arguments: ["get", "github/personal"])
+        #expect(command == .get(name: "github/personal"))
+    }
+
+    @Test
+    func parsesCopy() throws {
+        let command = try CLIParser.parse(arguments: ["copy", "github/personal"])
+        #expect(command == .copy(name: "github/personal"))
     }
 
     @Test
@@ -39,21 +51,15 @@ struct CLIParserTests {
     }
 
     @Test
-    func parsesCopyWithForce() throws {
-        let command = try CLIParser.parse(arguments: ["copy", "src/token", "dst/token", "--force"])
-        #expect(command == .copy(source: "src/token", destination: "dst/token", force: true))
+    func parsesDuplicateWithForce() throws {
+        let command = try CLIParser.parse(arguments: ["duplicate", "src/token", "dst/token", "--force"])
+        #expect(command == .duplicate(source: "src/token", destination: "dst/token", force: true))
     }
 
     @Test
     func parsesEdit() throws {
         let command = try CLIParser.parse(arguments: ["edit", "api/token"])
         #expect(command == .edit(name: "api/token"))
-    }
-
-    @Test
-    func parsesMoveWithForce() throws {
-        let command = try CLIParser.parse(arguments: ["move", "src/token", "dst/token", "--force"])
-        #expect(command == .move(source: "src/token", destination: "dst/token", force: true))
     }
 
     @Test
@@ -69,33 +75,78 @@ struct CLIParserTests {
     }
 
     @Test
-    func parsesCopyAlias() throws {
-        let command = try CLIParser.parse(arguments: ["cp", "src/token", "dst/token"])
-        #expect(command == .copy(source: "src/token", destination: "dst/token", force: false))
+    func parsesRenameWithForce() throws {
+        let command = try CLIParser.parse(arguments: ["rename", "src/token", "dst/token", "--force"])
+        #expect(command == .rename(source: "src/token", destination: "dst/token", force: true))
     }
 
     @Test
-    func parsesMoveAlias() throws {
-        let command = try CLIParser.parse(arguments: ["mv", "src/token", "dst/token"])
-        #expect(command == .move(source: "src/token", destination: "dst/token", force: false))
+    func rejectsLegacyShowCommand() throws {
+        #expect(throws: AppError.usage("Unknown command 'show'.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["show", "github/personal"])
+        }
     }
 
     @Test
-    func parsesRemoveAlias() throws {
-        let command = try CLIParser.parse(arguments: ["rm", "src/token"])
-        #expect(command == .remove(name: "src/token", force: false))
+    func rejectsLegacyGetCommandShape() throws {
+        #expect(throws: AppError.usage("Unknown option '--copy' for get.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["get", "github/personal", "--copy"])
+        }
     }
 
     @Test
-    func parsesListAlias() throws {
-        let command = try CLIParser.parse(arguments: ["ls"])
-        #expect(command == .list)
+    func rejectsRemovedTwoArgumentCopyCommand() throws {
+        #expect(throws: AppError.usage("Unknown option 'dst/token' for copy.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["copy", "src/token", "dst/token"])
+        }
     }
 
     @Test
-    func rejectsLegacyGetCommand() throws {
-        #expect(throws: AppError.usage("Unknown command 'get'.\n\n\(CLIParser.usageText)")) {
-            try CLIParser.parse(arguments: ["get", "github/personal"])
+    func rejectsRemovedMoveCommand() throws {
+        #expect(throws: AppError.usage("Unknown command 'move'.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["move", "src/token", "dst/token"])
+        }
+    }
+
+    @Test
+    func rejectsRemovedCopyAlias() throws {
+        #expect(throws: AppError.usage("Unknown command 'cp'.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["cp", "src/token", "dst/token"])
+        }
+    }
+
+    @Test
+    func rejectsRemovedMoveAlias() throws {
+        #expect(throws: AppError.usage("Unknown command 'mv'.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["mv", "src/token", "dst/token"])
+        }
+    }
+
+    @Test
+    func rejectsRemovedRemoveAlias() throws {
+        #expect(throws: AppError.usage("Unknown command 'rm'.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["rm", "src/token"])
+        }
+    }
+
+    @Test
+    func rejectsRemovedListAlias() throws {
+        #expect(throws: AppError.usage("Unknown command 'ls'.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["ls"])
+        }
+    }
+
+    @Test
+    func rejectsRemovedShortHelpFlag() throws {
+        #expect(throws: AppError.usage("Unknown command '-h'.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["-h"])
+        }
+    }
+
+    @Test
+    func rejectsRemovedLongHelpFlag() throws {
+        #expect(throws: AppError.usage("Unknown command '--help'.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["--help"])
         }
     }
 
@@ -121,16 +172,16 @@ struct CLIParserTests {
     }
 
     @Test
-    func rejectsCopyWithoutDestination() throws {
-        #expect(throws: AppError.usage("Missing destination entry name for copy.\n\n\(CLIParser.usageText)")) {
-            try CLIParser.parse(arguments: ["copy", "src/token"])
+    func rejectsDuplicateWithoutDestination() throws {
+        #expect(throws: AppError.usage("Missing destination entry name for duplicate.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["duplicate", "src/token"])
         }
     }
 
     @Test
-    func rejectsMoveWithoutDestination() throws {
-        #expect(throws: AppError.usage("Missing destination entry name for move.\n\n\(CLIParser.usageText)")) {
-            try CLIParser.parse(arguments: ["move", "src/token"])
+    func rejectsRenameWithoutDestination() throws {
+        #expect(throws: AppError.usage("Missing destination entry name for rename.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["rename", "src/token"])
         }
     }
 
@@ -159,6 +210,13 @@ struct CLIParserTests {
     func rejectsUnknownVersionOptions() throws {
         #expect(throws: AppError.usage("Unknown option '--yaml' for version.\n\n\(CLIParser.usageText)")) {
             try CLIParser.parse(arguments: ["version", "--yaml"])
+        }
+    }
+
+    @Test
+    func rejectsHelpOptions() throws {
+        #expect(throws: AppError.usage("Unknown option '--verbose' for help.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["help", "--verbose"])
         }
     }
 }

@@ -4,6 +4,21 @@ import Testing
 
 struct KeyCLIApplicationTests {
     @Test
+    func helpPrintsUsage() throws {
+        let transport = MemoryTransport { _ in
+            Issue.record("transport should not be called for help")
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["help"]) == EXIT_SUCCESS)
+        #expect(io.stdout == CLIParser.usageText + "\n")
+        #expect(io.stderr == "")
+    }
+
+    @Test
     func versionPrintsHumanReadableVersion() throws {
         let transport = MemoryTransport { _ in
             Issue.record("transport should not be called for version")
@@ -76,7 +91,7 @@ struct KeyCLIApplicationTests {
     }
 
     @Test
-    func showAddsTrailingNewlineForTerminalOutput() throws {
+    func getAddsTrailingNewlineForTerminalOutput() throws {
         let transport = MemoryTransport { request in
             #expect(request == .get(name: "demo/test"))
             return .success("k9W2mQ7pL4xR")
@@ -85,12 +100,12 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["show", "demo/test"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["get", "demo/test"]) == EXIT_SUCCESS)
         #expect(io.stdout == "k9W2mQ7pL4xR\n")
     }
 
     @Test
-    func showPreservesExactOutputWhenStdoutIsNotATerminal() throws {
+    func getPreservesExactOutputWhenStdoutIsNotATerminal() throws {
         let transport = MemoryTransport { request in
             #expect(request == .get(name: "demo/test"))
             return .success("k9W2mQ7pL4xR")
@@ -99,12 +114,12 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["show", "demo/test"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["get", "demo/test"]) == EXIT_SUCCESS)
         #expect(io.stdout == "k9W2mQ7pL4xR")
     }
 
     @Test
-    func showCopyWritesToClipboardWithoutStdout() throws {
+    func copyWritesToClipboardWithoutStdout() throws {
         let transport = MemoryTransport { request in
             #expect(request == .get(name: "mail/personal"))
             return .success("hunter2")
@@ -113,7 +128,7 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["show", "mail/personal", "--copy"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["copy", "mail/personal"]) == EXIT_SUCCESS)
         #expect(io.stdout == "")
         #expect(clipboard.copiedText == "hunter2")
     }
@@ -149,7 +164,7 @@ struct KeyCLIApplicationTests {
     }
 
     @Test
-    func copySendsEncryptedCopyRequest() throws {
+    func duplicateSendsEncryptedCopyRequest() throws {
         let transport = MemoryTransport { request in
             #expect(request == .copyEntry(source: "src/token", destination: "dst/token", force: true))
             return .success()
@@ -158,13 +173,13 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["copy", "src/token", "dst/token", "--force"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["duplicate", "src/token", "dst/token", "--force"]) == EXIT_SUCCESS)
         #expect(io.stdout == "")
         #expect(io.stderr == "")
     }
 
     @Test
-    func moveSendsEncryptedMoveRequest() throws {
+    func renameSendsEncryptedMoveRequest() throws {
         let transport = MemoryTransport { request in
             #expect(request == .moveEntry(source: "src/token", destination: "dst/token", force: true))
             return .success()
@@ -173,7 +188,7 @@ struct KeyCLIApplicationTests {
         let clipboard = MemoryClipboard()
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
-        #expect(app.run(arguments: ["move", "src/token", "dst/token", "--force"]) == EXIT_SUCCESS)
+        #expect(app.run(arguments: ["rename", "src/token", "dst/token", "--force"]) == EXIT_SUCCESS)
         #expect(io.stdout == "")
         #expect(io.stderr == "")
     }

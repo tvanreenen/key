@@ -2,13 +2,18 @@
 
 typeset -ga _key_commands
 _key_commands=(
-  'show:write a secret to stdout'
-  'add:add a new secret'
-  'edit:update an existing secret'
-  'copy:copy a secret to a new name'
-  'move:move a secret to a new name'
+  'get:print a secret'
+  'copy:copy a secret to the clipboard'
+  'add:add a new secret from stdin or prompt'
+  'edit:update a secret from stdin or prompt'
+  'duplicate:duplicate an entry'
+  'rename:rename an entry'
   'remove:remove a secret'
   'list:list stored secrets'
+  'unlock:warm the helper session'
+  'lock:clear the helper session and stop the helper'
+  'version:print the CLI version'
+  'help:show this help'
 )
 
 _key_vault_root() {
@@ -75,10 +80,13 @@ case "${state}" in
     ;;
   args)
     case "${words[1]}" in
-      show)
+      get)
         _arguments \
-          '1:entry:_key_complete_entries' \
-          '--copy[copy the secret to the clipboard]'
+          '1:entry:_key_complete_entries'
+        ;;
+      copy)
+        _arguments \
+          '1:entry:_key_complete_entries'
         ;;
       add)
         _arguments \
@@ -88,13 +96,13 @@ case "${state}" in
         _arguments \
           '1:entry:_key_complete_entries'
         ;;
-      copy)
+      duplicate)
         _arguments \
           '1:source entry:_key_complete_entries' \
           '2:destination path:_key_complete_paths' \
           '--force[overwrite an existing destination]'
         ;;
-      move)
+      rename)
         _arguments \
           '1:source entry:_key_complete_entries' \
           '2:destination path:_key_complete_paths' \
@@ -105,7 +113,13 @@ case "${state}" in
           '1:entry:_key_complete_entries' \
           '--force[skip the confirmation prompt]'
         ;;
-      list|help|-h|--help)
+      list|unlock|lock)
+        ;;
+      version)
+        _arguments \
+          '--json[print version info as JSON]'
+        ;;
+      help)
         ;;
     esac
     ;;
