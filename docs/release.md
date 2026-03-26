@@ -76,15 +76,15 @@ Then verify:
 
 ```zsh
 key <TAB><TAB>
-key show <TAB><TAB>
+key get <TAB><TAB>
 key edit <TAB><TAB>
 key copy <TAB><TAB>
 ```
 
 Expected behavior:
 
-- `key <TAB><TAB>` offers `unlock`, `show`, `add`, `edit`, `copy`, `move`, `remove`, and `list`
-- `key show <TAB><TAB>` offers `github/personal` and `personal/gmail`
+- `key <TAB><TAB>` offers `get`, `copy`, `add`, `edit`, `duplicate`, `rename`, `remove`, `list`, `unlock`, `lock`, `version`, and `help`
+- `key get <TAB><TAB>` offers `github/personal` and `personal/gmail`
 
 ## Verify signing inputs
 

@@ -46,4 +46,4 @@ echo
 echo "Next:"
 echo "  open \"${installed_app_path}\""
 echo "  just verify-signing \"${installed_app_path}\""
-echo "  \"${cli_path}\" ls"
+echo "  \"${cli_path}\" list"
