@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -ne 2 ]]; then
-  echo "usage: $0 <version> <zip-path>" >&2
+  echo "usage: $0 <tag> <zip-path>" >&2
   exit 1
 fi
 
@@ -35,6 +35,21 @@ fi
 
 cd "${repo_root}"
 
+branch="$(git symbolic-ref --quiet --short HEAD || true)"
+if [[ "${branch}" != "main" ]]; then
+  echo "publish-release must run from main (current branch: ${branch:-detached HEAD})" >&2
+  exit 1
+fi
+
+head_tag="$(git tag --points-at HEAD | grep -x "${tag}" || true)"
+if [[ -z "${head_tag}" ]]; then
+  echo "HEAD must be tagged ${tag} before publishing the release" >&2
+  exit 1
+fi
+
+git push origin main
+git push origin "${tag}"
+
 if gh release view "${tag}" >/dev/null 2>&1; then
   gh release upload "${tag}" "${zip_path}" --clobber
 else
@@ -61,6 +76,7 @@ echo
 echo "Published release:"
 echo "  tag:         ${tag}"
 echo "  prerelease:  $([[ "${is_prerelease}" -eq 1 ]] && echo yes || echo no)"
+echo "  branch:      ${branch}"
 echo "  asset:       ${asset_name}"
 echo "  download URL:${download_url}"
 echo "  sha256:      ${sha256}"

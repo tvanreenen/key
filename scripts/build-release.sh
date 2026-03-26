@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
-  echo "usage: $0 <version>" >&2
+  echo "usage: $0 <tag>" >&2
   exit 1
 fi
 
@@ -67,7 +67,7 @@ rm -f "${submission_zip}"
 sha256="$(shasum -a 256 "${final_zip}" | awk '{print $1}')"
 
 echo "Prepared release:"
-echo "  version: ${version}"
+echo "  tag:     ${version}"
 echo "  archive: ${archive_path}"
 echo "  app:     ${staging_app}"
 echo "  zsh:     ${package_root}/completions/_key"

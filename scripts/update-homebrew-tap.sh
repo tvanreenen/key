@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -ne 3 ]]; then
-  echo "usage: $0 <version> <download-url> <sha256>" >&2
+  echo "usage: $0 <tag> <download-url> <sha256>" >&2
   exit 1
 fi
 

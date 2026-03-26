@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
-  echo "usage: $0 <version>" >&2
+  echo "usage: $0 <tag>" >&2
   exit 1
 fi
 
@@ -47,4 +47,4 @@ git -C "${tap_repo}" push
 echo "Published Homebrew tap update:"
 echo "  repo:    ${tap_repo}"
 echo "  cask:    ${cask_path}"
-echo "  version: ${version}"
+echo "  tag:     ${version}"

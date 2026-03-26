@@ -30,18 +30,22 @@ verify-release app_path:
 notarize archive_path:
   scripts/notarize-release.sh "{{archive_path}}"
 
+# Update the Xcode version fields, commit the bump on main, and create a local tag.
+bump-version tag:
+  scripts/bump-version.sh "{{tag}}"
+
 # Build, notarize, staple, and zip a semver release artifact.
-build-release version:
-  scripts/build-release.sh "{{version}}"
+build-release tag:
+  scripts/build-release.sh "{{tag}}"
 
 # Fast-forward the Homebrew tap checkout, then write the updated cask.
-update-homebrew-tap version download_url sha256:
-  scripts/update-homebrew-tap.sh "{{version}}" "{{download_url}}" "{{sha256}}"
+update-homebrew-tap tag download_url sha256:
+  scripts/update-homebrew-tap.sh "{{tag}}" "{{download_url}}" "{{sha256}}"
 
 # Stage, commit, and push the generated Homebrew tap cask update.
-publish-homebrew-tap version:
-  scripts/publish-homebrew-tap.sh "{{version}}"
+publish-homebrew-tap tag:
+  scripts/publish-homebrew-tap.sh "{{tag}}"
 
 # Publish a GitHub release asset and print the data needed for the tap cask.
-publish-release version zip_path:
-  scripts/publish-release.sh "{{version}}" "{{zip_path}}"
+publish-release tag zip_path:
+  scripts/publish-release.sh "{{tag}}" "{{zip_path}}"
