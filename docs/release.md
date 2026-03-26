@@ -28,16 +28,34 @@ For a semver release flow, this repo also includes:
 
 ```bash
 just build-release <version>
-just update-homebrew-tap <version> <download-url> <sha256>
 just publish-release <version> <zip-path>
+just update-homebrew-tap <version> <download-url> <sha256>
+just publish-homebrew-tap <version>
 ```
 
 Use tags and release names like `v0.1.0`, `v0.1.1`, or `v0.2.0-alpha.1`.
 Versions with a prerelease suffix such as `-alpha.1`, `-beta.1`, or `-rc.1` will be published as GitHub prereleases automatically.
 
 `build-release.sh` builds, notarizes, staples, and zips the app. The final zip includes both `Key.app` and `completions/_key` for Homebrew-installed zsh completion.
-`update-homebrew-tap.sh` updates `Casks/key.rb` in a local tap checkout. It defaults to `~/Code/homebrew-tap` and can be overridden with `KEY_TAP_REPO`.
-`publish-release.sh` uses `gh` to create or update a GitHub release, upload the zip asset, and then refresh the tap cask automatically. It uses the version as the release title and GitHub's generated release notes.
+`publish-release.sh` uses `gh` to create or update a GitHub release, upload the zip asset, and print the final download URL plus sha256 needed for the tap cask. It uses the version as the release title and GitHub's generated release notes.
+`update-homebrew-tap.sh` fast-forwards a local tap checkout and then updates `Casks/key.rb`. It defaults to `~/Code/homebrew-tap` and can be overridden with `KEY_TAP_REPO`.
+`publish-homebrew-tap.sh` stages the generated cask, commits it, and pushes it.
+
+The intended release flow is:
+
+0. Start from a clean, up-to-date `main`:
+
+   ```bash
+   git checkout main
+   git pull --ff-only
+   git status --short
+   ```
+
+1. `just build-release <version>`
+2. `just publish-release <version> <zip-path>`
+3. `just update-homebrew-tap <version> <download-url> <sha256>`
+4. `git -C "$HOME/Code/homebrew-tap" diff -- Casks/key.rb`
+5. `just publish-homebrew-tap <version>`
 
 This project currently publishes its cask through:
 

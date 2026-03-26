@@ -22,6 +22,14 @@ cask_dir="${tap_repo}/Casks"
 cask_path="${cask_dir}/key.rb"
 homepage="https://github.com/tvanreenen/key"
 
+if [[ -n "$(git -C "${tap_repo}" status --porcelain)" ]]; then
+  echo "Homebrew tap repo has local changes; clean or commit them before updating the cask." >&2
+  exit 1
+fi
+
+git -C "${tap_repo}" fetch origin
+git -C "${tap_repo}" pull --ff-only
+
 mkdir -p "${cask_dir}"
 
 cat > "${cask_path}" <<EOF
@@ -49,5 +57,4 @@ echo "  ${cask_path}"
 echo
 echo "Next:"
 echo "  git -C \"${tap_repo}\" diff -- Casks/key.rb"
-echo "  git -C \"${tap_repo}\" add Casks/key.rb"
-echo "  git -C \"${tap_repo}\" commit -m \"Update key cask to ${version}\""
+echo "  just publish-homebrew-tap \"${version}\""

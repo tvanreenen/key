@@ -11,7 +11,7 @@ build-debug:
   scripts/build-debug-app.sh
 
 # Clear stale LaunchAgent/debug-install state so the next debug build starts clean.
-reset-debug-helper-state:
+reset-debug:
   scripts/reset-debug-helper-state.sh
 
 # Create a signed Release archive in Xcode's archive location.
@@ -34,10 +34,14 @@ notarize archive_path:
 build-release version:
   scripts/build-release.sh "{{version}}"
 
-# Update the Homebrew tap cask with a release version, asset URL, and sha256.
+# Fast-forward the Homebrew tap checkout, then write the updated cask.
 update-homebrew-tap version download_url sha256:
   scripts/update-homebrew-tap.sh "{{version}}" "{{download_url}}" "{{sha256}}"
 
-# Publish a GitHub release asset and refresh the Homebrew tap automatically.
+# Stage, commit, and push the generated Homebrew tap cask update.
+publish-homebrew-tap version:
+  scripts/publish-homebrew-tap.sh "{{version}}"
+
+# Publish a GitHub release asset and print the data needed for the tap cask.
 publish-release version zip_path:
   scripts/publish-release.sh "{{version}}" "{{zip_path}}"

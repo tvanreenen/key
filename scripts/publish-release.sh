@@ -19,16 +19,9 @@ if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
 fi
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
-tap_repo_root="${KEY_TAP_REPO:-$HOME/Code/homebrew-tap}"
 
 if [[ ! -f "${zip_path}" ]]; then
   echo "missing release zip at ${zip_path}" >&2
-  exit 1
-fi
-
-if [[ ! -d "${tap_repo_root}" ]]; then
-  echo "missing Homebrew tap checkout at ${tap_repo_root}" >&2
-  echo "clone https://github.com/tvanreenen/homebrew-tap or set KEY_TAP_REPO" >&2
   exit 1
 fi
 
@@ -64,8 +57,6 @@ if [[ -z "${download_url}" ]]; then
   exit 1
 fi
 
-"${repo_root}/scripts/update-homebrew-tap.sh" "${version}" "${download_url}" "${sha256}"
-
 echo
 echo "Published release:"
 echo "  tag:         ${tag}"
@@ -75,6 +66,4 @@ echo "  download URL:${download_url}"
 echo "  sha256:      ${sha256}"
 echo
 echo "Next:"
-echo "  git -C \"${tap_repo_root}\" diff -- Casks/key.rb"
-echo "  git -C \"${tap_repo_root}\" add Casks/key.rb"
-echo "  git -C \"${tap_repo_root}\" commit -m \"Update key cask to ${version}\""
+echo "  just update-homebrew-tap \"${version}\" \"${download_url}\" \"${sha256}\""
