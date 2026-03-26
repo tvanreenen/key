@@ -37,6 +37,10 @@ cask "key" do
   app "Key.app"
   binary "#{appdir}/Key.app/Contents/MacOS/key", target: "key"
   zsh_completion "completions/_key"
+
+  caveats <<~EOS
+    Open Key.app once after install so it can register Key Agent with macOS before you use the key CLI.
+  EOS
 end
 EOF
 

@@ -1,0 +1,423 @@
+import Foundation
+
+public struct KeyVersionInfo: Codable, Equatable, Sendable {
+    public let marketingVersion: String
+    public let buildVersion: String
+
+    public init(marketingVersion: String, buildVersion: String) {
+        self.marketingVersion = marketingVersion
+        self.buildVersion = buildVersion
+    }
+
+    public init(bundle: Bundle) {
+        let marketingVersion = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let buildVersion = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        self.init(
+            marketingVersion: marketingVersion ?? "0.0.0",
+            buildVersion: buildVersion ?? "0"
+        )
+    }
+
+    public var displayString: String {
+        "\(marketingVersion) (\(buildVersion))"
+    }
+}
+
+public struct KeyHelperStatus: Codable, Equatable, Sendable {
+    public let isUnlocked: Bool
+    public let sessionExpiresAt: Date?
+    public let inactivityTimeoutSeconds: TimeInterval
+
+    public init(
+        isUnlocked: Bool,
+        sessionExpiresAt: Date?,
+        inactivityTimeoutSeconds: TimeInterval
+    ) {
+        self.isUnlocked = isUnlocked
+        self.sessionExpiresAt = sessionExpiresAt
+        self.inactivityTimeoutSeconds = inactivityTimeoutSeconds
+    }
+
+    public static func locked(inactivityTimeoutSeconds: TimeInterval) -> KeyHelperStatus {
+        KeyHelperStatus(
+            isUnlocked: false,
+            sessionExpiresAt: nil,
+            inactivityTimeoutSeconds: inactivityTimeoutSeconds
+        )
+    }
+
+    public func remainingSessionTime(at date: Date = Date()) -> TimeInterval? {
+        guard isUnlocked, let sessionExpiresAt else {
+            return nil
+        }
+
+        let remaining = sessionExpiresAt.timeIntervalSince(date)
+        guard remaining > 0 else {
+            return nil
+        }
+
+        return remaining
+    }
+}
+
+public protocol KeySessionStatusReporting {
+    func sessionStatus(at date: Date?) -> KeyHelperStatus
+}
+
+public enum HelperRegistrationState: Equatable, Sendable {
+    case registered(detail: String)
+    case requiresApproval(detail: String)
+    case notRegistered(detail: String)
+    case unknown(detail: String)
+
+    public var detail: String {
+        switch self {
+        case let .registered(detail),
+             let .requiresApproval(detail),
+             let .notRegistered(detail),
+             let .unknown(detail):
+            return detail
+        }
+    }
+}
+
+public enum ShellCLIMatchState: Equatable, Sendable {
+    case missing
+    case unreadable
+    case mismatch
+    case matches
+}
+
+public struct ShellCLIStatus: Equatable, Sendable {
+    public let resolvedPath: String?
+    public let version: KeyVersionInfo?
+    public let versionErrorDescription: String?
+
+    public init(
+        resolvedPath: String?,
+        version: KeyVersionInfo?,
+        versionErrorDescription: String? = nil
+    ) {
+        self.resolvedPath = resolvedPath
+        self.version = version
+        self.versionErrorDescription = versionErrorDescription
+    }
+
+    public func matchState(appVersion: KeyVersionInfo) -> ShellCLIMatchState {
+        guard resolvedPath != nil else {
+            return .missing
+        }
+        if versionErrorDescription != nil || version == nil {
+            return .unreadable
+        }
+        return version == appVersion ? .matches : .mismatch
+    }
+
+    public var conciseVersionErrorDescription: String? {
+        guard let versionErrorDescription else {
+            return nil
+        }
+
+        if versionErrorDescription.contains("Unknown command 'version'.") {
+            return "The resolved CLI does not support `key version` yet."
+        }
+
+        if versionErrorDescription.contains("Unknown option '--json' for version.") {
+            return "The resolved CLI does not support `key version --json` yet."
+        }
+
+        if versionErrorDescription.contains("Usage:") {
+            return "The resolved CLI returned help text instead of structured version output."
+        }
+
+        if versionErrorDescription.hasPrefix("Command failed:") {
+            return "The resolved CLI version command failed."
+        }
+
+        return versionErrorDescription
+    }
+}
+
+public struct KeyDashboardGuidance: Equatable, Sendable, Identifiable {
+    public let title: String
+    public let detail: String
+    public let command: String?
+
+    public init(title: String, detail: String, command: String?) {
+        self.title = title
+        self.detail = detail
+        self.command = command
+    }
+
+    public var id: String {
+        "\(title)|\(command ?? "")"
+    }
+}
+
+public struct KeyDashboardHero: Equatable, Sendable {
+    public let title: String
+    public let detail: String
+
+    public init(title: String, detail: String) {
+        self.title = title
+        self.detail = detail
+    }
+}
+
+public struct KeyDashboardCallout: Equatable, Sendable {
+    public let title: String
+    public let detail: String
+    public let guidance: [KeyDashboardGuidance]
+
+    public init(title: String, detail: String, guidance: [KeyDashboardGuidance]) {
+        self.title = title
+        self.detail = detail
+        self.guidance = guidance
+    }
+}
+
+public struct KeyAppDiagnosticsContext: Equatable, Sendable {
+    public let appVersion: KeyVersionInfo
+    public let bundledCLIPath: String
+    public let helperAppPath: String
+    public let helperExecutablePath: String
+    public let launchAgentPlistPath: String
+    public let machServiceName: String
+    public let vaultDirectoryPath: String
+    public let vaultLocationSource: String
+
+    public init(
+        appVersion: KeyVersionInfo,
+        bundledCLIPath: String,
+        helperAppPath: String,
+        helperExecutablePath: String,
+        launchAgentPlistPath: String,
+        machServiceName: String,
+        vaultDirectoryPath: String,
+        vaultLocationSource: String
+    ) {
+        self.appVersion = appVersion
+        self.bundledCLIPath = bundledCLIPath
+        self.helperAppPath = helperAppPath
+        self.helperExecutablePath = helperExecutablePath
+        self.launchAgentPlistPath = launchAgentPlistPath
+        self.machServiceName = machServiceName
+        self.vaultDirectoryPath = vaultDirectoryPath
+        self.vaultLocationSource = vaultLocationSource
+    }
+}
+
+public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
+    public let registration: HelperRegistrationState
+    public let isHelperRunning: Bool
+    public let helperStatus: KeyHelperStatus?
+    public let helperStatusErrorDescription: String?
+    public let shellCLIStatus: ShellCLIStatus
+    public let context: KeyAppDiagnosticsContext
+    public let generatedAt: Date
+
+    public init(
+        registration: HelperRegistrationState,
+        isHelperRunning: Bool,
+        helperStatus: KeyHelperStatus?,
+        helperStatusErrorDescription: String?,
+        shellCLIStatus: ShellCLIStatus,
+        context: KeyAppDiagnosticsContext,
+        generatedAt: Date
+    ) {
+        self.registration = registration
+        self.isHelperRunning = isHelperRunning
+        self.helperStatus = helperStatus
+        self.helperStatusErrorDescription = helperStatusErrorDescription
+        self.shellCLIStatus = shellCLIStatus
+        self.context = context
+        self.generatedAt = generatedAt
+    }
+
+    public var isHelperUnlocked: Bool {
+        helperStatus?.isUnlocked == true
+    }
+
+    public var hero: KeyDashboardHero {
+        KeyDashboardHero(
+            title: "Welcome to Key",
+            detail: "Key is a file-based, CLI-first secret vault for macOS. Your vault encryption key stays in Keychain, key-backed commands unlock with macOS user presence, and Key Agent briefly reuses that unlocked session in memory while it stays active."
+        )
+    }
+
+    public var callout: KeyDashboardCallout? {
+        switch registration {
+        case let .requiresApproval(detail):
+            return KeyDashboardCallout(
+                title: "Approval required",
+                detail: detail,
+                guidance: [
+                    KeyDashboardGuidance(
+                        title: "Allow the helper in System Settings",
+                        detail: "Approve Key in Login Items & Extensions so launchd can start Key Agent on demand.",
+                        command: nil
+                    )
+                ]
+            )
+        case let .notRegistered(detail):
+            return KeyDashboardCallout(
+                title: "Setup is still finishing",
+                detail: detail,
+                guidance: [
+                    KeyDashboardGuidance(
+                        title: "Reopen Key if setup doesn’t complete",
+                        detail: "The app registers the LaunchAgent helper on open.",
+                        command: nil
+                    )
+                ]
+            )
+        case let .unknown(detail):
+            return KeyDashboardCallout(
+                title: "Helper status is unavailable",
+                detail: detail,
+                guidance: []
+            )
+        case .registered:
+            break
+        }
+
+        switch shellCLIStatus.matchState(appVersion: context.appVersion) {
+        case .missing:
+            return KeyDashboardCallout(
+                title: "Shell CLI not found",
+                detail: "Your login shell is not currently resolving `key` on PATH. You can still use the bundled CLI directly from Key.app.",
+                guidance: [
+                    KeyDashboardGuidance(
+                        title: "Use the bundled CLI directly",
+                        detail: "Run the app’s bundled CLI until your shell PATH is pointing at `key` again.",
+                        command: bundledCLICommand("unlock")
+                    )
+                ]
+            )
+        case .unreadable:
+            let path = shellCLIStatus.resolvedPath ?? "the resolved CLI path"
+            let detail = shellCLIStatus.conciseVersionErrorDescription ?? "The CLI returned an unreadable version payload."
+            let guidance: [KeyDashboardGuidance]
+            if detail.contains("does not support") {
+                guidance = [
+                    KeyDashboardGuidance(
+                        title: "Use the bundled CLI directly",
+                        detail: "The shell `key` on PATH is older than this app. Use the bundled CLI until your shell CLI is updated.",
+                        command: bundledCLICommand("version")
+                    )
+                ]
+            } else {
+                guidance = [
+                    KeyDashboardGuidance(
+                        title: "Inspect the shell CLI",
+                        detail: "Run the CLI version command from the same shell environment the app is checking.",
+                        command: "key version"
+                    )
+                ]
+            }
+
+            return KeyDashboardCallout(
+                title: "Shell CLI version unavailable",
+                detail: "\(path) resolved from your login shell, but version inspection failed: \(detail)",
+                guidance: guidance
+            )
+        case .mismatch:
+            let shellVersion = shellCLIStatus.version?.displayString ?? "unknown"
+            let path = shellCLIStatus.resolvedPath ?? "the resolved CLI path"
+            return KeyDashboardCallout(
+                title: "Shell CLI version mismatch",
+                detail: "Your login shell resolves `key` to \(path) at version \(shellVersion), while this app is \(context.appVersion.displayString).",
+                guidance: [
+                    KeyDashboardGuidance(
+                        title: "Inspect the shell CLI",
+                        detail: "Confirm which `key` binary your login shell is actually using.",
+                        command: "key version"
+                    )
+                ]
+            )
+        case .matches:
+            break
+        }
+
+        if let helperStatusErrorDescription, isHelperRunning {
+            return KeyDashboardCallout(
+                title: "Helper status is temporarily unavailable",
+                detail: helperStatusErrorDescription,
+                guidance: [
+                    KeyDashboardGuidance(
+                        title: "Refresh helper status",
+                        detail: "If the helper was shutting down while Key checked it, refreshing should settle the dashboard.",
+                        command: nil
+                    )
+                ]
+            )
+        }
+
+        return nil
+    }
+
+    private func bundledCLICommand(_ argument: String) -> String {
+        "\"\(context.bundledCLIPath)\" \(argument)"
+    }
+}
+
+public struct KeyAppDiagnosticsCollector {
+    public typealias RegistrationProbe = () -> HelperRegistrationState
+    public typealias RunningProbe = () -> Bool
+    public typealias HelperStatusProbe = () throws -> KeyHelperStatus
+    public typealias ShellCLIProbe = () -> ShellCLIStatus
+    public typealias Now = () -> Date
+
+    private let context: KeyAppDiagnosticsContext
+    private let registrationProbe: RegistrationProbe
+    private let runningProbe: RunningProbe
+    private let helperStatusProbe: HelperStatusProbe
+    private let shellCLIProbe: ShellCLIProbe
+    private let now: Now
+
+    public init(
+        context: KeyAppDiagnosticsContext,
+        registrationProbe: @escaping RegistrationProbe,
+        runningProbe: @escaping RunningProbe,
+        helperStatusProbe: @escaping HelperStatusProbe,
+        shellCLIProbe: @escaping ShellCLIProbe,
+        now: @escaping Now = Date.init
+    ) {
+        self.context = context
+        self.registrationProbe = registrationProbe
+        self.runningProbe = runningProbe
+        self.helperStatusProbe = helperStatusProbe
+        self.shellCLIProbe = shellCLIProbe
+        self.now = now
+    }
+
+    public func load() -> KeyAppDiagnosticsSnapshot {
+        let registration = registrationProbe()
+        let isHelperRunning = runningProbe()
+
+        let helperStatus: KeyHelperStatus?
+        let helperStatusErrorDescription: String?
+        if isHelperRunning {
+            do {
+                helperStatus = try helperStatusProbe()
+                helperStatusErrorDescription = nil
+            } catch {
+                helperStatus = nil
+                helperStatusErrorDescription = error.localizedDescription
+            }
+        } else {
+            helperStatus = nil
+            helperStatusErrorDescription = nil
+        }
+
+        return KeyAppDiagnosticsSnapshot(
+            registration: registration,
+            isHelperRunning: isHelperRunning,
+            helperStatus: helperStatus,
+            helperStatusErrorDescription: helperStatusErrorDescription,
+            shellCLIStatus: shellCLIProbe(),
+            context: context,
+            generatedAt: now()
+        )
+    }
+}

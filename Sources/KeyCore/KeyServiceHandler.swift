@@ -1,6 +1,8 @@
 import Foundation
 
 public final class KeyServiceHandler {
+    private static let defaultSessionTimeout: TimeInterval = 15 * 60
+
     private let keyStore: VaultKeyStoring
     private let entryStore: EntryStore
     private let cipher: VaultCipher
@@ -37,6 +39,10 @@ public final class KeyServiceHandler {
             case .lock:
                 keyStore.invalidate()
                 return .success()
+            case .status:
+                let helperStatus = (keyStore as? KeySessionStatusReporting)?
+                    .sessionStatus(at: nil) ?? .locked(inactivityTimeoutSeconds: Self.defaultSessionTimeout)
+                return .success(helperStatus: helperStatus)
             case .list:
                 let entries = try entryStore.listEntries()
                 guard !entries.isEmpty else {

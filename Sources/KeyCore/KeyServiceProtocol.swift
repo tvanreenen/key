@@ -3,6 +3,7 @@ import Foundation
 public enum KeyServiceRequest: Codable, Equatable {
     case unlock
     case lock
+    case status
     case list
     case get(name: String)
     case addManual(name: String, secret: String)
@@ -23,6 +24,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     private enum Kind: String, Codable {
         case unlock
         case lock
+        case status
         case list
         case get
         case addManual
@@ -39,6 +41,8 @@ public enum KeyServiceRequest: Codable, Equatable {
             self = .unlock
         case .lock:
             self = .lock
+        case .status:
+            self = .status
         case .list:
             self = .list
         case .get:
@@ -77,6 +81,8 @@ public enum KeyServiceRequest: Codable, Equatable {
             try container.encode(Kind.unlock, forKey: .kind)
         case .lock:
             try container.encode(Kind.lock, forKey: .kind)
+        case .status:
+            try container.encode(Kind.status, forKey: .kind)
         case .list:
             try container.encode(Kind.list, forKey: .kind)
         case let .get(name):
@@ -111,19 +117,34 @@ public struct KeyServiceResponse: Codable, Equatable {
     public let exitCode: Int32
     public let value: String?
     public let errorMessage: String?
+    public let helperStatus: KeyHelperStatus?
 
-    public init(exitCode: Int32, value: String?, errorMessage: String?) {
+    public init(
+        exitCode: Int32,
+        value: String?,
+        errorMessage: String?,
+        helperStatus: KeyHelperStatus? = nil
+    ) {
         self.exitCode = exitCode
         self.value = value
         self.errorMessage = errorMessage
+        self.helperStatus = helperStatus
     }
 
-    public static func success(_ value: String? = nil) -> KeyServiceResponse {
-        KeyServiceResponse(exitCode: EXIT_SUCCESS, value: value, errorMessage: nil)
+    public static func success(
+        _ value: String? = nil,
+        helperStatus: KeyHelperStatus? = nil
+    ) -> KeyServiceResponse {
+        KeyServiceResponse(
+            exitCode: EXIT_SUCCESS,
+            value: value,
+            errorMessage: nil,
+            helperStatus: helperStatus
+        )
     }
 
     public static func failure(_ message: String) -> KeyServiceResponse {
-        KeyServiceResponse(exitCode: EXIT_FAILURE, value: nil, errorMessage: message)
+        KeyServiceResponse(exitCode: EXIT_FAILURE, value: nil, errorMessage: message, helperStatus: nil)
     }
 }
 

@@ -76,7 +76,9 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
             return
         }
 
-        lifecycleController.recordActivity()
+        if request != .status {
+            lifecycleController.recordActivity()
+        }
 
         do {
             let response = handler.handle(request)

@@ -4,15 +4,18 @@ public final class KeyCLIApplication {
     private let transport: KeyServiceTransport
     private let io: InputOutput
     private let clipboard: ClipboardWriting
+    private let version: KeyVersionInfo
 
     public init(
         transport: KeyServiceTransport,
         io: InputOutput,
-        clipboard: ClipboardWriting
+        clipboard: ClipboardWriting,
+        version: KeyVersionInfo = KeyVersionInfo(bundle: .main)
     ) {
         self.transport = transport
         self.io = io
         self.clipboard = clipboard
+        self.version = version
     }
 
     @discardableResult
@@ -33,6 +36,9 @@ public final class KeyCLIApplication {
         let response: KeyServiceResponse
 
         switch command {
+        case let .version(json):
+            writeVersion(json: json)
+            return EXIT_SUCCESS
         case .unlock:
             response = try transport.send(.unlock)
             return try handle(response, for: command)
@@ -80,6 +86,8 @@ public final class KeyCLIApplication {
         }
 
         switch command {
+        case .version(json: _):
+            break
         case .unlock, .lock, .list:
             if let value = response.value, !value.isEmpty {
                 io.writeStdout(value)
@@ -125,5 +133,19 @@ public final class KeyCLIApplication {
         guard answer == "y" || answer == "yes" else {
             throw AppError.operationRefused("Removal cancelled.")
         }
+    }
+
+    private func writeVersion(json: Bool) {
+        if json {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            if let data = try? encoder.encode(version),
+               let string = String(data: data, encoding: .utf8) {
+                io.writeStdout(string + "\n")
+                return
+            }
+        }
+
+        io.writeStdout(version.displayString + "\n")
     }
 }

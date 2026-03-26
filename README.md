@@ -34,7 +34,7 @@ brew tap tvanreenen/tap
 brew install --cask key
 ```
 
-Open `Key.app` once after install so it can register the bundled LaunchAgent helper with macOS.
+Open `Key.app` once after install so it can register Key Agent with macOS before you use the `key` CLI.
 
 ## CLI
 

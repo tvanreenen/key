@@ -28,6 +28,8 @@
 	<string>NSApplication</string>
 	<key>HelperMachServiceName</key>
 	<string>work.tvr.key.agent</string>
+	<key>HelperBundleIdentifier</key>
+	<string>work.tvr.key.xpc</string>
 	<key>VaultKeyAccount</key>
 	<string>default-vault</string>
 	<key>VaultKeyService</key>
