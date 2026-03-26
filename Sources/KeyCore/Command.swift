@@ -1,6 +1,7 @@
 import Foundation
 
 public enum Command: Equatable {
+    case version(json: Bool)
     case unlock
     case lock
     case show(name: String, copy: Bool)

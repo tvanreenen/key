@@ -3,6 +3,18 @@ import Testing
 
 struct CLIParserTests {
     @Test
+    func parsesVersion() throws {
+        let command = try CLIParser.parse(arguments: ["version"])
+        #expect(command == .version(json: false))
+    }
+
+    @Test
+    func parsesVersionJSON() throws {
+        let command = try CLIParser.parse(arguments: ["version", "--json"])
+        #expect(command == .version(json: true))
+    }
+
+    @Test
     func parsesShowCopy() throws {
         let command = try CLIParser.parse(arguments: ["show", "github/personal", "--copy"])
         #expect(command == .show(name: "github/personal", copy: true))
@@ -140,6 +152,13 @@ struct CLIParserTests {
     func rejectsLockOptions() throws {
         #expect(throws: AppError.usage("Unknown option '--force' for lock.\n\n\(CLIParser.usageText)")) {
             try CLIParser.parse(arguments: ["lock", "--force"])
+        }
+    }
+
+    @Test
+    func rejectsUnknownVersionOptions() throws {
+        #expect(throws: AppError.usage("Unknown option '--yaml' for version.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["version", "--yaml"])
         }
     }
 }

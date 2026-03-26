@@ -22,6 +22,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>HelperMachServiceName</key>
 	<string>work.tvr.key.agent</string>
+	<key>HelperBundleIdentifier</key>
+	<string>work.tvr.key.xpc</string>
 	<key>KeychainAccessGroup</key>
 	<string>9Q355KSV85.work.tvr.key.shared</string>
 	<key>LaunchAgentPlistName</key>

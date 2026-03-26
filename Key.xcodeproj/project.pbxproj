@@ -21,6 +21,7 @@
 		851434753ACA4A4ED0733FEB /* KeyServiceHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */; };
 		873C78C8D57CEF7EBA418B73 /* SecretFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */; };
 		8B2342C883974B121AB07C37 /* KeyXPCClientTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */; };
+		8D9C2B13AA1B4A669F62CB2A /* KeyDashboardSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89D0AC29AD8740A9B3D2B6E6 /* KeyDashboardSupport.swift */; };
 		A15F350B2230881FFC292742 /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
 		AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA3251E5B71729E191F7889A /* Command.swift */; };
 		B4BE69F25B811392D2FBBE3C /* KeyCLIApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */; };
@@ -76,6 +77,7 @@
 		76DB380BC4A9ECD7FE009152 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretFile.swift; sourceTree = "<group>"; };
 		855E71C8AF61988A885402D9 /* InputOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputOutput.swift; sourceTree = "<group>"; };
+		89D0AC29AD8740A9B3D2B6E6 /* KeyDashboardSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyDashboardSupport.swift; sourceTree = "<group>"; };
 		9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyServiceHandler.swift; sourceTree = "<group>"; };
 		B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultKeyStore.swift; sourceTree = "<group>"; };
 		B4EE3B938E39AE66CAB3E79B /* Key.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Key.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -127,6 +129,7 @@
 				BA3251E5B71729E191F7889A /* Command.swift */,
 				5E585E32FBAF3D8FD5F64230 /* EntryStore.swift */,
 				855E71C8AF61988A885402D9 /* InputOutput.swift */,
+				89D0AC29AD8740A9B3D2B6E6 /* KeyDashboardSupport.swift */,
 				4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */,
 				9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */,
 				55257994DEF9CC6144A32E16 /* KeyServiceProtocol.swift */,
@@ -399,6 +402,7 @@
 				AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */,
 				D4D0ACDBCDB375050F096CEC /* EntryStore.swift in Sources */,
 				2FF48E342F108FF694BDB515 /* InputOutput.swift in Sources */,
+				8D9C2B13AA1B4A669F62CB2A /* KeyDashboardSupport.swift in Sources */,
 				B4BE69F25B811392D2FBBE3C /* KeyCLIApplication.swift in Sources */,
 				851434753ACA4A4ED0733FEB /* KeyServiceHandler.swift in Sources */,
 				545DE475C8F5F883DB08A529 /* KeyServiceProtocol.swift in Sources */,
@@ -468,6 +472,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.app;
 				PRODUCT_NAME = Key;
 				PROVISIONING_PROFILE_SPECIFIER = "Key Developer ID App";
@@ -738,6 +743,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.app;
 				PRODUCT_NAME = Key;
 				REMOVE_STATIC_EXECUTABLES_FROM_EMBEDDED_BUNDLES = NO;

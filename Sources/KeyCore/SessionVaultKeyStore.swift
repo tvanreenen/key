@@ -1,6 +1,6 @@
 import Foundation
 
-public final class SessionVaultKeyStore: VaultKeyStoring {
+public final class SessionVaultKeyStore: VaultKeyStoring, KeySessionStatusReporting {
     private struct SessionState {
         var cachedKeyData: Data?
         var lastAccessAt: Date?
@@ -54,20 +54,37 @@ public final class SessionVaultKeyStore: VaultKeyStoring {
     }
 
     public func isUnlocked(at date: Date? = nil) -> Bool {
-        queue.sync {
-            guard let cachedKeyData = state.cachedKeyData,
-                  !cachedKeyData.isEmpty,
-                  let lastAccessAt = state.lastAccessAt else {
-                return false
-            }
+        sessionStatus(at: date).isUnlocked
+    }
 
-            let currentTime = date ?? now()
-            return currentTime.timeIntervalSince(lastAccessAt) < inactivityTimeout
+    public func sessionStatus(at date: Date? = nil) -> KeyHelperStatus {
+        queue.sync {
+            currentStatus(at: date ?? now())
         }
     }
 
     private func clearSession() {
         state.cachedKeyData = nil
         state.lastAccessAt = nil
+    }
+
+    private func currentStatus(at currentTime: Date) -> KeyHelperStatus {
+        guard let cachedKeyData = state.cachedKeyData,
+              !cachedKeyData.isEmpty,
+              let lastAccessAt = state.lastAccessAt else {
+            return .locked(inactivityTimeoutSeconds: inactivityTimeout)
+        }
+
+        let sessionExpiresAt = lastAccessAt.addingTimeInterval(inactivityTimeout)
+        guard currentTime < sessionExpiresAt else {
+            clearSession()
+            return .locked(inactivityTimeoutSeconds: inactivityTimeout)
+        }
+
+        return KeyHelperStatus(
+            isUnlocked: true,
+            sessionExpiresAt: sessionExpiresAt,
+            inactivityTimeoutSeconds: inactivityTimeout
+        )
     }
 }

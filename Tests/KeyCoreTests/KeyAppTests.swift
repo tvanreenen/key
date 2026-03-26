@@ -4,6 +4,48 @@ import Testing
 
 struct KeyCLIApplicationTests {
     @Test
+    func versionPrintsHumanReadableVersion() throws {
+        let transport = MemoryTransport { _ in
+            Issue.record("transport should not be called for version")
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: clipboard,
+            version: KeyVersionInfo(marketingVersion: "1.2.3", buildVersion: "45")
+        )
+
+        #expect(app.run(arguments: ["version"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "1.2.3 (45)\n")
+        #expect(io.stderr == "")
+    }
+
+    @Test
+    func versionPrintsJSONVersion() throws {
+        let transport = MemoryTransport { _ in
+            Issue.record("transport should not be called for version")
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: clipboard,
+            version: KeyVersionInfo(marketingVersion: "1.2.3", buildVersion: "45")
+        )
+
+        #expect(app.run(arguments: ["version", "--json"]) == EXIT_SUCCESS)
+
+        let data = try #require(io.stdout.data(using: .utf8))
+        let decoded = try JSONDecoder().decode(KeyVersionInfo.self, from: data)
+        #expect(decoded == KeyVersionInfo(marketingVersion: "1.2.3", buildVersion: "45"))
+    }
+
+    @Test
     func unlockSendsUnlockRequest() throws {
         let transport = MemoryTransport { request in
             #expect(request == .unlock)
@@ -207,6 +249,37 @@ struct KeyServiceHandlerTests {
 
         #expect(handler.handle(.lock) == .success())
         #expect(keyStore.invalidateCount == 1)
+    }
+
+    @Test
+    func statusReturnsLockedHelperStateWhenNoSessionIsActive() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let store = SessionVaultKeyStore(underlying: MemoryVaultKeyStore(), inactivityTimeout: 120)
+        let handler = KeyServiceHandler(keyStore: store, entryStore: EntryStore(rootURL: tempDirectory))
+
+        #expect(handler.handle(.status) == .success(helperStatus: .locked(inactivityTimeoutSeconds: 120)))
+    }
+
+    @Test
+    func statusReturnsUnlockedHelperStateWhenSessionIsWarm() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let store = SessionVaultKeyStore(underlying: MemoryVaultKeyStore(), inactivityTimeout: 120)
+        let handler = KeyServiceHandler(keyStore: store, entryStore: EntryStore(rootURL: tempDirectory))
+
+        #expect(handler.handle(.unlock) == .success())
+
+        let response = handler.handle(.status)
+        #expect(response.exitCode == EXIT_SUCCESS)
+        #expect(response.helperStatus?.isUnlocked == true)
+        #expect(response.helperStatus?.inactivityTimeoutSeconds == 120)
     }
 
     @Test
@@ -421,6 +494,25 @@ struct SessionVaultKeyStoreTests {
     }
 
     @Test
+    func sessionStatusReflectsExpiryWithoutRefreshingTheSession() throws {
+        let underlying = MemoryVaultKeyStore()
+        let start = Date(timeIntervalSince1970: 2_000)
+        var currentTime = start
+        let store = SessionVaultKeyStore(
+            underlying: underlying,
+            inactivityTimeout: 60,
+            now: { currentTime }
+        )
+
+        _ = try store.loadKey(reason: "first", createIfMissing: true)
+        currentTime = start.addingTimeInterval(61)
+
+        let status = store.sessionStatus(at: currentTime)
+        #expect(status == .locked(inactivityTimeoutSeconds: 60))
+        #expect(store.isUnlocked(at: currentTime) == false)
+    }
+
+    @Test
     func addThenGetReusesSessionAcrossHandlerRequests() throws {
         let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -477,5 +569,239 @@ struct SessionVaultKeyStoreTests {
         store.invalidate()
 
         #expect(store.isUnlocked() == false)
+    }
+}
+
+struct KeyAppDiagnosticsCollectorTests {
+    @Test
+    func doesNotQueryHelperStatusWhenHelperIsNotRunning() {
+        var helperStatusProbeCount = 0
+        let collector = KeyAppDiagnosticsCollector(
+            context: .testFixture(),
+            registrationProbe: {
+                .registered(detail: "ready")
+            },
+            runningProbe: {
+                false
+            },
+            helperStatusProbe: {
+                helperStatusProbeCount += 1
+                return .locked(inactivityTimeoutSeconds: 900)
+            },
+            shellCLIProbe: {
+                ShellCLIStatus(
+                    resolvedPath: "/opt/homebrew/bin/key",
+                    version: KeyVersionInfo(marketingVersion: "0.1.0", buildVersion: "1")
+                )
+            },
+            now: {
+                Date(timeIntervalSince1970: 10_000)
+            }
+        )
+
+        let snapshot = collector.load()
+        #expect(snapshot.isHelperRunning == false)
+        #expect(snapshot.helperStatus == nil)
+        #expect(helperStatusProbeCount == 0)
+    }
+
+    @Test
+    func recordsHelperStatusErrorsWhenHelperStatusProbeFails() {
+        let collector = KeyAppDiagnosticsCollector(
+            context: .testFixture(),
+            registrationProbe: {
+                .registered(detail: "ready")
+            },
+            runningProbe: {
+                true
+            },
+            helperStatusProbe: {
+                throw AppError.service("Key Agent returned no helper status.")
+            },
+            shellCLIProbe: {
+                ShellCLIStatus(
+                    resolvedPath: "/opt/homebrew/bin/key",
+                    version: KeyVersionInfo(marketingVersion: "0.1.0", buildVersion: "1")
+                )
+            }
+        )
+
+        let snapshot = collector.load()
+        #expect(snapshot.helperStatus == nil)
+        #expect(snapshot.helperStatusErrorDescription == "Key Agent returned no helper status.")
+    }
+
+    @Test
+    func reportsVersionMismatchAgainstShellCLI() {
+        let snapshot = KeyAppDiagnosticsCollector(
+            context: .testFixture(),
+            registrationProbe: {
+                .registered(detail: "ready")
+            },
+            runningProbe: {
+                false
+            },
+            helperStatusProbe: {
+                .locked(inactivityTimeoutSeconds: 900)
+            },
+            shellCLIProbe: {
+                ShellCLIStatus(
+                    resolvedPath: "/usr/local/bin/key",
+                    version: KeyVersionInfo(marketingVersion: "0.1.0", buildVersion: "2")
+                )
+            }
+        ).load()
+
+        #expect(snapshot.shellCLIStatus.matchState(appVersion: snapshot.context.appVersion) == .mismatch)
+        #expect(snapshot.hero.title == "Welcome to Key")
+        #expect(snapshot.callout?.title == "Shell CLI version mismatch")
+    }
+
+    @Test
+    func reportsMatchingShellCLIVersion() {
+        let snapshot = KeyAppDiagnosticsCollector(
+            context: .testFixture(),
+            registrationProbe: {
+                .registered(detail: "ready")
+            },
+            runningProbe: {
+                false
+            },
+            helperStatusProbe: {
+                .locked(inactivityTimeoutSeconds: 900)
+            },
+            shellCLIProbe: {
+                ShellCLIStatus(
+                    resolvedPath: "/opt/homebrew/bin/key",
+                    version: KeyVersionInfo(marketingVersion: "0.1.0", buildVersion: "1")
+                )
+            }
+        ).load()
+
+        #expect(snapshot.shellCLIStatus.matchState(appVersion: snapshot.context.appVersion) == .matches)
+    }
+
+    @Test
+    func reportsBundledCLIGuidanceWhenShellCLIMissing() {
+        let snapshot = KeyAppDiagnosticsCollector(
+            context: .testFixture(),
+            registrationProbe: {
+                .registered(detail: "ready")
+            },
+            runningProbe: {
+                false
+            },
+            helperStatusProbe: {
+                .locked(inactivityTimeoutSeconds: 900)
+            },
+            shellCLIProbe: {
+                ShellCLIStatus(resolvedPath: nil, version: nil)
+            }
+        ).load()
+
+        #expect(snapshot.shellCLIStatus.matchState(appVersion: snapshot.context.appVersion) == .missing)
+        #expect(snapshot.callout?.guidance.first?.command == "\"/Applications/Key.app/Contents/MacOS/key\" unlock")
+    }
+
+    @Test
+    func compressesLegacyShellCLIVersionHelpIntoConciseCallout() {
+        let snapshot = KeyAppDiagnosticsCollector(
+            context: .testFixture(),
+            registrationProbe: {
+                .registered(detail: "ready")
+            },
+            runningProbe: {
+                false
+            },
+            helperStatusProbe: {
+                .locked(inactivityTimeoutSeconds: 900)
+            },
+            shellCLIProbe: {
+                ShellCLIStatus(
+                    resolvedPath: "/usr/local/bin/key",
+                    version: nil,
+                    versionErrorDescription: "Unknown command 'version'.\n\n\(CLIParser.usageText)"
+                )
+            }
+        ).load()
+
+        #expect(snapshot.callout?.title == "Shell CLI version unavailable")
+        #expect(snapshot.callout?.detail.contains("Usage:") == false)
+        #expect(snapshot.callout?.detail.contains("does not support `key version` yet.") == true)
+        #expect(snapshot.callout?.guidance.first?.command == "\"/Applications/Key.app/Contents/MacOS/key\" version")
+    }
+
+    @Test
+    func includesDefaultVaultLocationSource() {
+        let snapshot = KeyAppDiagnosticsCollector(
+            context: .testFixture(),
+            registrationProbe: {
+                .registered(detail: "ready")
+            },
+            runningProbe: {
+                true
+            },
+            helperStatusProbe: {
+                KeyHelperStatus(
+                    isUnlocked: true,
+                    sessionExpiresAt: Date(timeIntervalSince1970: 10_600),
+                    inactivityTimeoutSeconds: 900
+                )
+            },
+            shellCLIProbe: {
+                ShellCLIStatus(
+                    resolvedPath: "/opt/homebrew/bin/key",
+                    version: KeyVersionInfo(marketingVersion: "0.1.0", buildVersion: "1")
+                )
+            },
+            now: {
+                Date(timeIntervalSince1970: 10_000)
+            }
+        ).load()
+
+        #expect(snapshot.context.vaultDirectoryPath == "/Users/test/Library/Application Support/key/vault")
+        #expect(snapshot.context.vaultLocationSource == "Default")
+        #expect(snapshot.hero.title == "Welcome to Key")
+        #expect(snapshot.callout == nil)
+    }
+
+    @Test
+    func heroRemainsInformationalWhenHelperIsLockedButHealthy() {
+        let snapshot = KeyAppDiagnosticsCollector(
+            context: .testFixture(),
+            registrationProbe: {
+                .registered(detail: "ready")
+            },
+            runningProbe: {
+                true
+            },
+            helperStatusProbe: {
+                .locked(inactivityTimeoutSeconds: 900)
+            },
+            shellCLIProbe: {
+                ShellCLIStatus(
+                    resolvedPath: "/opt/homebrew/bin/key",
+                    version: KeyVersionInfo(marketingVersion: "0.1.0", buildVersion: "1")
+                )
+            }
+        ).load()
+
+        #expect(snapshot.hero.title == "Welcome to Key")
+        #expect(snapshot.callout == nil)
+    }
+}
+
+private extension KeyAppDiagnosticsContext {
+    static func testFixture() -> KeyAppDiagnosticsContext {
+        KeyAppDiagnosticsContext(
+            appVersion: KeyVersionInfo(marketingVersion: "0.1.0", buildVersion: "1"),
+            bundledCLIPath: "/Applications/Key.app/Contents/MacOS/key",
+            helperAppPath: "/Applications/Key.app/Contents/Helpers/Key Agent.app",
+            helperExecutablePath: "/Applications/Key.app/Contents/Helpers/Key Agent.app/Contents/MacOS/Key Agent",
+            launchAgentPlistPath: "/Applications/Key.app/Contents/Library/LaunchAgents/work.tvr.key.agent.plist",
+            machServiceName: "work.tvr.key.agent",
+            vaultDirectoryPath: "/Users/test/Library/Application Support/key/vault",
+            vaultLocationSource: "Default"
+        )
     }
 }

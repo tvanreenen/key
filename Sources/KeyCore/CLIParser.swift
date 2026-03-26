@@ -7,6 +7,8 @@ public enum CLIParser {
         }
 
         switch subcommand {
+        case "version":
+            return try parseVersion(arguments: Array(arguments.dropFirst()))
         case "unlock":
             return try parseUnlock(arguments: Array(arguments.dropFirst()))
         case "lock":
@@ -33,30 +35,42 @@ public enum CLIParser {
     }
 
     public static let usageText = """
-    macOS file-based secret manager with native auth
-
     Usage:
-      key unlock
-      key lock
-      key show <name> [--copy]
-      key add <name>
-      key edit <name>
-      key copy <src> <dst> [--force]
-      key move <src> <dst> [--force]
-      key remove <name> [--force]
-      key list
+      key <command> [arguments]
 
     Commands:
-      unlock  Authenticate and warm the helper session.
-      lock    Clear the helper session and stop the helper.
-      show    Write a secret to stdout.
-      add     Add a new secret.
-      edit    Update an existing secret.
-      copy    Copy a secret to a new name.
-      move    Move a secret to a new name.
-      remove  Remove a secret.
-      list    List stored secrets.
+      show <name> [--copy]        Print a secret.
+      add <name>                  Add a new secret from stdin or prompt.
+      edit <name>                 Replace a secret from stdin or prompt.
+      copy <src> <dst> [--force]  Copy a secret. Alias: cp
+      move <src> <dst> [--force]  Move a secret. Alias: mv
+      remove <name> [--force]     Remove a secret. Alias: rm
+      list                        List stored secrets. Alias: ls
+      unlock                      Warm the helper session.
+      lock                        Clear the helper session and stop the helper.
+      version [--json]            Print the CLI version.
+      help                        Show this help.
+
+    Options:
+      --copy   Copy a shown secret to the clipboard.
+      --force  Skip overwrite or removal confirmation.
+      --json   Print version info as JSON.
     """
+
+    private static func parseVersion(arguments: [String]) throws -> Command {
+        guard arguments.count <= 1 else {
+            throw AppError.usage("Unknown option '\(arguments[1])' for version.\n\n\(usageText)")
+        }
+
+        if let argument = arguments.first {
+            guard argument == "--json" else {
+                throw AppError.usage("Unknown option '\(argument)' for version.\n\n\(usageText)")
+            }
+            return .version(json: true)
+        }
+
+        return .version(json: false)
+    }
 
     private static func parseUnlock(arguments: [String]) throws -> Command {
         guard arguments.isEmpty else {
