@@ -4,6 +4,54 @@ import Testing
 
 struct KeyCLIApplicationTests {
     @Test
+    func currentProcessVersionResolvesThroughSymlinkIntoAppBundle() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let appURL = root.appendingPathComponent("Key.app", isDirectory: true)
+        let contentsURL = appURL.appendingPathComponent("Contents", isDirectory: true)
+        let macOSURL = contentsURL.appendingPathComponent("MacOS", isDirectory: true)
+        try FileManager.default.createDirectory(at: macOSURL, withIntermediateDirectories: true)
+
+        let executableURL = macOSURL.appendingPathComponent("key", isDirectory: false)
+        FileManager.default.createFile(atPath: executableURL.path, contents: Data(), attributes: nil)
+
+        let infoPlistURL = contentsURL.appendingPathComponent("Info.plist", isDirectory: false)
+        let infoPlist: NSDictionary = [
+            "CFBundleIdentifier": "work.tvr.key.test",
+            "CFBundleName": "Key",
+            "CFBundlePackageType": "APPL",
+            "CFBundleShortVersionString": "1.2.3",
+            "CFBundleVersion": "45"
+        ]
+        #expect(infoPlist.write(to: infoPlistURL, atomically: true))
+
+        let fallbackAppURL = root.appendingPathComponent("Fallback.app", isDirectory: true)
+        let fallbackContentsURL = fallbackAppURL.appendingPathComponent("Contents", isDirectory: true)
+        try FileManager.default.createDirectory(at: fallbackContentsURL, withIntermediateDirectories: true)
+        let fallbackInfoPlistURL = fallbackContentsURL.appendingPathComponent("Info.plist", isDirectory: false)
+        let fallbackInfoPlist: NSDictionary = [
+            "CFBundleIdentifier": "work.tvr.key.fallback",
+            "CFBundleName": "Fallback",
+            "CFBundlePackageType": "APPL",
+            "CFBundleShortVersionString": "9.9.9",
+            "CFBundleVersion": "99"
+        ]
+        #expect(fallbackInfoPlist.write(to: fallbackInfoPlistURL, atomically: true))
+
+        let symlinkURL = root.appendingPathComponent("bin/key", isDirectory: false)
+        try FileManager.default.createDirectory(at: symlinkURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: symlinkURL, withDestinationURL: executableURL)
+
+        let fallbackBundle = try #require(Bundle(url: fallbackAppURL))
+        let version = KeyVersionInfo.currentProcess(mainBundle: fallbackBundle, executableURL: symlinkURL)
+
+        #expect(version == KeyVersionInfo(marketingVersion: "1.2.3", buildVersion: "45"))
+    }
+
+    @Test
     func helpPrintsUsage() throws {
         let transport = MemoryTransport { _ in
             Issue.record("transport should not be called for help")

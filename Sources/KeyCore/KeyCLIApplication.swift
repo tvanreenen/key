@@ -10,7 +10,7 @@ public final class KeyCLIApplication {
         transport: KeyServiceTransport,
         io: InputOutput,
         clipboard: ClipboardWriting,
-        version: KeyVersionInfo = KeyVersionInfo(bundle: .main)
+        version: KeyVersionInfo = KeyVersionInfo.currentProcess()
     ) {
         self.transport = transport
         self.io = io
