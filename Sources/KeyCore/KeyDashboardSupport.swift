@@ -146,17 +146,48 @@ public enum ShellCLIMatchState: Equatable, Sendable {
     case matches
 }
 
+public enum ShellCLIResolutionSource: Equatable, Sendable {
+    case loginShell
+    case homebrewInstall
+    case homebrewPrefix
+
+    public var displayString: String {
+        switch self {
+        case .loginShell:
+            return "Login shell"
+        case .homebrewInstall:
+            return "Homebrew install path"
+        case .homebrewPrefix:
+            return "Homebrew prefix"
+        }
+    }
+
+    fileprivate var detectionDescription: String {
+        switch self {
+        case .loginShell:
+            return "your login shell"
+        case .homebrewInstall:
+            return "a standard Homebrew install path"
+        case .homebrewPrefix:
+            return "your Homebrew prefix"
+        }
+    }
+}
+
 public struct ShellCLIStatus: Equatable, Sendable {
     public let resolvedPath: String?
+    public let resolutionSource: ShellCLIResolutionSource?
     public let version: KeyVersionInfo?
     public let versionErrorDescription: String?
 
     public init(
         resolvedPath: String?,
         version: KeyVersionInfo?,
-        versionErrorDescription: String? = nil
+        versionErrorDescription: String? = nil,
+        resolutionSource: ShellCLIResolutionSource? = nil
     ) {
         self.resolvedPath = resolvedPath
+        self.resolutionSource = resolvedPath == nil ? nil : (resolutionSource ?? .loginShell)
         self.version = version
         self.versionErrorDescription = versionErrorDescription
     }
@@ -177,22 +208,29 @@ public struct ShellCLIStatus: Equatable, Sendable {
         }
 
         if versionErrorDescription.contains("Unknown command 'version'.") {
-            return "The resolved CLI does not support `key version` yet."
+            return "The detected CLI does not support `key version` yet."
         }
 
         if versionErrorDescription.contains("Unknown option '--json' for version.") {
-            return "The resolved CLI does not support `key version --json` yet."
+            return "The detected CLI does not support `key version --json` yet."
         }
 
         if versionErrorDescription.contains("Usage:") {
-            return "The resolved CLI returned help text instead of structured version output."
+            return "The detected CLI returned help text instead of structured version output."
         }
 
         if versionErrorDescription.hasPrefix("Command failed:") {
-            return "The resolved CLI version command failed."
+            return "The detected CLI version command failed."
         }
 
         return versionErrorDescription
+    }
+
+    public var resolutionSummary: String {
+        guard let resolutionSource else {
+            return "Not found via login shell or standard Homebrew paths"
+        }
+        return resolutionSource.displayString
     }
 }
 
@@ -342,12 +380,12 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
         switch shellCLIStatus.matchState(appVersion: context.appVersion) {
         case .missing:
             return KeyDashboardCallout(
-                title: "Shell CLI not found",
-                detail: "Your login shell is not currently resolving `key` on PATH. You can still use the bundled CLI directly from Key.app.",
+                title: "External CLI not found",
+                detail: "Key could not find an external `key` CLI through your login shell or standard Homebrew install locations. You can still use the bundled CLI directly from Key.app.",
                 guidance: [
                     KeyDashboardGuidance(
                         title: "Use the bundled CLI directly",
-                        detail: "Run the app’s bundled CLI until your shell PATH is pointing at `key` again.",
+                        detail: "Run the app’s bundled CLI until an external `key` install is available again.",
                         command: bundledCLICommand("unlock")
                     )
                 ]
@@ -355,40 +393,42 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
         case .unreadable:
             let path = shellCLIStatus.resolvedPath ?? "the resolved CLI path"
             let detail = shellCLIStatus.conciseVersionErrorDescription ?? "The CLI returned an unreadable version payload."
+            let sourceDescription = shellCLIStatus.resolutionSource?.detectionDescription ?? "the detected install location"
             let guidance: [KeyDashboardGuidance]
             if detail.contains("does not support") {
                 guidance = [
                     KeyDashboardGuidance(
                         title: "Use the bundled CLI directly",
-                        detail: "The shell `key` on PATH is older than this app. Use the bundled CLI until your shell CLI is updated.",
+                        detail: "The external `key` CLI is older than this app. Use the bundled CLI until the external CLI is updated.",
                         command: bundledCLICommand("version")
                     )
                 ]
             } else {
                 guidance = [
                     KeyDashboardGuidance(
-                        title: "Inspect the shell CLI",
-                        detail: "Run the CLI version command from the same shell environment the app is checking.",
+                        title: "Inspect the external CLI",
+                        detail: "Run the CLI version command from the same shell environment you expect to use.",
                         command: "key version"
                     )
                 ]
             }
 
             return KeyDashboardCallout(
-                title: "Shell CLI version unavailable",
-                detail: "\(path) resolved from your login shell, but version inspection failed: \(detail)",
+                title: "CLI version unavailable",
+                detail: "\(path) was detected from \(sourceDescription), but version inspection failed: \(detail)",
                 guidance: guidance
             )
         case .mismatch:
             let shellVersion = shellCLIStatus.version?.displayString ?? "unknown"
             let path = shellCLIStatus.resolvedPath ?? "the resolved CLI path"
+            let sourceDescription = shellCLIStatus.resolutionSource?.detectionDescription ?? "the detected install location"
             return KeyDashboardCallout(
-                title: "Shell CLI version mismatch",
-                detail: "Your login shell resolves `key` to \(path) at version \(shellVersion), while this app is \(context.appVersion.displayString).",
+                title: "CLI version mismatch",
+                detail: "Key detected \(path) from \(sourceDescription) at version \(shellVersion), while this app is \(context.appVersion.displayString).",
                 guidance: [
                     KeyDashboardGuidance(
-                        title: "Inspect the shell CLI",
-                        detail: "Confirm which `key` binary your login shell is actually using.",
+                        title: "Inspect the external CLI",
+                        detail: "Confirm which `key` binary your shell environment is actually using.",
                         command: "key version"
                     )
                 ]

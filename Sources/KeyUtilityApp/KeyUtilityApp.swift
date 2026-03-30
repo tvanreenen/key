@@ -168,36 +168,112 @@ private final class DashboardModel: ObservableObject {
 
     nonisolated private static func shellCLIStatus() -> ShellCLIStatus {
         let runner = LoginShellCommandRunner()
+        let resolvedCLI = resolvedShellCLI(using: runner)
 
-        let resolvedPath: String?
-        do {
-            let output = try runner.run("command -v key")
-            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            resolvedPath = trimmed.hasPrefix("/") ? trimmed : nil
-        } catch {
-            return ShellCLIStatus(resolvedPath: nil, version: nil)
-        }
-
-        guard let resolvedPath else {
+        guard let resolvedCLI else {
             return ShellCLIStatus(resolvedPath: nil, version: nil)
         }
 
         do {
+            let resolvedPath = resolvedCLI.path
             let output = try runner.run("\(shellQuote(resolvedPath)) version --json")
             let data = Data(output.utf8)
             let version = try JSONDecoder().decode(KeyVersionInfo.self, from: data)
-            return ShellCLIStatus(resolvedPath: resolvedPath, version: version)
-        } catch {
             return ShellCLIStatus(
                 resolvedPath: resolvedPath,
+                version: version,
+                resolutionSource: resolvedCLI.source
+            )
+        } catch {
+            return ShellCLIStatus(
+                resolvedPath: resolvedCLI.path,
                 version: nil,
-                versionErrorDescription: error.localizedDescription
+                versionErrorDescription: error.localizedDescription,
+                resolutionSource: resolvedCLI.source
             )
         }
     }
 
     nonisolated private static func shellQuote(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+    }
+
+    nonisolated private static func resolvedShellCLI(using runner: LoginShellCommandRunner) -> (path: String, source: ShellCLIResolutionSource)? {
+        if let path = resolvedPathFromLoginShell(using: runner) {
+            return (path, .loginShell)
+        }
+
+        // Finder-launched apps often miss Homebrew PATH setup that only lives in interactive shell init files.
+        for candidate in homebrewCLIPathCandidates() {
+            if FileManager.default.isExecutableFile(atPath: candidate) {
+                return (candidate, source(forHomebrewCandidate: candidate))
+            }
+        }
+
+        return nil
+    }
+
+    nonisolated private static func resolvedPathFromLoginShell(using runner: LoginShellCommandRunner) -> String? {
+        do {
+            let output = try runner.run("command -v key")
+            return output
+                .split(whereSeparator: \.isNewline)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first(where: { $0.hasPrefix("/") && !$0.isEmpty })
+        } catch {
+            return nil
+        }
+    }
+
+    nonisolated private static func homebrewCLIPathCandidates() -> [String] {
+        var candidates = ["/opt/homebrew/bin/key", "/usr/local/bin/key"]
+
+        for brewPath in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"] {
+            guard FileManager.default.isExecutableFile(atPath: brewPath) else {
+                continue
+            }
+
+            let process = Process()
+            let stdoutPipe = Pipe()
+            process.executableURL = URL(fileURLWithPath: brewPath)
+            process.arguments = ["--prefix"]
+            process.standardOutput = stdoutPipe
+            process.standardError = Pipe()
+
+            do {
+                try process.run()
+                process.waitUntilExit()
+                guard process.terminationStatus == 0 else {
+                    continue
+                }
+
+                let output = String(
+                    decoding: stdoutPipe.fileHandleForReading.readDataToEndOfFile(),
+                    as: UTF8.self
+                ).trimmingCharacters(in: .whitespacesAndNewlines)
+
+                if !output.isEmpty {
+                    candidates.append("\(output)/bin/key")
+                }
+            } catch {
+                continue
+            }
+        }
+
+        var deduplicated: [String] = []
+        for candidate in candidates where !deduplicated.contains(candidate) {
+            deduplicated.append(candidate)
+        }
+        return deduplicated
+    }
+
+    nonisolated private static func source(forHomebrewCandidate path: String) -> ShellCLIResolutionSource {
+        switch path {
+        case "/opt/homebrew/bin/key", "/usr/local/bin/key":
+            return .homebrewInstall
+        default:
+            return .homebrewPrefix
+        }
     }
 }
 
@@ -538,17 +614,19 @@ private struct ContentView: View {
         [
             DetailRow(id: "app-version", label: "App Version", value: snapshot.context.appVersion.displayString, detail: nil, monospaced: false),
             DetailRow(
-                id: "shell-version",
-                label: "Shell CLI Version",
+                id: "external-version",
+                label: "External CLI Version",
                 value: snapshot.shellCLIStatus.version?.displayString ?? "Not available",
-                detail: nil,
+                detail: "Source: \(snapshot.shellCLIStatus.resolutionSummary)",
                 monospaced: false
             ),
             DetailRow(
-                id: "shell-path",
-                label: "Shell CLI Path",
-                value: snapshot.shellCLIStatus.resolvedPath ?? "Not found on PATH",
-                detail: nil,
+                id: "external-path",
+                label: "External CLI Path",
+                value: snapshot.shellCLIStatus.resolvedPath ?? "Not found",
+                detail: snapshot.shellCLIStatus.resolvedPath == nil
+                    ? "Checked your login shell and standard Homebrew install locations."
+                    : "Source: \(snapshot.shellCLIStatus.resolutionSummary)",
                 monospaced: true
             ),
             DetailRow(id: "bundled-cli", label: "Bundled CLI Path", value: snapshot.context.bundledCLIPath, detail: nil, monospaced: true),
