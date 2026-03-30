@@ -65,7 +65,7 @@ else
   gh release create "${create_args[@]}"
 fi
 
-download_url="$(gh api "repos/:owner/:repo/releases/tags/${tag}" --jq ".assets[] | select(.name == \"${asset_name}\") | .browser_download_url")"
+download_url="$(gh api "repos/{owner}/{repo}/releases/tags/${tag}" --jq ".assets[] | select(.name == \"${asset_name}\") | .browser_download_url")"
 
 if [[ -z "${download_url}" ]]; then
   echo "failed to resolve uploaded asset URL for ${asset_name}" >&2

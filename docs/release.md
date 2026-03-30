@@ -27,6 +27,7 @@ The bundled CLI now lives at `Key.app/Contents/MacOS/key`, the LaunchAgent helpe
 For a semver release flow, this repo also includes:
 
 ```bash
+just release <tag>
 just bump-version <tag>
 just build-release <tag>
 just publish-release <tag> <zip-path>
@@ -43,6 +44,7 @@ The release tag includes the leading `v`; the app and CLI marketing version do n
 `publish-release.sh` pushes `main` plus the release tag, then uses `gh` to create or update a GitHub release, upload the zip asset, and print the final download URL plus sha256 needed for the tap cask. It uses the tag as the release title and GitHub's generated release notes.
 `update-homebrew-tap.sh` fast-forwards a local tap checkout and then updates `Casks/key.rb`. It defaults to `~/Code/homebrew-tap` and can be overridden with `KEY_TAP_REPO`.
 `publish-homebrew-tap.sh` stages the generated cask, commits it, and pushes it.
+`release.sh` runs the full release flow end to end on `main`: version bump, signed/notarized build, GitHub release publish, Homebrew tap update, and Homebrew tap publish.
 `CURRENT_PROJECT_VERSION` is treated as an internal Apple/Xcode build counter and auto-increments with each release bump. The semver or prerelease string remains the primary release identity.
 
 The intended release flow is:
@@ -54,6 +56,10 @@ The intended release flow is:
    git pull --ff-only
    git status --short
    ```
+
+1. Fast path: `just release vX.Y.Z[-prerelease]`
+
+Manual path, if you want to inspect each stage:
 
 1. `just bump-version vX.Y.Z[-prerelease]`
 2. `just build-release vX.Y.Z[-prerelease]`

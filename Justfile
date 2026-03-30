@@ -38,6 +38,10 @@ bump-version tag:
 build-release tag:
   scripts/build-release.sh "{{tag}}"
 
+# Run the full release flow: bump version, build, publish GitHub release, and update/publish the Homebrew tap.
+release tag:
+  scripts/release.sh "{{tag}}"
+
 # Fast-forward the Homebrew tap checkout, then write the updated cask.
 update-homebrew-tap tag download_url sha256:
   scripts/update-homebrew-tap.sh "{{tag}}" "{{download_url}}" "{{sha256}}"
