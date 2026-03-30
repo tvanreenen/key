@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#endif
 
 public struct KeyVersionInfo: Codable, Equatable, Sendable {
     public let marketingVersion: String
@@ -18,8 +21,63 @@ public struct KeyVersionInfo: Codable, Equatable, Sendable {
         )
     }
 
+    public static func currentProcess() -> KeyVersionInfo {
+        currentProcess(mainBundle: .main, executableURL: currentExecutableURL())
+    }
+
+    public static func currentProcess(
+        mainBundle: Bundle,
+        executableURL: URL?
+    ) -> KeyVersionInfo {
+        guard
+            let executableURL,
+            let bundle = bundle(containingExecutableAt: executableURL)
+        else {
+            return KeyVersionInfo(bundle: mainBundle)
+        }
+
+        return KeyVersionInfo(bundle: bundle)
+    }
+
     public var displayString: String {
         "\(marketingVersion) (\(buildVersion))"
+    }
+
+    private static func bundle(containingExecutableAt executableURL: URL) -> Bundle? {
+        var currentURL = executableURL
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+
+        while currentURL.path != "/" {
+            if currentURL.pathExtension == "app" {
+                return Bundle(url: currentURL)
+            }
+            currentURL.deleteLastPathComponent()
+        }
+
+        return nil
+    }
+
+    private static func currentExecutableURL() -> URL? {
+        #if canImport(Darwin)
+        var size: UInt32 = 0
+        _NSGetExecutablePath(nil, &size)
+
+        var buffer = [CChar](repeating: 0, count: Int(size))
+        guard _NSGetExecutablePath(&buffer, &size) == 0 else {
+            return nil
+        }
+
+        let endIndex = buffer.firstIndex(of: 0) ?? buffer.endIndex
+        let bytes = buffer[..<endIndex].map { UInt8(bitPattern: $0) }
+        let path = String(decoding: bytes, as: UTF8.self)
+
+        return URL(fileURLWithPath: path)
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+        #else
+        return nil
+        #endif
     }
 }
 
