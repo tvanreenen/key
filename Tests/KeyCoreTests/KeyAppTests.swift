@@ -717,7 +717,7 @@ struct KeyAppDiagnosticsCollectorTests {
 
         #expect(snapshot.shellCLIStatus.matchState(appVersion: snapshot.context.appVersion) == .mismatch)
         #expect(snapshot.hero.title == "Welcome to Key")
-        #expect(snapshot.callout?.title == "Shell CLI version mismatch")
+        #expect(snapshot.callout?.title == "CLI version mismatch")
     }
 
     @Test
@@ -736,12 +736,15 @@ struct KeyAppDiagnosticsCollectorTests {
             shellCLIProbe: {
                 ShellCLIStatus(
                     resolvedPath: "/opt/homebrew/bin/key",
-                    version: KeyVersionInfo(marketingVersion: "0.1.0", buildVersion: "1")
+                    version: KeyVersionInfo(marketingVersion: "0.1.0", buildVersion: "1"),
+                    resolutionSource: .homebrewInstall
                 )
             }
         ).load()
 
         #expect(snapshot.shellCLIStatus.matchState(appVersion: snapshot.context.appVersion) == .matches)
+        #expect(snapshot.shellCLIStatus.resolutionSummary == "Homebrew install path")
+        #expect(snapshot.callout == nil)
     }
 
     @Test
@@ -763,6 +766,7 @@ struct KeyAppDiagnosticsCollectorTests {
         ).load()
 
         #expect(snapshot.shellCLIStatus.matchState(appVersion: snapshot.context.appVersion) == .missing)
+        #expect(snapshot.callout?.title == "External CLI not found")
         #expect(snapshot.callout?.guidance.first?.command == "\"/Applications/Key.app/Contents/MacOS/key\" unlock")
     }
 
@@ -788,7 +792,7 @@ struct KeyAppDiagnosticsCollectorTests {
             }
         ).load()
 
-        #expect(snapshot.callout?.title == "Shell CLI version unavailable")
+        #expect(snapshot.callout?.title == "CLI version unavailable")
         #expect(snapshot.callout?.detail.contains("Usage:") == false)
         #expect(snapshot.callout?.detail.contains("does not support `key version` yet.") == true)
         #expect(snapshot.callout?.guidance.first?.command == "\"/Applications/Key.app/Contents/MacOS/key\" version")
