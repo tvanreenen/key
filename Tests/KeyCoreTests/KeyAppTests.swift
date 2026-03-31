@@ -261,7 +261,7 @@ struct KeyCLIApplicationTests {
     @Test
     func manualAddReadsPipedInputAndSendsItToService() throws {
         let transport = MemoryTransport { request in
-            #expect(request == .addManual(name: "aws/prod/token", secret: "hunter2"))
+            #expect(request == .addManual(name: "aws/prod/token", secret: "hunter2", type: .secret))
             return .success()
         }
         let io = MemoryIO(stdinIsTTY: false, pipedInput: "hunter2")
@@ -274,9 +274,38 @@ struct KeyCLIApplicationTests {
     }
 
     @Test
+    func manualAddTOTPReadsPipedInputNormalizesSeedAndSendsItToService() throws {
+        let transport = MemoryTransport { request in
+            #expect(request == .addManual(name: "aws/prod/token", secret: "JBSWY3DPEHPK3PXP", type: .totp))
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false, pipedInput: " jbsw y3dp ehpk 3pxp ")
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["add", "--totp", "aws/prod/token"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "")
+        #expect(io.stderr == "")
+    }
+
+    @Test
+    func manualAddTOTPRejectsInvalidBase32BeforeSendingRequest() throws {
+        let transport = MemoryTransport { _ in
+            Issue.record("transport should not be called for invalid TOTP seeds")
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false, pipedInput: "not base32!")
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
+
+        #expect(app.run(arguments: ["add", "--totp", "aws/prod/token"]) == EXIT_FAILURE)
+        #expect(io.stderr == "TOTP seed must be valid Base32.\n")
+    }
+
+    @Test
     func manualEditReadsPipedInputAndSendsItToService() throws {
         let transport = MemoryTransport { request in
-            #expect(request == .editManual(name: "aws/prod/token", secret: "hunter2"))
+            #expect(request == .editManual(name: "aws/prod/token", secret: "hunter2", type: .secret))
             return .success()
         }
         let io = MemoryIO(stdinIsTTY: false, pipedInput: "hunter2")
@@ -432,7 +461,7 @@ struct KeyServiceHandlerTests {
         let keyStore = MemoryVaultKeyStore()
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
-        let putResponse = handler.handle(.addManual(name: "mail/personal", secret: "hunter2"))
+        let putResponse = handler.handle(.addManual(name: "mail/personal", secret: "hunter2", type: .secret))
         #expect(putResponse == .success())
 
         let getResponse = handler.handle(.get(name: "mail/personal"))
@@ -452,9 +481,9 @@ struct KeyServiceHandlerTests {
             entryStore: EntryStore(rootURL: tempDirectory)
         )
 
-        #expect(handler.handle(.addManual(name: "dup", secret: "one")) == .success())
+        #expect(handler.handle(.addManual(name: "dup", secret: "one", type: .secret)) == .success())
 
-        let secondResponse = handler.handle(.addManual(name: "dup", secret: "two"))
+        let secondResponse = handler.handle(.addManual(name: "dup", secret: "two", type: .secret))
         #expect(secondResponse.exitCode == EXIT_FAILURE)
         #expect(secondResponse.errorMessage?.contains("already exists") == true)
     }
@@ -469,13 +498,59 @@ struct KeyServiceHandlerTests {
         let keyStore = MemoryVaultKeyStore()
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
-        #expect(handler.handle(.addManual(name: "mail/personal", secret: "one")) == .success())
-        #expect(handler.handle(.editManual(name: "mail/personal", secret: "two")) == .success())
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "one", type: .secret)) == .success())
+        #expect(handler.handle(.editManual(name: "mail/personal", secret: "two", type: .secret)) == .success())
         #expect(handler.handle(.get(name: "mail/personal")) == .success("two"))
 
-        let missingResponse = handler.handle(.editManual(name: "missing", secret: "value"))
+        let missingResponse = handler.handle(.editManual(name: "missing", secret: "value", type: .secret))
         #expect(missingResponse.exitCode == EXIT_FAILURE)
         #expect(missingResponse.errorMessage?.contains("was not found") == true)
+    }
+
+    @Test
+    func addThenGetReturnsCurrentTOTPCode() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let keyStore = MemoryVaultKeyStore()
+        let handler = KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: EntryStore(rootURL: tempDirectory),
+            now: { Date(timeIntervalSince1970: 59) }
+        )
+
+        let addResponse = handler.handle(.addManual(
+            name: "mail/mfa",
+            secret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+            type: .totp
+        ))
+        #expect(addResponse == .success())
+        #expect(handler.handle(.get(name: "mail/mfa")) == .success("287082"))
+    }
+
+    @Test
+    func editCanConvertExistingSecretIntoTOTPEntry() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let keyStore = MemoryVaultKeyStore()
+        let handler = KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: EntryStore(rootURL: tempDirectory),
+            now: { Date(timeIntervalSince1970: 59) }
+        )
+
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "one", type: .secret)) == .success())
+        #expect(handler.handle(.editManual(
+            name: "mail/personal",
+            secret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+            type: .totp
+        )) == .success())
+        #expect(handler.handle(.get(name: "mail/personal")) == .success("287082"))
     }
 
     @Test
@@ -488,7 +563,7 @@ struct KeyServiceHandlerTests {
         let keyStore = MemoryVaultKeyStore()
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
-        #expect(handler.handle(.addManual(name: "mail/personal", secret: "one")) == .success())
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "one", type: .secret)) == .success())
         let loadCountBeforeCopy = keyStore.loadCount
 
         #expect(handler.handle(.copyEntry(source: "mail/personal", destination: "mail/work", force: false)) == .success())
@@ -510,7 +585,7 @@ struct KeyServiceHandlerTests {
         let keyStore = MemoryVaultKeyStore()
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
-        #expect(handler.handle(.addManual(name: "mail/personal", secret: "one")) == .success())
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "one", type: .secret)) == .success())
         let loadCountBeforeMove = keyStore.loadCount
 
         #expect(handler.handle(.moveEntry(source: "mail/personal", destination: "mail/work", force: false)) == .success())
@@ -521,10 +596,34 @@ struct KeyServiceHandlerTests {
         #expect(oldResponse.exitCode == EXIT_FAILURE)
         #expect(oldResponse.errorMessage?.contains("was not found") == true)
 
-        #expect(handler.handle(.addManual(name: "mail/personal", secret: "two")) == .success())
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "two", type: .secret)) == .success())
         let conflictResponse = handler.handle(.moveEntry(source: "mail/personal", destination: "mail/work", force: false))
         #expect(conflictResponse.exitCode == EXIT_FAILURE)
         #expect(conflictResponse.errorMessage?.contains("already exists") == true)
+    }
+
+    @Test
+    func copiedAndMovedTOTPEntriesPreserveTheirType() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let keyStore = MemoryVaultKeyStore()
+        let handler = KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: EntryStore(rootURL: tempDirectory),
+            now: { Date(timeIntervalSince1970: 59) }
+        )
+
+        #expect(handler.handle(.addManual(
+            name: "mail/mfa",
+            secret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+            type: .totp
+        )) == .success())
+        #expect(handler.handle(.copyEntry(source: "mail/mfa", destination: "mail/mfa-copy", force: false)) == .success())
+        #expect(handler.handle(.moveEntry(source: "mail/mfa-copy", destination: "mail/mfa-moved", force: false)) == .success())
+        #expect(handler.handle(.get(name: "mail/mfa-moved")) == .success("287082"))
     }
 
     @Test
@@ -538,7 +637,7 @@ struct KeyServiceHandlerTests {
         let store = EntryStore(rootURL: tempDirectory)
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: store)
 
-        #expect(handler.handle(.addManual(name: "mail/personal", secret: "one")) == .success())
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "one", type: .secret)) == .success())
         let loadCountBeforeRemove = keyStore.loadCount
 
         #expect(handler.handle(.removeEntry(name: "mail/personal")) == .success())
@@ -587,8 +686,8 @@ struct KeyServiceHandlerTests {
             entryStore: EntryStore(rootURL: tempDirectory)
         )
 
-        #expect(handler.handle(.addManual(name: "zeta/one", secret: "one")) == .success())
-        #expect(handler.handle(.addManual(name: "alpha/two", secret: "two")) == .success())
+        #expect(handler.handle(.addManual(name: "zeta/one", secret: "one", type: .secret)) == .success())
+        #expect(handler.handle(.addManual(name: "alpha/two", secret: "two", type: .secret)) == .success())
 
         let listResponse = handler.handle(.list)
         #expect(listResponse == .success("alpha/two\nzeta/one\n"))
@@ -663,7 +762,7 @@ struct SessionVaultKeyStoreTests {
         let store = SessionVaultKeyStore(underlying: underlying)
         let handler = KeyServiceHandler(keyStore: store, entryStore: EntryStore(rootURL: tempDirectory))
 
-        #expect(handler.handle(.addManual(name: "mail/personal", secret: "hunter2")) == .success())
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "hunter2", type: .secret)) == .success())
         #expect(handler.handle(.get(name: "mail/personal")) == .success("hunter2"))
         #expect(underlying.loadCount == 1)
     }
@@ -679,7 +778,7 @@ struct SessionVaultKeyStoreTests {
         let store = SessionVaultKeyStore(underlying: underlying)
         let handler = KeyServiceHandler(keyStore: store, entryStore: EntryStore(rootURL: tempDirectory))
 
-        #expect(handler.handle(.addManual(name: "mail/personal", secret: "hunter2")) == .success())
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "hunter2", type: .secret)) == .success())
         #expect(handler.handle(.lock) == .success())
         #expect(store.isUnlocked() == false)
         #expect(handler.handle(.get(name: "mail/personal")) == .success("hunter2"))

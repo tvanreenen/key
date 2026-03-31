@@ -65,7 +65,13 @@ struct CLIParserTests {
     @Test
     func parsesAdd() throws {
         let command = try CLIParser.parse(arguments: ["add", "api/token"])
-        #expect(command == .add(name: "api/token"))
+        #expect(command == .add(name: "api/token", type: .secret))
+    }
+
+    @Test
+    func parsesAddTOTP() throws {
+        let command = try CLIParser.parse(arguments: ["add", "--totp", "api/token"])
+        #expect(command == .add(name: "api/token", type: .totp))
     }
 
     @Test
@@ -77,7 +83,13 @@ struct CLIParserTests {
     @Test
     func parsesEdit() throws {
         let command = try CLIParser.parse(arguments: ["edit", "api/token"])
-        #expect(command == .edit(name: "api/token"))
+        #expect(command == .edit(name: "api/token", type: .secret))
+    }
+
+    @Test
+    func parsesEditTOTPWithOptionAfterName() throws {
+        let command = try CLIParser.parse(arguments: ["edit", "api/token", "--totp"])
+        #expect(command == .edit(name: "api/token", type: .totp))
     }
 
     @Test

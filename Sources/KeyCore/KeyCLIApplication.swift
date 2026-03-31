@@ -67,13 +67,13 @@ public final class KeyCLIApplication {
             }
             try clipboard.copy(value)
             return EXIT_SUCCESS
-        case let .add(name):
-            let secret = try readSecretFromInput()
-            response = try transport.send(.addManual(name: name, secret: secret))
+        case let .add(name, type):
+            let secret = try readSecretFromInput(type: type)
+            response = try transport.send(.addManual(name: name, secret: secret, type: type))
             return try handle(response, for: command)
-        case let .edit(name):
-            let secret = try readSecretFromInput()
-            response = try transport.send(.editManual(name: name, secret: secret))
+        case let .edit(name, type):
+            let secret = try readSecretFromInput(type: type)
+            response = try transport.send(.editManual(name: name, secret: secret, type: type))
             return try handle(response, for: command)
         case let .duplicate(source, destination, force):
             response = try transport.send(.copyEntry(source: source, destination: destination, force: force))
@@ -126,11 +126,21 @@ public final class KeyCLIApplication {
         return value + "\n"
     }
 
-    private func readSecretFromInput() throws -> String {
+    private func readSecretFromInput(type: SecretEntryType) throws -> String {
+        let prompt = type == .totp ? "TOTP seed: " : "Secret: "
+        let secret: String
         if io.stdinIsTTY {
-            return try io.readSecureLine(prompt: "Secret: ")
+            secret = try io.readSecureLine(prompt: prompt)
+        } else {
+            secret = try io.readPipedInput()
         }
-        return try io.readPipedInput()
+
+        switch type {
+        case .secret:
+            return secret
+        case .totp:
+            return try TOTPGenerator.normalizeBase32Seed(secret)
+        }
     }
 
     private func confirmRemovalIfNeeded(name: String, force: Bool) throws {

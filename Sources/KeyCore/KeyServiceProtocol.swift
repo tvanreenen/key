@@ -6,8 +6,8 @@ public enum KeyServiceRequest: Codable, Equatable {
     case status
     case list
     case get(name: String)
-    case addManual(name: String, secret: String)
-    case editManual(name: String, secret: String)
+    case addManual(name: String, secret: String, type: SecretEntryType)
+    case editManual(name: String, secret: String, type: SecretEntryType)
     case copyEntry(source: String, destination: String, force: Bool)
     case moveEntry(source: String, destination: String, force: Bool)
     case removeEntry(name: String)
@@ -18,6 +18,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case source
         case destination
         case secret
+        case type
         case force
     }
 
@@ -50,12 +51,14 @@ public enum KeyServiceRequest: Codable, Equatable {
         case .addManual:
             self = .addManual(
                 name: try container.decode(String.self, forKey: .name),
-                secret: try container.decode(String.self, forKey: .secret)
+                secret: try container.decode(String.self, forKey: .secret),
+                type: try container.decode(SecretEntryType.self, forKey: .type)
             )
         case .editManual:
             self = .editManual(
                 name: try container.decode(String.self, forKey: .name),
-                secret: try container.decode(String.self, forKey: .secret)
+                secret: try container.decode(String.self, forKey: .secret),
+                type: try container.decode(SecretEntryType.self, forKey: .type)
             )
         case .copyEntry:
             self = .copyEntry(
@@ -88,14 +91,16 @@ public enum KeyServiceRequest: Codable, Equatable {
         case let .get(name):
             try container.encode(Kind.get, forKey: .kind)
             try container.encode(name, forKey: .name)
-        case let .addManual(name, secret):
+        case let .addManual(name, secret, type):
             try container.encode(Kind.addManual, forKey: .kind)
             try container.encode(name, forKey: .name)
             try container.encode(secret, forKey: .secret)
-        case let .editManual(name, secret):
+            try container.encode(type, forKey: .type)
+        case let .editManual(name, secret, type):
             try container.encode(Kind.editManual, forKey: .kind)
             try container.encode(name, forKey: .name)
             try container.encode(secret, forKey: .secret)
+            try container.encode(type, forKey: .type)
         case let .copyEntry(source, destination, force):
             try container.encode(Kind.copyEntry, forKey: .kind)
             try container.encode(source, forKey: .source)

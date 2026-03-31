@@ -16,6 +16,7 @@ xcodebuild \
   -project Key.xcodeproj \
   -scheme Key \
   -configuration Debug \
+  -destination 'platform=macOS,arch=arm64' \
   clean build
 
 app_path="$(ls -td "${HOME}"/Library/Developer/Xcode/DerivedData/Key-*/Build/Products/Debug/Key.app 2>/dev/null | head -n 1 || true)"

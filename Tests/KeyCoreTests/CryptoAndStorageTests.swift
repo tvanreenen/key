@@ -9,6 +9,23 @@ struct CryptoAndStorageTests {
         let data = try JSONEncoder().encode(file)
         let decoded = try JSONDecoder().decode(SecretFile.self, from: data)
         #expect(decoded == file)
+        #expect(decoded.type == .secret)
+    }
+
+    @Test
+    func legacySecretFileWithoutTypeIsRejected() {
+        let data = Data("""
+        {
+          "version": 1,
+          "alg": "AES.GCM",
+          "nonce": "AQID",
+          "ciphertext": "BAU="
+        }
+        """.utf8)
+
+        #expect(throws: DecodingError.self) {
+            _ = try JSONDecoder().decode(SecretFile.self, from: data)
+        }
     }
 
     @Test
@@ -18,6 +35,41 @@ struct CryptoAndStorageTests {
         let encrypted = try cipher.encrypt("super-secret", keyData: keyData)
         let decrypted = try cipher.decrypt(encrypted, keyData: keyData)
         #expect(decrypted == "super-secret")
+        #expect(encrypted.version == 2)
+        #expect(encrypted.type == .secret)
+    }
+
+    @Test
+    func cipherEncryptsTOTPSecretsWithTypedEnvelope() throws {
+        let cipher = VaultCipher()
+        let keyData = Data((0..<32).map(UInt8.init))
+        let encrypted = try cipher.encrypt("JBSWY3DPEHPK3PXP", type: .totp, keyData: keyData)
+        let decrypted = try cipher.decrypt(encrypted, keyData: keyData)
+
+        #expect(decrypted == "JBSWY3DPEHPK3PXP")
+        #expect(encrypted.version == 2)
+        #expect(encrypted.type == .totp)
+    }
+
+    @Test
+    func totpSeedNormalizationStripsWhitespaceAndUppercases() throws {
+        let normalized = try TOTPGenerator.normalizeBase32Seed("  jbsw y3dp ehpk 3pxp  ")
+        #expect(normalized == "JBSWY3DPEHPK3PXP")
+    }
+
+    @Test
+    func totpSeedValidationRejectsInvalidBase32() {
+        #expect(throws: AppError.invalidSecret("TOTP seed must be valid Base32.")) {
+            _ = try TOTPGenerator.normalizeBase32Seed("nope!")
+        }
+    }
+
+    @Test
+    func totpGeneratorMatchesKnownVectors() throws {
+        let seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+
+        #expect(try TOTPGenerator.generateCode(fromBase32Seed: seed, at: Date(timeIntervalSince1970: 59)) == "287082")
+        #expect(try TOTPGenerator.generateCode(fromBase32Seed: seed, at: Date(timeIntervalSince1970: 1_234_567_890)) == "005924")
     }
 
     @Test
