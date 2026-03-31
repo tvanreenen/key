@@ -21,8 +21,7 @@ _key_vault_root() {
   local vault_root
 
   vault_root="$(command key config get vault-dir 2>/dev/null)"
-
-  [[ -n "${vault_root}" ]] || vault_root="${HOME}/.key/vault"
+  [[ -n "${vault_root}" ]] || return 1
 
   print -r -- "${vault_root}"
 }
