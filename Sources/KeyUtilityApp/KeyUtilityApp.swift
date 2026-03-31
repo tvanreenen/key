@@ -27,11 +27,12 @@ private final class DashboardModel: ObservableObject {
         self.configuration = configuration
 
         let bundleURL = bundle.bundleURL
-        let vaultDirectoryPath = (try? EntryStore.defaultRootURL())?.path ?? (
-            URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
-                .appendingPathComponent("Library/Application Support/key/vault", isDirectory: true)
-                .path
-        )
+        let vaultLocation: VaultLocation?
+        do {
+            vaultLocation = try EntryStore.defaultLocation()
+        } catch {
+            vaultLocation = nil
+        }
 
         self.context = KeyAppDiagnosticsContext(
             appVersion: KeyVersionInfo(bundle: bundle),
@@ -40,8 +41,8 @@ private final class DashboardModel: ObservableObject {
             helperExecutablePath: bundleURL.appendingPathComponent("Contents/Helpers/Key Agent.app/Contents/MacOS/Key Agent").path,
             launchAgentPlistPath: bundleURL.appendingPathComponent("Contents/Library/LaunchAgents/\(configuration.launchAgentPlistName)").path,
             machServiceName: configuration.helperMachServiceName,
-            vaultDirectoryPath: vaultDirectoryPath,
-            vaultLocationSource: "Default"
+            vaultDirectoryPath: vaultLocation?.rootURL.path ?? "Unavailable",
+            vaultLocationSource: vaultLocation?.sourceDescription ?? "Unavailable"
         )
     }
 

@@ -12,7 +12,7 @@
 
 ## How it works
 
-- Each secret is stored as an individually encrypted file on disk, under `~/Library/Application Support/key/vault`.
+- Each secret is stored as an individually encrypted file on disk, under `~/.key/vault` by default.
 - All secret files are encrypted and decrypted using a single, randomly generated 256-bit symmetric vault key.
 - That vault key is stored securely in your macOS Keychain (not the secrets themselves!).
 - Access to the vault key in Keychain is protected by macOS local authentication—Touch ID, Apple Watch, or your system password—using [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence).
@@ -83,7 +83,7 @@ This stays fully optional. `key` does not depend on `fzf`, but the combination w
 
 `key` uses standard AES-256-GCM encryption with zero custom cryptography. If you have both the vault key and your `.secret` files, you're not locked in: you can decrypt your secrets using any tool that supports AES-GCM, letting you move your data or audit it without relying on the app.
 
-**Where the files live:** Secrets are under `~/Library/Application Support/key/vault`. An entry like `github/personal` is stored as `~/Library/Application Support/key/vault/github/personal.secret`.
+**Where the files live:** Secrets are under `~/.key/vault` by default. An entry like `github/personal` is stored as `~/.key/vault/github/personal.secret`. The vault path is configured in `~/.key/config.toml`.
 
 **Payload format:** Each `.secret` file contains a JSON object:
 

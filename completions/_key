@@ -18,9 +18,22 @@ _key_commands=(
 
 _key_vault_root() {
   local vault_root
+  local config_file
 
-  zstyle -s ':completion:*:*:key:*' vault-root vault_root ||
-    vault_root="${HOME}/Library/Application Support/key/vault"
+  config_file="${HOME}/.key/config.toml"
+
+  zstyle -s ':completion:*:*:key:*' vault-root vault_root
+
+  if [[ -z "${vault_root}" && -r "${config_file}" ]]; then
+    vault_root="$(command sed -nE 's/^[[:space:]]*vault_dir[[:space:]]*=[[:space:]]*"(([^"\\]|\\.)*)"[[:space:]]*(#.*)?$/\1/p' "${config_file}" | command head -n 1)"
+    if [[ "${vault_root}" == "~/"* ]]; then
+      vault_root="${HOME}/${vault_root#~/}"
+    elif [[ "${vault_root}" == "~" ]]; then
+      vault_root="${HOME}"
+    fi
+  fi
+
+  [[ -n "${vault_root}" ]] || vault_root="${HOME}/.key/vault"
 
   print -r -- "${vault_root}"
 }

@@ -826,8 +826,8 @@ struct KeyAppDiagnosticsCollectorTests {
             }
         ).load()
 
-        #expect(snapshot.context.vaultDirectoryPath == "/Users/test/Library/Application Support/key/vault")
-        #expect(snapshot.context.vaultLocationSource == "Default")
+        #expect(snapshot.context.vaultDirectoryPath == "/Users/test/.key/vault")
+        #expect(snapshot.context.vaultLocationSource == "Config file (default)")
         #expect(snapshot.hero.title == "Welcome to Key")
         #expect(snapshot.callout == nil)
     }
@@ -867,8 +867,8 @@ private extension KeyAppDiagnosticsContext {
             helperExecutablePath: "/Applications/Key.app/Contents/Helpers/Key Agent.app/Contents/MacOS/Key Agent",
             launchAgentPlistPath: "/Applications/Key.app/Contents/Library/LaunchAgents/work.tvr.key.agent.plist",
             machServiceName: "work.tvr.key.agent",
-            vaultDirectoryPath: "/Users/test/Library/Application Support/key/vault",
-            vaultLocationSource: "Default"
+            vaultDirectoryPath: "/Users/test/.key/vault",
+            vaultLocationSource: "Config file (default)"
         )
     }
 }

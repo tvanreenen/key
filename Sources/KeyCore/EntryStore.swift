@@ -11,15 +11,26 @@ public struct EntryStore {
         self.fileManager = fileManager
     }
 
-    public static func defaultRootURL(fileManager: FileManager = .default) throws -> URL {
-        let appSupport = try fileManager.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
+    public static func defaultLocation(
+        fileManager: FileManager = .default,
+        homeDirectoryURL: URL? = nil
+    ) throws -> VaultLocation {
+        try VaultLocationResolver(
+            fileManager: fileManager,
+            homeDirectoryURL: homeDirectoryURL
         )
-        return appSupport.appendingPathComponent("key", isDirectory: true)
-            .appendingPathComponent("vault", isDirectory: true)
+        .resolve()
+    }
+
+    public static func defaultRootURL(
+        fileManager: FileManager = .default,
+        homeDirectoryURL: URL? = nil
+    ) throws -> URL {
+        try defaultLocation(
+            fileManager: fileManager,
+            homeDirectoryURL: homeDirectoryURL
+        )
+        .rootURL
     }
 
     public func validateEntryName(_ name: String) throws {

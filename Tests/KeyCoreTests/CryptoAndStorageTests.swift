@@ -57,4 +57,56 @@ struct CryptoAndStorageTests {
 
         #expect(try store.listEntries() == ["alpha/two", "zeta/one"])
     }
+
+    @Test
+    func defaultLocationCreatesConfigAndVaultDirectory() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let location = try EntryStore.defaultLocation(homeDirectoryURL: homeDirectory)
+        let rereadLocation = try EntryStore.defaultLocation(homeDirectoryURL: homeDirectory)
+        let configFileURL = homeDirectory
+            .appendingPathComponent(".key", isDirectory: true)
+            .appendingPathComponent("config.toml", isDirectory: false)
+        let expectedVaultURL = homeDirectory
+            .appendingPathComponent(".key", isDirectory: true)
+            .appendingPathComponent("vault", isDirectory: true)
+            .standardizedFileURL
+
+        #expect(location.rootURL.standardizedFileURL == expectedVaultURL)
+        #expect(location.configFileURL == configFileURL)
+        #expect(location.sourceDescription == "Config file (default)")
+        #expect(rereadLocation == location)
+        #expect(FileManager.default.fileExists(atPath: location.rootURL.path(percentEncoded: false)))
+        #expect(FileManager.default.fileExists(atPath: configFileURL.path(percentEncoded: false)))
+        #expect(try String(contentsOf: configFileURL, encoding: .utf8).contains("vault_dir = "))
+    }
+
+    @Test
+    func defaultLocationReadsCustomVaultDirectoryFromConfig() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let configDirectory = homeDirectory.appendingPathComponent(".key", isDirectory: true)
+        let customVaultDirectory = homeDirectory.appendingPathComponent("Secrets Vault", isDirectory: true)
+        try FileManager.default.createDirectory(at: configDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let configContents = """
+        # key configuration
+        vault_dir = "~/Secrets Vault"
+        """
+        try configContents.write(
+            to: configDirectory.appendingPathComponent("config.toml", isDirectory: false),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let location = try EntryStore.defaultLocation(homeDirectoryURL: homeDirectory)
+
+        #expect(location.rootURL.standardizedFileURL == customVaultDirectory.standardizedFileURL)
+        #expect(location.sourceDescription == "Config file (custom)")
+        #expect(FileManager.default.fileExists(atPath: customVaultDirectory.path(percentEncoded: false)))
+    }
 }
