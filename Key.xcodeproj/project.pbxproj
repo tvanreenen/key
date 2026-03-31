@@ -16,6 +16,7 @@
 		3E06CBB9790C0F544B940F1B /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE09A18FF4CC11995E958F80 /* AppError.swift */; };
 		545DE475C8F5F883DB08A529 /* KeyServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55257994DEF9CC6144A32E16 /* KeyServiceProtocol.swift */; };
 		57EEC874B15B0F76B486E12A /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 55AE435B2F63568900124FD6 /* AppIcon.icon */; };
+		5FEC7A6B80C84ABF96BB0942 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 55AE435B2F63568900124FD6 /* AppIcon.icon */; };
 		6D30C98FDE1EE6358276BB25 /* KeyUtilityApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5545BFD05D0DBC600CFCEDA7 /* KeyUtilityApp.swift */; };
 		70A1989598F246AF88CA0C88 /* ClipboardWriting.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EE5012D730E62376078026 /* ClipboardWriting.swift */; };
 		851434753ACA4A4ED0733FEB /* KeyServiceHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */; };
@@ -271,6 +272,7 @@
 			buildPhases = (
 				18FF1448408D41606F455BB0 /* Sources */,
 				DF3E0B2A38CCF99634DE573D /* Frameworks */,
+				DFF6D4375E5B4A7B83FCF511 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -332,6 +334,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				57EEC874B15B0F76B486E12A /* AppIcon.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DFF6D4375E5B4A7B83FCF511 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5FEC7A6B80C84ABF96BB0942 /* AppIcon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -580,6 +590,7 @@
 		577164093649376F4ABEA3BB /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/KeyLaunchAgentHelper.entitlements;
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
@@ -626,6 +637,7 @@
 		6BBBF7FB903460A13A25835F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/KeyLaunchAgentHelper.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
