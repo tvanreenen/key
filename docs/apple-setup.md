@@ -12,8 +12,8 @@ Keep these identifiers and profiles in the Apple Developer portal:
 - App ID: `work.tvr.key.app`
 - Helper signing ID: `work.tvr.key.xpc`
 - Shared keychain access group: `9Q355KSV85.work.tvr.key.shared`
-- Developer ID provisioning profile: `Key Developer ID App`
-- Developer ID provisioning profile: `Key Developer ID XPC`
+- Developer ID provisioning profile: `Key App Developer ID`
+- Developer ID provisioning profile: `Key XPC Developer ID`
 
 The `KeyCore` target does not need its own App ID or provisioning profile. Any old `work.tvr.key.cli` identifier or profile from earlier experiments can be removed if it still exists.
 
@@ -47,8 +47,8 @@ Both should use the same team and both should allow Keychain Sharing for:
 
 Then create the matching Developer ID provisioning profiles:
 
-1. `Key Developer ID App`
-2. `Key Developer ID XPC`
+1. `Key App Developer ID`
+2. `Key XPC Developer ID`
 
 Download and install those profiles locally so Xcode can use them for Release archives.
 
@@ -65,14 +65,14 @@ Expected Release signing values:
 
 - `Code Signing Identity`: `Developer ID Application`
 - `Code Signing Style`: `Manual`
-- `Provisioning Profile`: `Key Developer ID App`
+- `Provisioning Profile`: `Key App Developer ID`
 - `Product Bundle Identifier`: `work.tvr.key.app`
 
 ### `KeyLaunchAgentHelper`
 
 - `Code Signing Identity`: `Developer ID Application`
 - `Code Signing Style`: `Manual`
-- `Provisioning Profile`: `Key Developer ID XPC`
+- `Provisioning Profile`: `Key XPC Developer ID`
 - `Product Bundle Identifier`: `work.tvr.key.xpc`
 - `Keychain Sharing`: `work.tvr.key.shared`
 
