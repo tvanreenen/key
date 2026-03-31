@@ -1,21 +1,32 @@
 import Foundation
 
+public enum VaultPathSource: Equatable, Sendable {
+    case appSupportConfigDefault
+    case appSupportConfigCustom
+
+    public var displayString: String {
+        switch self {
+        case .appSupportConfigDefault:
+            return "App Support config (default)"
+        case .appSupportConfigCustom:
+            return "App Support config (custom)"
+        }
+    }
+}
+
 public struct KeyConfiguration: Equatable, Sendable {
-    public let keyDirectoryURL: URL
     public let configFileURL: URL
     public let vaultDirectoryURL: URL
-    public let vaultLocationSource: String
+    public let vaultPathSource: VaultPathSource
 
     public init(
-        keyDirectoryURL: URL,
         configFileURL: URL,
         vaultDirectoryURL: URL,
-        vaultLocationSource: String
+        vaultPathSource: VaultPathSource
     ) {
-        self.keyDirectoryURL = keyDirectoryURL
         self.configFileURL = configFileURL
         self.vaultDirectoryURL = vaultDirectoryURL
-        self.vaultLocationSource = vaultLocationSource
+        self.vaultPathSource = vaultPathSource
     }
 }
 
@@ -32,12 +43,12 @@ public struct KeyConfigValue: Equatable, Sendable {
 public struct VaultLocation: Equatable, Sendable {
     public let rootURL: URL
     public let configFileURL: URL
-    public let sourceDescription: String
+    public let pathSource: VaultPathSource
 
-    public init(rootURL: URL, configFileURL: URL, sourceDescription: String) {
+    public init(rootURL: URL, configFileURL: URL, pathSource: VaultPathSource) {
         self.rootURL = rootURL
         self.configFileURL = configFileURL
-        self.sourceDescription = sourceDescription
+        self.pathSource = pathSource
     }
 }
 
@@ -51,38 +62,31 @@ public struct KeyConfigStore {
     }
 
     public func load() throws -> KeyConfiguration {
-        let keyDirectoryURL = homeDirectoryURL
-            .appendingPathComponent(".key", isDirectory: true)
-        let configFileURL = keyDirectoryURL
-            .appendingPathComponent("config.toml", isDirectory: false)
-        let defaultVaultURL = keyDirectoryURL
-            .appendingPathComponent("vault", isDirectory: true)
-
-        try ensureDirectoryExists(
-            at: keyDirectoryURL,
-            failureMessage: "Key config root '\(keyDirectoryURL.path)' exists but is not a directory."
-        )
+        let paths = try bootstrapPaths()
 
         let configuredVaultURL: URL
-        let sourceDescription: String
+        let pathSource: VaultPathSource
 
-        if fileManager.fileExists(atPath: configFileURL.path(percentEncoded: false)) {
+        if fileManager.fileExists(atPath: paths.configFileURL.path(percentEncoded: false)) {
             try ensurePathIsNotDirectory(
-                at: configFileURL,
-                failureMessage: "Key config file '\(configFileURL.path)' exists but is a directory."
+                at: paths.configFileURL,
+                failureMessage: "Key config file '\(paths.configFileURL.path)' exists but is a directory."
             )
 
-            let configurationFile = try loadConfigurationFile(from: configFileURL)
+            let configurationFile = try loadConfigurationFile(from: paths.configFileURL)
             configuredVaultURL = configurationFile.vaultDirectoryURL
-            sourceDescription = configurationFile.vaultDirectoryURL.standardizedFileURL == defaultVaultURL.standardizedFileURL
-                ? "Config file (default)"
-                : "Config file (custom)"
+            pathSource = configurationFile.vaultDirectoryURL.standardizedFileURL == paths.defaultVaultURL.standardizedFileURL
+                ? .appSupportConfigDefault
+                : .appSupportConfigCustom
         } else {
-            configuredVaultURL = defaultVaultURL
-            sourceDescription = "Config file (default)"
+            configuredVaultURL = try prepareDefaultVaultDirectory(
+                at: paths.defaultVaultURL,
+                configFileURL: paths.configFileURL
+            )
+            pathSource = .appSupportConfigDefault
             try writeConfigurationFile(
-                KeyConfigurationFile(vaultDirectoryURL: defaultVaultURL),
-                to: configFileURL
+                KeyConfigurationFile(vaultDirectoryURL: configuredVaultURL),
+                to: paths.configFileURL
             )
         }
 
@@ -92,10 +96,9 @@ public struct KeyConfigStore {
         )
 
         return KeyConfiguration(
-            keyDirectoryURL: keyDirectoryURL,
-            configFileURL: configFileURL,
+            configFileURL: paths.configFileURL,
             vaultDirectoryURL: configuredVaultURL,
-            vaultLocationSource: sourceDescription
+            vaultPathSource: pathSource
         )
     }
 
@@ -109,12 +112,12 @@ public struct KeyConfigStore {
     }
 
     public func setValue(_ value: String, for key: ConfigKey) throws -> KeyConfiguration {
-        let configuration = try load()
+        let paths = try bootstrapPaths()
         let updatedFile: KeyConfigurationFile
 
         switch key {
         case .vaultDir:
-            let resolvedURL = try resolveConfiguredPath(value, configFileURL: configuration.configFileURL)
+            let resolvedURL = try resolveConfiguredPath(value, configFileURL: paths.configFileURL)
             try ensureDirectoryExists(
                 at: resolvedURL,
                 failureMessage: "Configured vault directory '\(resolvedURL.path)' exists but is not a directory."
@@ -122,7 +125,7 @@ public struct KeyConfigStore {
             updatedFile = KeyConfigurationFile(vaultDirectoryURL: resolvedURL)
         }
 
-        try writeConfigurationFile(updatedFile, to: configuration.configFileURL)
+        try writeConfigurationFile(updatedFile, to: paths.configFileURL)
         return try load()
     }
 
@@ -133,6 +136,28 @@ public struct KeyConfigStore {
                 value: try getValue(for: .vaultDir)
             )
         ]
+    }
+
+    private func bootstrapPaths() throws -> BootstrapPaths {
+        let configDirectoryURL = homeDirectoryURL
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Key", isDirectory: true)
+        let configFileURL = configDirectoryURL
+            .appendingPathComponent("config.toml", isDirectory: false)
+        let defaultVaultURL = homeDirectoryURL
+            .appendingPathComponent(".key", isDirectory: true)
+
+        try ensureDirectoryExists(
+            at: configDirectoryURL,
+            failureMessage: "Key config directory '\(configDirectoryURL.path)' exists but is not a directory."
+        )
+
+        return BootstrapPaths(
+            configDirectoryURL: configDirectoryURL,
+            configFileURL: configFileURL,
+            defaultVaultURL: defaultVaultURL
+        )
     }
 
     private func loadConfigurationFile(from configFileURL: URL) throws -> KeyConfigurationFile {
@@ -199,6 +224,35 @@ public struct KeyConfigStore {
         }
     }
 
+    private func prepareDefaultVaultDirectory(at defaultVaultURL: URL, configFileURL: URL) throws -> URL {
+        var isDirectory: ObjCBool = false
+        let path = normalizedPath(for: defaultVaultURL)
+
+        if fileManager.fileExists(atPath: path, isDirectory: &isDirectory) {
+            guard isDirectory.boolValue else {
+                throw AppError.invalidConfiguration(
+                    "Default vault directory '\(path)' exists but is not a directory. Run `key config set vault-dir <path>` to choose another vault directory."
+                )
+            }
+
+            if try isDirectoryEmpty(defaultVaultURL) || directoryContainsSecretFiles(at: defaultVaultURL) {
+                return defaultVaultURL.standardizedFileURL
+            }
+
+            throw AppError.invalidConfiguration(
+                "Default vault directory '\(path)' already contains unrelated files. Run `key config set vault-dir <path>` to choose another vault directory."
+            )
+        }
+
+        do {
+            try fileManager.createDirectory(at: defaultVaultURL, withIntermediateDirectories: true)
+        } catch {
+            throw AppError.io("Failed to create directory at '\(path)': \(error.localizedDescription)")
+        }
+
+        return defaultVaultURL.standardizedFileURL
+    }
+
     private func ensureDirectoryExists(at url: URL, failureMessage: String) throws {
         var isDirectory: ObjCBool = false
         let path = normalizedPath(for: url)
@@ -225,6 +279,32 @@ public struct KeyConfigStore {
         }
 
         throw AppError.invalidConfiguration(failureMessage)
+    }
+
+    private func isDirectoryEmpty(_ url: URL) throws -> Bool {
+        do {
+            return try fileManager.contentsOfDirectory(atPath: normalizedPath(for: url)).isEmpty
+        } catch {
+            throw AppError.io("Failed to inspect directory at '\(url.path)': \(error.localizedDescription)")
+        }
+    }
+
+    private func directoryContainsSecretFiles(at url: URL) -> Bool {
+        guard let enumerator = fileManager.enumerator(
+            at: url,
+            includingPropertiesForKeys: nil,
+            options: [.skipsPackageDescendants]
+        ) else {
+            return false
+        }
+
+        for case let childURL as URL in enumerator {
+            if childURL.pathExtension == "secret" {
+                return true
+            }
+        }
+
+        return false
     }
 
     private func normalizedPath(for url: URL) -> String {
@@ -332,11 +412,17 @@ public struct VaultLocationResolver {
         return VaultLocation(
             rootURL: configuration.vaultDirectoryURL,
             configFileURL: configuration.configFileURL,
-            sourceDescription: configuration.vaultLocationSource
+            pathSource: configuration.vaultPathSource
         )
     }
 }
 
 private struct KeyConfigurationFile {
     let vaultDirectoryURL: URL
+}
+
+private struct BootstrapPaths {
+    let configDirectoryURL: URL
+    let configFileURL: URL
+    let defaultVaultURL: URL
 }

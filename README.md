@@ -12,7 +12,7 @@
 
 ## How it works
 
-- Each secret is stored as an individually encrypted file on disk, under `~/.key/vault` by default.
+- Each secret is stored as an individually encrypted file on disk, under `~/.key` by default.
 - All secret files are encrypted and decrypted using a single, randomly generated 256-bit symmetric vault key.
 - That vault key is stored securely in your macOS Keychain (not the secrets themselves!).
 - Access to the vault key in Keychain is protected by macOS local authentication—Touch ID, Apple Watch, or your system password—using [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence).
@@ -59,14 +59,16 @@ Currently supported config names:
 
 - `vault-dir`
 
-By default, `key` stores its config in `~/.key/config.toml` and its encrypted secret files in `~/.key/vault`.
+By default, `key` stores its config in `~/Library/Application Support/Key/config.toml` and its encrypted secret files in `~/.key`.
 
 If you want to move the vault, move the files yourself and then update the configured path:
 
 ```bash
-mv ~/.key/vault ~/Secrets/key-vault
+mv ~/.key ~/Secrets/key-vault
 key config set vault-dir ~/Secrets/key-vault
 ```
+
+If `~/.key` already exists and contains unrelated files, Key will refuse to adopt it as the default vault root. In that case, choose another vault directory with `key config set vault-dir <path>`.
 
 ## Generating passwords
 
@@ -99,7 +101,7 @@ This stays fully optional. `key` does not depend on `fzf`, but the combination w
 
 `key` uses standard AES-256-GCM encryption with zero custom cryptography. If you have both the vault key and your `.secret` files, you're not locked in: you can decrypt your secrets using any tool that supports AES-GCM, letting you move your data or audit it without relying on the app.
 
-**Where the files live:** Secrets are under `~/.key/vault` by default. An entry like `github/personal` is stored as `~/.key/vault/github/personal.secret`. The active vault path is configured in `~/.key/config.toml` and can be inspected with `key config get vault-dir`.
+**Where the files live:** Secrets are under `~/.key` by default. An entry like `github/personal` is stored as `~/.key/github/personal.secret`. The active vault path is configured in `~/Library/Application Support/Key/config.toml` and can be inspected with `key config get vault-dir`.
 
 **Payload format:** Each `.secret` file contains a JSON object:
 

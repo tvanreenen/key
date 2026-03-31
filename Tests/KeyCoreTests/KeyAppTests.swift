@@ -129,7 +129,7 @@ struct KeyCLIApplicationTests {
         )
 
         #expect(app.run(arguments: ["config", "get", "vault-dir"]) == EXIT_SUCCESS)
-        #expect(io.stdout == "\(homeDirectory.appendingPathComponent(".key/vault", isDirectory: true).standardizedFileURL.path(percentEncoded: false))\n")
+        #expect(io.stdout == "\(homeDirectory.appendingPathComponent(".key", isDirectory: true).standardizedFileURL.path(percentEncoded: false))\n")
         #expect(io.stderr == "")
     }
 
@@ -181,7 +181,7 @@ struct KeyCLIApplicationTests {
         )
 
         #expect(app.run(arguments: ["config", "list"]) == EXIT_SUCCESS)
-        #expect(io.stdout == "vault-dir=\(homeDirectory.appendingPathComponent(".key/vault", isDirectory: true).standardizedFileURL.path(percentEncoded: false))\n")
+        #expect(io.stdout == "vault-dir=\(homeDirectory.appendingPathComponent(".key", isDirectory: true).standardizedFileURL.path(percentEncoded: false))\n")
         #expect(io.stderr == "")
     }
 
@@ -903,9 +903,9 @@ struct KeyAppDiagnosticsCollectorTests {
             }
         ).load()
 
-        #expect(snapshot.context.configFilePath == "/Users/test/.key/config.toml")
-        #expect(snapshot.context.vaultDirectoryPath == "/Users/test/.key/vault")
-        #expect(snapshot.context.vaultLocationSource == "Config file (default)")
+        #expect(snapshot.context.configFilePath == "/Users/test/Library/Application Support/Key/config.toml")
+        #expect(snapshot.context.vaultDirectoryPath == "/Users/test/.key")
+        #expect(snapshot.context.vaultLocationSource == "App Support config (default)")
         #expect(snapshot.hero.title == "Welcome to Key")
         #expect(snapshot.callout == nil)
     }
@@ -945,9 +945,9 @@ private extension KeyAppDiagnosticsContext {
             helperExecutablePath: "/Applications/Key.app/Contents/Helpers/Key Agent.app/Contents/MacOS/Key Agent",
             launchAgentPlistPath: "/Applications/Key.app/Contents/Library/LaunchAgents/work.tvr.key.agent.plist",
             machServiceName: "work.tvr.key.agent",
-            configFilePath: "/Users/test/.key/config.toml",
-            vaultDirectoryPath: "/Users/test/.key/vault",
-            vaultLocationSource: "Config file (default)"
+            configFilePath: "/Users/test/Library/Application Support/Key/config.toml",
+            vaultDirectoryPath: "/Users/test/.key",
+            vaultLocationSource: "App Support config (default)"
         )
     }
 }

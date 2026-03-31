@@ -43,7 +43,7 @@ private final class DashboardModel: ObservableObject {
             machServiceName: configuration.helperMachServiceName,
             configFilePath: vaultLocation?.configFileURL.path ?? "Unavailable",
             vaultDirectoryPath: vaultLocation?.rootURL.path ?? "Unavailable",
-            vaultLocationSource: vaultLocation?.sourceDescription ?? "Unavailable"
+            vaultLocationSource: vaultLocation?.pathSource.displayString ?? "Unavailable"
         )
     }
 
