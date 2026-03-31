@@ -21,9 +21,11 @@
 		70A1989598F246AF88CA0C88 /* ClipboardWriting.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EE5012D730E62376078026 /* ClipboardWriting.swift */; };
 		851434753ACA4A4ED0733FEB /* KeyServiceHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */; };
 		873C78C8D57CEF7EBA418B73 /* SecretFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */; };
+		8794D82F2F27E7B9F3B9EE11 /* SecretEntryType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8794D82E2F27E7B9F3B9EE11 /* SecretEntryType.swift */; };
 		8B2342C883974B121AB07C37 /* KeyXPCClientTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */; };
 		8D9C2B13AA1B4A669F62CB2A /* KeyDashboardSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89D0AC29AD8740A9B3D2B6E6 /* KeyDashboardSupport.swift */; };
 		9FAE42E9C3A14B0F8D7E6A11 /* VaultLocationResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C5D8A7B28E4C5FA4E91D20 /* VaultLocationResolver.swift */; };
+		A3A8B5F62B03F55CDB345501 /* TOTPGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3A8B5F52B03F55CDB345501 /* TOTPGenerator.swift */; };
 		A15F350B2230881FFC292742 /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
 		AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA3251E5B71729E191F7889A /* Command.swift */; };
 		B4BE69F25B811392D2FBBE3C /* KeyCLIApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */; };
@@ -79,6 +81,7 @@
 		5E585E32FBAF3D8FD5F64230 /* EntryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryStore.swift; sourceTree = "<group>"; };
 		76DB380BC4A9ECD7FE009152 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretFile.swift; sourceTree = "<group>"; };
+		8794D82E2F27E7B9F3B9EE11 /* SecretEntryType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretEntryType.swift; sourceTree = "<group>"; };
 		855E71C8AF61988A885402D9 /* InputOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputOutput.swift; sourceTree = "<group>"; };
 		89D0AC29AD8740A9B3D2B6E6 /* KeyDashboardSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyDashboardSupport.swift; sourceTree = "<group>"; };
 		9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyServiceHandler.swift; sourceTree = "<group>"; };
@@ -93,6 +96,7 @@
 		F19B0116010713B57BC705BE /* RuntimeConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeConfiguration.swift; sourceTree = "<group>"; };
 		F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultCipher.swift; sourceTree = "<group>"; };
 		FF28C31FF780A4FCCB3294D7 /* CLIParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIParser.swift; sourceTree = "<group>"; };
+		A3A8B5F52B03F55CDB345501 /* TOTPGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGenerator.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -140,6 +144,8 @@
 				F19B0116010713B57BC705BE /* RuntimeConfiguration.swift */,
 				4E30B55D83074B50959E72C6 /* SessionVaultKeyStore.swift */,
 				81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */,
+				8794D82E2F27E7B9F3B9EE11 /* SecretEntryType.swift */,
+				A3A8B5F52B03F55CDB345501 /* TOTPGenerator.swift */,
 				F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */,
 				31C5D8A7B28E4C5FA4E91D20 /* VaultLocationResolver.swift */,
 				B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */,
@@ -423,6 +429,8 @@
 				240E840B493F129EF5D4413B /* RuntimeConfiguration.swift in Sources */,
 				E9B24E7F8C7042A2A783D53D /* SessionVaultKeyStore.swift in Sources */,
 				873C78C8D57CEF7EBA418B73 /* SecretFile.swift in Sources */,
+				8794D82F2F27E7B9F3B9EE11 /* SecretEntryType.swift in Sources */,
+				A3A8B5F62B03F55CDB345501 /* TOTPGenerator.swift in Sources */,
 				2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */,
 				9FAE42E9C3A14B0F8D7E6A11 /* VaultLocationResolver.swift in Sources */,
 				1B7D7F2E9AE24855D9046ED3 /* VaultKeyStore.swift in Sources */,
