@@ -279,6 +279,7 @@ public struct KeyAppDiagnosticsContext: Equatable, Sendable {
     public let helperExecutablePath: String
     public let launchAgentPlistPath: String
     public let machServiceName: String
+    public let configFilePath: String
     public let vaultDirectoryPath: String
     public let vaultLocationSource: String
 
@@ -289,6 +290,7 @@ public struct KeyAppDiagnosticsContext: Equatable, Sendable {
         helperExecutablePath: String,
         launchAgentPlistPath: String,
         machServiceName: String,
+        configFilePath: String,
         vaultDirectoryPath: String,
         vaultLocationSource: String
     ) {
@@ -298,6 +300,7 @@ public struct KeyAppDiagnosticsContext: Equatable, Sendable {
         self.helperExecutablePath = helperExecutablePath
         self.launchAgentPlistPath = launchAgentPlistPath
         self.machServiceName = machServiceName
+        self.configFilePath = configFilePath
         self.vaultDirectoryPath = vaultDirectoryPath
         self.vaultLocationSource = vaultLocationSource
     }

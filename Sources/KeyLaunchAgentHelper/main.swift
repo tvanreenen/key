@@ -117,6 +117,7 @@ private func run() -> Never {
         listener.delegate = delegate
         listener.resume()
         RunLoop.current.run()
+        fatalError("Key Agent run loop exited unexpectedly.")
     } catch {
         fputs("Key Agent failed to resolve vault location: \(error.localizedDescription)\n", stderr)
         exit(EXIT_FAILURE)

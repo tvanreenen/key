@@ -22,6 +22,7 @@
 		873C78C8D57CEF7EBA418B73 /* SecretFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */; };
 		8B2342C883974B121AB07C37 /* KeyXPCClientTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */; };
 		8D9C2B13AA1B4A669F62CB2A /* KeyDashboardSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89D0AC29AD8740A9B3D2B6E6 /* KeyDashboardSupport.swift */; };
+		9FAE42E9C3A14B0F8D7E6A11 /* VaultLocationResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C5D8A7B28E4C5FA4E91D20 /* VaultLocationResolver.swift */; };
 		A15F350B2230881FFC292742 /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
 		AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA3251E5B71729E191F7889A /* Command.swift */; };
 		B4BE69F25B811392D2FBBE3C /* KeyCLIApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */; };
@@ -66,6 +67,7 @@
 
 /* Begin PBXFileReference section */
 		0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyXPCClientTransport.swift; sourceTree = "<group>"; };
+		31C5D8A7B28E4C5FA4E91D20 /* VaultLocationResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultLocationResolver.swift; sourceTree = "<group>"; };
 		395A88A800D635A7EF9FE33F /* libKeyCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libKeyCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		3BA14FD6F79F2CBF3291CEE5 /* Key Agent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Key Agent.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCLIApplication.swift; sourceTree = "<group>"; };
@@ -138,6 +140,7 @@
 				4E30B55D83074B50959E72C6 /* SessionVaultKeyStore.swift */,
 				81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */,
 				F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */,
+				31C5D8A7B28E4C5FA4E91D20 /* VaultLocationResolver.swift */,
 				B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */,
 			);
 			path = KeyCore;
@@ -411,6 +414,7 @@
 				E9B24E7F8C7042A2A783D53D /* SessionVaultKeyStore.swift in Sources */,
 				873C78C8D57CEF7EBA418B73 /* SecretFile.swift in Sources */,
 				2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */,
+				9FAE42E9C3A14B0F8D7E6A11 /* VaultLocationResolver.swift in Sources */,
 				1B7D7F2E9AE24855D9046ED3 /* VaultKeyStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

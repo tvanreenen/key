@@ -41,6 +41,7 @@ private final class DashboardModel: ObservableObject {
             helperExecutablePath: bundleURL.appendingPathComponent("Contents/Helpers/Key Agent.app/Contents/MacOS/Key Agent").path,
             launchAgentPlistPath: bundleURL.appendingPathComponent("Contents/Library/LaunchAgents/\(configuration.launchAgentPlistName)").path,
             machServiceName: configuration.helperMachServiceName,
+            configFilePath: vaultLocation?.configFileURL.path ?? "Unavailable",
             vaultDirectoryPath: vaultLocation?.rootURL.path ?? "Unavailable",
             vaultLocationSource: vaultLocation?.sourceDescription ?? "Unavailable"
         )
@@ -635,6 +636,7 @@ private struct ContentView: View {
             DetailRow(id: "helper-executable", label: "Helper Executable", value: snapshot.context.helperExecutablePath, detail: nil, monospaced: true),
             DetailRow(id: "launch-agent-plist", label: "LaunchAgent Plist", value: snapshot.context.launchAgentPlistPath, detail: nil, monospaced: true),
             DetailRow(id: "mach-service", label: "Mach Service", value: snapshot.context.machServiceName, detail: nil, monospaced: true),
+            DetailRow(id: "config-file", label: "Config File", value: snapshot.context.configFilePath, detail: nil, monospaced: true),
             DetailRow(
                 id: "vault-directory",
                 label: "Vault Directory",
