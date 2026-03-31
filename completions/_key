@@ -23,6 +23,10 @@ _key_vault_root() {
   vault_root="$(command key config get vault-dir 2>/dev/null)"
   [[ -n "${vault_root}" ]] || return 1
 
+  while [[ "${vault_root}" != "/" && "${vault_root}" == */ ]]; do
+    vault_root="${vault_root%/}"
+  done
+
   print -r -- "${vault_root}"
 }
 
@@ -46,7 +50,7 @@ _key_collect_paths() {
   vault_root="$(_key_vault_root)"
   [[ -d "${vault_root}" ]] || return 1
 
-  paths=("${(@f)$(command find -L "${vault_root}" \( -type d -o -type f -name '*.secret' \) -print 2>/dev/null | sed -e "s#^${vault_root}/##" -e 's/\.secret$//' -e '/^$/d' -e '/\.secret$/d' | LC_ALL=C sort -u)}")
+  paths=("${(@f)$(command find -L "${vault_root}" \( -type d -o -type f -name '*.secret' \) -print 2>/dev/null | sed -e "s#^${vault_root}\$##" -e "s#^${vault_root}/##" -e 's/\.secret$//' -e '/^$/d' -e '/\.secret$/d' | LC_ALL=C sort -u)}")
   (( ${#paths[@]} )) || return 1
 
   print -rl -- "${paths[@]}"
@@ -113,10 +117,12 @@ case "${state}" in
         ;;
       add)
         _arguments \
+          '--totp[treat input as a Base32 TOTP seed]' \
           '1:path:_key_complete_paths'
         ;;
       edit)
         _arguments \
+          '--totp[treat input as a Base32 TOTP seed]' \
           '1:entry:_key_complete_entries'
         ;;
       duplicate)
