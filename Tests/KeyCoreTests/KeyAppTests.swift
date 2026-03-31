@@ -109,6 +109,83 @@ struct KeyCLIApplicationTests {
     }
 
     @Test
+    func configGetPrintsEffectiveVaultDirectoryWithoutTransport() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let transport = MemoryTransport { _ in
+            Issue.record("transport should not be called for config get")
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: clipboard,
+            configStore: KeyConfigStore(homeDirectoryURL: homeDirectory)
+        )
+
+        #expect(app.run(arguments: ["config", "get", "vault-dir"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "\(homeDirectory.appendingPathComponent(".key", isDirectory: true).standardizedFileURL.path(percentEncoded: false))\n")
+        #expect(io.stderr == "")
+    }
+
+    @Test
+    func configSetUpdatesVaultDirectoryWithoutTransport() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let transport = MemoryTransport { _ in
+            Issue.record("transport should not be called for config set")
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: clipboard,
+            configStore: configStore
+        )
+
+        #expect(app.run(arguments: ["config", "set", "vault-dir", "~/Secrets Vault"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "")
+        #expect(io.stderr == "")
+        #expect(try configStore.getValue(for: .vaultDir) == homeDirectory.appendingPathComponent("Secrets Vault", isDirectory: true).standardizedFileURL.path(percentEncoded: false))
+    }
+
+    @Test
+    func configListPrintsShellFriendlyOutputWithoutTransport() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let transport = MemoryTransport { _ in
+            Issue.record("transport should not be called for config list")
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: clipboard,
+            configStore: KeyConfigStore(homeDirectoryURL: homeDirectory)
+        )
+
+        #expect(app.run(arguments: ["config", "list"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "vault-dir=\(homeDirectory.appendingPathComponent(".key", isDirectory: true).standardizedFileURL.path(percentEncoded: false))\n")
+        #expect(io.stderr == "")
+    }
+
+    @Test
     func unlockSendsUnlockRequest() throws {
         let transport = MemoryTransport { request in
             #expect(request == .unlock)
@@ -826,8 +903,9 @@ struct KeyAppDiagnosticsCollectorTests {
             }
         ).load()
 
-        #expect(snapshot.context.vaultDirectoryPath == "/Users/test/Library/Application Support/key/vault")
-        #expect(snapshot.context.vaultLocationSource == "Default")
+        #expect(snapshot.context.configFilePath == "/Users/test/Library/Application Support/Key/config.toml")
+        #expect(snapshot.context.vaultDirectoryPath == "/Users/test/.key")
+        #expect(snapshot.context.vaultLocationSource == "App Support config (default)")
         #expect(snapshot.hero.title == "Welcome to Key")
         #expect(snapshot.callout == nil)
     }
@@ -867,8 +945,9 @@ private extension KeyAppDiagnosticsContext {
             helperExecutablePath: "/Applications/Key.app/Contents/Helpers/Key Agent.app/Contents/MacOS/Key Agent",
             launchAgentPlistPath: "/Applications/Key.app/Contents/Library/LaunchAgents/work.tvr.key.agent.plist",
             machServiceName: "work.tvr.key.agent",
-            vaultDirectoryPath: "/Users/test/Library/Application Support/key/vault",
-            vaultLocationSource: "Default"
+            configFilePath: "/Users/test/Library/Application Support/Key/config.toml",
+            vaultDirectoryPath: "/Users/test/.key",
+            vaultLocationSource: "App Support config (default)"
         )
     }
 }

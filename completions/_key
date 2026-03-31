@@ -2,6 +2,7 @@
 
 typeset -ga _key_commands
 _key_commands=(
+  'config:read or update config values'
   'get:print a secret'
   'copy:copy a secret to the clipboard'
   'add:add a new secret from stdin or prompt'
@@ -19,8 +20,8 @@ _key_commands=(
 _key_vault_root() {
   local vault_root
 
-  zstyle -s ':completion:*:*:key:*' vault-root vault_root ||
-    vault_root="${HOME}/Library/Application Support/key/vault"
+  vault_root="$(command key config get vault-dir 2>/dev/null)"
+  [[ -n "${vault_root}" ]] || return 1
 
   print -r -- "${vault_root}"
 }
@@ -80,6 +81,28 @@ case "${state}" in
     ;;
   args)
     case "${words[1]}" in
+      config)
+        if (( CURRENT == 2 )); then
+          _describe -t config-commands 'config command' \
+            'get:print a config value' \
+            'set:update a config value' \
+            'list:list config values'
+        else
+          case "${words[2]}" in
+            get)
+              _arguments \
+                '1:key:(vault-dir)'
+              ;;
+            set)
+              _arguments \
+                '1:key:(vault-dir)' \
+                '2:path:_files -/'
+              ;;
+            list)
+              ;;
+          esac
+        fi
+        ;;
       get)
         _arguments \
           '1:entry:_key_complete_entries'

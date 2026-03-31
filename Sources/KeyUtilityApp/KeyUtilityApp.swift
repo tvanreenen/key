@@ -27,11 +27,12 @@ private final class DashboardModel: ObservableObject {
         self.configuration = configuration
 
         let bundleURL = bundle.bundleURL
-        let vaultDirectoryPath = (try? EntryStore.defaultRootURL())?.path ?? (
-            URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
-                .appendingPathComponent("Library/Application Support/key/vault", isDirectory: true)
-                .path
-        )
+        let vaultLocation: VaultLocation?
+        do {
+            vaultLocation = try EntryStore.defaultLocation()
+        } catch {
+            vaultLocation = nil
+        }
 
         self.context = KeyAppDiagnosticsContext(
             appVersion: KeyVersionInfo(bundle: bundle),
@@ -40,8 +41,9 @@ private final class DashboardModel: ObservableObject {
             helperExecutablePath: bundleURL.appendingPathComponent("Contents/Helpers/Key Agent.app/Contents/MacOS/Key Agent").path,
             launchAgentPlistPath: bundleURL.appendingPathComponent("Contents/Library/LaunchAgents/\(configuration.launchAgentPlistName)").path,
             machServiceName: configuration.helperMachServiceName,
-            vaultDirectoryPath: vaultDirectoryPath,
-            vaultLocationSource: "Default"
+            configFilePath: vaultLocation?.configFileURL.path ?? "Unavailable",
+            vaultDirectoryPath: vaultLocation?.rootURL.path ?? "Unavailable",
+            vaultLocationSource: vaultLocation?.pathSource.displayString ?? "Unavailable"
         )
     }
 
@@ -615,32 +617,33 @@ private struct ContentView: View {
             DetailRow(id: "app-version", label: "App Version", value: snapshot.context.appVersion.displayString, detail: nil, monospaced: false),
             DetailRow(
                 id: "external-version",
-                label: "External CLI Version",
+                label: "CLI Version",
                 value: snapshot.shellCLIStatus.version?.displayString ?? "Not available",
                 detail: "Source: \(snapshot.shellCLIStatus.resolutionSummary)",
                 monospaced: false
             ),
             DetailRow(
                 id: "external-path",
-                label: "External CLI Path",
+                label: "CLI Path",
                 value: snapshot.shellCLIStatus.resolvedPath ?? "Not found",
                 detail: snapshot.shellCLIStatus.resolvedPath == nil
                     ? "Checked your login shell and standard Homebrew install locations."
                     : "Source: \(snapshot.shellCLIStatus.resolutionSummary)",
                 monospaced: true
             ),
-            DetailRow(id: "bundled-cli", label: "Bundled CLI Path", value: snapshot.context.bundledCLIPath, detail: nil, monospaced: true),
-            DetailRow(id: "helper-app", label: "Helper App Path", value: snapshot.context.helperAppPath, detail: nil, monospaced: true),
-            DetailRow(id: "helper-executable", label: "Helper Executable", value: snapshot.context.helperExecutablePath, detail: nil, monospaced: true),
-            DetailRow(id: "launch-agent-plist", label: "LaunchAgent Plist", value: snapshot.context.launchAgentPlistPath, detail: nil, monospaced: true),
-            DetailRow(id: "mach-service", label: "Mach Service", value: snapshot.context.machServiceName, detail: nil, monospaced: true),
+            DetailRow(id: "bundled-cli", label: "Bundled CLI", value: snapshot.context.bundledCLIPath, detail: nil, monospaced: true),
+            DetailRow(id: "config-file", label: "Config File", value: snapshot.context.configFilePath, detail: nil, monospaced: true),
             DetailRow(
                 id: "vault-directory",
                 label: "Vault Directory",
                 value: snapshot.context.vaultDirectoryPath,
                 detail: "Source: \(snapshot.context.vaultLocationSource)",
                 monospaced: true
-            )
+            ),
+            DetailRow(id: "helper-app", label: "Helper App", value: snapshot.context.helperAppPath, detail: nil, monospaced: true),
+            DetailRow(id: "helper-executable", label: "Helper Executable", value: snapshot.context.helperExecutablePath, detail: nil, monospaced: true),
+            DetailRow(id: "launch-agent-plist", label: "LaunchAgent", value: snapshot.context.launchAgentPlistPath, detail: nil, monospaced: true),
+            DetailRow(id: "mach-service", label: "Mach Service", value: snapshot.context.machServiceName, detail: nil, monospaced: true)
         ]
     }
 }

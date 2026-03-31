@@ -4,17 +4,20 @@ public final class KeyCLIApplication {
     private let transport: KeyServiceTransport
     private let io: InputOutput
     private let clipboard: ClipboardWriting
+    private let configStore: KeyConfigStore
     private let version: KeyVersionInfo
 
     public init(
         transport: KeyServiceTransport,
         io: InputOutput,
         clipboard: ClipboardWriting,
+        configStore: KeyConfigStore = KeyConfigStore(),
         version: KeyVersionInfo = KeyVersionInfo.currentProcess()
     ) {
         self.transport = transport
         self.io = io
         self.clipboard = clipboard
+        self.configStore = configStore
         self.version = version
     }
 
@@ -42,6 +45,8 @@ public final class KeyCLIApplication {
         case let .version(json):
             writeVersion(json: json)
             return EXIT_SUCCESS
+        case let .config(configCommand):
+            return try executeConfigCommand(configCommand)
         case .unlock:
             response = try transport.send(.unlock)
             return try handle(response, for: command)
@@ -95,6 +100,8 @@ public final class KeyCLIApplication {
         case .help:
             break
         case .version(json: _):
+            break
+        case .config:
             break
         case .unlock, .lock, .list:
             if let value = response.value, !value.isEmpty {
@@ -155,5 +162,24 @@ public final class KeyCLIApplication {
         }
 
         io.writeStdout(version.displayString + "\n")
+    }
+
+    private func executeConfigCommand(_ command: ConfigCommand) throws -> Int32 {
+        switch command {
+        case let .get(key):
+            io.writeStdout(try configStore.getValue(for: key) + "\n")
+        case let .set(key, value):
+            _ = try configStore.setValue(value, for: key)
+        case .list:
+            let values = try configStore.listValues()
+            let output = values
+                .map { "\($0.key.rawValue)=\($0.value)" }
+                .joined(separator: "\n")
+            if !output.isEmpty {
+                io.writeStdout(output + "\n")
+            }
+        }
+
+        return EXIT_SUCCESS
     }
 }

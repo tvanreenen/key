@@ -93,25 +93,35 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
     }
 }
 
-private let configuration = RuntimeConfiguration.live()
-private let rootURL = (try? EntryStore.defaultRootURL()) ?? URL(fileURLWithPath: NSHomeDirectory())
-    .appendingPathComponent("Library/Application Support/key/vault", isDirectory: true)
-private let sessionKeyStore = SessionVaultKeyStore(
-    underlying: VaultKeyStore(configuration: configuration)
-)
-private let lifecycleController = HelperLifecycleController(idleTimeout: 15 * 60) {
-    sessionKeyStore.invalidate()
-    exit(EXIT_SUCCESS)
-}
-private let handler = KeyServiceHandler(
-    keyStore: sessionKeyStore,
-    entryStore: EntryStore(rootURL: rootURL)
-)
-private let service = KeyAgentService(handler: handler, lifecycleController: lifecycleController)
-private let delegate = KeyAgentDelegate(exportedObject: service)
-private let listener = NSXPCListener(machServiceName: configuration.helperMachServiceName)
+private func run() -> Never {
+    let configuration = RuntimeConfiguration.live()
 
-lifecycleController.start()
-listener.delegate = delegate
-listener.resume()
-RunLoop.current.run()
+    do {
+        let rootURL = try EntryStore.defaultRootURL()
+        let sessionKeyStore = SessionVaultKeyStore(
+            underlying: VaultKeyStore(configuration: configuration)
+        )
+        let lifecycleController = HelperLifecycleController(idleTimeout: 15 * 60) {
+            sessionKeyStore.invalidate()
+            exit(EXIT_SUCCESS)
+        }
+        let handler = KeyServiceHandler(
+            keyStore: sessionKeyStore,
+            entryStore: EntryStore(rootURL: rootURL)
+        )
+        let service = KeyAgentService(handler: handler, lifecycleController: lifecycleController)
+        let delegate = KeyAgentDelegate(exportedObject: service)
+        let listener = NSXPCListener(machServiceName: configuration.helperMachServiceName)
+
+        lifecycleController.start()
+        listener.delegate = delegate
+        listener.resume()
+        RunLoop.current.run()
+        fatalError("Key Agent run loop exited unexpectedly.")
+    } catch {
+        fputs("Key Agent failed to resolve vault location: \(error.localizedDescription)\n", stderr)
+        exit(EXIT_FAILURE)
+    }
+}
+
+run()

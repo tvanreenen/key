@@ -16,12 +16,14 @@
 		3E06CBB9790C0F544B940F1B /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE09A18FF4CC11995E958F80 /* AppError.swift */; };
 		545DE475C8F5F883DB08A529 /* KeyServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55257994DEF9CC6144A32E16 /* KeyServiceProtocol.swift */; };
 		57EEC874B15B0F76B486E12A /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 55AE435B2F63568900124FD6 /* AppIcon.icon */; };
+		5FEC7A6B80C84ABF96BB0942 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 55AE435B2F63568900124FD6 /* AppIcon.icon */; };
 		6D30C98FDE1EE6358276BB25 /* KeyUtilityApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5545BFD05D0DBC600CFCEDA7 /* KeyUtilityApp.swift */; };
 		70A1989598F246AF88CA0C88 /* ClipboardWriting.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EE5012D730E62376078026 /* ClipboardWriting.swift */; };
 		851434753ACA4A4ED0733FEB /* KeyServiceHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */; };
 		873C78C8D57CEF7EBA418B73 /* SecretFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */; };
 		8B2342C883974B121AB07C37 /* KeyXPCClientTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */; };
 		8D9C2B13AA1B4A669F62CB2A /* KeyDashboardSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89D0AC29AD8740A9B3D2B6E6 /* KeyDashboardSupport.swift */; };
+		9FAE42E9C3A14B0F8D7E6A11 /* VaultLocationResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C5D8A7B28E4C5FA4E91D20 /* VaultLocationResolver.swift */; };
 		A15F350B2230881FFC292742 /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
 		AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA3251E5B71729E191F7889A /* Command.swift */; };
 		B4BE69F25B811392D2FBBE3C /* KeyCLIApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */; };
@@ -66,6 +68,7 @@
 
 /* Begin PBXFileReference section */
 		0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyXPCClientTransport.swift; sourceTree = "<group>"; };
+		31C5D8A7B28E4C5FA4E91D20 /* VaultLocationResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultLocationResolver.swift; sourceTree = "<group>"; };
 		395A88A800D635A7EF9FE33F /* libKeyCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libKeyCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		3BA14FD6F79F2CBF3291CEE5 /* Key Agent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Key Agent.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCLIApplication.swift; sourceTree = "<group>"; };
@@ -138,6 +141,7 @@
 				4E30B55D83074B50959E72C6 /* SessionVaultKeyStore.swift */,
 				81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */,
 				F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */,
+				31C5D8A7B28E4C5FA4E91D20 /* VaultLocationResolver.swift */,
 				B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */,
 			);
 			path = KeyCore;
@@ -268,6 +272,7 @@
 			buildPhases = (
 				18FF1448408D41606F455BB0 /* Sources */,
 				DF3E0B2A38CCF99634DE573D /* Frameworks */,
+				DFF6D4375E5B4A7B83FCF511 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -329,6 +334,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				57EEC874B15B0F76B486E12A /* AppIcon.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DFF6D4375E5B4A7B83FCF511 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5FEC7A6B80C84ABF96BB0942 /* AppIcon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -411,6 +424,7 @@
 				E9B24E7F8C7042A2A783D53D /* SessionVaultKeyStore.swift in Sources */,
 				873C78C8D57CEF7EBA418B73 /* SecretFile.swift in Sources */,
 				2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */,
+				9FAE42E9C3A14B0F8D7E6A11 /* VaultLocationResolver.swift in Sources */,
 				1B7D7F2E9AE24855D9046ED3 /* VaultKeyStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -576,6 +590,7 @@
 		577164093649376F4ABEA3BB /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/KeyLaunchAgentHelper.entitlements;
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
@@ -622,6 +637,7 @@
 		6BBBF7FB903460A13A25835F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/KeyLaunchAgentHelper.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;

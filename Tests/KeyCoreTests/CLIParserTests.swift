@@ -21,6 +21,24 @@ struct CLIParserTests {
     }
 
     @Test
+    func parsesConfigGet() throws {
+        let command = try CLIParser.parse(arguments: ["config", "get", "vault-dir"])
+        #expect(command == .config(.get(key: .vaultDir)))
+    }
+
+    @Test
+    func parsesConfigSet() throws {
+        let command = try CLIParser.parse(arguments: ["config", "set", "vault-dir", "~/Secrets"])
+        #expect(command == .config(.set(key: .vaultDir, value: "~/Secrets")))
+    }
+
+    @Test
+    func parsesConfigList() throws {
+        let command = try CLIParser.parse(arguments: ["config", "list"])
+        #expect(command == .config(.list))
+    }
+
+    @Test
     func parsesGet() throws {
         let command = try CLIParser.parse(arguments: ["get", "github/personal"])
         #expect(command == .get(name: "github/personal"))
@@ -210,6 +228,41 @@ struct CLIParserTests {
     func rejectsUnknownVersionOptions() throws {
         #expect(throws: AppError.usage("Unknown option '--yaml' for version.\n\n\(CLIParser.usageText)")) {
             try CLIParser.parse(arguments: ["version", "--yaml"])
+        }
+    }
+
+    @Test
+    func rejectsConfigWithoutSubcommand() throws {
+        #expect(throws: AppError.usage("Missing config subcommand.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["config"])
+        }
+    }
+
+    @Test
+    func rejectsUnknownConfigSubcommand() throws {
+        #expect(throws: AppError.usage("Unknown config subcommand 'show'.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["config", "show"])
+        }
+    }
+
+    @Test
+    func rejectsUnknownConfigKey() throws {
+        #expect(throws: AppError.usage("Unknown config key 'theme'.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["config", "get", "theme"])
+        }
+    }
+
+    @Test
+    func rejectsConfigSetWithoutValue() throws {
+        #expect(throws: AppError.usage("Missing value for config set.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["config", "set", "vault-dir"])
+        }
+    }
+
+    @Test
+    func rejectsConfigListOptions() throws {
+        #expect(throws: AppError.usage("Unknown option '--json' for config list.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["config", "list", "--json"])
         }
     }
 

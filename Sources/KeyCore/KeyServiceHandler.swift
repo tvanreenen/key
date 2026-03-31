@@ -17,9 +17,8 @@ public final class KeyServiceHandler {
         self.cipher = cipher
     }
 
-    public static func live(bundle: Bundle = .main) -> KeyServiceHandler {
-        let rootURL = (try? EntryStore.defaultRootURL()) ?? URL(fileURLWithPath: NSHomeDirectory())
-            .appendingPathComponent("Library/Application Support/key/vault", isDirectory: true)
+    public static func live(bundle: Bundle = .main) throws -> KeyServiceHandler {
+        let rootURL = try EntryStore.defaultRootURL()
         let configuration = RuntimeConfiguration.live(bundle: bundle)
         return KeyServiceHandler(
             keyStore: VaultKeyStore(configuration: configuration),
