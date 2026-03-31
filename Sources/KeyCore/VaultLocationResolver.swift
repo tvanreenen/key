@@ -1,5 +1,34 @@
 import Foundation
 
+public struct KeyConfiguration: Equatable, Sendable {
+    public let keyDirectoryURL: URL
+    public let configFileURL: URL
+    public let vaultDirectoryURL: URL
+    public let vaultLocationSource: String
+
+    public init(
+        keyDirectoryURL: URL,
+        configFileURL: URL,
+        vaultDirectoryURL: URL,
+        vaultLocationSource: String
+    ) {
+        self.keyDirectoryURL = keyDirectoryURL
+        self.configFileURL = configFileURL
+        self.vaultDirectoryURL = vaultDirectoryURL
+        self.vaultLocationSource = vaultLocationSource
+    }
+}
+
+public struct KeyConfigValue: Equatable, Sendable {
+    public let key: ConfigKey
+    public let value: String
+
+    public init(key: ConfigKey, value: String) {
+        self.key = key
+        self.value = value
+    }
+}
+
 public struct VaultLocation: Equatable, Sendable {
     public let rootURL: URL
     public let configFileURL: URL
@@ -12,7 +41,7 @@ public struct VaultLocation: Equatable, Sendable {
     }
 }
 
-public struct VaultLocationResolver {
+public struct KeyConfigStore {
     private let fileManager: FileManager
     private let homeDirectoryURL: URL
 
@@ -21,7 +50,7 @@ public struct VaultLocationResolver {
         self.homeDirectoryURL = homeDirectoryURL ?? fileManager.homeDirectoryForCurrentUser
     }
 
-    public func resolve() throws -> VaultLocation {
+    public func load() throws -> KeyConfiguration {
         let keyDirectoryURL = homeDirectoryURL
             .appendingPathComponent(".key", isDirectory: true)
         let configFileURL = keyDirectoryURL
@@ -29,33 +58,84 @@ public struct VaultLocationResolver {
         let defaultVaultURL = keyDirectoryURL
             .appendingPathComponent("vault", isDirectory: true)
 
-        try fileManager.createDirectory(at: keyDirectoryURL, withIntermediateDirectories: true)
+        try ensureDirectoryExists(
+            at: keyDirectoryURL,
+            failureMessage: "Key config root '\(keyDirectoryURL.path)' exists but is not a directory."
+        )
 
         let configuredVaultURL: URL
         let sourceDescription: String
 
         if fileManager.fileExists(atPath: configFileURL.path(percentEncoded: false)) {
-            let configuration = try loadConfiguration(from: configFileURL)
-            configuredVaultURL = configuration.vaultDirectoryURL
-            sourceDescription = configuration.vaultDirectoryURL.standardizedFileURL == defaultVaultURL.standardizedFileURL
+            try ensurePathIsNotDirectory(
+                at: configFileURL,
+                failureMessage: "Key config file '\(configFileURL.path)' exists but is a directory."
+            )
+
+            let configurationFile = try loadConfigurationFile(from: configFileURL)
+            configuredVaultURL = configurationFile.vaultDirectoryURL
+            sourceDescription = configurationFile.vaultDirectoryURL.standardizedFileURL == defaultVaultURL.standardizedFileURL
                 ? "Config file (default)"
                 : "Config file (custom)"
         } else {
             configuredVaultURL = defaultVaultURL
             sourceDescription = "Config file (default)"
-            try writeConfiguration(vaultDirectoryURL: defaultVaultURL, to: configFileURL)
+            try writeConfigurationFile(
+                KeyConfigurationFile(vaultDirectoryURL: defaultVaultURL),
+                to: configFileURL
+            )
         }
 
-        try fileManager.createDirectory(at: configuredVaultURL, withIntermediateDirectories: true)
+        try ensureDirectoryExists(
+            at: configuredVaultURL,
+            failureMessage: "Configured vault directory '\(configuredVaultURL.path)' exists but is not a directory."
+        )
 
-        return VaultLocation(
-            rootURL: configuredVaultURL,
+        return KeyConfiguration(
+            keyDirectoryURL: keyDirectoryURL,
             configFileURL: configFileURL,
-            sourceDescription: sourceDescription
+            vaultDirectoryURL: configuredVaultURL,
+            vaultLocationSource: sourceDescription
         )
     }
 
-    private func loadConfiguration(from configFileURL: URL) throws -> VaultConfiguration {
+    public func getValue(for key: ConfigKey) throws -> String {
+        let configuration = try load()
+
+        switch key {
+        case .vaultDir:
+            return configuration.vaultDirectoryURL.path(percentEncoded: false)
+        }
+    }
+
+    public func setValue(_ value: String, for key: ConfigKey) throws -> KeyConfiguration {
+        let configuration = try load()
+        let updatedFile: KeyConfigurationFile
+
+        switch key {
+        case .vaultDir:
+            let resolvedURL = try resolveConfiguredPath(value, configFileURL: configuration.configFileURL)
+            try ensureDirectoryExists(
+                at: resolvedURL,
+                failureMessage: "Configured vault directory '\(resolvedURL.path)' exists but is not a directory."
+            )
+            updatedFile = KeyConfigurationFile(vaultDirectoryURL: resolvedURL)
+        }
+
+        try writeConfigurationFile(updatedFile, to: configuration.configFileURL)
+        return try load()
+    }
+
+    public func listValues() throws -> [KeyConfigValue] {
+        [
+            KeyConfigValue(
+                key: .vaultDir,
+                value: try getValue(for: .vaultDir)
+            )
+        ]
+    }
+
+    private func loadConfigurationFile(from configFileURL: URL) throws -> KeyConfigurationFile {
         let data: Data
         do {
             data = try Data(contentsOf: configFileURL)
@@ -100,11 +180,11 @@ public struct VaultLocationResolver {
             throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' is missing 'vault_dir'.")
         }
 
-        return VaultConfiguration(vaultDirectoryURL: vaultDirectory)
+        return KeyConfigurationFile(vaultDirectoryURL: vaultDirectory)
     }
 
-    private func writeConfiguration(vaultDirectoryURL: URL, to configFileURL: URL) throws {
-        let escapedPath = vaultDirectoryURL.path
+    private func writeConfigurationFile(_ configuration: KeyConfigurationFile, to configFileURL: URL) throws {
+        let escapedPath = configuration.vaultDirectoryURL.path(percentEncoded: false)
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
         let contents = """
@@ -117,6 +197,42 @@ public struct VaultLocationResolver {
         } catch {
             throw AppError.io("Failed to write vault configuration at '\(configFileURL.path)': \(error.localizedDescription)")
         }
+    }
+
+    private func ensureDirectoryExists(at url: URL, failureMessage: String) throws {
+        var isDirectory: ObjCBool = false
+        let path = normalizedPath(for: url)
+
+        if fileManager.fileExists(atPath: path, isDirectory: &isDirectory) {
+            guard isDirectory.boolValue else {
+                throw AppError.invalidConfiguration(failureMessage)
+            }
+            return
+        }
+
+        do {
+            try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        } catch {
+            throw AppError.io("Failed to create directory at '\(path)': \(error.localizedDescription)")
+        }
+    }
+
+    private func ensurePathIsNotDirectory(at url: URL, failureMessage: String) throws {
+        var isDirectory: ObjCBool = false
+        let path = normalizedPath(for: url)
+        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            return
+        }
+
+        throw AppError.invalidConfiguration(failureMessage)
+    }
+
+    private func normalizedPath(for url: URL) -> String {
+        let path = url.standardizedFileURL.path(percentEncoded: false)
+        guard path.count > 1, path.hasSuffix("/") else {
+            return path
+        }
+        return String(path.dropLast())
     }
 
     private func parseQuotedString(
@@ -184,11 +300,11 @@ public struct VaultLocationResolver {
     private func resolveConfiguredPath(_ path: String, configFileURL: URL) throws -> URL {
         let resolvedPath: String
         if path == "~" {
-            resolvedPath = homeDirectoryURL.path
+            resolvedPath = homeDirectoryURL.path(percentEncoded: false)
         } else if path.hasPrefix("~/") {
             resolvedPath = homeDirectoryURL
                 .appendingPathComponent(String(path.dropFirst(2)), isDirectory: true)
-                .path
+                .path(percentEncoded: false)
         } else {
             resolvedPath = path
         }
@@ -197,10 +313,30 @@ public struct VaultLocationResolver {
             throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' must use an absolute path or '~/' for 'vault_dir'.")
         }
 
-        return URL(fileURLWithPath: resolvedPath, isDirectory: true)
+        return URL(fileURLWithPath: resolvedPath, isDirectory: true).standardizedFileURL
     }
 }
 
-private struct VaultConfiguration {
+public struct VaultLocationResolver {
+    private let configStore: KeyConfigStore
+
+    public init(fileManager: FileManager = .default, homeDirectoryURL: URL? = nil) {
+        self.configStore = KeyConfigStore(
+            fileManager: fileManager,
+            homeDirectoryURL: homeDirectoryURL
+        )
+    }
+
+    public func resolve() throws -> VaultLocation {
+        let configuration = try configStore.load()
+        return VaultLocation(
+            rootURL: configuration.vaultDirectoryURL,
+            configFileURL: configuration.configFileURL,
+            sourceDescription: configuration.vaultLocationSource
+        )
+    }
+}
+
+private struct KeyConfigurationFile {
     let vaultDirectoryURL: URL
 }

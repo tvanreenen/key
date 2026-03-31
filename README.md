@@ -41,15 +41,31 @@ Open `Key.app` once after install so it can register Key Agent with macOS before
 The CLI is intentionally small:
 
 ```bash
-key unlock                      # authenticate and warm the helper session
-key add <name>                  # add a new secret from stdin or prompt
-key edit <name>                 # update a secret from stdin or prompt
-key list                        # list stored secrets
-key get <name>                  # print a secret
-key copy <name>                 # copy a secret to the clipboard
-key duplicate <src> <dst> [--force]  # duplicate an entry
-key rename <src> <dst> [--force]     # rename an entry
-key remove <name> [--force]     # remove a secret
+key config get <config-name>            # print a config value
+key config set <config-name> <value>    # update a config value
+key config list                         # list known config values
+key unlock                              # authenticate and warm the helper session
+key add <name>                          # add a new secret from stdin or prompt
+key edit <name>                         # update a secret from stdin or prompt
+key list                                # list stored secrets
+key get <name>                          # print a secret
+key copy <name>                         # copy a secret to the clipboard
+key duplicate <src> <dst> [--force]     # duplicate an entry
+key rename <src> <dst> [--force]        # rename an entry
+key remove <name> [--force]             # remove a secret
+```
+
+Currently supported config names:
+
+- `vault-dir`
+
+By default, `key` stores its config in `~/.key/config.toml` and its encrypted secret files in `~/.key/vault`.
+
+If you want to move the vault, move the files yourself and then update the configured path:
+
+```bash
+mv ~/.key/vault ~/Secrets/key-vault
+key config set vault-dir ~/Secrets/key-vault
 ```
 
 ## Generating passwords
@@ -83,7 +99,7 @@ This stays fully optional. `key` does not depend on `fzf`, but the combination w
 
 `key` uses standard AES-256-GCM encryption with zero custom cryptography. If you have both the vault key and your `.secret` files, you're not locked in: you can decrypt your secrets using any tool that supports AES-GCM, letting you move your data or audit it without relying on the app.
 
-**Where the files live:** Secrets are under `~/.key/vault` by default. An entry like `github/personal` is stored as `~/.key/vault/github/personal.secret`. The vault path is configured in `~/.key/config.toml`.
+**Where the files live:** Secrets are under `~/.key/vault` by default. An entry like `github/personal` is stored as `~/.key/vault/github/personal.secret`. The active vault path is configured in `~/.key/config.toml` and can be inspected with `key config get vault-dir`.
 
 **Payload format:** Each `.secret` file contains a JSON object:
 
