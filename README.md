@@ -24,9 +24,6 @@ The result: your secrets stay encrypted on the filesystem, protected by a single
 
 ## Install
 
-> [!WARNING]
-> `key` is still in early development. There is not a public release yet.
-
 Install via Homebrew from the [tvanreenen/tap](https://github.com/tvanreenen/homebrew-tap) tap:
 
 ```bash
@@ -41,19 +38,23 @@ Open `Key.app` once after install so it can register Key Agent with macOS before
 The CLI is intentionally small:
 
 ```bash
-key config get <config-name>            # print a config value
-key config set <config-name> <value>    # update a config value
-key config list                         # list known config values
 key unlock                              # authenticate and warm the helper session
+key lock                                # clear the helper session and stop the helper
+key get <name>                          # print a secret or current TOTP code
+key copy <name>                         # copy a secret or current TOTP code
 key add <name> [--totp]                 # add a new secret or TOTP seed from stdin or prompt
 key edit <name> [--totp]                # update a secret or TOTP seed from stdin or prompt
 key list                                # list stored secrets
-key get <name>                          # print a secret or current TOTP code
-key copy <name>                         # copy a secret or current TOTP code
 key duplicate <src> <dst> [--force]     # duplicate an entry
 key rename <src> <dst> [--force]        # rename an entry
 key remove <name> [--force]             # remove a secret
+key config get <config-name>            # print a config value
+key config set <config-name> <value>    # update a config value
+key config list                         # list known config values
+key version [--json]                    # print the CLI version
 ```
+
+## Configuration
 
 Currently supported config names:
 
@@ -120,12 +121,15 @@ This stays fully optional. `key` does not depend on `fzf`, but the combination w
 
 ```json
 {
-  "version": 1,
+  "version": 2,
+  "type": "secret",
   "alg": "AES.GCM",
   "nonce": "<base64-encoded 96-bit nonce>",
   "ciphertext": "<base64-encoded AES-GCM ciphertext + 16-byte auth tag>"
 }
 ```
+
+For TOTP entries, the envelope is the same except `type` is `totp`; the decrypted plaintext is the normalized Base32 seed rather than a password.
 
 Without the vault key (the 256-bit secret kept in your Keychain), the file contents are completely opaque.
 
