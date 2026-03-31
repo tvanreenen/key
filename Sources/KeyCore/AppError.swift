@@ -3,6 +3,7 @@ import Foundation
 public enum AppError: Error, LocalizedError, Equatable {
     case usage(String)
     case invalidEntryName(String)
+    case invalidSecret(String)
     case entryExists(String)
     case entryNotFound(String)
     case invalidSecretFile(String)
@@ -18,6 +19,7 @@ public enum AppError: Error, LocalizedError, Equatable {
         switch self {
         case let .usage(message),
             let .invalidEntryName(message),
+            let .invalidSecret(message),
             let .entryExists(message),
             let .entryNotFound(message),
             let .invalidSecretFile(message),

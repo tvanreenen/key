@@ -4,19 +4,24 @@ import Foundation
 public struct VaultCipher {
     public init() {}
 
-    public func encrypt(_ plaintext: String, keyData: Data) throws -> SecretFile {
+    public func encrypt(
+        _ plaintext: String,
+        type: SecretEntryType = .secret,
+        keyData: Data
+    ) throws -> SecretFile {
         let key = SymmetricKey(data: keyData)
         let nonce = AES.GCM.Nonce()
         let sealedBox = try AES.GCM.seal(Data(plaintext.utf8), using: key, nonce: nonce)
         let payload = sealedBox.ciphertext + sealedBox.tag
         return SecretFile(
+            type: type,
             nonce: Data(nonce).base64EncodedString(),
             ciphertext: payload.base64EncodedString()
         )
     }
 
     public func decrypt(_ file: SecretFile, keyData: Data) throws -> String {
-        guard file.version == 1, file.alg == "AES.GCM" else {
+        guard file.version == 2, file.alg == "AES.GCM" else {
             throw AppError.invalidSecretFile("Unsupported secret file format.")
         }
         guard let nonceData = file.nonceData, let ciphertextData = file.ciphertextData else {

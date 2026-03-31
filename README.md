@@ -45,11 +45,11 @@ key config get <config-name>            # print a config value
 key config set <config-name> <value>    # update a config value
 key config list                         # list known config values
 key unlock                              # authenticate and warm the helper session
-key add <name>                          # add a new secret from stdin or prompt
-key edit <name>                         # update a secret from stdin or prompt
+key add <name> [--totp]                 # add a new secret or TOTP seed from stdin or prompt
+key edit <name> [--totp]                # update a secret or TOTP seed from stdin or prompt
 key list                                # list stored secrets
-key get <name>                          # print a secret
-key copy <name>                         # copy a secret to the clipboard
+key get <name>                          # print a secret or current TOTP code
+key copy <name>                         # copy a secret or current TOTP code
 key duplicate <src> <dst> [--force]     # duplicate an entry
 key rename <src> <dst> [--force]        # rename an entry
 key remove <name> [--force]             # remove a secret
@@ -69,6 +69,19 @@ key config set vault-dir ~/Secrets/key-vault
 ```
 
 If `~/.key` already exists and contains unrelated files, Key will refuse to adopt it as the default vault root. In that case, choose another vault directory with `key config set vault-dir <path>`.
+
+## TOTP
+
+`key` supports a narrow first pass of TOTP:
+
+```bash
+key add github/mfa --totp
+key edit github/mfa --totp
+key get github/mfa
+key copy github/mfa
+```
+
+For now, `--totp` accepts only bare Base32 seeds. `get` and `copy` return the current code for TOTP entries.
 
 ## Generating passwords
 

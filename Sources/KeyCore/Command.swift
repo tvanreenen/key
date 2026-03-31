@@ -18,8 +18,8 @@ public enum Command: Equatable {
     case lock
     case get(name: String)
     case copy(name: String)
-    case add(name: String)
-    case edit(name: String)
+    case add(name: String, type: SecretEntryType)
+    case edit(name: String, type: SecretEntryType)
     case duplicate(source: String, destination: String, force: Bool)
     case rename(source: String, destination: String, force: Bool)
     case remove(name: String, force: Bool)

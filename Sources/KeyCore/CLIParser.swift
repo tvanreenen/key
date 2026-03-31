@@ -46,10 +46,10 @@ public enum CLIParser {
       config get <config-name>           Print a config value.
       config set <config-name> <value>   Update a config value.
       config list                        List known config values.
-      get <name>                         Print a secret.
-      copy <name>                        Copy a secret to the clipboard.
-      add <name>                         Add a new secret from stdin or prompt.
-      edit <name>                        Update a secret from stdin or prompt.
+      get <name>                         Print a secret or current TOTP code.
+      copy <name>                        Copy a secret or current TOTP code.
+      add [--totp] <name>                Add a new secret from stdin or prompt.
+      edit [--totp] <name>               Update a secret from stdin or prompt.
       duplicate <src> <dst> [--force]    Duplicate an entry.
       rename <src> <dst> [--force]       Rename an entry.
       remove <name> [--force]            Remove a secret.
@@ -62,6 +62,7 @@ public enum CLIParser {
     Options:
       --force  Skip overwrite or removal confirmation.
       --json   Print version info as JSON.
+      --totp   Treat add/edit input as a Base32 TOTP seed.
 
     Config names:
       vault-dir  Effective vault directory.
@@ -187,23 +188,46 @@ public enum CLIParser {
     }
 
     private static func parseAdd(arguments: [String]) throws -> Command {
-        guard let name = arguments.first else {
-            throw AppError.usage("Missing entry name for add.\n\n\(usageText)")
-        }
-        guard arguments.count == 1 else {
-            throw AppError.usage("Unknown option '\(arguments[1])' for add.\n\n\(usageText)")
-        }
-        return .add(name: name)
+        let (name, type) = try parseSecretWrite(arguments: arguments, commandName: "add")
+        return .add(name: name, type: type)
     }
 
     private static func parseEdit(arguments: [String]) throws -> Command {
-        guard let name = arguments.first else {
-            throw AppError.usage("Missing entry name for edit.\n\n\(usageText)")
+        let (name, type) = try parseSecretWrite(arguments: arguments, commandName: "edit")
+        return .edit(name: name, type: type)
+    }
+
+    private static func parseSecretWrite(
+        arguments: [String],
+        commandName: String
+    ) throws -> (name: String, type: SecretEntryType) {
+        guard !arguments.isEmpty else {
+            throw AppError.usage("Missing entry name for \(commandName).\n\n\(usageText)")
         }
-        guard arguments.count == 1 else {
-            throw AppError.usage("Unknown option '\(arguments[1])' for edit.\n\n\(usageText)")
+
+        var type: SecretEntryType = .secret
+        var name: String?
+
+        for argument in arguments {
+            switch argument {
+            case "--totp":
+                type = .totp
+            default:
+                guard !argument.hasPrefix("-") else {
+                    throw AppError.usage("Unknown option '\(argument)' for \(commandName).\n\n\(usageText)")
+                }
+                guard name == nil else {
+                    throw AppError.usage("Unknown option '\(argument)' for \(commandName).\n\n\(usageText)")
+                }
+                name = argument
+            }
         }
-        return .edit(name: name)
+
+        guard let name else {
+            throw AppError.usage("Missing entry name for \(commandName).\n\n\(usageText)")
+        }
+
+        return (name, type)
     }
 
     private static func parseDuplicate(arguments: [String]) throws -> Command {
