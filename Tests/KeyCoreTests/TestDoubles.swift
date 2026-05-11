@@ -25,6 +25,13 @@ final class MemoryVaultKeyStore: VaultKeyStoring {
         return generated
     }
 
+    func keyExists() throws -> Bool {
+        if let error {
+            throw error
+        }
+        return keyData != nil
+    }
+
     func invalidate() {
         invalidateCount += 1
         keyData = nil

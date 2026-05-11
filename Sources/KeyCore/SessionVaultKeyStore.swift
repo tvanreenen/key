@@ -47,6 +47,17 @@ public final class SessionVaultKeyStore: VaultKeyStoring, KeySessionStatusReport
         }
     }
 
+    public func keyExists() throws -> Bool {
+        try queue.sync {
+            let currentTime = now()
+            if currentStatus(at: currentTime).isUnlocked {
+                return true
+            }
+
+            return try underlying.keyExists()
+        }
+    }
+
     public func invalidate() {
         queue.sync {
             clearSession()

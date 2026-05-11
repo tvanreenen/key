@@ -470,6 +470,49 @@ struct KeyServiceHandlerTests {
     }
 
     @Test
+    func unlockRefusesToCreateNewVaultKeyWhenEntriesAlreadyExist() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let store = EntryStore(rootURL: tempDirectory)
+        let existingKey = Data((100..<132).map(UInt8.init))
+        let encrypted = try VaultCipher().encrypt("hunter2", keyData: existingKey)
+        try store.save(encrypted, as: "mail/personal", overwrite: false)
+
+        let keyStore = MemoryVaultKeyStore()
+        let handler = KeyServiceHandler(keyStore: keyStore, entryStore: store)
+
+        let response = handler.handle(.unlock)
+        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(response.errorMessage?.contains("Refusing to create a new vault key") == true)
+        #expect(keyStore.loadCount == 0)
+    }
+
+    @Test
+    func getReturnsFriendlyErrorWhenCurrentVaultKeyCannotDecryptEntry() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let store = EntryStore(rootURL: tempDirectory)
+        let existingKey = Data((0..<32).map(UInt8.init))
+        let wrongKey = Data((32..<64).map(UInt8.init))
+        let encrypted = try VaultCipher().encrypt("hunter2", keyData: existingKey)
+        try store.save(encrypted, as: "mail/personal", overwrite: false)
+
+        let keyStore = MemoryVaultKeyStore()
+        keyStore.keyData = wrongKey
+        let handler = KeyServiceHandler(keyStore: keyStore, entryStore: store)
+
+        let response = handler.handle(.get(name: "mail/personal"))
+        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(response.errorMessage?.contains("cannot decrypt 'mail/personal'") == true)
+    }
+
+    @Test
     func rejectsOverwriteWithoutForce() throws {
         let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -505,6 +548,32 @@ struct KeyServiceHandlerTests {
         let missingResponse = handler.handle(.editManual(name: "missing", secret: "value", type: .secret))
         #expect(missingResponse.exitCode == EXIT_FAILURE)
         #expect(missingResponse.errorMessage?.contains("was not found") == true)
+    }
+
+    @Test
+    func editRefusesToOverwriteWhenCurrentVaultKeyCannotDecryptExistingEntry() throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let store = EntryStore(rootURL: tempDirectory)
+        let originalKey = Data((0..<32).map(UInt8.init))
+        let wrongKey = Data((32..<64).map(UInt8.init))
+        let encrypted = try VaultCipher().encrypt("one", keyData: originalKey)
+        try store.save(encrypted, as: "mail/personal", overwrite: false)
+
+        let keyStore = MemoryVaultKeyStore()
+        keyStore.keyData = wrongKey
+        let handler = KeyServiceHandler(keyStore: keyStore, entryStore: store)
+
+        let response = handler.handle(.editManual(name: "mail/personal", secret: "two", type: .secret))
+        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(response.errorMessage?.contains("cannot decrypt 'mail/personal'") == true)
+
+        let persisted = try store.load("mail/personal")
+        let decrypted = try VaultCipher().decrypt(persisted, keyData: originalKey)
+        #expect(decrypted == "one")
     }
 
     @Test

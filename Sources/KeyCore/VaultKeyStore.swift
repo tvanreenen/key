@@ -5,6 +5,7 @@ import Security
 
 public protocol VaultKeyStoring {
     func loadKey(reason: String, createIfMissing: Bool) throws -> Data
+    func keyExists() throws -> Bool
     func invalidate()
 }
 
@@ -29,7 +30,7 @@ public final class VaultKeyStore: VaultKeyStoring {
         return keyData
     }
 
-    private func keyExists() throws -> Bool {
+    public func keyExists() throws -> Bool {
         var query = try baseQuery()
         let context = makeAuthenticationContext()
         context.interactionNotAllowed = true
