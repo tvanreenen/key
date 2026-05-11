@@ -179,6 +179,14 @@ public final class KeyCLIApplication {
         case let .get(key):
             io.writeStdout(try configStore.getValue(for: key) + "\n")
         case let .set(key, value):
+            if key == .keychainMode {
+                guard let mode = KeychainMode(rawValue: value) else {
+                    throw AppError.invalidConfiguration("Unsupported keychain mode '\(value)'. Expected 'local' or 'icloud'.")
+                }
+                let response = try transport.send(.setKeychainMode(mode))
+                return try handle(response, for: .config(command))
+            }
+
             _ = try configStore.setValue(value, for: key)
         case .list:
             let values = try configStore.listValues()

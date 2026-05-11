@@ -18,15 +18,18 @@ public struct KeyConfiguration: Equatable, Sendable {
     public let configFileURL: URL
     public let vaultDirectoryURL: URL
     public let vaultPathSource: VaultPathSource
+    public let keychainMode: KeychainMode
 
     public init(
         configFileURL: URL,
         vaultDirectoryURL: URL,
-        vaultPathSource: VaultPathSource
+        vaultPathSource: VaultPathSource,
+        keychainMode: KeychainMode
     ) {
         self.configFileURL = configFileURL
         self.vaultDirectoryURL = vaultDirectoryURL
         self.vaultPathSource = vaultPathSource
+        self.keychainMode = keychainMode
     }
 }
 
@@ -66,6 +69,7 @@ public struct KeyConfigStore {
 
         let configuredVaultURL: URL
         let pathSource: VaultPathSource
+        let keychainMode: KeychainMode
 
         if fileManager.fileExists(atPath: paths.configFileURL.path(percentEncoded: false)) {
             try ensurePathIsNotDirectory(
@@ -75,6 +79,7 @@ public struct KeyConfigStore {
 
             let configurationFile = try loadConfigurationFile(from: paths.configFileURL)
             configuredVaultURL = configurationFile.vaultDirectoryURL
+            keychainMode = configurationFile.keychainMode
             pathSource = configurationFile.vaultDirectoryURL.standardizedFileURL == paths.defaultVaultURL.standardizedFileURL
                 ? .appSupportConfigDefault
                 : .appSupportConfigCustom
@@ -84,8 +89,9 @@ public struct KeyConfigStore {
                 configFileURL: paths.configFileURL
             )
             pathSource = .appSupportConfigDefault
+            keychainMode = .local
             try writeConfigurationFile(
-                KeyConfigurationFile(vaultDirectoryURL: configuredVaultURL),
+                KeyConfigurationFile(vaultDirectoryURL: configuredVaultURL, keychainMode: .local),
                 to: paths.configFileURL
             )
         }
@@ -98,7 +104,8 @@ public struct KeyConfigStore {
         return KeyConfiguration(
             configFileURL: paths.configFileURL,
             vaultDirectoryURL: configuredVaultURL,
-            vaultPathSource: pathSource
+            vaultPathSource: pathSource,
+            keychainMode: keychainMode
         )
     }
 
@@ -108,6 +115,8 @@ public struct KeyConfigStore {
         switch key {
         case .vaultDir:
             return configuration.vaultDirectoryURL.path(percentEncoded: false)
+        case .keychainMode:
+            return configuration.keychainMode.rawValue
         }
     }
 
@@ -122,7 +131,14 @@ public struct KeyConfigStore {
                 at: resolvedURL,
                 failureMessage: "Configured vault directory '\(resolvedURL.path)' exists but is not a directory."
             )
-            updatedFile = KeyConfigurationFile(vaultDirectoryURL: resolvedURL)
+            let keychainMode = try currentKeychainMode(for: paths.configFileURL)
+            updatedFile = KeyConfigurationFile(vaultDirectoryURL: resolvedURL, keychainMode: keychainMode)
+        case .keychainMode:
+            let current = try load()
+            guard let mode = KeychainMode(rawValue: value) else {
+                throw AppError.invalidConfiguration("Unsupported keychain mode '\(value)'. Expected 'local' or 'icloud'.")
+            }
+            updatedFile = KeyConfigurationFile(vaultDirectoryURL: current.vaultDirectoryURL, keychainMode: mode)
         }
 
         try writeConfigurationFile(updatedFile, to: paths.configFileURL)
@@ -134,6 +150,10 @@ public struct KeyConfigStore {
             KeyConfigValue(
                 key: .vaultDir,
                 value: try getValue(for: .vaultDir)
+            ),
+            KeyConfigValue(
+                key: .keychainMode,
+                value: try getValue(for: .keychainMode)
             )
         ]
     }
@@ -173,6 +193,7 @@ public struct KeyConfigStore {
         }
 
         var vaultDirectory: URL?
+        var keychainMode: KeychainMode?
 
         for rawLine in text.split(whereSeparator: \.isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
@@ -185,27 +206,43 @@ public struct KeyConfigStore {
             }
 
             let key = line[..<separatorIndex].trimmingCharacters(in: .whitespaces)
-            guard key == "vault_dir" else {
+            let valuePortion = line[line.index(after: separatorIndex)...].trimmingCharacters(in: .whitespaces)
+            switch key {
+            case "vault_dir":
+                guard vaultDirectory == nil else {
+                    throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' declares 'vault_dir' more than once.")
+                }
+
+                let configuredPath = try parseQuotedString(
+                    valuePortion,
+                    configFileURL: configFileURL,
+                    keyName: "vault_dir"
+                )
+                vaultDirectory = try resolveConfiguredPath(configuredPath, configFileURL: configFileURL)
+            case "keychain_mode":
+                guard keychainMode == nil else {
+                    throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' declares 'keychain_mode' more than once.")
+                }
+
+                let rawMode = try parseQuotedString(
+                    valuePortion,
+                    configFileURL: configFileURL,
+                    keyName: "keychain_mode"
+                )
+                guard let parsedMode = KeychainMode(rawValue: rawMode) else {
+                    throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' has unsupported 'keychain_mode' value '\(rawMode)'.")
+                }
+                keychainMode = parsedMode
+            default:
                 continue
             }
-
-            guard vaultDirectory == nil else {
-                throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' declares 'vault_dir' more than once.")
-            }
-
-            let valuePortion = line[line.index(after: separatorIndex)...].trimmingCharacters(in: .whitespaces)
-            let configuredPath = try parseQuotedString(
-                valuePortion,
-                configFileURL: configFileURL
-            )
-            vaultDirectory = try resolveConfiguredPath(configuredPath, configFileURL: configFileURL)
         }
 
         guard let vaultDirectory else {
             throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' is missing 'vault_dir'.")
         }
 
-        return KeyConfigurationFile(vaultDirectoryURL: vaultDirectory)
+        return KeyConfigurationFile(vaultDirectoryURL: vaultDirectory, keychainMode: keychainMode ?? .local)
     }
 
     private func writeConfigurationFile(_ configuration: KeyConfigurationFile, to configFileURL: URL) throws {
@@ -215,6 +252,7 @@ public struct KeyConfigStore {
         let contents = """
         # key configuration
         vault_dir = "\(escapedPath)"
+        keychain_mode = "\(configuration.keychainMode.rawValue)"
         """
 
         do {
@@ -317,10 +355,11 @@ public struct KeyConfigStore {
 
     private func parseQuotedString(
         _ valuePortion: String,
-        configFileURL: URL
+        configFileURL: URL,
+        keyName: String
     ) throws -> String {
         guard valuePortion.first == "\"" else {
-            throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' must quote 'vault_dir'.")
+            throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' must quote '\(keyName)'.")
         }
 
         var result = ""
@@ -342,7 +381,7 @@ public struct KeyConfigStore {
                 case "t":
                     result.append("\t")
                 default:
-                    throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' contains an unsupported escape in 'vault_dir'.")
+                    throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' contains an unsupported escape in '\(keyName)'.")
                 }
                 isEscaping = false
                 currentIndex = valuePortion.index(after: currentIndex)
@@ -366,15 +405,23 @@ public struct KeyConfigStore {
         }
 
         guard !isEscaping, reachedClosingQuote else {
-            throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' has an unterminated 'vault_dir' value.")
+            throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' has an unterminated '\(keyName)' value.")
         }
 
         let remainder = valuePortion[remainderStartIndex...].trimmingCharacters(in: .whitespaces)
         if !remainder.isEmpty && !remainder.hasPrefix("#") {
-            throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' contains unexpected content after 'vault_dir'.")
+            throw AppError.invalidConfiguration("Vault configuration at '\(configFileURL.path)' contains unexpected content after '\(keyName)'.")
         }
 
         return result
+    }
+
+    private func currentKeychainMode(for configFileURL: URL) throws -> KeychainMode {
+        guard fileManager.fileExists(atPath: configFileURL.path(percentEncoded: false)) else {
+            return .local
+        }
+
+        return try loadConfigurationFile(from: configFileURL).keychainMode
     }
 
     private func resolveConfiguredPath(_ path: String, configFileURL: URL) throws -> URL {
@@ -419,6 +466,7 @@ public struct VaultLocationResolver {
 
 private struct KeyConfigurationFile {
     let vaultDirectoryURL: URL
+    let keychainMode: KeychainMode
 }
 
 private struct BootstrapPaths {

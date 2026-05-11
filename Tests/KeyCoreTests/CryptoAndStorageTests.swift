@@ -131,10 +131,12 @@ struct CryptoAndStorageTests {
         #expect(location.rootURL.standardizedFileURL == expectedVaultURL)
         #expect(location.configFileURL == configFileURL)
         #expect(location.pathSource == .appSupportConfigDefault)
+        #expect(try KeyConfigStore(homeDirectoryURL: homeDirectory).getValue(for: .keychainMode) == "local")
         #expect(rereadLocation == location)
         #expect(FileManager.default.fileExists(atPath: location.rootURL.path(percentEncoded: false)))
         #expect(FileManager.default.fileExists(atPath: configFileURL.path(percentEncoded: false)))
         #expect(try String(contentsOf: configFileURL, encoding: .utf8).contains("vault_dir = "))
+        #expect(try String(contentsOf: configFileURL, encoding: .utf8).contains("keychain_mode = \"local\""))
     }
 
     @Test
@@ -164,6 +166,7 @@ struct CryptoAndStorageTests {
         #expect(location.rootURL.standardizedFileURL == customVaultDirectory.standardizedFileURL)
         #expect(location.pathSource == .appSupportConfigCustom)
         #expect(FileManager.default.fileExists(atPath: customVaultDirectory.path(percentEncoded: false)))
+        #expect(try KeyConfigStore(homeDirectoryURL: homeDirectory).getValue(for: .keychainMode) == "local")
     }
 
     @Test
@@ -181,8 +184,10 @@ struct CryptoAndStorageTests {
 
         #expect(updated.vaultDirectoryURL.standardizedFileURL == expectedVaultURL)
         #expect(try store.getValue(for: .vaultDir) == expectedVaultURL.path(percentEncoded: false))
+        #expect(try store.getValue(for: .keychainMode) == "local")
         #expect(FileManager.default.fileExists(atPath: expectedVaultURL.path(percentEncoded: false)))
         #expect(try String(contentsOf: updated.configFileURL, encoding: .utf8).contains("vault_dir = \"\(expectedVaultURL.path(percentEncoded: false))\""))
+        #expect(try String(contentsOf: updated.configFileURL, encoding: .utf8).contains("keychain_mode = \"local\""))
     }
 
     @Test
@@ -211,6 +216,24 @@ struct CryptoAndStorageTests {
             .appendingPathComponent("Key", isDirectory: true)
             .appendingPathComponent("config.toml", isDirectory: false)
             .path(percentEncoded: false))
+        #expect(try store.getValue(for: .keychainMode) == "local")
+    }
+
+    @Test
+    func configStoreCanSetKeychainModeWithoutChangingVaultDirectory() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let store = KeyConfigStore(homeDirectoryURL: homeDirectory)
+        let initialVaultDirectory = try store.getValue(for: .vaultDir)
+        let updated = try store.setValue("icloud", for: .keychainMode)
+
+        #expect(updated.keychainMode == .icloud)
+        #expect(try store.getValue(for: .vaultDir) == initialVaultDirectory)
+        #expect(try store.getValue(for: .keychainMode) == "icloud")
+        #expect(try String(contentsOf: updated.configFileURL, encoding: .utf8).contains("keychain_mode = \"icloud\""))
     }
 
     @Test

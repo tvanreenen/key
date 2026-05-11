@@ -2,32 +2,80 @@ import Foundation
 @testable import KeyCore
 
 final class MemoryVaultKeyStore: VaultKeyStoring {
-    var keyData: Data?
+    var localKeyData: Data?
+    var iCloudKeyData: Data?
     var error: Error?
     var loadCount = 0
     var invalidateCount = 0
-    private(set) var requests: [(reason: String, createIfMissing: Bool)] = []
+    private(set) var requests: [(mode: KeychainMode, reason: String, createIfMissing: Bool)] = []
 
-    func loadKey(reason: String, createIfMissing: Bool) throws -> Data {
+    var keyData: Data? {
+        get { localKeyData }
+        set { localKeyData = newValue }
+    }
+
+    func loadKey(mode: KeychainMode, reason: String, createIfMissing: Bool) throws -> Data {
         loadCount += 1
-        requests.append((reason, createIfMissing))
+        requests.append((mode, reason, createIfMissing))
         if let error {
             throw error
         }
-        if let keyData {
-            return keyData
+        switch mode {
+        case .local:
+            if let localKeyData {
+                return localKeyData
+            }
+        case .icloud:
+            if let iCloudKeyData {
+                return iCloudKeyData
+            }
         }
         guard createIfMissing else {
             throw AppError.entryNotFound("Vault key does not exist yet.")
         }
         let generated = Data((0..<32).map(UInt8.init))
-        keyData = generated
+        switch mode {
+        case .local:
+            localKeyData = generated
+        case .icloud:
+            iCloudKeyData = generated
+        }
         return generated
+    }
+
+    func keyExists(mode: KeychainMode) throws -> Bool {
+        if let error {
+            throw error
+        }
+        switch mode {
+        case .local:
+            return localKeyData != nil
+        case .icloud:
+            return iCloudKeyData != nil
+        }
+    }
+
+    func storeKey(_ keyData: Data, mode: KeychainMode, overwriteExisting: Bool) throws {
+        if let error {
+            throw error
+        }
+
+        switch mode {
+        case .local:
+            if !overwriteExisting, localKeyData != nil {
+                throw AppError.keychain("Failed to store vault key in Keychain (\(errSecDuplicateItem)).")
+            }
+            localKeyData = keyData
+        case .icloud:
+            if !overwriteExisting, iCloudKeyData != nil {
+                throw AppError.keychain("Failed to store vault key in Keychain (\(errSecDuplicateItem)).")
+            }
+            iCloudKeyData = keyData
+        }
     }
 
     func invalidate() {
         invalidateCount += 1
-        keyData = nil
     }
 }
 

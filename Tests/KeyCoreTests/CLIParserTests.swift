@@ -27,9 +27,21 @@ struct CLIParserTests {
     }
 
     @Test
+    func parsesConfigGetKeychainMode() throws {
+        let command = try CLIParser.parse(arguments: ["config", "get", "keychain-mode"])
+        #expect(command == .config(.get(key: .keychainMode)))
+    }
+
+    @Test
     func parsesConfigSet() throws {
         let command = try CLIParser.parse(arguments: ["config", "set", "vault-dir", "~/Secrets"])
         #expect(command == .config(.set(key: .vaultDir, value: "~/Secrets")))
+    }
+
+    @Test
+    func parsesConfigSetKeychainMode() throws {
+        let command = try CLIParser.parse(arguments: ["config", "set", "keychain-mode", "icloud"])
+        #expect(command == .config(.set(key: .keychainMode, value: "icloud")))
     }
 
     @Test

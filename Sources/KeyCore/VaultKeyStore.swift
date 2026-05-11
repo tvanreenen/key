@@ -4,7 +4,9 @@ import LocalAuthentication
 import Security
 
 public protocol VaultKeyStoring {
-    func loadKey(reason: String, createIfMissing: Bool) throws -> Data
+    func loadKey(mode: KeychainMode, reason: String, createIfMissing: Bool) throws -> Data
+    func keyExists(mode: KeychainMode) throws -> Bool
+    func storeKey(_ keyData: Data, mode: KeychainMode, overwriteExisting: Bool) throws
     func invalidate()
 }
 
@@ -15,9 +17,9 @@ public final class VaultKeyStore: VaultKeyStoring {
         self.configuration = configuration
     }
 
-    public func loadKey(reason: String, createIfMissing: Bool) throws -> Data {
-        if try keyExists() {
-            return try loadExistingKey(reason: reason)
+    public func loadKey(mode: KeychainMode, reason: String, createIfMissing: Bool) throws -> Data {
+        if try keyExists(mode: mode) {
+            return try loadExistingKey(mode: mode, reason: reason)
         }
 
         guard createIfMissing else {
@@ -25,12 +27,12 @@ public final class VaultKeyStore: VaultKeyStoring {
         }
 
         let keyData = Data(SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) })
-        try storeNewKey(keyData)
+        try storeKey(keyData, mode: mode, overwriteExisting: false)
         return keyData
     }
 
-    private func keyExists() throws -> Bool {
-        var query = try baseQuery()
+    public func keyExists(mode: KeychainMode) throws -> Bool {
+        var query = try baseQuery(mode: mode)
         let context = makeAuthenticationContext()
         context.interactionNotAllowed = true
         query.merge([
@@ -55,11 +57,15 @@ public final class VaultKeyStore: VaultKeyStoring {
         }
     }
 
-    private func storeNewKey(_ keyData: Data) throws {
+    public func storeKey(_ keyData: Data, mode: KeychainMode, overwriteExisting: Bool) throws {
+        if overwriteExisting {
+            try deleteKeyIfPresent(mode: mode)
+        }
+
         var accessControlError: Unmanaged<CFError>?
         guard let accessControl = SecAccessControlCreateWithFlags(
             nil,
-            kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+            accessibilityClass(for: mode),
             .userPresence,
             &accessControlError
         ) else {
@@ -67,7 +73,7 @@ public final class VaultKeyStore: VaultKeyStoring {
             throw AppError.keychain("Failed to create vault key access control: \(message)")
         }
 
-        var query = try baseQuery()
+        var query = try baseQuery(mode: mode)
         query.merge([
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: configuration.vaultService,
@@ -78,13 +84,16 @@ public final class VaultKeyStore: VaultKeyStoring {
         ]) { _, new in new }
 
         let status = SecItemAdd(query as CFDictionary, nil)
+        if status == errSecDuplicateItem, overwriteExisting {
+            throw AppError.keychain("Failed to replace vault key in Keychain (\(status)).")
+        }
         guard status == errSecSuccess else {
             throw AppError.keychain("Failed to store vault key in Keychain (\(status)).")
         }
     }
 
-    private func loadExistingKey(reason: String) throws -> Data {
-        var query = try baseQuery()
+    private func loadExistingKey(mode: KeychainMode, reason: String) throws -> Data {
+        var query = try baseQuery(mode: mode)
         let context = makeAuthenticationContext()
         context.localizedReason = reason
         var item: CFTypeRef?
@@ -119,7 +128,21 @@ public final class VaultKeyStore: VaultKeyStoring {
         // Stateless key access has no in-memory session to clear.
     }
 
-    private func baseQuery() throws -> [String: Any] {
+    private func deleteKeyIfPresent(mode: KeychainMode) throws {
+        var query = try baseQuery(mode: mode)
+        query.merge([
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: configuration.vaultService,
+            kSecAttrAccount as String: configuration.vaultAccount
+        ]) { _, new in new }
+
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw AppError.keychain("Failed to replace vault key in Keychain (\(status)).")
+        }
+    }
+
+    private func baseQuery(mode: KeychainMode) throws -> [String: Any] {
         guard !configuration.vaultService.isEmpty, !configuration.vaultAccount.isEmpty else {
             throw AppError.invalidConfiguration("Vault key service configuration is missing.")
         }
@@ -132,7 +155,17 @@ public final class VaultKeyStore: VaultKeyStoring {
             query[kSecUseDataProtectionKeychain as String] = true
         }
         query[kSecAttrAccessGroup as String] = accessGroup
+        query[kSecAttrSynchronizable as String] = mode == .icloud
         return query
+    }
+
+    private func accessibilityClass(for mode: KeychainMode) -> CFString {
+        switch mode {
+        case .local:
+            return kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        case .icloud:
+            return kSecAttrAccessibleWhenUnlocked
+        }
     }
 
     private func makeAuthenticationContext() -> LAContext {

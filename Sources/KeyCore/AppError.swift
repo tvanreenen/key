@@ -7,6 +7,7 @@ public enum AppError: Error, LocalizedError, Equatable {
     case entryExists(String)
     case entryNotFound(String)
     case invalidSecretFile(String)
+    case vaultKeyMismatch(String)
     case authUnavailable(String)
     case authFailed(String)
     case invalidConfiguration(String)
@@ -23,6 +24,7 @@ public enum AppError: Error, LocalizedError, Equatable {
             let .entryExists(message),
             let .entryNotFound(message),
             let .invalidSecretFile(message),
+            let .vaultKeyMismatch(message),
             let .authUnavailable(message),
             let .authFailed(message),
             let .invalidConfiguration(message),
