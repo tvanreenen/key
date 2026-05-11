@@ -5,6 +5,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     case lock
     case status
     case list
+    case setKeychainMode(KeychainMode)
     case get(name: String)
     case addManual(name: String, secret: String, type: SecretEntryType)
     case editManual(name: String, secret: String, type: SecretEntryType)
@@ -20,6 +21,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case secret
         case type
         case force
+        case keychainMode
     }
 
     private enum Kind: String, Codable {
@@ -27,6 +29,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case lock
         case status
         case list
+        case setKeychainMode
         case get
         case addManual
         case editManual
@@ -46,6 +49,8 @@ public enum KeyServiceRequest: Codable, Equatable {
             self = .status
         case .list:
             self = .list
+        case .setKeychainMode:
+            self = .setKeychainMode(try container.decode(KeychainMode.self, forKey: .keychainMode))
         case .get:
             self = .get(name: try container.decode(String.self, forKey: .name))
         case .addManual:
@@ -88,6 +93,9 @@ public enum KeyServiceRequest: Codable, Equatable {
             try container.encode(Kind.status, forKey: .kind)
         case .list:
             try container.encode(Kind.list, forKey: .kind)
+        case let .setKeychainMode(mode):
+            try container.encode(Kind.setKeychainMode, forKey: .kind)
+            try container.encode(mode, forKey: .keychainMode)
         case let .get(name):
             try container.encode(Kind.get, forKey: .kind)
             try container.encode(name, forKey: .name)

@@ -181,8 +181,61 @@ struct KeyCLIApplicationTests {
         )
 
         #expect(app.run(arguments: ["config", "list"]) == EXIT_SUCCESS)
-        #expect(io.stdout == "vault-dir=\(homeDirectory.appendingPathComponent(".key", isDirectory: true).standardizedFileURL.path(percentEncoded: false))\n")
+        #expect(io.stdout == "vault-dir=\(homeDirectory.appendingPathComponent(".key", isDirectory: true).standardizedFileURL.path(percentEncoded: false))\nkeychain-mode=local\n")
         #expect(io.stderr == "")
+    }
+
+    @Test
+    func configGetPrintsKeychainModeWithoutTransport() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let transport = MemoryTransport { _ in
+            Issue.record("transport should not be called for config get")
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: clipboard,
+            configStore: KeyConfigStore(homeDirectoryURL: homeDirectory)
+        )
+
+        #expect(app.run(arguments: ["config", "get", "keychain-mode"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "local\n")
+        #expect(io.stderr == "")
+    }
+
+    @Test
+    func configSetKeychainModeUsesTransport() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let transport = MemoryTransport { request in
+            #expect(request == .setKeychainMode(.icloud))
+            return .success()
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let clipboard = MemoryClipboard()
+        let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: clipboard,
+            configStore: configStore
+        )
+
+        #expect(app.run(arguments: ["config", "set", "keychain-mode", "icloud"]) == EXIT_SUCCESS)
+        #expect(io.stdout == "")
+        #expect(io.stderr == "")
+        #expect(transport.requests == [.setKeychainMode(.icloud)])
+        #expect(try configStore.getValue(for: .keychainMode) == "local")
     }
 
     @Test
@@ -404,6 +457,7 @@ struct KeyServiceHandlerTests {
         #expect(handler.handle(.unlock) == .success())
         #expect(keyStore.loadCount == 1)
         #expect(keyStore.requests.last?.createIfMissing == true)
+        #expect(keyStore.requests.last?.mode == .local)
     }
 
     @Test
@@ -510,6 +564,161 @@ struct KeyServiceHandlerTests {
         let response = handler.handle(.get(name: "mail/personal"))
         #expect(response.exitCode == EXIT_FAILURE)
         #expect(response.errorMessage?.contains("cannot decrypt 'mail/personal'") == true)
+    }
+
+    @Test
+    func switchingToICloudPublishesWorkingLocalKeyAndUpdatesConfig() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let vaultDirectory = homeDirectory.appendingPathComponent("Vault", isDirectory: true)
+        try FileManager.default.createDirectory(at: vaultDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
+        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+
+        let keyStore = MemoryVaultKeyStore()
+        let handler = KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: EntryStore(rootURL: vaultDirectory),
+            configStore: configStore
+        )
+
+        #expect(handler.handle(.addManual(name: "mail/personal", secret: "hunter2", type: .secret)) == .success())
+        let localKey = try #require(keyStore.localKeyData)
+
+        #expect(handler.handle(.setKeychainMode(.icloud)) == .success())
+        #expect(keyStore.iCloudKeyData == localKey)
+        #expect(try configStore.getValue(for: .keychainMode) == "icloud")
+        #expect(handler.handle(.get(name: "mail/personal")) == .success("hunter2"))
+    }
+
+    @Test
+    func switchingToICloudWaitsWhenOnlyStaleLocalKeyExists() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let vaultDirectory = homeDirectory.appendingPathComponent("Vault", isDirectory: true)
+        try FileManager.default.createDirectory(at: vaultDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
+        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+
+        let store = EntryStore(rootURL: vaultDirectory)
+        let originalKey = Data((0..<32).map(UInt8.init))
+        let staleLocalKey = Data((32..<64).map(UInt8.init))
+        let encrypted = try VaultCipher().encrypt("hunter2", keyData: originalKey)
+        try store.save(encrypted, as: "mail/personal", overwrite: false)
+
+        let keyStore = MemoryVaultKeyStore()
+        keyStore.localKeyData = staleLocalKey
+        let handler = KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: store,
+            configStore: configStore
+        )
+
+        let response = handler.handle(.setKeychainMode(.icloud))
+        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(response.errorMessage?.contains("wait for iCloud Keychain sync") == true)
+        #expect(keyStore.iCloudKeyData == nil)
+        #expect(try configStore.getValue(for: .keychainMode) == "local")
+    }
+
+    @Test
+    func switchingToICloudAdoptsExistingSyncedKeyAndRepairsLocalMirror() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let vaultDirectory = homeDirectory.appendingPathComponent("Vault", isDirectory: true)
+        try FileManager.default.createDirectory(at: vaultDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
+        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+
+        let store = EntryStore(rootURL: vaultDirectory)
+        let sharedKey = Data((0..<32).map(UInt8.init))
+        let staleLocalKey = Data((32..<64).map(UInt8.init))
+        let encrypted = try VaultCipher().encrypt("hunter2", keyData: sharedKey)
+        try store.save(encrypted, as: "mail/personal", overwrite: false)
+
+        let keyStore = MemoryVaultKeyStore()
+        keyStore.localKeyData = staleLocalKey
+        keyStore.iCloudKeyData = sharedKey
+        let handler = KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: store,
+            configStore: configStore
+        )
+
+        #expect(handler.handle(.setKeychainMode(.icloud)) == .success())
+        #expect(keyStore.localKeyData == sharedKey)
+        #expect(try configStore.getValue(for: .keychainMode) == "icloud")
+        #expect(handler.handle(.get(name: "mail/personal")) == .success("hunter2"))
+    }
+
+    @Test
+    func switchingBackToLocalRepairsMissingLocalMirrorFromICloud() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let vaultDirectory = homeDirectory.appendingPathComponent("Vault", isDirectory: true)
+        try FileManager.default.createDirectory(at: vaultDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
+        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+        _ = try configStore.setValue("icloud", for: .keychainMode)
+
+        let store = EntryStore(rootURL: vaultDirectory)
+        let sharedKey = Data((0..<32).map(UInt8.init))
+        let encrypted = try VaultCipher().encrypt("hunter2", keyData: sharedKey)
+        try store.save(encrypted, as: "mail/personal", overwrite: false)
+
+        let keyStore = MemoryVaultKeyStore()
+        keyStore.iCloudKeyData = sharedKey
+        let handler = KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: store,
+            keychainMode: .icloud,
+            configStore: configStore
+        )
+
+        #expect(handler.handle(.setKeychainMode(.local)) == .success())
+        #expect(keyStore.localKeyData == sharedKey)
+        #expect(try configStore.getValue(for: .keychainMode) == "local")
+        #expect(handler.handle(.get(name: "mail/personal")) == .success("hunter2"))
+    }
+
+    @Test
+    func iCloudModeReadsRepairAStaleLocalMirror() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let vaultDirectory = homeDirectory.appendingPathComponent("Vault", isDirectory: true)
+        try FileManager.default.createDirectory(at: vaultDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
+        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+        _ = try configStore.setValue("icloud", for: .keychainMode)
+
+        let store = EntryStore(rootURL: vaultDirectory)
+        let sharedKey = Data((0..<32).map(UInt8.init))
+        let staleLocalKey = Data((32..<64).map(UInt8.init))
+        let encrypted = try VaultCipher().encrypt("hunter2", keyData: sharedKey)
+        try store.save(encrypted, as: "mail/personal", overwrite: false)
+
+        let keyStore = MemoryVaultKeyStore()
+        keyStore.localKeyData = staleLocalKey
+        keyStore.iCloudKeyData = sharedKey
+        let handler = KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: store,
+            keychainMode: .icloud,
+            configStore: configStore
+        )
+
+        #expect(handler.handle(.get(name: "mail/personal")) == .success("hunter2"))
+        #expect(keyStore.localKeyData == sharedKey)
     }
 
     @Test
@@ -775,9 +984,9 @@ struct SessionVaultKeyStoreTests {
             now: { currentTime }
         )
 
-        _ = try store.loadKey(reason: "first", createIfMissing: true)
+        _ = try store.loadKey(mode: .local, reason: "first", createIfMissing: true)
         currentTime = start.addingTimeInterval(30)
-        _ = try store.loadKey(reason: "second", createIfMissing: false)
+        _ = try store.loadKey(mode: .local, reason: "second", createIfMissing: false)
 
         #expect(underlying.loadCount == 1)
         #expect(store.isUnlocked(at: currentTime) == true)
@@ -794,9 +1003,9 @@ struct SessionVaultKeyStoreTests {
             now: { currentTime }
         )
 
-        _ = try store.loadKey(reason: "first", createIfMissing: true)
+        _ = try store.loadKey(mode: .local, reason: "first", createIfMissing: true)
         currentTime = start.addingTimeInterval(61)
-        _ = try store.loadKey(reason: "second", createIfMissing: false)
+        _ = try store.loadKey(mode: .local, reason: "second", createIfMissing: false)
 
         #expect(underlying.loadCount == 2)
     }
@@ -812,7 +1021,7 @@ struct SessionVaultKeyStoreTests {
             now: { currentTime }
         )
 
-        _ = try store.loadKey(reason: "first", createIfMissing: true)
+        _ = try store.loadKey(mode: .local, reason: "first", createIfMissing: true)
         currentTime = start.addingTimeInterval(61)
 
         let status = store.sessionStatus(at: currentTime)
@@ -861,7 +1070,7 @@ struct SessionVaultKeyStoreTests {
         let store = SessionVaultKeyStore(underlying: underlying)
 
         #expect(throws: AppError.authFailed("Authentication was cancelled or failed.")) {
-            _ = try store.loadKey(reason: "unlock", createIfMissing: false)
+            _ = try store.loadKey(mode: .local, reason: "unlock", createIfMissing: false)
         }
         #expect(store.isUnlocked() == false)
     }
@@ -871,7 +1080,7 @@ struct SessionVaultKeyStoreTests {
         let underlying = MemoryVaultKeyStore()
         let store = SessionVaultKeyStore(underlying: underlying)
 
-        _ = try store.loadKey(reason: "unlock", createIfMissing: true)
+        _ = try store.loadKey(mode: .local, reason: "unlock", createIfMissing: true)
         #expect(store.isUnlocked() == true)
 
         store.invalidate()

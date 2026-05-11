@@ -2,6 +2,7 @@ import Foundation
 
 public final class SessionVaultKeyStore: VaultKeyStoring, KeySessionStatusReporting {
     private struct SessionState {
+        var mode: KeychainMode?
         var cachedKeyData: Data?
         var lastAccessAt: Date?
     }
@@ -22,11 +23,12 @@ public final class SessionVaultKeyStore: VaultKeyStoring, KeySessionStatusReport
         self.now = now
     }
 
-    public func loadKey(reason: String, createIfMissing: Bool) throws -> Data {
+    public func loadKey(mode: KeychainMode, reason: String, createIfMissing: Bool) throws -> Data {
         try queue.sync {
             let currentTime = now()
 
-            if let cachedKeyData = state.cachedKeyData,
+            if state.mode == mode,
+               let cachedKeyData = state.cachedKeyData,
                let lastAccessAt = state.lastAccessAt,
                currentTime.timeIntervalSince(lastAccessAt) < inactivityTimeout {
                 state.lastAccessAt = currentTime
@@ -36,7 +38,8 @@ public final class SessionVaultKeyStore: VaultKeyStoring, KeySessionStatusReport
             clearSession()
 
             do {
-                let keyData = try underlying.loadKey(reason: reason, createIfMissing: createIfMissing)
+                let keyData = try underlying.loadKey(mode: mode, reason: reason, createIfMissing: createIfMissing)
+                state.mode = mode
                 state.cachedKeyData = keyData
                 state.lastAccessAt = currentTime
                 return keyData
@@ -47,14 +50,21 @@ public final class SessionVaultKeyStore: VaultKeyStoring, KeySessionStatusReport
         }
     }
 
-    public func keyExists() throws -> Bool {
+    public func keyExists(mode: KeychainMode) throws -> Bool {
         try queue.sync {
             let currentTime = now()
-            if currentStatus(at: currentTime).isUnlocked {
+            if state.mode == mode, currentStatus(at: currentTime).isUnlocked {
                 return true
             }
 
-            return try underlying.keyExists()
+            return try underlying.keyExists(mode: mode)
+        }
+    }
+
+    public func storeKey(_ keyData: Data, mode: KeychainMode, overwriteExisting: Bool) throws {
+        try queue.sync {
+            try underlying.storeKey(keyData, mode: mode, overwriteExisting: overwriteExisting)
+            clearSession()
         }
     }
 
@@ -75,6 +85,7 @@ public final class SessionVaultKeyStore: VaultKeyStoring, KeySessionStatusReport
     }
 
     private func clearSession() {
+        state.mode = nil
         state.cachedKeyData = nil
         state.lastAccessAt = nil
     }

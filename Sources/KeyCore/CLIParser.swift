@@ -65,7 +65,8 @@ public enum CLIParser {
       --totp   Treat add/edit input as a Base32 TOTP seed.
 
     Config names:
-      vault-dir  Effective vault directory.
+      vault-dir      Effective vault directory.
+      keychain-mode  Vault key storage mode (`local` or `icloud`).
     """
 
     private static func parseHelp(arguments: [String]) throws -> Command {

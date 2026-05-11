@@ -2,6 +2,12 @@ import Foundation
 
 public enum ConfigKey: String, Equatable, Sendable {
     case vaultDir = "vault-dir"
+    case keychainMode = "keychain-mode"
+}
+
+public enum KeychainMode: String, Codable, Equatable, Sendable, CaseIterable {
+    case local
+    case icloud
 }
 
 public enum ConfigCommand: Equatable, Sendable {
