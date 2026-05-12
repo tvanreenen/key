@@ -4,6 +4,26 @@ import Testing
 
 struct CryptoAndStorageTests {
     @Test
+    func vaultKeyStoreUsesAccessControlForLocalKeys() throws {
+        let store = VaultKeyStore(configuration: testRuntimeConfiguration())
+
+        let attributes = try store.storageAttributes(for: .local)
+
+        #expect(attributes[kSecAttrAccessControl as String] != nil)
+        #expect(attributes[kSecAttrAccessible as String] == nil)
+    }
+
+    @Test
+    func vaultKeyStoreUsesAccessibleClassForICloudKeys() throws {
+        let store = VaultKeyStore(configuration: testRuntimeConfiguration())
+
+        let attributes = try store.storageAttributes(for: .icloud)
+
+        #expect(attributes[kSecAttrAccessControl as String] == nil)
+        #expect((attributes[kSecAttrAccessible as String] as? String) == (kSecAttrAccessibleWhenUnlocked as String))
+    }
+
+    @Test
     func secretFileRoundTripsThroughJSON() throws {
         let file = SecretFile(nonce: Data([1, 2, 3]).base64EncodedString(), ciphertext: Data([4, 5]).base64EncodedString())
         let data = try JSONEncoder().encode(file)
@@ -325,5 +345,17 @@ struct CryptoAndStorageTests {
         #expect(throws: AppError.invalidConfiguration("Key config directory '\(configDirectoryURL.path(percentEncoded: false))' exists but is not a directory.")) {
             _ = try EntryStore.defaultLocation(homeDirectoryURL: homeDirectory)
         }
+    }
+
+    private func testRuntimeConfiguration() -> RuntimeConfiguration {
+        RuntimeConfiguration(
+            vaultService: "work.tvr.key.tests.vault",
+            vaultAccount: "default-vault",
+            keychainAccessGroup: "9Q355KSV85.work.tvr.key.shared",
+            helperMachServiceName: "work.tvr.key.agent",
+            helperBundleIdentifier: "work.tvr.key.xpc",
+            launchAgentPlistName: "work.tvr.key.agent.plist",
+            useDataProtectionKeychain: true
+        )
     }
 }

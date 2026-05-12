@@ -62,26 +62,15 @@ public final class VaultKeyStore: VaultKeyStoring {
             try deleteKeyIfPresent(mode: mode)
         }
 
-        var accessControlError: Unmanaged<CFError>?
-        guard let accessControl = SecAccessControlCreateWithFlags(
-            nil,
-            accessibilityClass(for: mode),
-            .userPresence,
-            &accessControlError
-        ) else {
-            let message = (accessControlError?.takeRetainedValue() as Error?)?.localizedDescription ?? "Unknown error."
-            throw AppError.keychain("Failed to create vault key access control: \(message)")
-        }
-
         var query = try baseQuery(mode: mode)
         query.merge([
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: configuration.vaultService,
             kSecAttrAccount as String: configuration.vaultAccount,
             kSecAttrLabel as String: "key vault key",
-            kSecAttrAccessControl as String: accessControl,
             kSecValueData as String: keyData
         ]) { _, new in new }
+        try query.merge(storageAttributes(for: mode)) { _, new in new }
 
         let status = SecItemAdd(query as CFDictionary, nil)
         if status == errSecDuplicateItem, overwriteExisting {
@@ -157,6 +146,27 @@ public final class VaultKeyStore: VaultKeyStoring {
         query[kSecAttrAccessGroup as String] = accessGroup
         query[kSecAttrSynchronizable as String] = mode == .icloud
         return query
+    }
+
+    func storageAttributes(for mode: KeychainMode) throws -> [String: Any] {
+        switch mode {
+        case .local:
+            var accessControlError: Unmanaged<CFError>?
+            guard let accessControl = SecAccessControlCreateWithFlags(
+                nil,
+                accessibilityClass(for: mode),
+                .userPresence,
+                &accessControlError
+            ) else {
+                let message = (accessControlError?.takeRetainedValue() as Error?)?.localizedDescription ?? "Unknown error."
+                throw AppError.keychain("Failed to create vault key access control: \(message)")
+            }
+            return [kSecAttrAccessControl as String: accessControl]
+        case .icloud:
+            // Synchronizable generic-password items reject a SecAccessControl payload
+            // with errSecParam (-50), so the synced item relies on accessibility only.
+            return [kSecAttrAccessible as String: accessibilityClass(for: mode)]
+        }
     }
 
     private func accessibilityClass(for mode: KeychainMode) -> CFString {
