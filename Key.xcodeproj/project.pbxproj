@@ -25,8 +25,8 @@
 		8B2342C883974B121AB07C37 /* KeyXPCClientTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */; };
 		8D9C2B13AA1B4A669F62CB2A /* KeyDashboardSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89D0AC29AD8740A9B3D2B6E6 /* KeyDashboardSupport.swift */; };
 		9FAE42E9C3A14B0F8D7E6A11 /* VaultLocationResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C5D8A7B28E4C5FA4E91D20 /* VaultLocationResolver.swift */; };
-		A3A8B5F62B03F55CDB345501 /* TOTPGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3A8B5F52B03F55CDB345501 /* TOTPGenerator.swift */; };
 		A15F350B2230881FFC292742 /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
+		A3A8B5F62B03F55CDB345501 /* TOTPGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3A8B5F52B03F55CDB345501 /* TOTPGenerator.swift */; };
 		AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA3251E5B71729E191F7889A /* Command.swift */; };
 		B4BE69F25B811392D2FBBE3C /* KeyCLIApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */; };
 		B611695A8D40D95DE0EF69BD /* CLIParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF28C31FF780A4FCCB3294D7 /* CLIParser.swift */; };
@@ -73,18 +73,19 @@
 		31C5D8A7B28E4C5FA4E91D20 /* VaultLocationResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultLocationResolver.swift; sourceTree = "<group>"; };
 		395A88A800D635A7EF9FE33F /* libKeyCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libKeyCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		3BA14FD6F79F2CBF3291CEE5 /* Key Agent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Key Agent.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCLIApplication.swift; sourceTree = "<group>"; };
 		4E30B55D83074B50959E72C6 /* SessionVaultKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionVaultKeyStore.swift; sourceTree = "<group>"; };
+		4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCLIApplication.swift; sourceTree = "<group>"; };
 		55257994DEF9CC6144A32E16 /* KeyServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyServiceProtocol.swift; sourceTree = "<group>"; };
 		5545BFD05D0DBC600CFCEDA7 /* KeyUtilityApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyUtilityApp.swift; sourceTree = "<group>"; };
 		55AE435B2F63568900124FD6 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		5E585E32FBAF3D8FD5F64230 /* EntryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryStore.swift; sourceTree = "<group>"; };
 		76DB380BC4A9ECD7FE009152 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretFile.swift; sourceTree = "<group>"; };
-		8794D82E2F27E7B9F3B9EE11 /* SecretEntryType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretEntryType.swift; sourceTree = "<group>"; };
 		855E71C8AF61988A885402D9 /* InputOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputOutput.swift; sourceTree = "<group>"; };
+		8794D82E2F27E7B9F3B9EE11 /* SecretEntryType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretEntryType.swift; sourceTree = "<group>"; };
 		89D0AC29AD8740A9B3D2B6E6 /* KeyDashboardSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyDashboardSupport.swift; sourceTree = "<group>"; };
 		9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyServiceHandler.swift; sourceTree = "<group>"; };
+		A3A8B5F52B03F55CDB345501 /* TOTPGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGenerator.swift; sourceTree = "<group>"; };
 		B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultKeyStore.swift; sourceTree = "<group>"; };
 		B4EE3B938E39AE66CAB3E79B /* Key.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Key.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BA3251E5B71729E191F7889A /* Command.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Command.swift; sourceTree = "<group>"; };
@@ -96,7 +97,6 @@
 		F19B0116010713B57BC705BE /* RuntimeConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeConfiguration.swift; sourceTree = "<group>"; };
 		F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultCipher.swift; sourceTree = "<group>"; };
 		FF28C31FF780A4FCCB3294D7 /* CLIParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIParser.swift; sourceTree = "<group>"; };
-		A3A8B5F52B03F55CDB345501 /* TOTPGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGenerator.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -304,9 +304,6 @@
 					1CF695AE4EB1034DF9A169D2 = {
 						DevelopmentTeam = 9Q355KSV85;
 					};
-					32CD73D21740FC60396C1DA0 = {
-						DevelopmentTeam = 9Q355KSV85;
-					};
 					8ADEB08555D7682AFB0C97A3 = {
 						DevelopmentTeam = 9Q355KSV85;
 					};
@@ -463,12 +460,12 @@
 			target = 8ADEB08555D7682AFB0C97A3 /* KeyCore */;
 			targetProxy = 6BEBF4FC67DD0DDFC45FD37F /* PBXContainerItemProxy */;
 		};
-		BBB2766C39026BFE78EA2124 /* PBXTargetDependency */ = {
+		9D839F63C6D6474A87854EAF /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 8ADEB08555D7682AFB0C97A3 /* KeyCore */;
 			targetProxy = D38F777BCA0735089ACD3916 /* PBXContainerItemProxy */;
 		};
-		9D839F63C6D6474A87854EAF /* PBXTargetDependency */ = {
+		BBB2766C39026BFE78EA2124 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 8ADEB08555D7682AFB0C97A3 /* KeyCore */;
 			targetProxy = D38F777BCA0735089ACD3916 /* PBXContainerItemProxy */;
@@ -481,10 +478,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/Key.entitlements;
-				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 9Q355KSV85;
 				ENABLE_HARDENED_RUNTIME = YES;
 				EXECUTABLE_NAME = KeyHost;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -497,7 +497,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.app;
 				PRODUCT_NAME = Key;
-				PROVISIONING_PROFILE_SPECIFIER = "Key App Developer ID";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "Key App Developer ID";
 				REMOVE_STATIC_EXECUTABLES_FROM_EMBEDDED_BUNDLES = NO;
 				SDKROOT = macosx;
 				SKIP_INSTALL = NO;
@@ -582,7 +583,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.2.0-alpha.1;
+				MARKETING_VERSION = "0.2.0-alpha.1";
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -600,15 +601,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/KeyLaunchAgentHelper.entitlements;
-				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 9Q355KSV85;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 9Q355KSV85;
+				ENABLE_HARDENED_RUNTIME = YES;
+				EXECUTABLE_NAME = "Key Agent";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Config/KeyLaunchAgentHelper-Info.plist";
-				EXECUTABLE_NAME = "Key Agent";
-				ENABLE_HARDENED_RUNTIME = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -619,7 +622,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.xpc;
 				PRODUCT_NAME = "Key Agent";
-				PROVISIONING_PROFILE_SPECIFIER = "Key XPC Developer ID";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "Key XPC Developer ID";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 			};
@@ -647,9 +651,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/KeyLaunchAgentHelper.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 9Q355KSV85;
 				EXECUTABLE_NAME = "Key Agent";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Config/KeyLaunchAgentHelper-Info.plist";
@@ -663,6 +670,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.xpc;
 				PRODUCT_NAME = "Key Agent";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "Key XPC Developer ID";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 			};
@@ -718,7 +727,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.2.0-alpha.1;
+				MARKETING_VERSION = "0.2.0-alpha.1";
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -756,9 +765,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Config/Key.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 9Q355KSV85;
 				EXECUTABLE_NAME = KeyHost;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Config/Key-Info.plist";
@@ -770,6 +782,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.app;
 				PRODUCT_NAME = Key;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "Key App Developer ID";
 				REMOVE_STATIC_EXECUTABLES_FROM_EMBEDDED_BUNDLES = NO;
 				SDKROOT = macosx;
 				SKIP_INSTALL = NO;
