@@ -2,7 +2,7 @@ import Foundation
 
 public final class SessionVaultKeyStore: VaultKeyStoring, KeySessionStatusReporting {
     private struct SessionState {
-        var mode: KeychainMode?
+        var mode: SecurityMode?
         var cachedKeyData: Data?
         var lastAccessAt: Date?
     }
@@ -23,7 +23,7 @@ public final class SessionVaultKeyStore: VaultKeyStoring, KeySessionStatusReport
         self.now = now
     }
 
-    public func loadKey(mode: KeychainMode, reason: String, createIfMissing: Bool) throws -> Data {
+    public func loadKey(mode: SecurityMode, vaultRootURL: URL, reason: String, createIfMissing: Bool) throws -> Data {
         try queue.sync {
             let currentTime = now()
 
@@ -38,7 +38,7 @@ public final class SessionVaultKeyStore: VaultKeyStoring, KeySessionStatusReport
             clearSession()
 
             do {
-                let keyData = try underlying.loadKey(mode: mode, reason: reason, createIfMissing: createIfMissing)
+                let keyData = try underlying.loadKey(mode: mode, vaultRootURL: vaultRootURL, reason: reason, createIfMissing: createIfMissing)
                 state.mode = mode
                 state.cachedKeyData = keyData
                 state.lastAccessAt = currentTime
@@ -50,21 +50,78 @@ public final class SessionVaultKeyStore: VaultKeyStoring, KeySessionStatusReport
         }
     }
 
-    public func keyExists(mode: KeychainMode) throws -> Bool {
+    public func keyExists(mode: SecurityMode, vaultRootURL: URL) throws -> Bool {
         try queue.sync {
             let currentTime = now()
             if state.mode == mode, currentStatus(at: currentTime).isUnlocked {
                 return true
             }
 
-            return try underlying.keyExists(mode: mode)
+            return try underlying.keyExists(mode: mode, vaultRootURL: vaultRootURL)
         }
     }
 
-    public func storeKey(_ keyData: Data, mode: KeychainMode, overwriteExisting: Bool) throws {
+    public func storeKey(_ keyData: Data, mode: SecurityMode, overwriteExisting: Bool) throws {
         try queue.sync {
             try underlying.storeKey(keyData, mode: mode, overwriteExisting: overwriteExisting)
             clearSession()
+        }
+    }
+
+    public func deleteKey(mode: SecurityMode) throws {
+        try queue.sync {
+            try underlying.deleteKey(mode: mode)
+            clearSession()
+        }
+    }
+
+    public func inspectVault(vaultRootURL: URL, securityMode: SecurityMode, hasEncryptedEntries: Bool) throws -> VaultStatusReport {
+        try underlying.inspectVault(vaultRootURL: vaultRootURL, securityMode: securityMode, hasEncryptedEntries: hasEncryptedEntries)
+    }
+
+    public func migrateLocalVaultToEnclave(vaultRootURL: URL, reason: String) throws {
+        try queue.sync {
+            try underlying.migrateLocalVaultToEnclave(vaultRootURL: vaultRootURL, reason: reason)
+            clearSession()
+        }
+    }
+
+    public func registerDevice(vaultRootURL: URL, manual: Bool) throws -> DeviceRegistrationResult {
+        try underlying.registerDevice(vaultRootURL: vaultRootURL, manual: manual)
+    }
+
+    public func prepareNearbyDeviceApproval(vaultRootURL: URL) throws -> DeviceApprovalInfo {
+        try underlying.prepareNearbyDeviceApproval(vaultRootURL: vaultRootURL)
+    }
+
+    public func prepareManualDeviceApproval(vaultRootURL: URL, requestData: Data) throws -> DeviceApprovalInfo {
+        try underlying.prepareManualDeviceApproval(vaultRootURL: vaultRootURL, requestData: requestData)
+    }
+
+    public func confirmDeviceApproval(vaultRootURL: URL, verificationCode: String) throws {
+        try queue.sync {
+            try underlying.confirmDeviceApproval(vaultRootURL: vaultRootURL, verificationCode: verificationCode)
+            clearSession()
+        }
+    }
+
+    public func syncDevice(vaultRootURL: URL) throws -> String {
+        try underlying.syncDevice(vaultRootURL: vaultRootURL)
+    }
+
+    public func leaveEnclaveVault(vaultRootURL: URL, reason: String) throws -> String {
+        try queue.sync {
+            let result = try underlying.leaveEnclaveVault(vaultRootURL: vaultRootURL, reason: reason)
+            clearSession()
+            return result
+        }
+    }
+
+    public func removeEnclaveArtifacts(vaultRootURL: URL) throws -> String? {
+        try queue.sync {
+            let result = try underlying.removeEnclaveArtifacts(vaultRootURL: vaultRootURL)
+            clearSession()
+            return result
         }
     }
 

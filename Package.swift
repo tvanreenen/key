@@ -14,6 +14,7 @@ let package = Package(
         .target(
             name: "KeyCore",
             linkerSettings: [
+                .linkedFramework("MultipeerConnectivity"),
                 .linkedFramework("LocalAuthentication"),
                 .linkedFramework("Security")
             ]

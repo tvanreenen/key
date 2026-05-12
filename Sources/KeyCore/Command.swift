@@ -2,24 +2,34 @@ import Foundation
 
 public enum ConfigKey: String, Equatable, Sendable {
     case vaultDir = "vault-dir"
-    case keychainMode = "keychain-mode"
+    case securityMode = "security-mode"
 }
 
-public enum KeychainMode: String, Codable, Equatable, Sendable, CaseIterable {
+public enum SecurityMode: String, Codable, Equatable, Sendable, CaseIterable {
     case local
-    case icloud
+    case enclave
 }
 
-public enum ConfigCommand: Equatable, Sendable {
-    case get(key: ConfigKey)
-    case set(key: ConfigKey, value: String)
-    case list
+public enum VaultPathCommand: Equatable, Sendable {
+    case get
+    case set(String)
+}
+
+public enum VaultCommand: Equatable, Sendable {
+    case status
+    case path(VaultPathCommand)
+    case share
+    case join(manual: Bool)
+    case approve(requestFile: String?)
+    case sync
+    case leave
+    case unshare
 }
 
 public enum Command: Equatable {
     case help
     case version(json: Bool)
-    case config(ConfigCommand)
+    case vault(VaultCommand)
     case unlock
     case lock
     case get(name: String)

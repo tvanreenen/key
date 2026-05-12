@@ -97,7 +97,6 @@ private func run() -> Never {
     let configuration = RuntimeConfiguration.live()
 
     do {
-        let rootURL = try EntryStore.defaultRootURL()
         let sessionKeyStore = SessionVaultKeyStore(
             underlying: VaultKeyStore(configuration: configuration)
         )
@@ -105,9 +104,13 @@ private func run() -> Never {
             sessionKeyStore.invalidate()
             exit(EXIT_SUCCESS)
         }
+        let configStore = KeyConfigStore()
+        let keyConfiguration = try configStore.load()
         let handler = KeyServiceHandler(
             keyStore: sessionKeyStore,
-            entryStore: EntryStore(rootURL: rootURL)
+            entryStore: EntryStore(rootURL: keyConfiguration.vaultDirectoryURL),
+            securityMode: keyConfiguration.securityMode,
+            configStore: configStore
         )
         let service = KeyAgentService(handler: handler, lifecycleController: lifecycleController)
         let delegate = KeyAgentDelegate(exportedObject: service)

@@ -45,8 +45,8 @@ public final class KeyCLIApplication {
         case let .version(json):
             writeVersion(json: json)
             return EXIT_SUCCESS
-        case let .config(configCommand):
-            return try executeConfigCommand(configCommand)
+        case let .vault(vaultCommand):
+            return try executeVaultCommand(vaultCommand)
         case .unlock:
             response = try transport.send(.unlock)
             return try handle(response, for: command)
@@ -101,8 +101,10 @@ public final class KeyCLIApplication {
             break
         case .version(json: _):
             break
-        case .config:
-            break
+        case .vault:
+            if let value = response.value, !value.isEmpty {
+                io.writeStdout(value)
+            }
         case .unlock, .lock, .list:
             if let value = response.value, !value.isEmpty {
                 io.writeStdout(value)
@@ -174,30 +176,60 @@ public final class KeyCLIApplication {
         io.writeStdout(version.displayString + "\n")
     }
 
-    private func executeConfigCommand(_ command: ConfigCommand) throws -> Int32 {
+    private func executeVaultCommand(_ command: VaultCommand) throws -> Int32 {
         switch command {
-        case let .get(key):
-            io.writeStdout(try configStore.getValue(for: key) + "\n")
-        case let .set(key, value):
-            if key == .keychainMode {
-                guard let mode = KeychainMode(rawValue: value) else {
-                    throw AppError.invalidConfiguration("Unsupported keychain mode '\(value)'. Expected 'local' or 'icloud'.")
-                }
-                let response = try transport.send(.setKeychainMode(mode))
-                return try handle(response, for: .config(command))
+        case .status:
+            let response = try transport.send(.vaultStatus)
+            return try handle(response, for: .vault(command))
+        case let .path(pathCommand):
+            switch pathCommand {
+            case .get:
+                io.writeStdout(try configStore.getValue(for: .vaultDir) + "\n")
+            case let .set(path):
+                _ = try configStore.setValue(path, for: .vaultDir)
+            }
+            return EXIT_SUCCESS
+        case .share:
+            let response = try transport.send(.shareVault)
+            return try handle(response, for: .vault(command))
+        case let .join(manual):
+            let response = try transport.send(.joinVault(manual: manual))
+            return try handle(response, for: .vault(command))
+        case let .approve(requestFile):
+            let prepareResponse: KeyServiceResponse
+            if let requestFile {
+                let requestData = try Data(contentsOf: URL(fileURLWithPath: requestFile))
+                prepareResponse = try transport.send(.prepareManualVaultApproval(requestData: requestData))
+            } else {
+                prepareResponse = try transport.send(.prepareNearbyVaultApproval)
             }
 
-            _ = try configStore.setValue(value, for: key)
-        case .list:
-            let values = try configStore.listValues()
-            let output = values
-                .map { "\($0.key.rawValue)=\($0.value)" }
-                .joined(separator: "\n")
-            if !output.isEmpty {
-                io.writeStdout(output + "\n")
+            let prepareExitCode = try handle(prepareResponse, for: .vault(command))
+            guard prepareExitCode == EXIT_SUCCESS else {
+                return prepareExitCode
             }
+            guard let approvalInfo = prepareResponse.deviceApprovalInfo else {
+                return EXIT_SUCCESS
+            }
+
+            guard io.stdinIsTTY else {
+                throw AppError.operationRefused("Vault approval requires an interactive terminal so you can confirm the verification code.")
+            }
+
+            let enteredCode = try io.readLine(
+                prompt: "Approve device '\(approvalInfo.deviceName)' (\(approvalInfo.deviceID)) by typing code \(approvalInfo.verificationCode): "
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            let confirmResponse = try transport.send(.confirmVaultApproval(verificationCode: enteredCode))
+            return try handle(confirmResponse, for: .vault(command))
+        case .sync:
+            let response = try transport.send(.syncVault)
+            return try handle(response, for: .vault(command))
+        case .leave:
+            let response = try transport.send(.leaveVault)
+            return try handle(response, for: .vault(command))
+        case .unshare:
+            let response = try transport.send(.unshareVault)
+            return try handle(response, for: .vault(command))
         }
-
-        return EXIT_SUCCESS
     }
 }

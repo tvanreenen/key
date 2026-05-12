@@ -11,8 +11,8 @@ public enum CLIParser {
             return try parseHelp(arguments: Array(arguments.dropFirst()))
         case "version":
             return try parseVersion(arguments: Array(arguments.dropFirst()))
-        case "config":
-            return try parseConfig(arguments: Array(arguments.dropFirst()))
+        case "vault":
+            return try parseVault(arguments: Array(arguments.dropFirst()))
         case "unlock":
             return try parseUnlock(arguments: Array(arguments.dropFirst()))
         case "lock":
@@ -43,9 +43,15 @@ public enum CLIParser {
       key <command> [arguments]
 
     Commands:
-      config get <config-name>           Print a config value.
-      config set <config-name> <value>   Update a config value.
-      config list                        List known config values.
+      vault status                       Print vault status and this Mac's access state.
+      vault path                         Print the effective vault directory.
+      vault path set <path>              Update the configured vault directory.
+      vault share                        Convert a local vault into a shared enclave vault.
+      vault join [--manual]              Request this Mac's enrollment into a shared vault.
+      vault approve [request-file]       Approve a pending shared-vault enrollment.
+      vault sync                         Refresh this Mac's shared-vault authorization state.
+      vault leave                        Remove this Mac from a shared vault.
+      vault unshare                      Convert a shared vault back into a local-only vault.
       get <name>                         Print a secret or current TOTP code.
       copy <name>                        Copy a secret or current TOTP code.
       add [--totp] <name>                Add a new secret from stdin or prompt.
@@ -62,11 +68,8 @@ public enum CLIParser {
     Options:
       --force  Skip overwrite or removal confirmation.
       --json   Print version info as JSON.
+      --manual Use a file-based enrollment request instead of nearby pairing.
       --totp   Treat add/edit input as a Base32 TOTP seed.
-
-    Config names:
-      vault-dir      Effective vault directory.
-      keychain-mode  Vault key storage mode (`local` or `icloud`).
     """
 
     private static func parseHelp(arguments: [String]) throws -> Command {
@@ -92,62 +95,90 @@ public enum CLIParser {
         return .version(json: false)
     }
 
-    private static func parseConfig(arguments: [String]) throws -> Command {
+    private static func parseVault(arguments: [String]) throws -> Command {
         guard let action = arguments.first else {
-            throw AppError.usage("Missing config subcommand.\n\n\(usageText)")
+            throw AppError.usage("Missing vault subcommand.\n\n\(usageText)")
         }
 
         switch action {
-        case "get":
-            return try parseConfigGet(arguments: Array(arguments.dropFirst()))
-        case "set":
-            return try parseConfigSet(arguments: Array(arguments.dropFirst()))
-        case "list":
-            return try parseConfigList(arguments: Array(arguments.dropFirst()))
+        case "status":
+            guard arguments.count == 1 else {
+                throw AppError.usage("Unknown option '\(arguments[1])' for vault status.\n\n\(usageText)")
+            }
+            return .vault(.status)
+        case "path":
+            return try parseVaultPath(arguments: Array(arguments.dropFirst()))
+        case "share":
+            guard arguments.count == 1 else {
+                throw AppError.usage("Unknown option '\(arguments[1])' for vault share.\n\n\(usageText)")
+            }
+            return .vault(.share)
+        case "join":
+            return try parseVaultJoin(arguments: Array(arguments.dropFirst()))
+        case "approve":
+            return try parseVaultApprove(arguments: Array(arguments.dropFirst()))
+        case "sync":
+            guard arguments.count == 1 else {
+                throw AppError.usage("Unknown option '\(arguments[1])' for vault sync.\n\n\(usageText)")
+            }
+            return .vault(.sync)
+        case "leave":
+            guard arguments.count == 1 else {
+                throw AppError.usage("Unknown option '\(arguments[1])' for vault leave.\n\n\(usageText)")
+            }
+            return .vault(.leave)
+        case "unshare":
+            guard arguments.count == 1 else {
+                throw AppError.usage("Unknown option '\(arguments[1])' for vault unshare.\n\n\(usageText)")
+            }
+            return .vault(.unshare)
         default:
-            throw AppError.usage("Unknown config subcommand '\(action)'.\n\n\(usageText)")
+            throw AppError.usage("Unknown vault subcommand '\(action)'.\n\n\(usageText)")
         }
     }
 
-    private static func parseConfigGet(arguments: [String]) throws -> Command {
-        guard let key = arguments.first else {
-            throw AppError.usage("Missing config key for config get.\n\n\(usageText)")
-        }
-        guard arguments.count == 1 else {
-            throw AppError.usage("Unknown option '\(arguments[1])' for config get.\n\n\(usageText)")
+    private static func parseVaultPath(arguments: [String]) throws -> Command {
+        if arguments.isEmpty {
+            return .vault(.path(.get))
         }
 
-        return .config(.get(key: try parseConfigKey(key)))
+        if arguments[0] == "set" {
+            if arguments.count == 1 {
+            throw AppError.usage("Missing path for vault path set.\n\n\(usageText)")
+            }
+            if arguments.count == 2 {
+                return .vault(.path(.set(arguments[1])))
+            }
+            throw AppError.usage("Unknown option '\(arguments[2])' for vault path set.\n\n\(usageText)")
+        }
+
+        throw AppError.usage("Unknown option '\(arguments[0])' for vault path.\n\n\(usageText)")
     }
 
-    private static func parseConfigSet(arguments: [String]) throws -> Command {
-        guard let key = arguments.first else {
-            throw AppError.usage("Missing config key for config set.\n\n\(usageText)")
+    private static func parseVaultJoin(arguments: [String]) throws -> Command {
+        switch arguments {
+        case []:
+            return .vault(.join(manual: false))
+        case ["--manual"]:
+            return .vault(.join(manual: true))
+        case let args:
+            throw AppError.usage("Unknown option '\(args[0])' for vault join.\n\n\(usageText)")
         }
-        guard arguments.count >= 2 else {
-            throw AppError.usage("Missing value for config set.\n\n\(usageText)")
-        }
-        guard arguments.count == 2 else {
-            throw AppError.usage("Unknown option '\(arguments[2])' for config set.\n\n\(usageText)")
-        }
-
-        return .config(.set(key: try parseConfigKey(key), value: arguments[1]))
     }
 
-    private static func parseConfigList(arguments: [String]) throws -> Command {
-        guard arguments.isEmpty else {
-            throw AppError.usage("Unknown option '\(arguments[0])' for config list.\n\n\(usageText)")
+    private static func parseVaultApprove(arguments: [String]) throws -> Command {
+        guard arguments.count <= 1 else {
+            throw AppError.usage("Unknown option '\(arguments[1])' for vault approve.\n\n\(usageText)")
         }
 
-        return .config(.list)
-    }
-
-    private static func parseConfigKey(_ key: String) throws -> ConfigKey {
-        guard let configKey = ConfigKey(rawValue: key) else {
-            throw AppError.usage("Unknown config key '\(key)'.\n\n\(usageText)")
+        if let requestFile = arguments.first {
+            guard !requestFile.hasPrefix("-") else {
+                throw AppError.usage("Unknown option '\(requestFile)' for vault approve.\n\n\(usageText)")
+            }
+            return .vault(.approve(requestFile: requestFile))
         }
 
-        return configKey
+        return .vault(.approve(requestFile: nil))
     }
 
     private static func parseUnlock(arguments: [String]) throws -> Command {

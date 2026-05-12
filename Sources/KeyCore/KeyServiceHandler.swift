@@ -10,12 +10,12 @@ public final class KeyServiceHandler {
     private let cipher: VaultCipher
     private let now: () -> Date
     private let stateQueue = DispatchQueue(label: "work.tvr.key.service-handler")
-    private var currentKeychainMode: KeychainMode
+    private var currentSecurityMode: SecurityMode
 
     public init(
         keyStore: VaultKeyStoring,
         entryStore: EntryStore,
-        keychainMode: KeychainMode = .local,
+        securityMode: SecurityMode = .local,
         configStore: KeyConfigStore? = nil,
         cipher: VaultCipher = VaultCipher(),
         now: @escaping () -> Date = Date.init
@@ -25,7 +25,7 @@ public final class KeyServiceHandler {
         self.configStore = configStore
         self.cipher = cipher
         self.now = now
-        self.currentKeychainMode = keychainMode
+        self.currentSecurityMode = securityMode
     }
 
     public static func live(bundle: Bundle = .main) throws -> KeyServiceHandler {
@@ -36,7 +36,7 @@ public final class KeyServiceHandler {
         return KeyServiceHandler(
             keyStore: VaultKeyStore(configuration: configuration),
             entryStore: EntryStore(rootURL: rootURL),
-            keychainMode: keyConfiguration.keychainMode,
+            securityMode: keyConfiguration.securityMode,
             configStore: configStore
         )
     }
@@ -63,9 +63,55 @@ public final class KeyServiceHandler {
                     return .success()
                 }
                 return .success(entries.joined(separator: "\n") + "\n")
-            case let .setKeychainMode(mode):
-                try setKeychainMode(mode)
+            case .vaultStatus:
+                let report = try keyStore.inspectVault(
+                    vaultRootURL: entryStore.rootURL,
+                    securityMode: securityMode(),
+                    hasEncryptedEntries: try vaultContainsEntries()
+                )
+                return .success(renderVaultStatus(report))
+            case .shareVault:
+                try ensureLocalMode()
+                try keyStore.migrateLocalVaultToEnclave(
+                    vaultRootURL: entryStore.rootURL,
+                    reason: "Unlock key vault to share this vault."
+                )
+                try persistSecurityMode(.enclave)
+                return .success("Vault is now shared in enclave mode.\n")
+            case let .joinVault(manual):
+                let result = try keyStore.registerDevice(vaultRootURL: entryStore.rootURL, manual: manual)
+                try persistSecurityMode(.enclave)
+                return .success(result.message)
+            case .prepareNearbyVaultApproval:
+                try ensureEnclaveMode()
+                let info = try keyStore.prepareNearbyDeviceApproval(vaultRootURL: entryStore.rootURL)
+                return .success(
+                    "Discovered enrollment request from '\(info.deviceName)' (\(info.deviceID)).\n",
+                    deviceApprovalInfo: info
+                )
+            case let .prepareManualVaultApproval(requestData):
+                try ensureEnclaveMode()
+                let info = try keyStore.prepareManualDeviceApproval(vaultRootURL: entryStore.rootURL, requestData: requestData)
+                return .success(
+                    "Loaded enrollment request from '\(info.deviceName)' (\(info.deviceID)).\n",
+                    deviceApprovalInfo: info
+                )
+            case let .confirmVaultApproval(verificationCode):
+                try ensureEnclaveMode()
+                try keyStore.confirmDeviceApproval(vaultRootURL: entryStore.rootURL, verificationCode: verificationCode)
                 return .success()
+            case .syncVault:
+                try ensureEnclaveMode()
+                return .success(try keyStore.syncDevice(vaultRootURL: entryStore.rootURL))
+            case .leaveVault:
+                try ensureEnclaveMode()
+                return .success(try keyStore.leaveEnclaveVault(
+                    vaultRootURL: entryStore.rootURL,
+                    reason: "Unlock key vault to leave this shared vault."
+                ))
+            case .unshareVault:
+                try ensureEnclaveMode()
+                return .success(try unshareVault())
             case let .get(name):
                 let encrypted = try entryStore.load(name)
                 let keyData = try loadVaultKey(
@@ -124,22 +170,27 @@ public final class KeyServiceHandler {
     }
 
     private func loadVaultKey(reason: String, createIfMissing: Bool) throws -> Data {
-        switch keychainMode() {
+        switch securityMode() {
         case .local:
             return try loadVaultKeyFromLocal(reason: reason, createIfMissing: createIfMissing)
-        case .icloud:
-            return try loadVaultKeyFromICloud(reason: reason, createIfMissing: createIfMissing)
+        case .enclave:
+            return try loadVaultKeyFromEnclave(reason: reason)
         }
     }
 
     private func loadVaultKeyFromLocal(reason: String, createIfMissing: Bool) throws -> Data {
-        let keyExists = try keyStore.keyExists(mode: .local)
+        let keyExists = try keyStore.keyExists(mode: .local, vaultRootURL: entryStore.rootURL)
         if createIfMissing, !keyExists, try vaultContainsEntries() {
             throw missingVaultKeyForExistingVaultError()
         }
 
         do {
-            return try keyStore.loadKey(mode: .local, reason: reason, createIfMissing: createIfMissing)
+            return try keyStore.loadKey(
+                mode: .local,
+                vaultRootURL: entryStore.rootURL,
+                reason: reason,
+                createIfMissing: createIfMissing
+            )
         } catch AppError.entryNotFound {
             if try vaultContainsEntries() {
                 throw missingVaultKeyForExistingVaultError()
@@ -148,119 +199,25 @@ public final class KeyServiceHandler {
         }
     }
 
-    private func loadVaultKeyFromICloud(reason: String, createIfMissing: Bool) throws -> Data {
-        let iCloudKeyExists = try keyStore.keyExists(mode: .icloud)
-        let hasEntries = try vaultContainsEntries()
-
-        if !iCloudKeyExists {
-            if createIfMissing {
-                if hasEntries {
-                    throw waitingForICloudVaultKeyError()
-                }
-
-                let keyData = try keyStore.loadKey(mode: .icloud, reason: reason, createIfMissing: true)
-                try keyStore.storeKey(keyData, mode: .local, overwriteExisting: true)
-                return keyData
-            }
-
-            if hasEntries {
-                throw waitingForICloudVaultKeyError()
-            }
-
-            throw AppError.entryNotFound("Vault key does not exist yet.")
-        }
-
-        let keyData = try keyStore.loadKey(mode: .icloud, reason: reason, createIfMissing: false)
-        try verifyVaultKeyMatchesExistingEntries(keyData, sourceMode: .icloud)
-        try keyStore.storeKey(keyData, mode: .local, overwriteExisting: true)
-        return keyData
+    private func loadVaultKeyFromEnclave(reason: String) throws -> Data {
+        try keyStore.loadKey(
+            mode: .enclave,
+            vaultRootURL: entryStore.rootURL,
+            reason: reason,
+            createIfMissing: false
+        )
     }
 
-    private func setKeychainMode(_ mode: KeychainMode) throws {
-        switch mode {
-        case .local:
-            try switchToLocalMode()
-        case .icloud:
-            try switchToICloudMode()
+    private func ensureEnclaveMode() throws {
+        guard securityMode() == .enclave else {
+            throw AppError.operationRefused("This vault command is only available when the vault is shared in enclave mode.")
         }
     }
 
-    private func switchToICloudMode() throws {
-        let hasEntries = try vaultContainsEntries()
-
-        if try keyStore.keyExists(mode: .icloud) {
-            let iCloudKey = try keyStore.loadKey(
-                mode: .icloud,
-                reason: "Unlock key vault to enable iCloud Keychain mode.",
-                createIfMissing: false
-            )
-            try verifyVaultKeyMatchesExistingEntries(iCloudKey, sourceMode: .icloud)
-            try keyStore.storeKey(iCloudKey, mode: .local, overwriteExisting: true)
-            try persistKeychainMode(.icloud)
-            return
+    private func ensureLocalMode() throws {
+        guard securityMode() == .local else {
+            throw AppError.operationRefused("This vault command is only available when the vault is in local-only mode.")
         }
-
-        if try keyStore.keyExists(mode: .local) {
-            let localKey = try keyStore.loadKey(
-                mode: .local,
-                reason: "Unlock key vault to enable iCloud Keychain mode.",
-                createIfMissing: false
-            )
-
-            do {
-                try verifyVaultKeyMatchesExistingEntries(localKey, sourceMode: .local)
-            } catch AppError.vaultKeyMismatch {
-                if hasEntries {
-                    throw waitingForICloudVaultKeyError()
-                }
-                throw errorForLocalKeyMismatch()
-            }
-
-            try keyStore.storeKey(localKey, mode: .icloud, overwriteExisting: false)
-            try persistKeychainMode(.icloud)
-            return
-        }
-
-        if hasEntries {
-            throw waitingForICloudVaultKeyError()
-        }
-
-        try persistKeychainMode(.icloud)
-    }
-
-    private func switchToLocalMode() throws {
-        if try keyStore.keyExists(mode: .local) {
-            let localKey = try keyStore.loadKey(
-                mode: .local,
-                reason: "Unlock key vault to enable local Keychain mode.",
-                createIfMissing: false
-            )
-            do {
-                try verifyVaultKeyMatchesExistingEntries(localKey, sourceMode: .local)
-                try persistKeychainMode(.local)
-                return
-            } catch AppError.vaultKeyMismatch {
-                // Fall through and attempt repair from iCloud.
-            }
-        }
-
-        if try keyStore.keyExists(mode: .icloud) {
-            let iCloudKey = try keyStore.loadKey(
-                mode: .icloud,
-                reason: "Unlock key vault to enable local Keychain mode.",
-                createIfMissing: false
-            )
-            try verifyVaultKeyMatchesExistingEntries(iCloudKey, sourceMode: .icloud)
-            try keyStore.storeKey(iCloudKey, mode: .local, overwriteExisting: true)
-            try persistKeychainMode(.local)
-            return
-        }
-
-        if try vaultContainsEntries() {
-            throw missingVaultKeyForExistingVaultError()
-        }
-
-        try persistKeychainMode(.local)
     }
 
     private func decryptSecret(_ file: SecretFile, named name: String, keyData: Data) throws -> String {
@@ -277,76 +234,108 @@ public final class KeyServiceHandler {
         !(try entryStore.listEntries().isEmpty)
     }
 
-    private func verifyVaultKeyMatchesExistingEntries(_ keyData: Data, sourceMode: KeychainMode) throws {
-        guard let sampleName = try entryStore.listEntries().first else {
-            return
-        }
-
-        let file = try entryStore.load(sampleName)
-        do {
-            _ = try cipher.decrypt(file, keyData: keyData)
-        } catch CryptoKitError.authenticationFailure {
-            throw mismatchError(for: sourceMode)
-        } catch {
-            throw error
-        }
-    }
-
-    private func mismatchError(for mode: KeychainMode) -> AppError {
-        switch mode {
-        case .local:
-            return errorForLocalKeyMismatch()
-        case .icloud:
-            return AppError.vaultKeyMismatch(
-                "The iCloud Keychain vault key does not match the encrypted vault at '\(entryStore.rootURL.path(percentEncoded: false))'. Use a Mac that can already unlock this vault to publish the correct iCloud Keychain key first."
-            )
-        }
-    }
-
     private func missingVaultKeyForExistingVaultError() -> AppError {
         AppError.vaultKeyMismatch(
             "Encrypted secrets already exist in '\(entryStore.rootURL.path(percentEncoded: false))', but no matching vault key was found in Keychain. Refusing to create a new vault key because that would make the existing secrets unreadable."
         )
     }
 
-    private func waitingForICloudVaultKeyError() -> AppError {
-        AppError.vaultKeyMismatch(
-            "No matching iCloud Keychain vault key is available yet for '\(entryStore.rootURL.path(percentEncoded: false))'. Run `key config set keychain-mode icloud` on a Mac that can already unlock this vault, then wait for iCloud Keychain sync to finish."
-        )
-    }
-
-    private func errorForLocalKeyMismatch() -> AppError {
-        AppError.vaultKeyMismatch(
-            "The local Keychain vault key does not match the encrypted vault at '\(entryStore.rootURL.path(percentEncoded: false))'."
-        )
-    }
-
     private func mismatchedVaultKeyError(for name: String) -> AppError {
-        switch keychainMode() {
+        switch securityMode() {
         case .local:
             return AppError.vaultKeyMismatch(
                 "The local Keychain vault key cannot decrypt '\(name)'. This usually means this Mac is using a different vault key than the one that originally encrypted the vault at '\(entryStore.rootURL.path(percentEncoded: false))'."
             )
-        case .icloud:
+        case .enclave:
             return AppError.vaultKeyMismatch(
-                "The iCloud Keychain vault key cannot decrypt '\(name)'. This usually means the shared iCloud Keychain key does not match the encrypted vault at '\(entryStore.rootURL.path(percentEncoded: false))'."
+                "The enclave-wrapped vault key for this Mac cannot decrypt '\(name)'. This usually means the synced vault metadata at '\(entryStore.rootURL.path(percentEncoded: false))' is missing or corrupt for this device."
             )
         }
     }
 
-    private func persistKeychainMode(_ mode: KeychainMode) throws {
+    private func persistSecurityMode(_ mode: SecurityMode) throws {
         if let configStore {
-            _ = try configStore.setValue(mode.rawValue, for: .keychainMode)
+            _ = try configStore.setValue(mode.rawValue, for: .securityMode)
         }
         keyStore.invalidate()
         stateQueue.sync {
-            currentKeychainMode = mode
+            currentSecurityMode = mode
         }
     }
 
-    private func keychainMode() -> KeychainMode {
+    private func renderVaultStatus(_ report: VaultStatusReport) -> String {
+        let deviceID = report.deviceID ?? "n/a"
+        let iCloudValue = report.isICloudBacked ? "yes" : "no"
+        let metadataValue = report.metadataExists ? "yes" : "no"
+        let entriesValue = report.hasEncryptedEntries ? "yes" : "no"
+        return """
+        path=\(report.vaultRootPath)
+        icloud-backed=\(iCloudValue)
+        mode=\(report.securityMode.rawValue)
+        entries-present=\(entriesValue)
+        metadata-present=\(metadataValue)
+        device-id=\(deviceID)
+        state=\(report.accessState.rawValue)
+        detail=\(report.detail)
+
+        """
+    }
+
+    private func unshareVault() throws -> String {
+        let oldKey = try loadVaultKeyFromEnclave(reason: "Unlock key vault to convert this shared vault back to local-only mode.")
+        let entryNames = try entryStore.listEntries()
+        let existingFiles = try Dictionary(uniqueKeysWithValues: entryNames.map { name in
+            (name, try entryStore.load(name))
+        })
+        let plaintexts = try Dictionary(uniqueKeysWithValues: entryNames.map { name in
+            guard let file = existingFiles[name] else {
+                throw AppError.service("Missing in-memory secret file for '\(name)' during vault unshare.")
+            }
+            let plaintext = try decryptSecret(file, named: name, keyData: oldKey)
+            return (name, (plaintext, file.type))
+        })
+
+        let newLocalKey = Data(SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) })
+        let rewrittenFiles = try Dictionary(uniqueKeysWithValues: entryNames.map { name in
+            guard let payload = plaintexts[name] else {
+                throw AppError.service("Missing in-memory decrypted payload for '\(name)' during vault unshare.")
+            }
+            return (name, try cipher.encrypt(payload.0, type: payload.1, keyData: newLocalKey))
+        })
+
+        try keyStore.storeKey(newLocalKey, mode: .local, overwriteExisting: true)
+
+        var rewrittenEntryNames: [String] = []
+        do {
+            for name in entryNames {
+                guard let rewritten = rewrittenFiles[name] else { continue }
+                try entryStore.save(rewritten, as: name, overwrite: true)
+                rewrittenEntryNames.append(name)
+            }
+        } catch {
+            try rollbackUnshare(rewrittenEntryNames: rewrittenEntryNames, existingFiles: existingFiles)
+            try? keyStore.deleteKey(mode: .local)
+            throw error
+        }
+
+        try persistSecurityMode(.local)
+        let cleanupMessage = try keyStore.removeEnclaveArtifacts(vaultRootURL: entryStore.rootURL)
+        return cleanupMessage ?? "Vault is now local-only.\n"
+    }
+
+    private func rollbackUnshare(
+        rewrittenEntryNames: [String],
+        existingFiles: [String: SecretFile]
+    ) throws {
+        for name in rewrittenEntryNames.reversed() {
+            guard let original = existingFiles[name] else { continue }
+            try entryStore.save(original, as: name, overwrite: true)
+        }
+    }
+
+    private func securityMode() -> SecurityMode {
         stateQueue.sync {
-            currentKeychainMode
+            currentSecurityMode
         }
     }
 

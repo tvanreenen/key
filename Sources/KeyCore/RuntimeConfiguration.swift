@@ -8,6 +8,8 @@ public struct RuntimeConfiguration: Equatable, Sendable {
     public let helperBundleIdentifier: String
     public let launchAgentPlistName: String
     public let useDataProtectionKeychain: Bool
+    public let deviceKeyApplicationTag: String
+    public let nearbyPairingServiceType: String
 
     public init(
         vaultService: String,
@@ -16,7 +18,9 @@ public struct RuntimeConfiguration: Equatable, Sendable {
         helperMachServiceName: String,
         helperBundleIdentifier: String,
         launchAgentPlistName: String,
-        useDataProtectionKeychain: Bool
+        useDataProtectionKeychain: Bool,
+        deviceKeyApplicationTag: String,
+        nearbyPairingServiceType: String
     ) {
         self.vaultService = vaultService
         self.vaultAccount = vaultAccount
@@ -25,6 +29,8 @@ public struct RuntimeConfiguration: Equatable, Sendable {
         self.helperBundleIdentifier = helperBundleIdentifier
         self.launchAgentPlistName = launchAgentPlistName
         self.useDataProtectionKeychain = useDataProtectionKeychain
+        self.deviceKeyApplicationTag = deviceKeyApplicationTag
+        self.nearbyPairingServiceType = nearbyPairingServiceType
     }
 
     public static func live(bundle: Bundle = .main) -> RuntimeConfiguration {
@@ -35,7 +41,9 @@ public struct RuntimeConfiguration: Equatable, Sendable {
             helperMachServiceName: bundle.object(forInfoDictionaryKey: "HelperMachServiceName") as? String ?? "work.tvr.key.agent",
             helperBundleIdentifier: bundle.object(forInfoDictionaryKey: "HelperBundleIdentifier") as? String ?? "work.tvr.key.xpc",
             launchAgentPlistName: bundle.object(forInfoDictionaryKey: "LaunchAgentPlistName") as? String ?? "work.tvr.key.agent.plist",
-            useDataProtectionKeychain: true
+            useDataProtectionKeychain: true,
+            deviceKeyApplicationTag: bundle.object(forInfoDictionaryKey: "DeviceKeyApplicationTag") as? String ?? "work.tvr.key.device-identity",
+            nearbyPairingServiceType: bundle.object(forInfoDictionaryKey: "NearbyPairingServiceType") as? String ?? "keyvault"
         )
     }
 }

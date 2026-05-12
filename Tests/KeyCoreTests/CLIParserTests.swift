@@ -21,33 +21,51 @@ struct CLIParserTests {
     }
 
     @Test
-    func parsesConfigGet() throws {
-        let command = try CLIParser.parse(arguments: ["config", "get", "vault-dir"])
-        #expect(command == .config(.get(key: .vaultDir)))
+    func parsesVaultStatus() throws {
+        let command = try CLIParser.parse(arguments: ["vault", "status"])
+        #expect(command == .vault(.status))
     }
 
     @Test
-    func parsesConfigGetKeychainMode() throws {
-        let command = try CLIParser.parse(arguments: ["config", "get", "keychain-mode"])
-        #expect(command == .config(.get(key: .keychainMode)))
+    func parsesVaultPath() throws {
+        let command = try CLIParser.parse(arguments: ["vault", "path"])
+        #expect(command == .vault(.path(.get)))
     }
 
     @Test
-    func parsesConfigSet() throws {
-        let command = try CLIParser.parse(arguments: ["config", "set", "vault-dir", "~/Secrets"])
-        #expect(command == .config(.set(key: .vaultDir, value: "~/Secrets")))
+    func parsesVaultPathSet() throws {
+        let command = try CLIParser.parse(arguments: ["vault", "path", "set", "~/Secrets"])
+        #expect(command == .vault(.path(.set("~/Secrets"))))
     }
 
     @Test
-    func parsesConfigSetKeychainMode() throws {
-        let command = try CLIParser.parse(arguments: ["config", "set", "keychain-mode", "icloud"])
-        #expect(command == .config(.set(key: .keychainMode, value: "icloud")))
+    func parsesVaultShare() throws {
+        let command = try CLIParser.parse(arguments: ["vault", "share"])
+        #expect(command == .vault(.share))
     }
 
     @Test
-    func parsesConfigList() throws {
-        let command = try CLIParser.parse(arguments: ["config", "list"])
-        #expect(command == .config(.list))
+    func parsesVaultJoinManual() throws {
+        let command = try CLIParser.parse(arguments: ["vault", "join", "--manual"])
+        #expect(command == .vault(.join(manual: true)))
+    }
+
+    @Test
+    func parsesVaultApproveWithRequestFile() throws {
+        let command = try CLIParser.parse(arguments: ["vault", "approve", "/tmp/request.json"])
+        #expect(command == .vault(.approve(requestFile: "/tmp/request.json")))
+    }
+
+    @Test
+    func parsesVaultLeave() throws {
+        let command = try CLIParser.parse(arguments: ["vault", "leave"])
+        #expect(command == .vault(.leave))
+    }
+
+    @Test
+    func parsesVaultUnshare() throws {
+        let command = try CLIParser.parse(arguments: ["vault", "unshare"])
+        #expect(command == .vault(.unshare))
     }
 
     @Test
@@ -256,37 +274,37 @@ struct CLIParserTests {
     }
 
     @Test
-    func rejectsConfigWithoutSubcommand() throws {
-        #expect(throws: AppError.usage("Missing config subcommand.\n\n\(CLIParser.usageText)")) {
+    func rejectsConfigCommandAsRemoved() throws {
+        #expect(throws: AppError.usage("Unknown command 'config'.\n\n\(CLIParser.usageText)")) {
             try CLIParser.parse(arguments: ["config"])
         }
     }
 
     @Test
-    func rejectsUnknownConfigSubcommand() throws {
-        #expect(throws: AppError.usage("Unknown config subcommand 'show'.\n\n\(CLIParser.usageText)")) {
-            try CLIParser.parse(arguments: ["config", "show"])
+    func rejectsDeviceCommandAsRemoved() throws {
+        #expect(throws: AppError.usage("Unknown command 'device'.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["device", "join"])
         }
     }
 
     @Test
-    func rejectsUnknownConfigKey() throws {
-        #expect(throws: AppError.usage("Unknown config key 'theme'.\n\n\(CLIParser.usageText)")) {
-            try CLIParser.parse(arguments: ["config", "get", "theme"])
+    func rejectsVaultWithoutSubcommand() throws {
+        #expect(throws: AppError.usage("Missing vault subcommand.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["vault"])
         }
     }
 
     @Test
-    func rejectsConfigSetWithoutValue() throws {
-        #expect(throws: AppError.usage("Missing value for config set.\n\n\(CLIParser.usageText)")) {
-            try CLIParser.parse(arguments: ["config", "set", "vault-dir"])
+    func rejectsVaultPathSetWithoutValue() throws {
+        #expect(throws: AppError.usage("Missing path for vault path set.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["vault", "path", "set"])
         }
     }
 
     @Test
-    func rejectsConfigListOptions() throws {
-        #expect(throws: AppError.usage("Unknown option '--json' for config list.\n\n\(CLIParser.usageText)")) {
-            try CLIParser.parse(arguments: ["config", "list", "--json"])
+    func rejectsVaultSyncOptions() throws {
+        #expect(throws: AppError.usage("Unknown option '--json' for vault sync.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["vault", "sync", "--json"])
         }
     }
 

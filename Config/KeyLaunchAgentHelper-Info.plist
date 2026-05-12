@@ -32,6 +32,16 @@
 	<true/>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>DeviceKeyApplicationTag</key>
+	<string>work.tvr.key.device-identity</string>
+	<key>NearbyPairingServiceType</key>
+	<string>keyvault</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_keyvault._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Key uses the local network to discover and approve nearby vault devices for Secure Enclave enrollment.</string>
 	<key>VaultKeyAccount</key>
 	<string>default-vault</string>
 	<key>VaultKeyService</key>

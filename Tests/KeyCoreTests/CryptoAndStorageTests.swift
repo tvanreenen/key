@@ -14,13 +14,13 @@ struct CryptoAndStorageTests {
     }
 
     @Test
-    func vaultKeyStoreUsesAccessibleClassForICloudKeys() throws {
+    func vaultKeyStoreDoesNotUseRawKeychainAttributesForEnclaveKeys() throws {
         let store = VaultKeyStore(configuration: testRuntimeConfiguration())
 
-        let attributes = try store.storageAttributes(for: .icloud)
+        let attributes = try store.storageAttributes(for: .enclave)
 
         #expect(attributes[kSecAttrAccessControl as String] == nil)
-        #expect((attributes[kSecAttrAccessible as String] as? String) == (kSecAttrAccessibleWhenUnlocked as String))
+        #expect(attributes[kSecAttrAccessible as String] == nil)
     }
 
     @Test
@@ -151,12 +151,12 @@ struct CryptoAndStorageTests {
         #expect(location.rootURL.standardizedFileURL == expectedVaultURL)
         #expect(location.configFileURL == configFileURL)
         #expect(location.pathSource == .appSupportConfigDefault)
-        #expect(try KeyConfigStore(homeDirectoryURL: homeDirectory).getValue(for: .keychainMode) == "local")
+        #expect(try KeyConfigStore(homeDirectoryURL: homeDirectory).getValue(for: .securityMode) == "local")
         #expect(rereadLocation == location)
         #expect(FileManager.default.fileExists(atPath: location.rootURL.path(percentEncoded: false)))
         #expect(FileManager.default.fileExists(atPath: configFileURL.path(percentEncoded: false)))
         #expect(try String(contentsOf: configFileURL, encoding: .utf8).contains("vault_dir = "))
-        #expect(try String(contentsOf: configFileURL, encoding: .utf8).contains("keychain_mode = \"local\""))
+        #expect(try String(contentsOf: configFileURL, encoding: .utf8).contains("security_mode = \"local\""))
     }
 
     @Test
@@ -186,7 +186,7 @@ struct CryptoAndStorageTests {
         #expect(location.rootURL.standardizedFileURL == customVaultDirectory.standardizedFileURL)
         #expect(location.pathSource == .appSupportConfigCustom)
         #expect(FileManager.default.fileExists(atPath: customVaultDirectory.path(percentEncoded: false)))
-        #expect(try KeyConfigStore(homeDirectoryURL: homeDirectory).getValue(for: .keychainMode) == "local")
+        #expect(try KeyConfigStore(homeDirectoryURL: homeDirectory).getValue(for: .securityMode) == "local")
     }
 
     @Test
@@ -204,10 +204,10 @@ struct CryptoAndStorageTests {
 
         #expect(updated.vaultDirectoryURL.standardizedFileURL == expectedVaultURL)
         #expect(try store.getValue(for: .vaultDir) == expectedVaultURL.path(percentEncoded: false))
-        #expect(try store.getValue(for: .keychainMode) == "local")
+        #expect(try store.getValue(for: .securityMode) == "local")
         #expect(FileManager.default.fileExists(atPath: expectedVaultURL.path(percentEncoded: false)))
         #expect(try String(contentsOf: updated.configFileURL, encoding: .utf8).contains("vault_dir = \"\(expectedVaultURL.path(percentEncoded: false))\""))
-        #expect(try String(contentsOf: updated.configFileURL, encoding: .utf8).contains("keychain_mode = \"local\""))
+        #expect(try String(contentsOf: updated.configFileURL, encoding: .utf8).contains("security_mode = \"local\""))
     }
 
     @Test
@@ -236,11 +236,11 @@ struct CryptoAndStorageTests {
             .appendingPathComponent("Key", isDirectory: true)
             .appendingPathComponent("config.toml", isDirectory: false)
             .path(percentEncoded: false))
-        #expect(try store.getValue(for: .keychainMode) == "local")
+        #expect(try store.getValue(for: .securityMode) == "local")
     }
 
     @Test
-    func configStoreCanSetKeychainModeWithoutChangingVaultDirectory() throws {
+    func configStoreCanSetSecurityModeWithoutChangingVaultDirectory() throws {
         let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
@@ -248,12 +248,12 @@ struct CryptoAndStorageTests {
 
         let store = KeyConfigStore(homeDirectoryURL: homeDirectory)
         let initialVaultDirectory = try store.getValue(for: .vaultDir)
-        let updated = try store.setValue("icloud", for: .keychainMode)
+        let updated = try store.setValue("enclave", for: .securityMode)
 
-        #expect(updated.keychainMode == .icloud)
+        #expect(updated.securityMode == .enclave)
         #expect(try store.getValue(for: .vaultDir) == initialVaultDirectory)
-        #expect(try store.getValue(for: .keychainMode) == "icloud")
-        #expect(try String(contentsOf: updated.configFileURL, encoding: .utf8).contains("keychain_mode = \"icloud\""))
+        #expect(try store.getValue(for: .securityMode) == "enclave")
+        #expect(try String(contentsOf: updated.configFileURL, encoding: .utf8).contains("security_mode = \"enclave\""))
     }
 
     @Test
@@ -309,7 +309,7 @@ struct CryptoAndStorageTests {
         let normalizedVaultPath = vaultRootURL.standardizedFileURL.path(percentEncoded: false)
         let expectedVaultPath = normalizedVaultPath.hasSuffix("/") ? String(normalizedVaultPath.dropLast()) : normalizedVaultPath
 
-        #expect(throws: AppError.invalidConfiguration("Default vault directory '\(expectedVaultPath)' already contains unrelated files. Run `key config set vault-dir <path>` to choose another vault directory.")) {
+        #expect(throws: AppError.invalidConfiguration("Default vault directory '\(expectedVaultPath)' already contains unrelated files. Run `key vault path set <path>` to choose another vault directory.")) {
             _ = try EntryStore.defaultLocation(homeDirectoryURL: homeDirectory)
         }
     }
@@ -324,7 +324,7 @@ struct CryptoAndStorageTests {
         let vaultRootURL = homeDirectory.appendingPathComponent(".key", isDirectory: false)
         FileManager.default.createFile(atPath: vaultRootURL.path(percentEncoded: false), contents: Data(), attributes: nil)
 
-        #expect(throws: AppError.invalidConfiguration("Default vault directory '\(vaultRootURL.path(percentEncoded: false))' exists but is not a directory. Run `key config set vault-dir <path>` to choose another vault directory.")) {
+        #expect(throws: AppError.invalidConfiguration("Default vault directory '\(vaultRootURL.path(percentEncoded: false))' exists but is not a directory. Run `key vault path set <path>` to choose another vault directory.")) {
             _ = try EntryStore.defaultLocation(homeDirectoryURL: homeDirectory)
         }
     }
@@ -355,7 +355,9 @@ struct CryptoAndStorageTests {
             helperMachServiceName: "work.tvr.key.agent",
             helperBundleIdentifier: "work.tvr.key.xpc",
             launchAgentPlistName: "work.tvr.key.agent.plist",
-            useDataProtectionKeychain: true
+            useDataProtectionKeychain: true,
+            deviceKeyApplicationTag: "work.tvr.key.tests.device-identity",
+            nearbyPairingServiceType: "keyvault"
         )
     }
 }

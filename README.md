@@ -46,9 +46,15 @@ key list                                # list stored secrets
 key duplicate <src> <dst> [--force]     # duplicate an entry
 key rename <src> <dst> [--force]        # rename an entry
 key remove <name> [--force]             # remove a secret
-key config get <config-name>            # print a config value
-key config set <config-name> <value>    # update a config value
-key config list                         # list known config values
+key vault status                        # inspect vault mode, sync state, and this Mac's access
+key vault path                          # print the effective vault directory
+key vault path set <path>               # update the configured vault directory
+key vault share                         # convert a local vault into a shared enclave vault
+key vault join [--manual]               # request this Mac's enrollment into a shared vault
+key vault approve [request-file]        # approve a pending shared-vault enrollment
+key vault sync                          # refresh this Mac's shared-vault authorization state
+key vault leave                         # remove this Mac from a shared vault
+key vault unshare                       # convert a shared vault back into a local-only vault
 key version [--json]                    # print the CLI version
 ```
 
@@ -87,10 +93,38 @@ If you want to move the vault, move the files yourself and then update the confi
 
 ```bash
 mv ~/.key ~/Secrets/key-vault
-key config set vault-dir ~/Secrets/key-vault
+key vault path set ~/Secrets/key-vault
 ```
 
-If `~/.key` already exists and contains unrelated files, Key will refuse to adopt it as the default vault root. In that case, choose another vault directory with `key config set vault-dir <path>`.
+If `~/.key` already exists and contains unrelated files, Key will refuse to adopt it as the default vault root. In that case, choose another vault directory with `key vault path set <path>`.
+
+`key` exposes vault topology and shared-vault lifecycle through `key vault ...`:
+
+```bash
+key vault status
+key vault share
+key vault join
+key vault approve
+key vault sync
+key vault leave
+key vault unshare
+```
+
+- A local vault keeps its vault key in the local Keychain behind macOS `userPresence`.
+- A shared vault uses Secure Enclave device identities and per-device wrapped copies of the shared vault key in synced vault metadata.
+
+Nearby or manual device enrollment looks like:
+
+```bash
+key vault join
+key vault join --manual
+key vault approve
+key vault approve ./pending-device-request.json
+key vault sync
+```
+
+- `key vault leave` removes this Mac from a shared vault.
+- `key vault unshare` rotates the vault back to a fresh local-only key and revokes the other devices.
 
 ## Fuzzy picking with fzf
 
@@ -107,7 +141,7 @@ key remove "$(key list | fzf)"
 
 `key` uses standard AES-256-GCM encryption with zero custom cryptography. If you have both the vault key and your `.secret` files, you're not locked in: you can decrypt your secrets using any tool that supports AES-GCM, letting you move your data without relying on the app.
 
-**Where the files live:** Secrets are under `~/.key` by default. An entry like `github/personal` is stored as `~/.key/github/personal.secret`. The active vault path is configured in `~/Library/Application Support/Key/config.toml` and can be inspected with `key config get vault-dir`.
+**Where the files live:** Secrets are under `~/.key` by default. An entry like `github/personal` is stored as `~/.key/github/personal.secret`. The active vault path is configured in `~/Library/Application Support/Key/config.toml` and can be inspected with `key vault path`.
 
 **Payload format:** Each `.secret` file contains a JSON object:
 
