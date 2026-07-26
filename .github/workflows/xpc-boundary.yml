@@ -1,0 +1,25 @@
+name: XPC boundary
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  helper-security:
+    runs-on: macos-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build release helper
+        run: swift build --configuration release --target KeyLaunchAgentHelper
+
+      - name: Test XPC policy and lifecycle
+        run: swift test --filter XPCSecurityPolicyTests

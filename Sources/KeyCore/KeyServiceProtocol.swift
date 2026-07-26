@@ -13,6 +13,19 @@ public enum KeyServiceRequest: Codable, Equatable {
     case moveEntry(source: String, destination: String, force: Bool)
     case removeEntry(name: String)
 
+    public var responseTimeoutSeconds: Int? {
+        switch self {
+        case .status, .lock:
+            5
+        case .unlock, .get:
+            120
+        case .list:
+            30
+        case .setKeychainMode, .addManual, .editManual, .copyEntry, .moveEntry, .removeEntry:
+            nil
+        }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case kind
         case name
@@ -122,6 +135,71 @@ public enum KeyServiceRequest: Codable, Equatable {
         case let .removeEntry(name):
             try container.encode(Kind.removeEntry, forKey: .kind)
             try container.encode(name, forKey: .name)
+        }
+    }
+}
+
+public enum KeyXPCClientRole: String, Equatable, Sendable {
+    case fullCLI
+    case utilityStatus
+
+    public func authorizes(_ request: KeyServiceRequest) -> Bool {
+        switch self {
+        case .fullCLI:
+            true
+        case .utilityStatus:
+            request == .status || request == .lock
+        }
+    }
+}
+
+public enum KeyXPCCodeSigningPolicy: Equatable, Sendable {
+    case development
+    case production
+}
+
+public enum KeyXPCSecurityPolicy {
+    public static let teamIdentifier = "9Q355KSV85"
+    public static let cliSigningIdentifier = "work.tvr.key.cli"
+    public static let utilityAppSigningIdentifier = "work.tvr.key.app"
+    public static let helperSigningIdentifier = "work.tvr.key.xpc"
+
+    public static func codeSigningRequirement(
+        for role: KeyXPCClientRole,
+        policy: KeyXPCCodeSigningPolicy
+    ) -> String {
+        let identifier = switch role {
+        case .fullCLI:
+            cliSigningIdentifier
+        case .utilityStatus:
+            utilityAppSigningIdentifier
+        }
+
+        return requirement(signingIdentifier: identifier, policy: policy)
+    }
+
+    public static func helperCodeSigningRequirement(policy: KeyXPCCodeSigningPolicy) -> String {
+        requirement(signingIdentifier: helperSigningIdentifier, policy: policy)
+    }
+
+    private static func requirement(
+        signingIdentifier: String,
+        policy: KeyXPCCodeSigningPolicy
+    ) -> String {
+        let teamRequirement = """
+        identifier "\(signingIdentifier)" and anchor apple generic and \
+        certificate leaf[subject.OU] = "\(teamIdentifier)"
+        """
+
+        return switch policy {
+        case .development:
+            teamRequirement
+        case .production:
+            """
+            \(teamRequirement) and \
+            certificate 1[field.1.2.840.113635.100.6.2.6] exists and \
+            certificate leaf[field.1.2.840.113635.100.6.1.13] exists
+            """
         }
     }
 }

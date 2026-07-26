@@ -8,7 +8,8 @@ let package = Package(
     ],
     products: [
         .library(name: "KeyCore", targets: ["KeyCore"]),
-        .executable(name: "key", targets: ["key"])
+        .executable(name: "key", targets: ["key"]),
+        .executable(name: "KeyLaunchAgentHelper", targets: ["KeyLaunchAgentHelper"])
     ],
     targets: [
         .target(
@@ -20,6 +21,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "key",
+            dependencies: ["KeyCore"]
+        ),
+        .executableTarget(
+            name: "KeyLaunchAgentHelper",
             dependencies: ["KeyCore"]
         ),
         .testTarget(
