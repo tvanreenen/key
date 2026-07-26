@@ -67,7 +67,8 @@
         "displayName",
         "role",
         "status",
-        "publicKey",
+        "signingPublicKey",
+        "wrappingPublicKey",
         "enrolledAtGeneration"
       ],
       "properties": {
@@ -93,8 +94,11 @@
             "revoked"
           ]
         },
-        "publicKey": {
-          "$ref": "#/$defs/publicKey"
+        "signingPublicKey": {
+          "$ref": "#/$defs/signingPublicKey"
+        },
+        "wrappingPublicKey": {
+          "$ref": "#/$defs/wrappingPublicKey"
         },
         "enrolledAtGeneration": {
           "$ref": "v3-common.schema.json#/$defs/safeInteger"
@@ -130,7 +134,7 @@
         }
       ]
     },
-    "publicKey": {
+    "signingPublicKey": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -140,14 +144,33 @@
       ],
       "properties": {
         "algorithm": {
-          "const": "P-256"
+          "const": "P-256-ECDSA"
         },
         "encoding": {
           "const": "x963"
         },
         "value": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9_-]{87}$"
+          "$ref": "v3-common.schema.json#/$defs/p256X963PublicKey"
+        }
+      }
+    },
+    "wrappingPublicKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "encoding",
+        "value"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "P-256-ECDH"
+        },
+        "encoding": {
+          "const": "x963"
+        },
+        "value": {
+          "$ref": "v3-common.schema.json#/$defs/p256X963PublicKey"
         }
       }
     },

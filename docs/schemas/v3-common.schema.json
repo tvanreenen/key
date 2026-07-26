@@ -25,6 +25,14 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
+    "p256X963PublicKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{87}$"
+    },
+    "p256RawSignature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{86}$"
+    },
     "base64url": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]+$"

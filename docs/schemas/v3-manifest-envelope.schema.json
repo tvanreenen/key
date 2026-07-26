@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/tvanreenen/key/main/docs/schemas/v3-manifest-envelope.schema.json",
+  "title": "Key Vault v3 authenticated manifest envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "version",
+    "content",
+    "authentication",
+    "authorizations"
+  ],
+  "properties": {
+    "format": {
+      "const": "key-vault-manifest-envelope"
+    },
+    "version": {
+      "const": 3
+    },
+    "content": {
+      "$ref": "#/$defs/content"
+    },
+    "authentication": {
+      "$ref": "#/$defs/authentication"
+    },
+    "authorizations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/authorization"
+      }
+    }
+  },
+  "$defs": {
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parent",
+        "manifest"
+      ],
+      "properties": {
+        "parent": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/genesisParent"
+            },
+            {
+              "$ref": "#/$defs/manifestParent"
+            }
+          ]
+        },
+        "manifest": {
+          "$ref": "v3-manifest-body.schema.json"
+        }
+      }
+    },
+    "genesisParent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "const": "genesis"
+        }
+      }
+    },
+    "manifestParent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "generation",
+        "digest"
+      ],
+      "properties": {
+        "kind": {
+          "const": "manifest"
+        },
+        "generation": {
+          "$ref": "v3-common.schema.json#/$defs/safeInteger"
+        },
+        "digest": {
+          "$ref": "v3-common.schema.json#/$defs/sha256"
+        }
+      }
+    },
+    "authentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "keyEpoch",
+        "tag"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "HKDF-SHA256+HMAC-SHA256"
+        },
+        "keyEpoch": {
+          "$ref": "v3-common.schema.json#/$defs/safeInteger"
+        },
+        "tag": {
+          "$ref": "v3-common.schema.json#/$defs/sha256"
+        }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "signerDeviceID",
+        "signature"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "P-256-ECDSA-SHA256"
+        },
+        "signerDeviceID": {
+          "$ref": "v3-common.schema.json#/$defs/deviceID"
+        },
+        "signature": {
+          "$ref": "v3-common.schema.json#/$defs/p256RawSignature"
+        }
+      }
+    }
+  }
+}
