@@ -1,0 +1,11 @@
+flowchart LR
+  U[CLI user] --> C[CLI]
+  P[Same-session process] --> A[Caller signature check]
+  C --> A
+  A --> H[KeyServiceHandler + operation mutex]
+  H --> K[Keychain / Secure Enclave]
+  H --> E[Entry files + AAD]
+  H --> M[Signed metadata JSON]
+  S[Sync provider / other device] --> E
+  S --> M
+  H -.best-effort migration journal.-> E

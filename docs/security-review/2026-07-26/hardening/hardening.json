@@ -1,0 +1,113 @@
+{
+  "documentType": "codex-security.hardening-analysis",
+  "schemaVersion": "1.0",
+  "analysisId": "hardening_final",
+  "sourceScan": {
+    "scanId": "84e7ddb79141_20260726T024449Z",
+    "targetRevision": "84e7ddb79141d8f1665f3c1bf2e4254677a988a2",
+    "snapshotDigest": "codex-security-snapshot/v1:sha256:1d74df0bc5da366ec7aad16a4841552de3d91d1cb5319d4e849096130ccb54eb",
+    "sourceDrift": "none"
+  },
+  "assessment": {
+    "outcome": "opportunities_identified",
+    "summary": "Sharing should become one authenticated, versioned vault state machine rather than a collection of independently patched file operations."
+  },
+  "constraints": {
+    "profile": "balanced",
+    "changeHorizons": ["incremental", "medium_term", "foundational"],
+    "nonNegotiables": ["CLI-first operation", "offline local access", "file-based portability", "local-only mode"],
+    "assumptions": ["No measured latency or memory budget was supplied.", "Single-writer serialization is acceptable unless product requirements say otherwise."]
+  },
+  "opportunities": [
+    {
+      "opportunityId": "authenticated-vault-state-machine",
+      "title": "Make sharing an authenticated, versioned vault state machine",
+      "summary": "Centralize caller identity, enrollment, membership, key epochs, entry context, concurrency, and durable commit.",
+      "diagnosis": "Current code protects individual keys and files, but no component owns the complete distributed vault invariant or one durable generation transition.",
+      "evidence": [
+        {"claimType":"observed","sourceKind":"source","path":"Sources/KeyLaunchAgentHelper/main.swift","claim":"Every XPC connection is accepted and one exported handler owns privileged operations."},
+        {"claimType":"observed","sourceKind":"source","path":"Sources/KeyCore/VaultKeyStore.swift","claim":"Enrollment, metadata, identity, key wrapping, and membership lifecycle share mutable file state without authenticated freshness."},
+        {"claimType":"observed","sourceKind":"source","path":"Sources/KeyCore/KeyServiceHandler.swift","claim":"Unshare performs an in-place multi-file rekey without a persisted transaction commit."},
+        {"claimType":"inferred","sourceKind":"coverage","path":"artifacts/03_coverage/repository_coverage_ledger.md","claim":"Repeated failures arise from dispersed ownership of identity and state transitions."}
+      ],
+      "desiredInvariants": [
+        "Every privileged helper request is authorized to the installed client identity.",
+        "Enrollment binds both device keys and the approved vault to one independently compared transcript.",
+        "Membership, key epoch, entries, and configuration belong to one authenticated committed generation.",
+        "Revocation rotates the key and rewraps only for remaining active devices.",
+        "Restart observes the old generation or resumes/commits the new generation, never a mixed-key state."
+      ],
+      "proposalPath": "proposals/authenticated-vault-state-machine.md",
+      "options": [
+        {
+          "optionId": "local-guards",
+          "title": "Strengthen local guards",
+          "kind": "baseline",
+          "summary": "Add code-signing admission, AAD, locks, metadata authentication, containment checks, and a focused migration journal.",
+          "diagramPaths": {"before":"diagrams/authenticated-vault-state-machine-before.mmd","after":"diagrams/authenticated-vault-state-machine-local-guards-after.mmd"},
+          "evidenceCoverage": [
+            {"evidenceId":"CAND-001-011","effect":"mitigates","tacticalFixRequired":true,"rationale":"Direct guards cover observed paths but keep distributed ownership."}
+          ],
+          "tradeoffs": [
+            {"dimension":"security","direction":"improves","confidence":"high","basis":"source-derived","assessment":"Directly fixes observed paths but future callers can drift.","validationPlan":"Re-run each finding regression and inventory every privileged sink."},
+            {"dimension":"performance","direction":"neutral","confidence":"medium","basis":"source-derived","assessment":"Checks and one mutex add little expected overhead.","validationPlan":"Benchmark CLI add/get/list latency before and after."},
+            {"dimension":"memory","direction":"neutral","confidence":"medium","basis":"source-derived","assessment":"No new long-lived state is required.","validationPlan":"Compare peak RSS during unshare."},
+            {"dimension":"reliability","direction":"improves","confidence":"medium","basis":"source-derived","assessment":"A journal and mutex narrow races but several sources of truth remain.","validationPlan":"Force termination through each migration step."},
+            {"dimension":"operability","direction":"neutral","confidence":"medium","basis":"hypothetical","assessment":"Few new concepts; rejection and recovery telemetry are still needed.","validationPlan":"Review diagnostic output with CLI users."},
+            {"dimension":"migration","direction":"neutral","confidence":"high","basis":"source-derived","assessment":"Most APIs remain stable, but AAD and metadata formats still need conversion.","validationPlan":"Run old/new format compatibility matrix."}
+          ],
+          "residualRisks":["Control ownership remains dispersed.","File-provider lost updates remain difficult to resolve."],
+          "implementationReadiness":{"affectedComponents":["Sources/KeyLaunchAgentHelper/main.swift","Sources/KeyCore"],"workPackages":["Patch observed controls and add regression tests."],"acceptanceCriteria":["Every recorded finding regression passes."],"migrationNotes":["Dual-read old entry format."],"rollback":"Revert focused guards while retaining reader compatibility."}
+        },
+        {
+          "optionId": "versioned-transactions",
+          "title": "Versioned transaction layer",
+          "kind": "structural",
+          "summary": "Commit authenticated immutable vault generations through one serialized transaction engine.",
+          "diagramPaths": {"before":"diagrams/authenticated-vault-state-machine-before.mmd","after":"diagrams/authenticated-vault-state-machine-versioned-transactions-after.mmd"},
+          "evidenceCoverage": [
+            {"evidenceId":"CAND-001-011","effect":"addresses","tacticalFixRequired":true,"rationale":"Centralizes the violated invariants while retaining direct caller-auth and migration fixes."}
+          ],
+          "tradeoffs": [
+            {"dimension":"security","direction":"improves","confidence":"high","basis":"source-derived","assessment":"One owner enforces caller, transcript, membership, context, revision, and commit invariants.","validationPlan":"Run unauthorized caller, race, replay, and revocation suites."},
+            {"dimension":"performance","direction":"regresses","confidence":"medium","basis":"hypothetical","assessment":"Serialized commits and staging add I/O and queue latency.","validationPlan":"Benchmark 1/100/10000-entry add/get/rekey workloads."},
+            {"dimension":"memory","direction":"improves","confidence":"medium","basis":"source-derived","assessment":"Streaming rekey can avoid retaining all vault plaintext currently used by unshare.","validationPlan":"Compare peak RSS during rekey."},
+            {"dimension":"reliability","direction":"improves","confidence":"high","basis":"source-derived","assessment":"Old-or-new generation commit and resume state replace in-place partial migration.","validationPlan":"Force-kill every transaction phase and verify restart."},
+            {"dimension":"operability","direction":"improves","confidence":"medium","basis":"hypothetical","assessment":"Transaction IDs and phases support honest doctor/status/resume UX.","validationPlan":"Exercise recovery diagnostics with injected failures."},
+            {"dimension":"migration","direction":"regresses","confidence":"high","basis":"source-derived","assessment":"A reader-first v3 schema and dual-generation rollout are required.","validationPlan":"Run mixed-version device and rollback matrix."}
+          ],
+          "residualRisks":["All authorized endpoints can expose plaintext while active.","Recovery credential design remains unresolved.","File-provider atomicity must be verified."],
+          "implementationReadiness":{"affectedComponents":["Sources/KeyLaunchAgentHelper/main.swift","Sources/KeyCore/KeyServiceHandler.swift","Sources/KeyCore/VaultKeyStore.swift","Sources/KeyCore/VaultCipher.swift","Sources/KeyCore/EntryStore.swift"],"workPackages":["Define v3 formats.","Build authenticated transaction engine.","Migrate lifecycle verbs and CLI diagnostics."],"acceptanceCriteria":["No hostile caller access.","No replay/context acceptance.","Crash at any phase yields a complete recoverable generation."],"migrationNotes":["Ship reader one release before writer.","Retain v2 generation until verified."],"rollback":"Keep prior root generation and v3 reader compatibility."}
+        },
+        {
+          "optionId": "signed-oplog",
+          "title": "Append-only signed operation log",
+          "kind": "foundational",
+          "summary": "Represent device changes as signed mergeable operations and materialize a vault view.",
+          "diagramPaths": {"before":"diagrams/authenticated-vault-state-machine-before.mmd","after":"diagrams/authenticated-vault-state-machine-signed-oplog-after.mmd"},
+          "evidenceCoverage": [
+            {"evidenceId":"CAND-001-011","effect":"mitigates","tacticalFixRequired":true,"rationale":"Adds attribution and conflict semantics but creates a more complex distributed protocol."}
+          ],
+          "tradeoffs": [
+            {"dimension":"security","direction":"improves","confidence":"medium","basis":"analogous","assessment":"Signed operations provide attribution and explicit ordering, but fork/compaction rules become security-critical.","validationPlan":"Model and test forks, replay, tombstones, epoch rotation, and malicious writers."},
+            {"dimension":"performance","direction":"regresses","confidence":"medium","basis":"hypothetical","assessment":"Validation and compaction grow with log history.","validationPlan":"Benchmark replay/checkpoint/steady-state sync at target histories."},
+            {"dimension":"memory","direction":"regresses","confidence":"medium","basis":"hypothetical","assessment":"Materialized indexes and checkpoints add retained state.","validationPlan":"Measure index size and peak replay RSS."},
+            {"dimension":"reliability","direction":"unknown","confidence":"low","basis":"hypothetical","assessment":"Explicit conflicts help, while forks and compaction introduce new failure modes.","validationPlan":"Property-test convergence and crash recovery."},
+            {"dimension":"operability","direction":"regresses","confidence":"high","basis":"analogous","assessment":"Support must inspect, compact, and repair logs and forks.","validationPlan":"Prototype doctor/repair workflows."},
+            {"dimension":"migration","direction":"regresses","confidence":"high","basis":"source-derived","assessment":"All devices must transition to a versioned operation protocol with difficult downgrade.","validationPlan":"Exercise staged mixed-client rollout and rollback."}
+          ],
+          "residualRisks":["Consensus, fork, and compaction errors can replace current last-writer-wins failures.","Caller authentication and entry context still need tactical fixes."],
+          "implementationReadiness":{"affectedComponents":["Sources/KeyCore"],"workPackages":["Specify operation protocol and security model before implementation."],"acceptanceCriteria":["Property-tested deterministic convergence and recovery."],"migrationNotes":["Requires protocol-wide rollout."],"rollback":"Checkpoint export to a stable file generation before downgrade."}
+        }
+      ],
+      "recommendedOptionId": "versioned-transactions",
+      "recommendation": "Choose versioned transactions unless offline multi-writer collaboration is a non-negotiable product requirement."
+    }
+  ],
+  "openQuestions": [
+    "Is single-writer serialization acceptable?",
+    "What recovery policy applies if every Secure Enclave identity is lost?",
+    "Which file providers preserve the required commit semantics?",
+    "What size and rekey-latency limits define release readiness?"
+  ]
+}

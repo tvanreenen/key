@@ -1,0 +1,11 @@
+flowchart LR
+  U[CLI user] --> C[CLI]
+  C --> A[Authenticated XPC boundary]
+  P[Other process] -.rejected.-> A
+  A --> V[Vault protocol engine]
+  V --> K[Keychain / Secure Enclave]
+  V --> L[Per-device signed operation log]
+  S[Sync provider / other device] --> L
+  L --> Q[Deterministic validation and merge]
+  Q --> E[Materialized entry view]
+  Q --> R[Conflict / recovery view]

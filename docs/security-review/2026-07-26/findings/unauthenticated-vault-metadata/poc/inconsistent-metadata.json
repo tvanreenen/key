@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "securityMode": "enclave",
+  "vaultID": "example-vault",
+  "epoch": 7,
+  "devices": [
+    {
+      "deviceID": "device-a",
+      "deviceName": "Authorized Mac",
+      "publicKey": "cHVibGljLWtleS1h",
+      "addedAt": "2026-07-25T00:00:00Z",
+      "status": "authorized"
+    }
+  ],
+  "wrappedKeys": [
+    {
+      "deviceID": "device-a",
+      "epoch": 7,
+      "algorithm": "ecies",
+      "ciphertext": "d3JhcHBlZC1rZXktYQ=="
+    },
+    {
+      "deviceID": "device-b",
+      "epoch": 7,
+      "algorithm": "ecies",
+      "ciphertext": "d3JhcHBlZC1rZXktYg=="
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+flowchart LR
+  U[CLI user] --> C[CLI]
+  C --> A[Authenticated XPC boundary]
+  P[Other process] -.rejected.-> A
+  A --> T[Serialized VaultTransactionEngine]
+  T --> K[Keychain / Secure Enclave]
+  T --> G[Staged immutable generation]
+  G --> E[Context-bound entry files]
+  G --> M[Authenticated manifest commit]
+  S[Sync provider / other device] --> G
+  T --> R[Recovery / resume state]

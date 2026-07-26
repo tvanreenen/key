@@ -1,0 +1,11 @@
+flowchart LR
+  U[CLI user] --> C[CLI]
+  P[Same-session process] --> X[Per-user XPC service]
+  C --> X
+  X --> H[Shared KeyServiceHandler]
+  H --> K[Keychain / Secure Enclave]
+  H --> E[Entry files]
+  H --> M[Mutable enclave metadata JSON]
+  S[Sync provider / other device] --> E
+  S --> M
+  H -.multi-file unshare.-> E
