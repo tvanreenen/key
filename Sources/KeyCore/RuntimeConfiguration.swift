@@ -9,6 +9,10 @@ public struct RuntimeConfiguration: Equatable, Sendable {
     public let launchAgentPlistName: String
     public let useDataProtectionKeychain: Bool
 
+    public var helperStatusMachServiceName: String {
+        "\(helperMachServiceName).status"
+    }
+
     public init(
         vaultService: String,
         vaultAccount: String,

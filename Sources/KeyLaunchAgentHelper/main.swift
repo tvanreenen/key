@@ -1,57 +1,36 @@
 import Foundation
 import KeyCore
-
-private final class HelperLifecycleController {
-    private let idleTimeout: TimeInterval
-    private let queue = DispatchQueue(label: "work.tvr.key.helper-lifecycle")
-    private let onIdle: () -> Void
-    private var timer: DispatchSourceTimer?
-
-    init(idleTimeout: TimeInterval, onIdle: @escaping () -> Void) {
-        self.idleTimeout = idleTimeout
-        self.onIdle = onIdle
-    }
-
-    func start() {
-        recordActivity()
-    }
-
-    func recordActivity() {
-        queue.sync {
-            rescheduleTimer()
-        }
-    }
-
-    func shutdown() {
-        queue.async {
-            self.timer?.cancel()
-            self.timer = nil
-            self.onIdle()
-        }
-    }
-
-    private func rescheduleTimer() {
-        timer?.cancel()
-
-        let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + idleTimeout)
-        timer.setEventHandler(handler: onIdle)
-        timer.resume()
-        self.timer = timer
-    }
-}
+import OSLog
 
 private final class KeyAgentDelegate: NSObject, NSXPCListenerDelegate {
-    private let exportedObject: KeyAgentService
+    private let handler: KeyServiceHandler
+    private let lifecycleController: HelperLifecycleController
+    private let role: KeyXPCClientRole
+    private let logger: Logger
 
-    init(exportedObject: KeyAgentService) {
-        self.exportedObject = exportedObject
+    init(
+        handler: KeyServiceHandler,
+        lifecycleController: HelperLifecycleController,
+        role: KeyXPCClientRole,
+        logger: Logger
+    ) {
+        self.handler = handler
+        self.lifecycleController = lifecycleController
+        self.role = role
+        self.logger = logger
     }
 
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
+        let exportedObject = KeyAgentService(
+            handler: handler,
+            lifecycleController: lifecycleController,
+            role: role,
+            logger: logger
+        )
         newConnection.exportedInterface = NSXPCInterface(with: KeyXPCProtocol.self)
         newConnection.exportedObject = exportedObject
         newConnection.resume()
+        logger.notice("Accepted authenticated XPC client with role \(self.role.rawValue, privacy: .public)")
         return true
     }
 }
@@ -59,12 +38,23 @@ private final class KeyAgentDelegate: NSObject, NSXPCListenerDelegate {
 private final class KeyAgentService: NSObject, KeyXPCProtocol {
     private let handler: KeyServiceHandler
     private let lifecycleController: HelperLifecycleController
+    private let role: KeyXPCClientRole
+    private let logger: Logger
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
+    private let stateLock = NSLock()
+    private var lockCompleted = false
 
-    init(handler: KeyServiceHandler, lifecycleController: HelperLifecycleController) {
+    init(
+        handler: KeyServiceHandler,
+        lifecycleController: HelperLifecycleController,
+        role: KeyXPCClientRole,
+        logger: Logger
+    ) {
         self.handler = handler
         self.lifecycleController = lifecycleController
+        self.role = role
+        self.logger = logger
     }
 
     func sendRequest(_ requestData: NSData, withReply reply: @escaping (NSData?, NSString?) -> Void) {
@@ -76,25 +66,60 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
             return
         }
 
-        if request != .status {
-            lifecycleController.recordActivity()
+        guard role.authorizes(request) else {
+            logger.error(
+                "Denied XPC request for client role \(self.role.rawValue, privacy: .public)"
+            )
+            do {
+                let response = KeyServiceResponse.failure("This client is not authorized to perform that operation.")
+                reply(try encoder.encode(response) as NSData, nil)
+            } catch {
+                reply(nil, "Failed to encode authorization response." as NSString)
+            }
+            return
+        }
+
+        let extendsIdleDeadline = request != .status
+        lifecycleController.beginRequest(extendsIdleDeadline: extendsIdleDeadline)
+        defer {
+            lifecycleController.endRequest(extendsIdleDeadline: extendsIdleDeadline)
         }
 
         do {
             let response = handler.handle(request)
             let responseData = try encoder.encode(response)
-            reply(responseData as NSData, nil)
             if request == .lock, response.exitCode == EXIT_SUCCESS {
-                lifecycleController.shutdown()
+                markLockCompleted()
             }
+            reply(responseData as NSData, nil)
         } catch {
             reply(nil, "Failed to encode response." as NSString)
         }
+    }
+
+    func completeLock() {
+        stateLock.lock()
+        let shouldShutdown = lockCompleted
+        lockCompleted = false
+        stateLock.unlock()
+
+        if shouldShutdown {
+            lifecycleController.shutdown()
+        } else {
+            logger.error("Denied helper shutdown because this connection has not completed a lock request.")
+        }
+    }
+
+    private func markLockCompleted() {
+        stateLock.lock()
+        lockCompleted = true
+        stateLock.unlock()
     }
 }
 
 private func run() -> Never {
     let configuration = RuntimeConfiguration.live()
+    let logger = Logger(subsystem: configuration.helperBundleIdentifier, category: "XPC")
 
     do {
         let rootURL = try EntryStore.defaultRootURL()
@@ -109,14 +134,44 @@ private func run() -> Never {
             keyStore: sessionKeyStore,
             entryStore: EntryStore(rootURL: rootURL)
         )
-        let service = KeyAgentService(handler: handler, lifecycleController: lifecycleController)
-        let delegate = KeyAgentDelegate(exportedObject: service)
-        let listener = NSXPCListener(machServiceName: configuration.helperMachServiceName)
+        #if DEBUG
+        let signingPolicy = KeyXPCCodeSigningPolicy.development
+        logger.warning("Key Agent is using the explicit development XPC signing policy.")
+        #else
+        let signingPolicy = KeyXPCCodeSigningPolicy.production
+        #endif
+
+        let cliDelegate = KeyAgentDelegate(
+            handler: handler,
+            lifecycleController: lifecycleController,
+            role: .fullCLI,
+            logger: logger
+        )
+        let utilityDelegate = KeyAgentDelegate(
+            handler: handler,
+            lifecycleController: lifecycleController,
+            role: .utilityStatus,
+            logger: logger
+        )
+        let cliListener = NSXPCListener(machServiceName: configuration.helperMachServiceName)
+        let utilityListener = NSXPCListener(machServiceName: configuration.helperStatusMachServiceName)
+
+        cliListener.setConnectionCodeSigningRequirement(
+            KeyXPCSecurityPolicy.codeSigningRequirement(for: .fullCLI, policy: signingPolicy)
+        )
+        utilityListener.setConnectionCodeSigningRequirement(
+            KeyXPCSecurityPolicy.codeSigningRequirement(for: .utilityStatus, policy: signingPolicy)
+        )
 
         lifecycleController.start()
-        listener.delegate = delegate
-        listener.resume()
-        RunLoop.current.run()
+        cliListener.delegate = cliDelegate
+        utilityListener.delegate = utilityDelegate
+        cliListener.activate()
+        utilityListener.activate()
+
+        withExtendedLifetime((cliDelegate, utilityDelegate, cliListener, utilityListener)) {
+            RunLoop.current.run()
+        }
         fatalError("Key Agent run loop exited unexpectedly.")
     } catch {
         fputs("Key Agent failed to resolve vault location: \(error.localizedDescription)\n", stderr)

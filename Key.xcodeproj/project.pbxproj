@@ -14,6 +14,7 @@
 		2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */; };
 		2FF48E342F108FF694BDB515 /* InputOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 855E71C8AF61988A885402D9 /* InputOutput.swift */; };
 		3E06CBB9790C0F544B940F1B /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE09A18FF4CC11995E958F80 /* AppError.swift */; };
+		C101A11A7D2649A69B136101 /* HelperLifecycleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C102A11A7D2649A69B136102 /* HelperLifecycleController.swift */; };
 		545DE475C8F5F883DB08A529 /* KeyServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55257994DEF9CC6144A32E16 /* KeyServiceProtocol.swift */; };
 		57EEC874B15B0F76B486E12A /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 55AE435B2F63568900124FD6 /* AppIcon.icon */; };
 		5FEC7A6B80C84ABF96BB0942 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 55AE435B2F63568900124FD6 /* AppIcon.icon */; };
@@ -87,6 +88,7 @@
 		9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyServiceHandler.swift; sourceTree = "<group>"; };
 		B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultKeyStore.swift; sourceTree = "<group>"; };
 		B4EE3B938E39AE66CAB3E79B /* Key.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Key.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C102A11A7D2649A69B136102 /* HelperLifecycleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelperLifecycleController.swift; sourceTree = "<group>"; };
 		BA3251E5B71729E191F7889A /* Command.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Command.swift; sourceTree = "<group>"; };
 		DE09A18FF4CC11995E958F80 /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
 		E1EE5012D730E62376078026 /* ClipboardWriting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWriting.swift; sourceTree = "<group>"; };
@@ -135,6 +137,7 @@
 				E1EE5012D730E62376078026 /* ClipboardWriting.swift */,
 				BA3251E5B71729E191F7889A /* Command.swift */,
 				5E585E32FBAF3D8FD5F64230 /* EntryStore.swift */,
+				C102A11A7D2649A69B136102 /* HelperLifecycleController.swift */,
 				855E71C8AF61988A885402D9 /* InputOutput.swift */,
 				89D0AC29AD8740A9B3D2B6E6 /* KeyDashboardSupport.swift */,
 				4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */,
@@ -362,6 +365,9 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/key",
+				"$(BUILT_PRODUCTS_DIR)/Key Agent.app",
+				"$(PROJECT_DIR)/Config/work.tvr.key.agent.plist",
 			);
 			name = "Embed CLI and LaunchAgent helper";
 			outputFileListPaths = (
@@ -373,7 +379,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -euo pipefail\nmacos_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS\"\nhelpers_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers\"\nlaunch_agents_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Library/LaunchAgents\"\nbuilt_helper_path=\"${BUILT_PRODUCTS_DIR}/Key Agent.app\"\nembedded_cli_path=\"${macos_dir}/key\"\nembedded_helper_path=\"${helpers_dir}/Key Agent.app\"\nembedded_launch_agent_path=\"${launch_agents_dir}/work.tvr.key.agent.plist\"\nmkdir -p \"${macos_dir}\" \"${helpers_dir}\" \"${launch_agents_dir}\"\nditto \"${BUILT_PRODUCTS_DIR}/key\" \"${embedded_cli_path}\"\nrm -rf \"${embedded_helper_path}\"\nditto \"${built_helper_path}\" \"${embedded_helper_path}\"\nditto \"${PROJECT_DIR}/Config/work.tvr.key.agent.plist\" \"${embedded_launch_agent_path}\"\nif [[ \"${CODE_SIGNING_ALLOWED:-NO}\" == \"YES\" && \"${CONFIGURATION}\" == \"Release\" ]]; then\n  helper_entitlements=\"${PROJECT_DIR}/Config/KeyLaunchAgentHelper.entitlements\"\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp --options runtime --generate-entitlement-der \"${embedded_cli_path}\"\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp --options runtime --entitlements \"${helper_entitlements}\" --generate-entitlement-der \"${embedded_helper_path}\"\nfi\n";
+			shellScript = "set -euo pipefail\nmacos_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS\"\nhelpers_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers\"\nlaunch_agents_dir=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Library/LaunchAgents\"\nbuilt_helper_path=\"${BUILT_PRODUCTS_DIR}/Key Agent.app\"\nembedded_cli_path=\"${macos_dir}/key\"\nembedded_helper_path=\"${helpers_dir}/Key Agent.app\"\nembedded_launch_agent_path=\"${launch_agents_dir}/work.tvr.key.agent.plist\"\nmkdir -p \"${macos_dir}\" \"${helpers_dir}\" \"${launch_agents_dir}\"\nditto \"${BUILT_PRODUCTS_DIR}/key\" \"${embedded_cli_path}\"\nrm -rf \"${embedded_helper_path}\"\nditto \"${built_helper_path}\" \"${embedded_helper_path}\"\nditto \"${PROJECT_DIR}/Config/work.tvr.key.agent.plist\" \"${embedded_launch_agent_path}\"\nif [[ \"${CODE_SIGNING_ALLOWED:-NO}\" == \"YES\" ]]; then\n  if [[ \"${CONFIGURATION}\" == \"Release\" ]]; then\n    /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --identifier \"work.tvr.key.cli\" --timestamp --options runtime --generate-entitlement-der \"${embedded_cli_path}\"\n  else\n    /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --identifier \"work.tvr.key.cli\" --generate-entitlement-der \"${embedded_cli_path}\"\n  fi\nfi\nif [[ \"${CODE_SIGNING_ALLOWED:-NO}\" == \"YES\" && \"${CONFIGURATION}\" == \"Release\" ]]; then\n  helper_entitlements=\"${PROJECT_DIR}/Config/KeyLaunchAgentHelper.entitlements\"\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --timestamp --options runtime --entitlements \"${helper_entitlements}\" --generate-entitlement-der \"${embedded_helper_path}\"\nfi\n";
 		};
 		A8FB063C683BB17899FB3E36 /* Copy Swift Objective-C Interface Header */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -420,6 +426,7 @@
 				70A1989598F246AF88CA0C88 /* ClipboardWriting.swift in Sources */,
 				AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */,
 				D4D0ACDBCDB375050F096CEC /* EntryStore.swift in Sources */,
+				C101A11A7D2649A69B136101 /* HelperLifecycleController.swift in Sources */,
 				2FF48E342F108FF694BDB515 /* InputOutput.swift in Sources */,
 				8D9C2B13AA1B4A669F62CB2A /* KeyDashboardSupport.swift in Sources */,
 				B4BE69F25B811392D2FBBE3C /* KeyCLIApplication.swift in Sources */,
@@ -508,8 +515,10 @@
 		2EAFF9DCF95D07F3F0066EAC /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 9Q355KSV85;
 				EXECUTABLE_NAME = key;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -520,6 +529,7 @@
 					"-ObjC",
 				);
 				PRODUCT_NAME = key;
+				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.cli;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -733,8 +743,10 @@
 		BBE4AE36C6E98EC40DE9DEA3 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 9Q355KSV85;
 				EXECUTABLE_NAME = key;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -745,6 +757,7 @@
 					"-ObjC",
 				);
 				PRODUCT_NAME = key;
+				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.cli;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
