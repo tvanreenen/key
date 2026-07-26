@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/tvanreenen/key/main/docs/security-review/2026-07-26/specifications/schemas/v3-entry.schema.json",
+  "$id": "https://raw.githubusercontent.com/tvanreenen/key/main/docs/schemas/v3-entry.schema.json",
   "title": "Key Vault v3 encrypted entry",
   "type": "object",
   "additionalProperties": false,
