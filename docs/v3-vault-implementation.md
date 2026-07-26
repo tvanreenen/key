@@ -2,20 +2,19 @@
 
 This is the durable execution record for the file-backed, multi-device vault.
 It records only current decisions, work packages, acceptance gates, and PR
-state. Historical audit transcripts and proof-of-concept artifacts remain in
-their original development branch and pull request.
+state.
 
 ## Current State
 
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `6ef98bdbefa344a8454033188e107fb4c4a11535` |
+| Production base | `main` at `f377093a3ca7808def7a42aea753c901398eb1ce` |
 | Selected architecture | Authenticated, versioned transaction layer |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
-| Current branch | `agent/specify-v3-storage-format` |
-| Current PR | Draft PR #14 |
-| Next decision | `FMT-202` / `DEC-001`: manifest authority and envelope |
+| Current branch | `agent/define-v3-manifest-authority` |
+| Current PR | Not opened |
+| Next work | `FMT-203`: implement complete manifest authentication |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -51,13 +50,14 @@ Status: complete; squash-merged as `6ef98bd` in PR #13.
 - [x] Use operation-aware request completion.
 - [x] Validate intended and unintended installed clients.
 
-### PR 2 — Version 3 Authenticated Storage
+### Version 3 Authenticated Storage
 
-Status: in progress in draft PR #14.
+Status: `FMT-201` squash-merged as `f377093` in PR #14; authority
+specification continues on `agent/define-v3-manifest-authority`.
 
 - [x] `FMT-201` Specify canonical manifest-body and encrypted-entry schemas,
   encoding, ordering, normalization, and unknown-version behavior.
-- [ ] `FMT-202` Select the manifest authority and authenticated envelope.
+- [x] `FMT-202` Select the manifest authority and authenticated envelope.
 - [ ] `FMT-203` Authenticate the complete manifest body.
 - [ ] `FMT-204` Define the typed entry associated-data context.
 - [ ] `FMT-205` Seal and open entries with that context as AES-GCM AAD.
@@ -113,7 +113,7 @@ Acceptance gate:
 | ID | Status | Decision |
 |---|---|---|
 | `DEC-000` | Accepted | Use authenticated immutable generations and one serialized transaction owner. |
-| `DEC-001` | Open | Choose shared-key MAC, device signatures, or a layered manifest authority. |
+| `DEC-001` | Accepted | Require a derived-key HMAC on every manifest and a parent-owner Secure Enclave signature on authority-changing transitions. Use separate signing and wrapping keys. |
 | `DEC-002` | Proposed | Reject silent multi-writer merge; use expected generations and explicit conflicts. |
 | `DEC-003` | Open | Define recovery when every enrolled device is lost. |
 | `DEC-004` | Open | Define supported providers and required atomic commit semantics. |
@@ -148,6 +148,6 @@ Acceptance gate:
 
 ## Immediate Next Action
 
-Complete `FMT-202` and close `DEC-001` before implementing a manifest reader:
-select the manifest authentication authority and specify the persisted envelope
-around the canonical body.
+Implement `FMT-203`: canonical envelope parsing, HKDF-SHA256 key derivation,
+HMAC-SHA-256 verification, owner-signature verification, and negative tests for
+every authenticated manifest field. Do not enable a production v3 writer.
