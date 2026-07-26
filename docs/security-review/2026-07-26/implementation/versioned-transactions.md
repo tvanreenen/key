@@ -44,7 +44,7 @@ file pass.
 
 ## Security And Durability Invariants
 
-- [ ] `INV-01` Only an authorized, correctly signed Key client can invoke the
+- [x] `INV-01` Only an authorized, correctly signed Key client can invoke the
   helper's vault authority.
 - [ ] `INV-02` Enrollment authenticates both device keys, their roles, the
   target vault, fresh nonces, and one independently compared transcript.
@@ -145,7 +145,7 @@ the protocol.
   mutation in progress.
 - [x] `XPC-106` Replace the universal client timeout with operation-aware
   completion, cancellation, or idempotent status lookup.
-- [ ] `XPC-107` Add installed helper integration tests for cold and warm key
+- [x] `XPC-107` Add installed helper integration tests for cold and warm key
   sessions.
 
 **Acceptance gate:**
@@ -370,7 +370,7 @@ diagnose, recover, and automate the vault without guessing at hidden state.
 - [ ] Unit tests for canonical manifest and entry-context encoding.
 - [ ] Negative tests for every changed authenticated field.
 - [ ] Replay tests for manifest, entry, enrollment request, and device epoch.
-- [ ] Installed XPC tests for intended and unintended signing identities.
+- [x] Installed XPC tests for intended and unintended signing identities.
 - [ ] Concurrency stress tests for every mutation against every key transition.
 - [ ] Fault injection before and after every transaction phase.
 - [ ] Filesystem containment tests for symlinks, aliases, mount changes, and
@@ -430,7 +430,7 @@ Update this table when work begins, not only after merge.
 | Stack item | Branch | PR | Head commit | Status | First remaining blocker |
 |---|---|---|---|---|---|
 | Prototype/review | `bugfix/icloud-keychain-publish` | [#12](https://github.com/tvanreenen/key/pull/12) | `92fe552` | Draft prototype; review and tracker preserved | None; preserve until reusable work is dispositioned |
-| PR 1: XPC boundary | `agent/authenticate-xpc-boundary` | [#13](https://github.com/tvanreenen/key/pull/13) | `8dadc56` | Draft; `XPC-101`–`XPC-106` implemented | `XPC-107` |
+| PR 1: XPC boundary | `agent/authenticate-xpc-boundary` | [#13](https://github.com/tvanreenen/key/pull/13) | `91bfc9c` | Ready for review; `XPC-101`–`XPC-107` implemented | Review and merge |
 | PR 2: v3 storage | TBD | TBD | TBD | Not started | `FMT-201` |
 | PR 3: filesystem | TBD | TBD | TBD | Not started | `FS-301` |
 | PR 4: transactions | TBD | TBD | TBD | Not started | `TXN-401` |
@@ -451,21 +451,35 @@ changes.
 | `DEC-004` | 2026-07-26 | Open | Define supported sync providers and required commit semantics. | Transaction durability depends on real provider behavior. |
 | `DEC-005` | 2026-07-26 | Open | Decide whether `vault path set` is helper-owned or requires a locked helper. | CLI-only configuration currently creates stale process state. |
 | `DEC-006` | 2026-07-26 | Accepted | Give the bundled CLI full current vault authority and the utility app only status/lock authority, using separate code-signing-bound Mach services. | Listener-selected roles cannot be escalated through client-supplied data; production also requires Developer ID Application certificates, and clients authenticate the helper. |
+| `DEC-007` | 2026-07-26 | Accepted | Keep Key Agent as a nested helper app, give launchd an explicit identifier/team/validation-category spawn constraint, and re-register the helper when the host build changes. | The nested app carries the helper's provisioning profile and existing shared Keychain access group. Explicit launch constraints admit Apple Development and Developer ID builds with the exact helper identity, while startup registration prevents launchd from retaining stale helper paths or policies across upgrades. |
 
 ## Implementation Evidence
 
 ### PR 1 — XPC Boundary
 
-- Commit: `8dadc568e29c847d94b70220afb09d3f367d8a3b`
+- Commit: `91bfc9c72fc6b61d1ba76ed38aec9e7a55f72f3e`
 - Focused policy and lifecycle suite: 10 tests pass.
 - SwiftPM Release helper build: passes.
-- Full Xcode Debug and universal Release builds with signing disabled: pass.
-- Signed Debug packaging reports identifiers `work.tvr.key.app`,
-  `work.tvr.key.cli`, and `work.tvr.key.xpc`, all with team
-  `9Q355KSV85`.
-- The current machine has zero valid code-signing identities. Requirement
-  evaluation therefore fails closed with `CSSMERR_TP_NOT_TRUSTED`; installed
-  intended-client cold/warm validation remains `XPC-107`.
+- Full signed universal Xcode Debug and Release builds pass.
+- Deep Release signature verification and exact production requirement
+  evaluation pass for identifiers `work.tvr.key.app`, `work.tvr.key.cli`, and
+  `work.tvr.key.xpc`, all with team `9Q355KSV85`.
+- The earlier zero-identity result was a restricted-process false negative.
+  Outside that restriction, `security find-identity` reports two Apple
+  Development identities and one Developer ID Application identity.
+- Installing build 6 re-registers the nested helper at app startup without
+  requiring a restored dashboard window. launchd records both Mach endpoints
+  and the explicit helper spawn constraint.
+- Cold and warm signed-CLI `list` requests both exit successfully and reuse
+  helper PID `5028`.
+- A Developer-ID-signed utility probe can invoke `status`, while `list` returns
+  the explicit role-authorization denial.
+- A same-team Developer-ID client with the wrong signing identifier and an
+  ad-hoc client with the expected identifier are rejected before handler
+  access. Unified logging records the check-in dropped for its code-signing
+  requirement with status `-67050`. A live wrong-team certificate was not
+  available; the exact team requirement remains covered by the focused policy
+  suite.
 - The full Swift suite still reproduces the same 46 protected-write permission
   failures present on `main`; this remains tracked as `TXN-410`.
 
@@ -485,8 +499,6 @@ When beginning a new implementation session:
 
 ## Immediate Next Action
 
-Complete `XPC-107` on a machine with a valid development signing identity:
-install the built helper, prove cold and warm CLI sessions, prove the utility
-endpoint is limited to status/lock, and prove wrong-team, wrong-bundle, and
-ad-hoc clients are rejected before handler access. Then move PR
-[#13](https://github.com/tvanreenen/key/pull/13) out of draft.
+Review and merge PR [#13](https://github.com/tvanreenen/key/pull/13). Then start
+PR 2 from `main` with `FMT-201`: specify the canonical version-3 manifest and
+entry schemas before porting any enclave-sharing behavior.
