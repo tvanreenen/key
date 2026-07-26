@@ -9,12 +9,12 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `f377093a3ca7808def7a42aea753c901398eb1ce` |
+| Production base | `main` at `ff402b87aa57d4e38b0c135ce62ab89beca6154b` |
 | Selected architecture | Authenticated, versioned transaction layer |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
-| Current branch | `agent/define-v3-manifest-authority` |
+| Current branch | `agent/implement-v3-manifest-authentication` |
 | Current PR | Not opened |
-| Next work | `FMT-203`: implement complete manifest authentication |
+| Next work | `FMT-204`: define the typed entry associated-data context |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -52,13 +52,14 @@ Status: complete; squash-merged as `6ef98bd` in PR #13.
 
 ### Version 3 Authenticated Storage
 
-Status: `FMT-201` squash-merged as `f377093` in PR #14; authority
-specification continues on `agent/define-v3-manifest-authority`.
+Status: `FMT-201` squash-merged as `f377093` in PR #14 and `FMT-202`
+squash-merged as `ff402b8` in PR #15. Manifest authentication implementation
+continues on `agent/implement-v3-manifest-authentication`.
 
 - [x] `FMT-201` Specify canonical manifest-body and encrypted-entry schemas,
   encoding, ordering, normalization, and unknown-version behavior.
 - [x] `FMT-202` Select the manifest authority and authenticated envelope.
-- [ ] `FMT-203` Authenticate the complete manifest body.
+- [x] `FMT-203` Authenticate the complete manifest body.
 - [ ] `FMT-204` Define the typed entry associated-data context.
 - [ ] `FMT-205` Seal and open entries with that context as AES-GCM AAD.
 - [ ] `FMT-206` Make copy and rename decrypt-and-reseal operations.
@@ -148,6 +149,5 @@ Acceptance gate:
 
 ## Immediate Next Action
 
-Implement `FMT-203`: canonical envelope parsing, HKDF-SHA256 key derivation,
-HMAC-SHA-256 verification, owner-signature verification, and negative tests for
-every authenticated manifest field. Do not enable a production v3 writer.
+Specify `FMT-204`: bind every version 3 entry identity field into one canonical
+AES-GCM associated-data context before implementing entry sealing and opening.
