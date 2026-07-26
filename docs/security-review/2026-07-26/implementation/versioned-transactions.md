@@ -430,7 +430,7 @@ Update this table when work begins, not only after merge.
 | Stack item | Branch | PR | Head commit | Status | First remaining blocker |
 |---|---|---|---|---|---|
 | Prototype/review | `bugfix/icloud-keychain-publish` | [#12](https://github.com/tvanreenen/key/pull/12) | `92fe552` | Draft prototype; review and tracker preserved | None; preserve until reusable work is dispositioned |
-| PR 1: XPC boundary | `agent/authenticate-xpc-boundary` | [#13](https://github.com/tvanreenen/key/pull/13) | `91bfc9c` | Ready for review; `XPC-101`–`XPC-107` implemented | Review and merge |
+| PR 1: XPC boundary | `agent/authenticate-xpc-boundary` | [#13](https://github.com/tvanreenen/key/pull/13) | `4aa8ea6` | Ready for review; `XPC-101`–`XPC-107` implemented | Review and merge |
 | PR 2: v3 storage | TBD | TBD | TBD | Not started | `FMT-201` |
 | PR 3: filesystem | TBD | TBD | TBD | Not started | `FS-301` |
 | PR 4: transactions | TBD | TBD | TBD | Not started | `TXN-401` |
@@ -457,8 +457,8 @@ changes.
 
 ### PR 1 — XPC Boundary
 
-- Commit: `91bfc9c72fc6b61d1ba76ed38aec9e7a55f72f3e`
-- Focused policy and lifecycle suite: 10 tests pass.
+- Commit: `4aa8ea639b6167f5baeba5ba83caf92923f39194`
+- Focused policy and lifecycle suite: 11 tests pass.
 - SwiftPM Release helper build: passes.
 - Full signed universal Xcode Debug and Release builds pass.
 - Deep Release signature verification and exact production requirement
@@ -470,8 +470,14 @@ changes.
 - Installing build 6 re-registers the nested helper at app startup without
   requiring a restored dashboard window. launchd records both Mach endpoints
   and the explicit helper spawn constraint.
+- The app embed phase declares the CLI product, helper app, and LaunchAgent
+  plist as inputs. Incremental Release builds therefore refresh and re-sign the
+  bundled artifacts instead of retaining a stale executable.
 - Cold and warm signed-CLI `list` requests both exit successfully and reuse
   helper PID `5028`.
+- An installed signed-CLI `lock` returns success with no communication error
+  before the per-connection completion handshake shuts down the helper.
+  launchd then reports the helper not running with exit code 0.
 - A Developer-ID-signed utility probe can invoke `status`, while `list` returns
   the explicit role-authorization denial.
 - A same-team Developer-ID client with the wrong signing identifier and an
