@@ -10,7 +10,7 @@ branches, commits, reviewers, and context-window compaction.
 | Field | Value |
 |---|---|
 | Plan ID | `KEY-ENCLAVE-V3` |
-| Status | Planned |
+| Status | In progress |
 | Selected design | Versioned transaction layer |
 | Prototype branch | `bugfix/icloud-keychain-publish` |
 | Reviewed prototype revision | `84e7ddb79141d8f1665f3c1bf2e4254677a988a2` |
@@ -122,7 +122,7 @@ boundary.
   this tracker from its description.
 - [x] `DOC-003` Preserve the prototype branch until every reusable component has
   either been ported or explicitly rejected.
-- [ ] `DOC-004` Record the replacement PR links in the ledger below.
+- [x] `DOC-004` Record the replacement PR links in the ledger below.
 
 **Acceptance gate:** A future contributor can identify the reviewed revision,
 why it is not merge-ready, the selected design, and the next PR without relying
@@ -133,17 +133,17 @@ on chat history.
 **Purpose:** Remove ambient access to cached vault authority before expanding
 the protocol.
 
-- [ ] `XPC-101` Make the LaunchAgent helper buildable and testable in CI,
+- [x] `XPC-101` Make the LaunchAgent helper buildable and testable in CI,
   including its listener and lifecycle behavior.
-- [ ] `XPC-102` Enforce the expected client code-signing requirement before
+- [x] `XPC-102` Enforce the expected client code-signing requirement before
   accepting or resuming an XPC connection.
-- [ ] `XPC-103` Derive authorization from the connection audit identity and fail
+- [x] `XPC-103` Derive authorization from the connection audit identity and fail
   closed for ad-hoc, wrong-team, wrong-bundle, and malformed clients.
-- [ ] `XPC-104` Separate or explicitly authorize read, ordinary mutation,
+- [x] `XPC-104` Separate or explicitly authorize read, ordinary mutation,
   enrollment, and destructive migration capabilities.
-- [ ] `XPC-105` Track active requests so the idle timer cannot terminate a
+- [x] `XPC-105` Track active requests so the idle timer cannot terminate a
   mutation in progress.
-- [ ] `XPC-106` Replace the universal client timeout with operation-aware
+- [x] `XPC-106` Replace the universal client timeout with operation-aware
   completion, cancellation, or idempotent status lookup.
 - [ ] `XPC-107` Add installed helper integration tests for cold and warm key
   sessions.
@@ -429,8 +429,8 @@ Update this table when work begins, not only after merge.
 
 | Stack item | Branch | PR | Head commit | Status | First remaining blocker |
 |---|---|---|---|---|---|
-| Prototype/review | `bugfix/icloud-keychain-publish` | [#12](https://github.com/tvanreenen/key/pull/12) | `84e7ddb` | Draft prototype; documentation commit pending | `DOC-001` |
-| PR 1: XPC boundary | TBD | TBD | TBD | Not started | `XPC-101` |
+| Prototype/review | `bugfix/icloud-keychain-publish` | [#12](https://github.com/tvanreenen/key/pull/12) | `92fe552` | Draft prototype; review and tracker preserved | None; preserve until reusable work is dispositioned |
+| PR 1: XPC boundary | `agent/authenticate-xpc-boundary` | [#13](https://github.com/tvanreenen/key/pull/13) | `8dadc56` | Draft; `XPC-101`–`XPC-106` implemented | `XPC-107` |
 | PR 2: v3 storage | TBD | TBD | TBD | Not started | `FMT-201` |
 | PR 3: filesystem | TBD | TBD | TBD | Not started | `FS-301` |
 | PR 4: transactions | TBD | TBD | TBD | Not started | `TXN-401` |
@@ -450,6 +450,24 @@ changes.
 | `DEC-003` | 2026-07-26 | Open | Choose all-devices-lost behavior and recovery credential design. | Recovery can weaken device-bound security and must be an explicit product decision. |
 | `DEC-004` | 2026-07-26 | Open | Define supported sync providers and required commit semantics. | Transaction durability depends on real provider behavior. |
 | `DEC-005` | 2026-07-26 | Open | Decide whether `vault path set` is helper-owned or requires a locked helper. | CLI-only configuration currently creates stale process state. |
+| `DEC-006` | 2026-07-26 | Accepted | Give the bundled CLI full current vault authority and the utility app only status/lock authority, using separate code-signing-bound Mach services. | Listener-selected roles cannot be escalated through client-supplied data; production also requires Developer ID Application certificates, and clients authenticate the helper. |
+
+## Implementation Evidence
+
+### PR 1 — XPC Boundary
+
+- Commit: `8dadc568e29c847d94b70220afb09d3f367d8a3b`
+- Focused policy and lifecycle suite: 10 tests pass.
+- SwiftPM Release helper build: passes.
+- Full Xcode Debug and universal Release builds with signing disabled: pass.
+- Signed Debug packaging reports identifiers `work.tvr.key.app`,
+  `work.tvr.key.cli`, and `work.tvr.key.xpc`, all with team
+  `9Q355KSV85`.
+- The current machine has zero valid code-signing identities. Requirement
+  evaluation therefore fails closed with `CSSMERR_TP_NOT_TRUSTED`; installed
+  intended-client cold/warm validation remains `XPC-107`.
+- The full Swift suite still reproduces the same 46 protected-write permission
+  failures present on `main`; this remains tracked as `TXN-410`.
 
 ## Session Resume Checklist
 
@@ -467,6 +485,8 @@ When beginning a new implementation session:
 
 ## Immediate Next Action
 
-Complete `DOC-001`: commit only the security review bundle and this tracker.
-Then preserve the current PR as the reviewed prototype and start `XPC-101` on a
-fresh branch based on `main`.
+Complete `XPC-107` on a machine with a valid development signing identity:
+install the built helper, prove cold and warm CLI sessions, prove the utility
+endpoint is limited to status/lock, and prove wrong-team, wrong-bundle, and
+ad-hoc clients are rejected before handler access. Then move PR
+[#13](https://github.com/tvanreenen/key/pull/13) out of draft.
