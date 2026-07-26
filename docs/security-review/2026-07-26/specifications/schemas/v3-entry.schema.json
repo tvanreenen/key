@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/tvanreenen/key/main/docs/security-review/2026-07-26/specifications/schemas/v3-entry.schema.json",
+  "title": "Key Vault v3 encrypted entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "version",
+    "vaultID",
+    "entryID",
+    "name",
+    "type",
+    "keyEpoch",
+    "revision",
+    "encryption"
+  ],
+  "properties": {
+    "format": {
+      "const": "key-vault-entry"
+    },
+    "version": {
+      "const": 3
+    },
+    "vaultID": {
+      "$ref": "v3-common.schema.json#/$defs/uuid"
+    },
+    "entryID": {
+      "$ref": "v3-common.schema.json#/$defs/uuid"
+    },
+    "name": {
+      "$ref": "v3-common.schema.json#/$defs/entryName"
+    },
+    "type": {
+      "$ref": "v3-common.schema.json#/$defs/entryType"
+    },
+    "keyEpoch": {
+      "$ref": "v3-common.schema.json#/$defs/safeInteger"
+    },
+    "revision": {
+      "$ref": "v3-common.schema.json#/$defs/positiveSafeInteger"
+    },
+    "encryption": {
+      "$ref": "#/$defs/encryption"
+    }
+  },
+  "$defs": {
+    "encryption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "nonce",
+        "ciphertext",
+        "tag"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "AES-256-GCM"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{16}$"
+        },
+        "ciphertext": {
+          "$ref": "v3-common.schema.json#/$defs/possiblyEmptyBase64url"
+        },
+        "tag": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{22}$"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/tvanreenen/key/main/docs/security-review/2026-07-26/specifications/schemas/v3-manifest-body.schema.json",
+  "title": "Key Vault v3 manifest body",
+  "description": "The canonical body authenticated by the envelope selected in FMT-202.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "version",
+    "vaultID",
+    "mode",
+    "generation",
+    "keyEpoch",
+    "devices",
+    "wrappedKeys",
+    "entries"
+  ],
+  "properties": {
+    "format": {
+      "const": "key-vault-manifest"
+    },
+    "version": {
+      "const": 3
+    },
+    "vaultID": {
+      "$ref": "v3-common.schema.json#/$defs/uuid"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "local",
+        "shared"
+      ]
+    },
+    "generation": {
+      "$ref": "v3-common.schema.json#/$defs/safeInteger"
+    },
+    "keyEpoch": {
+      "$ref": "v3-common.schema.json#/$defs/safeInteger"
+    },
+    "devices": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/device"
+      }
+    },
+    "wrappedKeys": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/wrappedKey"
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    }
+  },
+  "$defs": {
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deviceID",
+        "displayName",
+        "role",
+        "status",
+        "publicKey",
+        "enrolledAtGeneration"
+      ],
+      "properties": {
+        "deviceID": {
+          "$ref": "v3-common.schema.json#/$defs/deviceID"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "owner",
+            "member"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "revoked"
+          ]
+        },
+        "publicKey": {
+          "$ref": "#/$defs/publicKey"
+        },
+        "enrolledAtGeneration": {
+          "$ref": "v3-common.schema.json#/$defs/safeInteger"
+        },
+        "revokedAtGeneration": {
+          "$ref": "v3-common.schema.json#/$defs/safeInteger"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "revoked"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "revokedAtGeneration"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "revokedAtGeneration"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "publicKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "encoding",
+        "value"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "P-256"
+        },
+        "encoding": {
+          "const": "x963"
+        },
+        "value": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{87}$"
+        }
+      }
+    },
+    "wrappedKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deviceID",
+        "keyEpoch",
+        "algorithm",
+        "ciphertext"
+      ],
+      "properties": {
+        "deviceID": {
+          "$ref": "v3-common.schema.json#/$defs/deviceID"
+        },
+        "keyEpoch": {
+          "$ref": "v3-common.schema.json#/$defs/safeInteger"
+        },
+        "algorithm": {
+          "const": "p256-ecies-x963-sha256-aes-gcm"
+        },
+        "ciphertext": {
+          "$ref": "v3-common.schema.json#/$defs/base64url"
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryID",
+        "name",
+        "type",
+        "revision",
+        "keyEpoch",
+        "ciphertextDigest"
+      ],
+      "properties": {
+        "entryID": {
+          "$ref": "v3-common.schema.json#/$defs/uuid"
+        },
+        "name": {
+          "$ref": "v3-common.schema.json#/$defs/entryName"
+        },
+        "type": {
+          "$ref": "v3-common.schema.json#/$defs/entryType"
+        },
+        "revision": {
+          "$ref": "v3-common.schema.json#/$defs/positiveSafeInteger"
+        },
+        "keyEpoch": {
+          "$ref": "v3-common.schema.json#/$defs/safeInteger"
+        },
+        "ciphertextDigest": {
+          "$ref": "v3-common.schema.json#/$defs/sha256"
+        }
+      }
+    }
+  }
+}
