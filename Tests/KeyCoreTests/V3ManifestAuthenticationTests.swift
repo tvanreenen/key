@@ -88,6 +88,13 @@ struct V3ManifestAuthenticationTests {
             bom.append(canonical)
             _ = try V3ManifestAuthenticator().parse(bom)
         }
+        #expect(throws: V3ManifestError.invalidJSON) {
+            let arrays = 33
+            let deeplyNested = """
+            {"deep":\(String(repeating: "[", count: arrays))0\(String(repeating: "]", count: arrays)),"format":"key-vault-manifest-envelope","version":3}
+            """
+            _ = try V3ManifestAuthenticator().parse(Data(deeplyNested.utf8))
+        }
     }
 
     @Test
@@ -96,13 +103,34 @@ struct V3ManifestAuthenticationTests {
         let envelope = try fixture.envelope(
             content: fixture.content(parent: .object([("kind", .string("genesis"))]))
         )
+
+        #expect(throws: V3ManifestError.invalidStructure("$.content.manifest.format")) {
+            let mutated = replacing(
+                envelope,
+                "\"format\":\"key-vault-manifest\"",
+                with: "\"format\":\"key-vault-other\""
+            )
+            _ = try V3ManifestAuthenticator().verify(
+                mutated,
+                vaultKey: Fixture.vaultKey,
+                trustAnchor: .localGenesis(vaultID: Fixture.vaultID)
+            )
+        }
+        #expect(throws: V3ManifestError.invalidStructure("$.content.manifest.version")) {
+            let mutated = replacing(
+                envelope,
+                "\"version\":3,\"wrappedKeys\"",
+                with: "\"version\":4,\"wrappedKeys\""
+            )
+            _ = try V3ManifestAuthenticator().verify(
+                mutated,
+                vaultKey: Fixture.vaultKey,
+                trustAnchor: .localGenesis(vaultID: Fixture.vaultID)
+            )
+        }
+
         let replacements = [
-            ("format", "\"format\":\"key-vault-manifest\"", "\"format\":\"key-vault-other\""),
-            ("version", "\"version\":3,\"wrappedKeys\"", "\"version\":4,\"wrappedKeys\""),
-            ("vaultID", Fixture.vaultID, "018f4d38-7d5a-7b20-b0f1-97d6e96c44b4"),
-            ("mode", "\"mode\":\"local\"", "\"mode\":\"shared\""),
             ("generation", "\"generation\":1,\"keyEpoch\"", "\"generation\":2,\"keyEpoch\""),
-            ("keyEpoch", "\"keyEpoch\":1,\"mode\"", "\"keyEpoch\":2,\"mode\""),
             ("deviceID", fixture.deviceID, String(repeating: "A", count: 43)),
             ("displayName", "\"displayName\":\"Laptop\"", "\"displayName\":\"Desktop\""),
             ("role", "\"role\":\"owner\"", "\"role\":\"member\""),
@@ -110,27 +138,72 @@ struct V3ManifestAuthenticationTests {
             ("signingPublicKey", fixture.signingPublicKeyValue, fixture.alternateSigningPublicKeyValue),
             ("wrappingPublicKey", fixture.wrappingPublicKeyValue, fixture.alternateWrappingPublicKeyValue),
             ("enrolledAtGeneration", "\"enrolledAtGeneration\":0", "\"enrolledAtGeneration\":1"),
-            ("wrappedKeyEpoch", "\"ciphertext\":\"AQID\",\"deviceID\"", "\"ciphertext\":\"BAUG\",\"deviceID\""),
+            ("wrappedKeyCiphertext", "\"ciphertext\":\"AQID\",\"deviceID\"", "\"ciphertext\":\"BAUG\",\"deviceID\""),
+            (
+                "wrappedKeyEpoch",
+                "\"deviceID\":\"\(fixture.deviceID)\",\"keyEpoch\":1",
+                "\"deviceID\":\"\(fixture.deviceID)\",\"keyEpoch\":0"
+            ),
             ("entryID", Fixture.entryID, "018f4d39-930c-735d-8d6f-588e9b0a3a49"),
             ("entryName", "\"name\":\"email/personal\"", "\"name\":\"email/work\""),
             ("entryType", "\"type\":\"secret\"", "\"type\":\"totp\""),
             ("entryRevision", "\"revision\":4", "\"revision\":5"),
             ("entryKeyEpoch", "\"keyEpoch\":1,\"name\"", "\"keyEpoch\":0,\"name\""),
-            ("ciphertextDigest", Fixture.digest, String(repeating: "B", count: 43))
+            ("ciphertextDigest", Fixture.digest, String(repeating: "E", count: 43))
         ]
 
-        for (field, original, replacement) in replacements {
+        for (_, original, replacement) in replacements {
             let mutated = replacing(envelope, original, with: replacement)
-            do {
+            #expect(throws: V3ManifestError.authenticationFailed) {
                 _ = try V3ManifestAuthenticator().verify(
                     mutated,
                     vaultKey: Fixture.vaultKey,
                     trustAnchor: .localGenesis(vaultID: Fixture.vaultID)
                 )
-                Issue.record("Mutation of \(field) was accepted.")
-            } catch {
-                // Every body-field mutation must fail before authenticated state is returned.
             }
+        }
+
+        let alternateVaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b4"
+        #expect(throws: V3ManifestError.authenticationFailed) {
+            let mutated = replacing(envelope, Fixture.vaultID, with: alternateVaultID)
+            _ = try V3ManifestAuthenticator().verify(
+                mutated,
+                vaultKey: Fixture.vaultKey,
+                trustAnchor: .localGenesis(vaultID: alternateVaultID)
+            )
+        }
+
+        #expect(throws: V3ManifestError.authenticationFailed) {
+            var mutated = replacing(
+                envelope,
+                "\"keyEpoch\":1,\"mode\"",
+                with: "\"keyEpoch\":2,\"mode\""
+            )
+            mutated = replacing(mutated, "\"keyEpoch\":1,\"tag\"", with: "\"keyEpoch\":2,\"tag\"")
+            _ = try V3ManifestAuthenticator().verify(
+                mutated,
+                vaultKey: Fixture.vaultKey,
+                trustAnchor: .localGenesis(vaultID: Fixture.vaultID)
+            )
+        }
+
+        let parent = try fixture.envelope(
+            content: fixture.content(parent: .object([("kind", .string("genesis"))]))
+        )
+        let child = try fixture.envelope(
+            content: fixture.content(
+                parent: fixture.parentReference(to: parent, generation: 1),
+                generation: 2,
+                entryRevision: 5
+            )
+        )
+        #expect(throws: V3ManifestError.authenticationFailed) {
+            let mutated = replacing(child, "\"mode\":\"local\"", with: "\"mode\":\"shared\"")
+            _ = try V3ManifestAuthenticator().verify(
+                mutated,
+                vaultKey: Fixture.vaultKey,
+                trustAnchor: .parent(parent)
+            )
         }
     }
 

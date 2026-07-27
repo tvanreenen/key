@@ -38,11 +38,13 @@ enum V3JSONValue {
 }
 
 enum V3CanonicalJSON {
+    private static let maximumNestingDepth = 32
+
     static func parse(_ data: Data) throws -> V3JSONValue {
         guard !data.starts(with: [0xEF, 0xBB, 0xBF]) else {
             throw V3ManifestError.invalidEncoding
         }
-        var parser = Parser(bytes: Array(data))
+        var parser = Parser(bytes: Array(data), maximumNestingDepth: maximumNestingDepth)
         return try parser.parseDocument()
     }
 
@@ -122,11 +124,12 @@ enum V3CanonicalJSON {
 
 private struct Parser {
     let bytes: [UInt8]
+    let maximumNestingDepth: Int
     var index = 0
 
     mutating func parseDocument() throws -> V3JSONValue {
         skipWhitespace()
-        let value = try parseValue()
+        let value = try parseValue(containerDepth: 0)
         skipWhitespace()
         guard index == bytes.count else {
             throw V3ManifestError.invalidJSON
@@ -134,16 +137,22 @@ private struct Parser {
         return value
     }
 
-    private mutating func parseValue() throws -> V3JSONValue {
+    private mutating func parseValue(containerDepth: Int) throws -> V3JSONValue {
         guard let byte = current else {
             throw V3ManifestError.invalidJSON
         }
 
         switch byte {
         case CharacterByte.leftBrace:
-            return try parseObject()
+            guard containerDepth < maximumNestingDepth else {
+                throw V3ManifestError.invalidJSON
+            }
+            return try parseObject(containerDepth: containerDepth + 1)
         case CharacterByte.leftBracket:
-            return try parseArray()
+            guard containerDepth < maximumNestingDepth else {
+                throw V3ManifestError.invalidJSON
+            }
+            return try parseArray(containerDepth: containerDepth + 1)
         case CharacterByte.quote:
             return .string(try parseString())
         case CharacterByte.zero...CharacterByte.nine:
@@ -162,7 +171,7 @@ private struct Parser {
         }
     }
 
-    private mutating func parseObject() throws -> V3JSONValue {
+    private mutating func parseObject(containerDepth: Int) throws -> V3JSONValue {
         index += 1
         skipWhitespace()
 
@@ -186,7 +195,7 @@ private struct Parser {
                 throw V3ManifestError.invalidJSON
             }
             skipWhitespace()
-            members.append((name, try parseValue()))
+            members.append((name, try parseValue(containerDepth: containerDepth)))
             skipWhitespace()
 
             if consumeIf(CharacterByte.rightBrace) {
@@ -199,7 +208,7 @@ private struct Parser {
         }
     }
 
-    private mutating func parseArray() throws -> V3JSONValue {
+    private mutating func parseArray(containerDepth: Int) throws -> V3JSONValue {
         index += 1
         skipWhitespace()
 
@@ -209,7 +218,7 @@ private struct Parser {
         }
 
         while true {
-            values.append(try parseValue())
+            values.append(try parseValue(containerDepth: containerDepth))
             skipWhitespace()
             if consumeIf(CharacterByte.rightBracket) {
                 return .array(values)
