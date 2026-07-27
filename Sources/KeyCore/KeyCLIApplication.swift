@@ -47,6 +47,9 @@ public final class KeyCLIApplication {
             return EXIT_SUCCESS
         case let .config(configCommand):
             return try executeConfigCommand(configCommand)
+        case .migrationPreflight:
+            response = try transport.send(.migrationPreflight)
+            return try handle(response, for: command)
         case .unlock:
             response = try transport.send(.unlock)
             return try handle(response, for: command)
@@ -103,7 +106,7 @@ public final class KeyCLIApplication {
             break
         case .config:
             break
-        case .unlock, .lock, .list:
+        case .migrationPreflight, .unlock, .lock, .list:
             if let value = response.value, !value.isEmpty {
                 io.writeStdout(value)
             }

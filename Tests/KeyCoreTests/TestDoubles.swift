@@ -6,6 +6,7 @@ final class MemoryVaultKeyStore: VaultKeyStoring {
     var iCloudKeyData: Data?
     var error: Error?
     var loadCount = 0
+    var storeCount = 0
     var invalidateCount = 0
     private(set) var requests: [(mode: KeychainMode, reason: String, createIfMissing: Bool)] = []
 
@@ -56,6 +57,7 @@ final class MemoryVaultKeyStore: VaultKeyStoring {
     }
 
     func storeKey(_ keyData: Data, mode: KeychainMode, overwriteExisting: Bool) throws {
+        storeCount += 1
         if let error {
             throw error
         }

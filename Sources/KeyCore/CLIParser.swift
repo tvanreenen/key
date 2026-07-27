@@ -13,6 +13,8 @@ public enum CLIParser {
             return try parseVersion(arguments: Array(arguments.dropFirst()))
         case "config":
             return try parseConfig(arguments: Array(arguments.dropFirst()))
+        case "migrate":
+            return try parseMigrate(arguments: Array(arguments.dropFirst()))
         case "unlock":
             return try parseUnlock(arguments: Array(arguments.dropFirst()))
         case "lock":
@@ -46,6 +48,7 @@ public enum CLIParser {
       config get <config-name>           Print a config value.
       config set <config-name> <value>   Update a config value.
       config list                        List known config values.
+      migrate --check                    Check v2 migration readiness without changing the vault.
       get <name>                         Print a secret or current TOTP code.
       copy <name>                        Copy a secret or current TOTP code.
       add [--totp] <name>                Add a new secret from stdin or prompt.
@@ -61,6 +64,7 @@ public enum CLIParser {
 
     Options:
       --force  Skip overwrite or removal confirmation.
+      --check  Run the read-only v2 migration preflight.
       --json   Print version info as JSON.
       --totp   Treat add/edit input as a Base32 TOTP seed.
 
@@ -148,6 +152,21 @@ public enum CLIParser {
         }
 
         return configKey
+    }
+
+    private static func parseMigrate(arguments: [String]) throws -> Command {
+        guard let argument = arguments.first else {
+            throw AppError.usage(
+                "Migration does not start automatically. Use `key migrate --check` to inspect readiness without changing the vault.\n\n\(usageText)"
+            )
+        }
+        guard argument == "--check" else {
+            throw AppError.usage("Unknown option '\(argument)' for migrate.\n\n\(usageText)")
+        }
+        guard arguments.count == 1 else {
+            throw AppError.usage("Unknown option '\(arguments[1])' for migrate.\n\n\(usageText)")
+        }
+        return .migrationPreflight
     }
 
     private static func parseUnlock(arguments: [String]) throws -> Command {

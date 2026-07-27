@@ -5,6 +5,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     case lock
     case status
     case list
+    case migrationPreflight
     case setKeychainMode(KeychainMode)
     case get(name: String)
     case addManual(name: String, secret: String, type: SecretEntryType)
@@ -17,7 +18,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         switch self {
         case .status, .lock:
             5
-        case .unlock, .get:
+        case .unlock, .get, .migrationPreflight:
             120
         case .list:
             30
@@ -42,6 +43,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case lock
         case status
         case list
+        case migrationPreflight
         case setKeychainMode
         case get
         case addManual
@@ -62,6 +64,8 @@ public enum KeyServiceRequest: Codable, Equatable {
             self = .status
         case .list:
             self = .list
+        case .migrationPreflight:
+            self = .migrationPreflight
         case .setKeychainMode:
             self = .setKeychainMode(try container.decode(KeychainMode.self, forKey: .keychainMode))
         case .get:
@@ -106,6 +110,8 @@ public enum KeyServiceRequest: Codable, Equatable {
             try container.encode(Kind.status, forKey: .kind)
         case .list:
             try container.encode(Kind.list, forKey: .kind)
+        case .migrationPreflight:
+            try container.encode(Kind.migrationPreflight, forKey: .kind)
         case let .setKeychainMode(mode):
             try container.encode(Kind.setKeychainMode, forKey: .kind)
             try container.encode(mode, forKey: .keychainMode)
