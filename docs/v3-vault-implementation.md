@@ -14,7 +14,7 @@ state.
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
 | Current branch | `agent/define-v3-entry-aad` |
-| Current PR | Not opened |
+| Current PR | Draft PR #17 |
 | Next work | `FMT-205`: seal and open entries using the defined associated data |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
