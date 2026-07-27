@@ -13,7 +13,11 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "JSONCanonicalization"
+        ),
+        .target(
             name: "KeyCore",
+            dependencies: ["JSONCanonicalization"],
             linkerSettings: [
                 .linkedFramework("LocalAuthentication"),
                 .linkedFramework("Security")
@@ -29,7 +33,11 @@ let package = Package(
         ),
         .testTarget(
             name: "KeyCoreTests",
-            dependencies: ["KeyCore"]
+            dependencies: ["KeyCore", "JSONCanonicalization"]
+        ),
+        .testTarget(
+            name: "JSONCanonicalizationTests",
+            dependencies: ["JSONCanonicalization"]
         )
     ]
 )
