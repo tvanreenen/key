@@ -9,13 +9,13 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `a390042f044209050aff9888007102fc635df5e7` |
+| Production base | `main` at `73775ebc3cef60d66d160b39c1b203c49f7f84ff` |
 | Selected architecture | Authenticated, versioned transaction layer |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/implement-v3-replay-protection` |
-| Current PR | Draft PR #20 |
-| Next work | `FMT-208`: reject inconsistent membership and wrapped-key state |
+| Current branch | `agent/implement-v3-membership-validation` |
+| Current PR | Draft PR #21 |
+| Next work | `FMT-209`: add local-v2 migration preflight and rollback steps |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -26,13 +26,13 @@ unavailable or explicitly experimental until every release gate below passes.
   authorized helper operations.
 - [ ] `INV-02` Enrollment authenticates both device keys, roles, vault ID,
   fresh nonces, and an independently compared transcript.
-- [ ] `INV-03` Membership, key epoch, wrapped keys, and committed entries form
+- [x] `INV-03` Membership, key epoch, wrapped keys, and committed entries form
   one authenticated state.
 - [ ] `INV-04` Revocation rotates the vault key and removes future decrypt
   authority from the revoked device.
 - [ ] `INV-05` Every entry authenticates vault ID, normalized name, type,
   format version, key epoch, and revision.
-- [ ] `INV-06` Replayed manifests and entries are detected explicitly.
+- [x] `INV-06` Replayed manifests and entries are detected explicitly.
 - [ ] `INV-07` Concurrent mutations serialize or return a revision conflict.
 - [ ] `INV-08` Recovery observes one complete old or new generation, never a
   mixed-key vault.
@@ -57,8 +57,9 @@ Status: `FMT-201` squash-merged as `f377093` in PR #14, `FMT-202`
 squash-merged as `ff402b8` in PR #15, `FMT-203` squash-merged as `18cfb3e`
 in PR #16, `FMT-204` squash-merged as `cceb783` in PR #17, `FMT-205`
 squash-merged as `942e444` in PR #18, and `FMT-206` squash-merged as
-`a390042` in PR #19. Replay-protection work continues on
-`agent/implement-v3-replay-protection`.
+`a390042` in PR #19, and `FMT-207` squash-merged as `73775eb` in PR #20.
+Membership-validation work continues on
+`agent/implement-v3-membership-validation`.
 
 - [x] `FMT-201` Specify canonical manifest-body and encrypted-entry schemas,
   encoding, ordering, normalization, and unknown-version behavior.
@@ -70,7 +71,7 @@ squash-merged as `942e444` in PR #18, and `FMT-206` squash-merged as
 - [x] `FMT-205` Seal and open entries with that context as AES-GCM AAD.
 - [x] `FMT-206` Make copy and rename decrypt-and-reseal operations.
 - [x] `FMT-207` Detect manifest and entry replay.
-- [ ] `FMT-208` Reject inconsistent membership and wrapped-key state.
+- [x] `FMT-208` Reject inconsistent membership and wrapped-key state.
 - [ ] `FMT-209` Add read-only local-v2 migration preflight and rollback steps.
 - [ ] `FMT-210` Refuse unsupported prototype enclave metadata.
 
@@ -132,6 +133,7 @@ Acceptance gate:
 | `DEC-010` | Accepted | Keep v3 entry parsing explicitly untrusted. Before releasing plaintext, require the authenticated manifest digest and manifest-derived context to match the canonical file, then open AES-256-GCM with the exact typed associated data and require UTF-8 plaintext. |
 | `DEC-011` | Accepted | Implement v3 copy and rename as authenticated decrypt-and-reseal operations. Copy creates a fresh logical entry at revision 1; rename preserves the logical entry ID and advances its revision. Both preserve exact valid UTF-8 plaintext bytes, type, and key epoch and require a fresh nonce. |
 | `DEC-012` | Accepted | Treat authentication and freshness as separate gates. Persist one exact vault ID, generation, and manifest-envelope digest in the non-synchronizing device-local Keychain; advance it under the serialized helper mutation owner with an expected-checkpoint guard only after verifying the exact child transition. Require the freshness-approved manifest type for entry open, copy, and rename. |
+| `DEC-013` | Accepted | Keep local manifests free of device-membership and wrapped-key records. Require shared manifests to retain at least one active owner and exactly one current-epoch wrapped key for every active device, with no wrapper for a revoked or unknown device. Defer membership-transition ceremonies to enrollment and revocation work. |
 
 ## Validation Matrix
 
@@ -139,6 +141,7 @@ Acceptance gate:
 - [x] Negative authentication tests for every bound field.
 - [x] Copy/rename identity, revision, collision, and exact-byte resealing tests.
 - [x] Manifest generation/digest and entry revision replay tests.
+- [x] Local/shared membership and current-epoch wrapped-key consistency tests.
 - [ ] Enrollment and key-epoch replay tests.
 - [x] Installed XPC tests for intended and unintended signing identities.
 - [ ] Mutation/key-transition concurrency tests.
@@ -162,6 +165,6 @@ Acceptance gate:
 
 ## Immediate Next Action
 
-Implement `FMT-208`: enforce mode-specific membership, device-role, device
-status, and current-epoch wrapped-key invariants before a manifest can become
-usable vault authority.
+Implement `FMT-209`: add a read-only local-v2 migration preflight that reports
+unsupported or ambiguous source state and specifies rollback before any v3
+writer is enabled.

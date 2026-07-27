@@ -1,7 +1,7 @@
 # Key Vault Version 3 Storage Format
 
-Status: normative schema and authority specification for `FMT-201` and
-`FMT-202`.
+Status: normative schema, authority, replay, and membership specification for
+`FMT-201` through `FMT-208`.
 
 This document freezes the data model and canonical encoding for the version 3
 vault manifest body, authenticated manifest envelope, and encrypted entry
@@ -187,9 +187,11 @@ are finalized by `ENR-501` through `ENR-505`.
 | `algorithm` | enum | `p256-ecies-x963-sha256-aes-gcm` |
 | `ciphertext` | base64url | Complete algorithm output |
 
-For a shared manifest, later semantic validation in `FMT-208` will require
-exactly one current-epoch wrapper for every active device and none for revoked
-devices. Older wrapped keys do not belong in the current manifest.
+Local manifests MUST have empty `devices` and `wrappedKeys` arrays. Shared
+manifests MUST contain at least one active owner and exactly one wrapper at the
+manifest's current `keyEpoch` for every active device. A wrapper MUST NOT name a
+revoked or unknown device. Older wrapped keys do not belong in the current
+manifest.
 
 ### Manifest Entry Record
 
@@ -223,11 +225,12 @@ Readers MUST reject unsorted arrays. Readers MUST also reject:
 - an active device with `revokedAtGeneration`;
 - a revoked device without `revokedAtGeneration`, or with a revocation
   generation earlier than enrollment or later than the manifest;
-- an entry or wrapped key whose `keyEpoch` exceeds the manifest `keyEpoch`; and
-- a manifest whose mode-specific membership/wrapper invariants fail.
-
-The last item is specified fully in `FMT-208`; until then, no v3 manifest may
-be accepted as usable vault authority.
+- an entry or wrapped key whose `keyEpoch` exceeds the manifest `keyEpoch`;
+- a local manifest with any device or wrapped-key record;
+- a shared manifest without an active owner;
+- a shared manifest without exactly one current-epoch wrapper for every active
+  device; and
+- a shared manifest with a wrapper for a revoked or unknown device.
 
 ## Manifest Authority And Envelope
 
