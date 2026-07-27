@@ -14,7 +14,7 @@ state.
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
 | Current branch | `agent/implement-v3-entry-encryption` |
-| Current PR | Not opened |
+| Current PR | Draft PR #18 |
 | Next work | `FMT-206`: make copy and rename decrypt-and-reseal operations |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
