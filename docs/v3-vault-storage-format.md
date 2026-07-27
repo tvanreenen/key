@@ -436,6 +436,40 @@ Cryptographic opening failures are reported as authentication failures without
 returning candidate plaintext. Standalone parsing does not authenticate an
 entry and MUST NOT be used as a trust decision.
 
+### Copy And Rename Resealing
+
+Version 3 copy and rename operations MUST authenticate and decrypt the source
+through a verifier-produced manifest before constructing a destination. They
+MUST preserve the exact valid UTF-8 plaintext bytes and MUST seal with a fresh
+12-byte nonce under the destination authentication context. Copying or moving
+the existing ciphertext bytes is invalid because the entry identity fields are
+authenticated.
+
+Copy creates a new logical entry with:
+
+- the same vault ID, type, and key epoch as the source;
+- a fresh, noncolliding entry ID;
+- the requested normalized destination name; and
+- revision `1`.
+
+Rename creates a replacement revision with:
+
+- the same vault ID, entry ID, type, and key epoch as the source;
+- the requested normalized destination name; and
+- the source revision incremented by one.
+
+Both operations return canonical encrypted-entry bytes and the matching
+manifest record. They reject invalid destination values, current-manifest name
+or ID collisions, unchanged rename destinations, revision overflow, and any
+source digest or authentication failure before producing a destination.
+
+Overwrite policy and atomic manifest/file commit belong to the transaction
+layer. A transaction implementing `--force` MUST still construct and seal the
+correct destination context; it MUST NOT fall back to a filesystem copy or
+move. Historical ID reuse and stale-source detection remain part of `FMT-207`.
+Version 2 CLI copy and rename behavior remains unchanged until the version 3
+reader, writer, and transaction layer are enabled together.
+
 ## Illustrative Objects
 
 These examples are pretty-printed for readability and are not canonical byte
@@ -606,7 +640,6 @@ The following decisions are not part of `FMT-201` or `FMT-202`:
 
 - manifest authenticator implementation and key persistence (`FMT-203`);
 - exact AES-GCM associated-data bytes (`FMT-204`);
-- rename/copy resealing (`FMT-206`);
 - freshness storage and replay state (`FMT-207`);
 - full membership/wrapper consistency rules (`FMT-208`);
 - migration and prototype refusal (`FMT-209`, `FMT-210`);

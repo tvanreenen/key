@@ -9,13 +9,13 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `cceb78352998c11e6187dee6191b5b4c52b076dc` |
+| Production base | `main` at `942e444e302b132a94172e16e8e6b9778674e049` |
 | Selected architecture | Authenticated, versioned transaction layer |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/implement-v3-entry-encryption` |
-| Current PR | Draft PR #18 |
-| Next work | `FMT-206`: make copy and rename decrypt-and-reseal operations |
+| Current branch | `agent/implement-v3-entry-resealing` |
+| Current PR | Draft PR #19 |
+| Next work | `FMT-207`: detect manifest and entry replay |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -55,8 +55,9 @@ Status: complete; squash-merged as `6ef98bd` in PR #13.
 
 Status: `FMT-201` squash-merged as `f377093` in PR #14, `FMT-202`
 squash-merged as `ff402b8` in PR #15, `FMT-203` squash-merged as `18cfb3e`
-in PR #16, and `FMT-204` squash-merged as `cceb783` in PR #17. Entry
-encryption work continues on `agent/implement-v3-entry-encryption`.
+in PR #16, `FMT-204` squash-merged as `cceb783` in PR #17, and `FMT-205`
+squash-merged as `942e444` in PR #18. Entry resealing work continues on
+`agent/implement-v3-entry-resealing`.
 
 - [x] `FMT-201` Specify canonical manifest-body and encrypted-entry schemas,
   encoding, ordering, normalization, and unknown-version behavior.
@@ -66,7 +67,7 @@ encryption work continues on `agent/implement-v3-entry-encryption`.
   documented path to independent publication.
 - [x] `FMT-204` Define the typed entry associated-data context.
 - [x] `FMT-205` Seal and open entries with that context as AES-GCM AAD.
-- [ ] `FMT-206` Make copy and rename decrypt-and-reseal operations.
+- [x] `FMT-206` Make copy and rename decrypt-and-reseal operations.
 - [ ] `FMT-207` Detect manifest and entry replay.
 - [ ] `FMT-208` Reject inconsistent membership and wrapped-key state.
 - [ ] `FMT-209` Add read-only local-v2 migration preflight and rollback steps.
@@ -128,11 +129,13 @@ Acceptance gate:
 | `DEC-008` | Accepted | Keep canonical JSON independent of vault schemas in an internal SwiftPM target; do not claim or publish full RFC 8785 conformance until complete number handling, upstream vectors, fuzzing, and independent review are complete. |
 | `DEC-009` | Accepted | Authenticate v3 entry identity as the entry-AAD domain label, a NUL delimiter, and canonical JSON over format, version, vault ID, entry ID, name, type, key epoch, and revision. Derive those values from authenticated manifest state when opening. |
 | `DEC-010` | Accepted | Keep v3 entry parsing explicitly untrusted. Before releasing plaintext, require the authenticated manifest digest and manifest-derived context to match the canonical file, then open AES-256-GCM with the exact typed associated data and require UTF-8 plaintext. |
+| `DEC-011` | Accepted | Implement v3 copy and rename as authenticated decrypt-and-reseal operations. Copy creates a fresh logical entry at revision 1; rename preserves the logical entry ID and advances its revision. Both preserve exact valid UTF-8 plaintext bytes, type, and key epoch and require a fresh nonce. |
 
 ## Validation Matrix
 
 - [x] Canonical manifest and entry-context encoding tests.
 - [x] Negative authentication tests for every bound field.
+- [x] Copy/rename identity, revision, collision, and exact-byte resealing tests.
 - [ ] Manifest, entry, enrollment, and key-epoch replay tests.
 - [x] Installed XPC tests for intended and unintended signing identities.
 - [ ] Mutation/key-transition concurrency tests.
@@ -156,6 +159,5 @@ Acceptance gate:
 
 ## Immediate Next Action
 
-Implement `FMT-206`: make copy and rename decrypt-and-reseal operations. A v3
-entry's name is authenticated, so filesystem-only copy or rename is no longer
-valid.
+Implement `FMT-207`: persist trusted manifest generation/digest state and
+reject replayed, divergent, or superseded manifests and entries explicitly.
