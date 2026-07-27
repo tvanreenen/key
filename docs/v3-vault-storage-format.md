@@ -318,9 +318,61 @@ A reader MUST:
 
 Failure at any step leaves the trusted current generation unchanged.
 
-An HMAC alone does not establish freshness. `FMT-207` must persist a trusted
-current envelope digest/generation locally and treat divergent children as
-explicit conflicts.
+An HMAC alone does not establish freshness. A reader MUST also pass the
+device-local manifest freshness gate below before treating authenticated
+manifest data as current.
+
+### Device-Local Manifest Freshness
+
+Each device persists one local checkpoint for every trusted version 3 vault.
+The checkpoint is canonical JSON with exactly:
+
+| Field | Requirement |
+|---|---|
+| `format` | Exactly `key-vault-manifest-checkpoint` |
+| `version` | Exactly `1` |
+| `vaultID` | The independently expected vault UUID |
+| `generation` | The current trusted manifest generation |
+| `envelopeDigest` | Canonical base64url SHA-256 of the exact current manifest-envelope bytes |
+
+The checkpoint is rollback state, not synchronized vault content. The shipping
+store MUST use a non-synchronizing, this-device-only Keychain item scoped to
+the signed application's access group. It does not require user presence
+because it contains no secret and ordinary reads must remain scriptable.
+Checkpoint writes belong only to the serialized helper mutation owner; other
+processes MUST NOT write the item directly.
+
+First trust may be established only while creating an independently anchored
+local genesis and only when the checkpoint is expected to be absent. A missing
+checkpoint beside an existing or synchronized vault MUST NOT be repaired by
+silently adopting the observed manifest. Shared genesis and conversion use the
+later enrollment and migration ceremonies.
+
+For an existing checkpoint, a reader classifies an observed manifest before
+exposing it as current:
+
+- a lower generation is an explicit rollback;
+- the same generation with a different envelope digest is an explicit
+  divergent-manifest conflict;
+- a higher generation cannot be adopted directly; and
+- only the exact generation and digest already in the checkpoint may be
+  reopened as current.
+
+After the transaction layer has durably committed the candidate root pointer
+and retained the parent for recovery, advancement accepts exactly one
+authenticated child of the checkpointed parent. The reader first reopens the
+exact parent bytes through the checkpoint, then performs the complete child
+verification order above, and only then replaces the checkpoint while
+requiring the expected prior checkpoint. The parent and child vault keys are
+separate inputs because a valid authority transition may advance the key
+epoch. Authentication, semantic, authorization, or persistence failure leaves
+the prior checkpoint unchanged; transaction recovery can retry using the
+retained parent and committed child.
+
+Only this freshness gate produces a `V3TrustedManifest`. Public entry open,
+copy, and rename operations require that type rather than a merely
+`V3VerifiedManifest`, preventing an old but cryptographically valid manifest
+from being used as entry authority.
 
 Local genesis is anchored by local key creation and Keychain state.
 Shared genesis and local-to-shared conversion require an owner authorization
@@ -436,10 +488,17 @@ Cryptographic opening failures are reported as authentication failures without
 returning candidate plaintext. Standalone parsing does not authenticate an
 entry and MUST NOT be used as a trust decision.
 
+If the exact entry-file digest differs, a reader may authenticate the observed
+canonical entry under its own associated-data context solely to classify the
+failure; it MUST NOT release that plaintext. An authenticated lower revision
+is an explicit entry rollback. An authenticated same or higher revision with a
+different digest is an explicit entry conflict. Malformed or unauthenticated
+alternatives remain ordinary digest mismatches.
+
 ### Copy And Rename Resealing
 
 Version 3 copy and rename operations MUST authenticate and decrypt the source
-through a verifier-produced manifest before constructing a destination. They
+through a freshness-approved manifest before constructing a destination. They
 MUST preserve the exact valid UTF-8 plaintext bytes and MUST seal with a fresh
 12-byte nonce under the destination authentication context. Copying or moving
 the existing ciphertext bytes is invalid because the entry identity fields are
@@ -466,7 +525,10 @@ source digest or authentication failure before producing a destination.
 Overwrite policy and atomic manifest/file commit belong to the transaction
 layer. A transaction implementing `--force` MUST still construct and seal the
 correct destination context; it MUST NOT fall back to a filesystem copy or
-move. Historical ID reuse and stale-source detection remain part of `FMT-207`.
+move. The freshness gate rejects stale source manifests, and authenticated old
+entry revisions receive explicit rollback errors. The public copy primitive
+does not accept caller-selected IDs; transaction and migration code that does
+construct identities MUST also reject IDs found in retained trusted history.
 Version 2 CLI copy and rename behavior remains unchanged until the version 3
 reader, writer, and transaction layer are enabled together.
 
@@ -640,7 +702,6 @@ The following decisions are not part of `FMT-201` or `FMT-202`:
 
 - manifest authenticator implementation and key persistence (`FMT-203`);
 - exact AES-GCM associated-data bytes (`FMT-204`);
-- freshness storage and replay state (`FMT-207`);
 - full membership/wrapper consistency rules (`FMT-208`);
 - migration and prototype refusal (`FMT-209`, `FMT-210`);
 - physical root-pointer, generation, and transaction layout (`TXN-403`,

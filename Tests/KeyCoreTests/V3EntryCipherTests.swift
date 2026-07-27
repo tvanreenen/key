@@ -101,6 +101,59 @@ struct V3EntryCipherTests {
     }
 
     @Test
+    func authenticatedHistoricalAndForkedEntriesReturnExplicitReplayErrors() throws {
+        let cipher = V3EntryCipher()
+        let currentContext = try makeContext(revision: 5)
+        let current = try cipher.seal(
+            Data("current".utf8),
+            context: currentContext,
+            vaultKey: Self.key,
+            nonce: AES.GCM.Nonce(data: Data(0xB0...0xBB))
+        )
+        let manifest = trustedManifest(
+            context: currentContext,
+            digest: current.ciphertextDigest
+        )
+
+        let historicalContext = try makeContext(revision: 4)
+        let historical = try cipher.seal(
+            Data("historical".utf8),
+            context: historicalContext,
+            vaultKey: Self.key,
+            nonce: AES.GCM.Nonce(data: Data(0xC0...0xCB))
+        )
+        #expect(throws: V3EncryptedEntryError.replayedRevision(
+            trustedRevision: 5,
+            observedRevision: 4
+        )) {
+            _ = try cipher.open(
+                historical.canonicalBytes,
+                trustedManifest: manifest,
+                entryID: Self.entryID,
+                vaultKey: Self.key
+            )
+        }
+
+        let fork = try cipher.seal(
+            Data("fork".utf8),
+            context: currentContext,
+            vaultKey: Self.key,
+            nonce: AES.GCM.Nonce(data: Data(0xD0...0xDB))
+        )
+        #expect(throws: V3EncryptedEntryError.conflictingRevision(
+            trustedRevision: 5,
+            observedRevision: 5
+        )) {
+            _ = try cipher.open(
+                fork.canonicalBytes,
+                trustedManifest: manifest,
+                entryID: Self.entryID,
+                vaultKey: Self.key
+            )
+        }
+    }
+
+    @Test
     func nonceCiphertextAndTagTamperingFailAuthentication() throws {
         let context = try makeContext()
         let original = try deterministicEntry(context: context)
@@ -143,7 +196,10 @@ struct V3EntryCipherTests {
                 vaultKey: Data(repeating: 0, count: 31)
             )
         }
-        #expect(throws: V3EncryptedEntryError.digestMismatch) {
+        #expect(throws: V3EncryptedEntryError.conflictingRevision(
+            trustedRevision: 4,
+            observedRevision: 4
+        )) {
             _ = try V3EntryCipher().openTrusted(
                 entry.canonicalBytes,
                 vaultID: context.vaultID,
@@ -262,10 +318,10 @@ struct V3EntryCipherTests {
     }
 
     @Test
-    func publicOpenRequiresAndSelectsFromVerifiedManifest() throws {
+    func publicOpenRequiresAndSelectsFromTrustedManifest() throws {
         let context = try makeContext()
         let entry = try deterministicEntry(context: context)
-        let manifest = verifiedManifest(
+        let manifest = trustedManifest(
             context: context,
             digest: entry.ciphertextDigest
         )
@@ -273,7 +329,7 @@ struct V3EntryCipherTests {
         #expect(
             try V3EntryCipher().open(
                 entry.canonicalBytes,
-                verifiedManifest: manifest,
+                trustedManifest: manifest,
                 entryID: context.entryID,
                 vaultKey: Self.key
             ) == "correct horse battery staple"
@@ -281,7 +337,7 @@ struct V3EntryCipherTests {
         #expect(throws: V3EncryptedEntryError.manifestEntryNotFound) {
             _ = try V3EntryCipher().open(
                 entry.canonicalBytes,
-                verifiedManifest: manifest,
+                trustedManifest: manifest,
                 entryID: "018f4d39-930c-735d-8d6f-588e9b0a3a49",
                 vaultKey: Self.key
             )
@@ -343,10 +399,10 @@ struct V3EntryCipherTests {
         )
     }
 
-    private func verifiedManifest(
+    private func trustedManifest(
         context: V3EntryAuthenticationContext,
         digest: String
-    ) -> V3VerifiedManifest {
+    ) -> V3TrustedManifest {
         let body = V3ManifestBody(
             vaultID: context.vaultID,
             mode: .local,
@@ -366,7 +422,20 @@ struct V3EntryCipherTests {
             canonicalBytes: Data(),
             canonicalContentBytes: Data()
         )
-        return V3VerifiedManifest(envelope: envelope, envelopeDigest: Data())
+        let envelopeDigest = Data(repeating: 0xA5, count: 32)
+        let verified = V3VerifiedManifest(
+            envelope: envelope,
+            envelopeDigest: envelopeDigest
+        )
+        let checkpoint = try! V3ManifestCheckpoint(
+            vaultID: context.vaultID,
+            generation: body.generation,
+            envelopeDigest: envelopeDigest
+        )
+        return V3TrustedManifest(
+            verifiedManifest: verified,
+            checkpoint: checkpoint
+        )
     }
 
     private func entryData(
