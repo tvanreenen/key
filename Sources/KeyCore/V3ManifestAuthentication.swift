@@ -294,15 +294,15 @@ public struct V3ManifestAuthenticator: Sendable {
             ("signingPublicKey", .object([
                 ("algorithm", .string("P-256-ECDSA")),
                 ("encoding", .string("x963")),
-                ("value", .string(encodeBase64URL(signingPublicKey)))
+                ("value", .string(Base64URL.encode(signingPublicKey)))
             ])),
             ("wrappingPublicKey", .object([
                 ("algorithm", .string("P-256-ECDH")),
                 ("encoding", .string("x963")),
-                ("value", .string(encodeBase64URL(wrappingPublicKey)))
+                ("value", .string(Base64URL.encode(wrappingPublicKey)))
             ]))
         ])
-        return encodeBase64URL(Data(SHA256.hash(data: CanonicalJSON.encode(identity))))
+        return Base64URL.encode(Data(SHA256.hash(data: CanonicalJSON.encode(identity))))
     }
 
     static func canonicalizeP256Signature(_ rawSignature: Data) throws -> Data {
@@ -927,35 +927,13 @@ private func uuidBytes(_ value: String) -> Data? {
     return bytes
 }
 
-private func encodeBase64URL(_ data: Data) -> String {
-    data.base64EncodedString()
-        .replacingOccurrences(of: "+", with: "-")
-        .replacingOccurrences(of: "/", with: "_")
-        .replacingOccurrences(of: "=", with: "")
-}
-
 private func decodeBase64URL(
     _ value: String,
     expectedByteCount: Int? = nil,
     error: V3ManifestError = .invalidStructure("base64url")
 ) throws -> Data {
     guard !value.isEmpty,
-          value.utf8.allSatisfy({
-              ($0 >= CharacterByteForBase64.upperA && $0 <= CharacterByteForBase64.upperZ)
-                  || ($0 >= CharacterByteForBase64.lowerA && $0 <= CharacterByteForBase64.lowerZ)
-                  || ($0 >= CharacterByteForBase64.zero && $0 <= CharacterByteForBase64.nine)
-                  || $0 == CharacterByteForBase64.hyphen
-                  || $0 == CharacterByteForBase64.underscore
-          })
-    else {
-        throw error
-    }
-    var standard = value
-        .replacingOccurrences(of: "-", with: "+")
-        .replacingOccurrences(of: "_", with: "/")
-    standard += String(repeating: "=", count: (4 - standard.count % 4) % 4)
-    guard let decoded = Data(base64Encoded: standard),
-          encodeBase64URL(decoded) == value,
+          let decoded = Base64URL.decodeCanonical(value),
           expectedByteCount.map({ decoded.count == $0 }) ?? true
     else {
         throw error
@@ -1105,26 +1083,9 @@ private func base64URLString(
     let string = try string(value, path: path)
     guard !string.isEmpty,
           length.map({ string.utf8.count == $0 }) ?? true,
-          string.utf8.allSatisfy({
-              ($0 >= CharacterByteForBase64.upperA && $0 <= CharacterByteForBase64.upperZ)
-                  || ($0 >= CharacterByteForBase64.lowerA && $0 <= CharacterByteForBase64.lowerZ)
-                  || ($0 >= CharacterByteForBase64.zero && $0 <= CharacterByteForBase64.nine)
-                  || $0 == CharacterByteForBase64.hyphen
-                  || $0 == CharacterByteForBase64.underscore
-          })
+          Base64URL.decodeCanonical(string) != nil
     else {
         throw V3ManifestError.invalidStructure(path)
     }
     return string
-}
-
-private enum CharacterByteForBase64 {
-    static let upperA = UInt8(ascii: "A")
-    static let upperZ = UInt8(ascii: "Z")
-    static let lowerA = UInt8(ascii: "a")
-    static let lowerZ = UInt8(ascii: "z")
-    static let zero = UInt8(ascii: "0")
-    static let nine = UInt8(ascii: "9")
-    static let hyphen = UInt8(ascii: "-")
-    static let underscore = UInt8(ascii: "_")
 }
