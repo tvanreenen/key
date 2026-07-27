@@ -9,13 +9,13 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `942e444e302b132a94172e16e8e6b9778674e049` |
+| Production base | `main` at `a390042f044209050aff9888007102fc635df5e7` |
 | Selected architecture | Authenticated, versioned transaction layer |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/implement-v3-entry-resealing` |
-| Current PR | Draft PR #19 |
-| Next work | `FMT-207`: detect manifest and entry replay |
+| Current branch | `agent/implement-v3-replay-protection` |
+| Current PR | Draft PR #20 |
+| Next work | `FMT-208`: reject inconsistent membership and wrapped-key state |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -55,9 +55,10 @@ Status: complete; squash-merged as `6ef98bd` in PR #13.
 
 Status: `FMT-201` squash-merged as `f377093` in PR #14, `FMT-202`
 squash-merged as `ff402b8` in PR #15, `FMT-203` squash-merged as `18cfb3e`
-in PR #16, `FMT-204` squash-merged as `cceb783` in PR #17, and `FMT-205`
-squash-merged as `942e444` in PR #18. Entry resealing work continues on
-`agent/implement-v3-entry-resealing`.
+in PR #16, `FMT-204` squash-merged as `cceb783` in PR #17, `FMT-205`
+squash-merged as `942e444` in PR #18, and `FMT-206` squash-merged as
+`a390042` in PR #19. Replay-protection work continues on
+`agent/implement-v3-replay-protection`.
 
 - [x] `FMT-201` Specify canonical manifest-body and encrypted-entry schemas,
   encoding, ordering, normalization, and unknown-version behavior.
@@ -68,7 +69,7 @@ squash-merged as `942e444` in PR #18. Entry resealing work continues on
 - [x] `FMT-204` Define the typed entry associated-data context.
 - [x] `FMT-205` Seal and open entries with that context as AES-GCM AAD.
 - [x] `FMT-206` Make copy and rename decrypt-and-reseal operations.
-- [ ] `FMT-207` Detect manifest and entry replay.
+- [x] `FMT-207` Detect manifest and entry replay.
 - [ ] `FMT-208` Reject inconsistent membership and wrapped-key state.
 - [ ] `FMT-209` Add read-only local-v2 migration preflight and rollback steps.
 - [ ] `FMT-210` Refuse unsupported prototype enclave metadata.
@@ -130,13 +131,15 @@ Acceptance gate:
 | `DEC-009` | Accepted | Authenticate v3 entry identity as the entry-AAD domain label, a NUL delimiter, and canonical JSON over format, version, vault ID, entry ID, name, type, key epoch, and revision. Derive those values from authenticated manifest state when opening. |
 | `DEC-010` | Accepted | Keep v3 entry parsing explicitly untrusted. Before releasing plaintext, require the authenticated manifest digest and manifest-derived context to match the canonical file, then open AES-256-GCM with the exact typed associated data and require UTF-8 plaintext. |
 | `DEC-011` | Accepted | Implement v3 copy and rename as authenticated decrypt-and-reseal operations. Copy creates a fresh logical entry at revision 1; rename preserves the logical entry ID and advances its revision. Both preserve exact valid UTF-8 plaintext bytes, type, and key epoch and require a fresh nonce. |
+| `DEC-012` | Accepted | Treat authentication and freshness as separate gates. Persist one exact vault ID, generation, and manifest-envelope digest in the non-synchronizing device-local Keychain; advance it under the serialized helper mutation owner with an expected-checkpoint guard only after verifying the exact child transition. Require the freshness-approved manifest type for entry open, copy, and rename. |
 
 ## Validation Matrix
 
 - [x] Canonical manifest and entry-context encoding tests.
 - [x] Negative authentication tests for every bound field.
 - [x] Copy/rename identity, revision, collision, and exact-byte resealing tests.
-- [ ] Manifest, entry, enrollment, and key-epoch replay tests.
+- [x] Manifest generation/digest and entry revision replay tests.
+- [ ] Enrollment and key-epoch replay tests.
 - [x] Installed XPC tests for intended and unintended signing identities.
 - [ ] Mutation/key-transition concurrency tests.
 - [ ] Transaction fault injection at every phase.
@@ -159,5 +162,6 @@ Acceptance gate:
 
 ## Immediate Next Action
 
-Implement `FMT-207`: persist trusted manifest generation/digest state and
-reject replayed, divergent, or superseded manifests and entries explicitly.
+Implement `FMT-208`: enforce mode-specific membership, device-role, device
+status, and current-epoch wrapped-key invariants before a manifest can become
+usable vault authority.

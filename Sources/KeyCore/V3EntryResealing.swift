@@ -47,12 +47,12 @@ public struct V3ResealedEntry: Equatable, Sendable {
 extension V3EntryCipher {
     /// Copies an authenticated entry into a new logical entry at revision 1.
     ///
-    /// The destination must not already exist in the verified manifest.
+    /// The destination must not already exist in the trusted current manifest.
     /// Transaction-level overwrite policy is deliberately outside this
     /// cryptographic operation.
     public func copy(
         _ sourceData: Data,
-        verifiedManifest: V3VerifiedManifest,
+        trustedManifest: V3TrustedManifest,
         sourceEntryID: String,
         destinationName: String,
         vaultKey: Data
@@ -60,13 +60,13 @@ extension V3EntryCipher {
         var destinationEntryID: String
         repeat {
             destinationEntryID = UUID().uuidString.lowercased()
-        } while verifiedManifest.envelope.content.manifest.entries.contains {
+        } while trustedManifest.envelope.content.manifest.entries.contains {
             $0.entryID == destinationEntryID
         }
 
         return try copy(
             sourceData,
-            verifiedManifest: verifiedManifest,
+            trustedManifest: trustedManifest,
             sourceEntryID: sourceEntryID,
             destinationEntryID: destinationEntryID,
             destinationName: destinationName,
@@ -81,14 +81,14 @@ extension V3EntryCipher {
     /// together; moving the original ciphertext is never a valid v3 rename.
     public func rename(
         _ sourceData: Data,
-        verifiedManifest: V3VerifiedManifest,
+        trustedManifest: V3TrustedManifest,
         sourceEntryID: String,
         destinationName: String,
         vaultKey: Data
     ) throws -> V3ResealedEntry {
         try rename(
             sourceData,
-            verifiedManifest: verifiedManifest,
+            trustedManifest: trustedManifest,
             sourceEntryID: sourceEntryID,
             destinationName: destinationName,
             vaultKey: vaultKey,
@@ -98,16 +98,16 @@ extension V3EntryCipher {
 
     func copy(
         _ sourceData: Data,
-        verifiedManifest: V3VerifiedManifest,
+        trustedManifest: V3TrustedManifest,
         sourceEntryID: String,
         destinationEntryID: String,
         destinationName: String,
         vaultKey: Data,
         nonce: AES.GCM.Nonce
     ) throws -> V3ResealedEntry {
-        let body = verifiedManifest.envelope.content.manifest
+        let body = trustedManifest.envelope.content.manifest
         let source = try authenticatedManifestEntry(
-            in: verifiedManifest,
+            in: trustedManifest,
             entryID: sourceEntryID
         )
         guard isValidV3UUID(destinationEntryID) else {
@@ -133,7 +133,7 @@ extension V3EntryCipher {
         )
         return try reseal(
             sourceData,
-            verifiedManifest: verifiedManifest,
+            trustedManifest: trustedManifest,
             source: source,
             destination: destination,
             vaultKey: vaultKey,
@@ -143,15 +143,15 @@ extension V3EntryCipher {
 
     func rename(
         _ sourceData: Data,
-        verifiedManifest: V3VerifiedManifest,
+        trustedManifest: V3TrustedManifest,
         sourceEntryID: String,
         destinationName: String,
         vaultKey: Data,
         nonce: AES.GCM.Nonce
     ) throws -> V3ResealedEntry {
-        let body = verifiedManifest.envelope.content.manifest
+        let body = trustedManifest.envelope.content.manifest
         let source = try authenticatedManifestEntry(
-            in: verifiedManifest,
+            in: trustedManifest,
             entryID: sourceEntryID
         )
         guard isValidV3EntryName(destinationName) else {
@@ -177,7 +177,7 @@ extension V3EntryCipher {
         )
         return try reseal(
             sourceData,
-            verifiedManifest: verifiedManifest,
+            trustedManifest: trustedManifest,
             source: source,
             destination: destination,
             vaultKey: vaultKey,
@@ -187,13 +187,13 @@ extension V3EntryCipher {
 
     private func reseal(
         _ sourceData: Data,
-        verifiedManifest: V3VerifiedManifest,
+        trustedManifest: V3TrustedManifest,
         source: V3ManifestEntry,
         destination: V3EntryAuthenticationContext,
         vaultKey: Data,
         nonce: AES.GCM.Nonce
     ) throws -> V3ResealedEntry {
-        let vaultID = verifiedManifest.envelope.content.manifest.vaultID
+        let vaultID = trustedManifest.envelope.content.manifest.vaultID
         let plaintext = try openPlaintextDataTrusted(
             sourceData,
             vaultID: vaultID,

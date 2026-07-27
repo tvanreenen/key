@@ -224,26 +224,7 @@ public struct V3ManifestAuthenticator: Sendable {
             parent = parsedParent
         }
 
-        guard candidate.authentication.keyEpoch == candidate.content.manifest.keyEpoch else {
-            throw V3ManifestError.authenticationFailed
-        }
-        let suppliedTag = try decodeBase64URL(
-            candidate.authentication.tag,
-            expectedByteCount: 32,
-            error: .authenticationFailed
-        )
-        let authenticationKey = try manifestAuthenticationKey(
-            vaultKey: vaultKey,
-            vaultID: candidate.content.manifest.vaultID
-        )
-        let input = Self.authenticationInput(for: candidate.canonicalContentBytes)
-        guard HMAC<SHA256>.isValidAuthenticationCode(
-            suppliedTag,
-            authenticating: input,
-            using: authenticationKey
-        ) else {
-            throw V3ManifestError.authenticationFailed
-        }
+        let input = try authenticate(candidate, vaultKey: vaultKey)
 
         if let parent {
             if authorityChanged(from: parent.content.manifest, to: candidate.content.manifest) {
@@ -259,6 +240,31 @@ public struct V3ManifestAuthenticator: Sendable {
         return V3VerifiedManifest(
             envelope: candidate,
             envelopeDigest: Data(SHA256.hash(data: candidateData))
+        )
+    }
+
+    func verifyCheckpointedCurrent(
+        _ candidateData: Data,
+        vaultKey: Data,
+        checkpoint: V3ManifestCheckpoint
+    ) throws -> V3VerifiedManifest {
+        guard vaultKey.count == 32 else {
+            throw V3ManifestError.invalidVaultKey
+        }
+        let candidate = try parse(candidateData)
+        guard candidate.content.manifest.vaultID == checkpoint.vaultID,
+              candidate.content.manifest.generation == checkpoint.generation,
+              Data(SHA256.hash(data: candidateData)) == checkpoint.envelopeDigest
+        else {
+            throw V3ManifestError.parentMismatch
+        }
+
+        _ = try authenticate(candidate, vaultKey: vaultKey)
+        try validateSemantics(candidate.content.manifest)
+        try validateAuthorizationOrdering(candidate.authorizations)
+        return V3VerifiedManifest(
+            envelope: candidate,
+            envelopeDigest: checkpoint.envelopeDigest
         )
     }
 
@@ -333,6 +339,33 @@ public struct V3ManifestAuthenticator: Sendable {
             result.replaceSubrange(32..<64, with: normalized)
         }
         return Data(result)
+    }
+
+    private func authenticate(
+        _ candidate: V3ManifestEnvelope,
+        vaultKey: Data
+    ) throws -> Data {
+        guard candidate.authentication.keyEpoch == candidate.content.manifest.keyEpoch else {
+            throw V3ManifestError.authenticationFailed
+        }
+        let suppliedTag = try decodeBase64URL(
+            candidate.authentication.tag,
+            expectedByteCount: 32,
+            error: .authenticationFailed
+        )
+        let authenticationKey = try manifestAuthenticationKey(
+            vaultKey: vaultKey,
+            vaultID: candidate.content.manifest.vaultID
+        )
+        let input = Self.authenticationInput(for: candidate.canonicalContentBytes)
+        guard HMAC<SHA256>.isValidAuthenticationCode(
+            suppliedTag,
+            authenticating: input,
+            using: authenticationKey
+        ) else {
+            throw V3ManifestError.authenticationFailed
+        }
+        return input
     }
 
     private func verifyAuthorizations(

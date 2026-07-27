@@ -17,7 +17,7 @@ struct V3EntryResealingTests {
         let fixture = try makeFixture(type: .totp)
         let result = try V3EntryCipher().copy(
             fixture.entry.canonicalBytes,
-            verifiedManifest: fixture.manifest,
+            trustedManifest: fixture.manifest,
             sourceEntryID: Self.sourceEntryID,
             destinationEntryID: Self.destinationEntryID,
             destinationName: "email/copied",
@@ -36,11 +36,11 @@ struct V3EntryResealingTests {
         #expect(result.encryptedEntry.ciphertext != fixture.entry.ciphertext)
         #expect(result.manifestEntry == manifestEntry(for: result.encryptedEntry))
 
-        let targetManifest = verifiedManifest(entries: [result.manifestEntry])
+        let targetManifest = trustedManifest(entries: [result.manifestEntry])
         #expect(
             try V3EntryCipher().open(
                 result.encryptedEntry.canonicalBytes,
-                verifiedManifest: targetManifest,
+                trustedManifest: targetManifest,
                 entryID: Self.destinationEntryID,
                 vaultKey: Self.key
             ) == "JBSWY3DPEHPK3PXP"
@@ -52,7 +52,7 @@ struct V3EntryResealingTests {
         let fixture = try makeFixture()
         let result = try V3EntryCipher().rename(
             fixture.entry.canonicalBytes,
-            verifiedManifest: fixture.manifest,
+            trustedManifest: fixture.manifest,
             sourceEntryID: Self.sourceEntryID,
             destinationName: "email/renamed",
             vaultKey: Self.key,
@@ -68,19 +68,22 @@ struct V3EntryResealingTests {
         #expect(result.encryptedEntry.canonicalBytes != fixture.entry.canonicalBytes)
         #expect(result.manifestEntry == manifestEntry(for: result.encryptedEntry))
 
-        let targetManifest = verifiedManifest(entries: [result.manifestEntry])
+        let targetManifest = trustedManifest(entries: [result.manifestEntry])
         #expect(
             try V3EntryCipher().open(
                 result.encryptedEntry.canonicalBytes,
-                verifiedManifest: targetManifest,
+                trustedManifest: targetManifest,
                 entryID: Self.sourceEntryID,
                 vaultKey: Self.key
             ) == "correct horse battery staple"
         )
-        #expect(throws: V3EncryptedEntryError.digestMismatch) {
+        #expect(throws: V3EncryptedEntryError.replayedRevision(
+            trustedRevision: 5,
+            observedRevision: 4
+        )) {
             _ = try V3EntryCipher().open(
                 fixture.entry.canonicalBytes,
-                verifiedManifest: targetManifest,
+                trustedManifest: targetManifest,
                 entryID: Self.sourceEntryID,
                 vaultKey: Self.key
             )
@@ -92,7 +95,7 @@ struct V3EntryResealingTests {
         let fixture = try makeFixture()
         let result = try V3EntryCipher().copy(
             fixture.entry.canonicalBytes,
-            verifiedManifest: fixture.manifest,
+            trustedManifest: fixture.manifest,
             sourceEntryID: Self.sourceEntryID,
             destinationName: "email/generated-copy",
             vaultKey: Self.key
@@ -126,7 +129,7 @@ struct V3EntryResealingTests {
         #expect(throws: V3EntryResealingError.invalidDestinationEntryID) {
             _ = try cipher.copy(
                 fixture.entry.canonicalBytes,
-                verifiedManifest: fixture.manifest,
+                trustedManifest: fixture.manifest,
                 sourceEntryID: Self.sourceEntryID,
                 destinationEntryID: "not-an-entry-id",
                 destinationName: "email/copied",
@@ -137,7 +140,7 @@ struct V3EntryResealingTests {
         #expect(throws: V3EntryResealingError.invalidDestinationName) {
             _ = try cipher.copy(
                 fixture.entry.canonicalBytes,
-                verifiedManifest: fixture.manifest,
+                trustedManifest: fixture.manifest,
                 sourceEntryID: Self.sourceEntryID,
                 destinationEntryID: Self.destinationEntryID,
                 destinationName: "../escape",
@@ -148,7 +151,7 @@ struct V3EntryResealingTests {
         #expect(throws: V3EntryResealingError.destinationEntryIDExists) {
             _ = try cipher.copy(
                 fixture.entry.canonicalBytes,
-                verifiedManifest: fixture.manifest,
+                trustedManifest: fixture.manifest,
                 sourceEntryID: Self.sourceEntryID,
                 destinationEntryID: Self.otherEntryID,
                 destinationName: "email/copied",
@@ -159,7 +162,7 @@ struct V3EntryResealingTests {
         #expect(throws: V3EntryResealingError.destinationNameExists) {
             _ = try cipher.copy(
                 fixture.entry.canonicalBytes,
-                verifiedManifest: fixture.manifest,
+                trustedManifest: fixture.manifest,
                 sourceEntryID: Self.sourceEntryID,
                 destinationEntryID: Self.destinationEntryID,
                 destinationName: "email/existing",
@@ -189,7 +192,7 @@ struct V3EntryResealingTests {
         #expect(throws: V3EntryResealingError.unchangedName) {
             _ = try cipher.rename(
                 fixture.entry.canonicalBytes,
-                verifiedManifest: fixture.manifest,
+                trustedManifest: fixture.manifest,
                 sourceEntryID: Self.sourceEntryID,
                 destinationName: "email/personal",
                 vaultKey: Self.key,
@@ -199,7 +202,7 @@ struct V3EntryResealingTests {
         #expect(throws: V3EntryResealingError.destinationNameExists) {
             _ = try cipher.rename(
                 fixture.entry.canonicalBytes,
-                verifiedManifest: fixture.manifest,
+                trustedManifest: fixture.manifest,
                 sourceEntryID: Self.sourceEntryID,
                 destinationName: "email/existing",
                 vaultKey: Self.key,
@@ -209,7 +212,7 @@ struct V3EntryResealingTests {
         #expect(throws: V3EntryResealingError.invalidDestinationName) {
             _ = try cipher.rename(
                 fixture.entry.canonicalBytes,
-                verifiedManifest: fixture.manifest,
+                trustedManifest: fixture.manifest,
                 sourceEntryID: Self.sourceEntryID,
                 destinationName: "cafe\u{301}",
                 vaultKey: Self.key,
@@ -228,7 +231,7 @@ struct V3EntryResealingTests {
         #expect(throws: V3EntryResealingError.revisionOverflow) {
             _ = try cipher.rename(
                 fixture.entry.canonicalBytes,
-                verifiedManifest: verifiedManifest(entries: [overflowEntry]),
+                trustedManifest: trustedManifest(entries: [overflowEntry]),
                 sourceEntryID: Self.sourceEntryID,
                 destinationName: "email/renamed",
                 vaultKey: Self.key,
@@ -248,7 +251,7 @@ struct V3EntryResealingTests {
         #expect(throws: V3EncryptedEntryError.digestMismatch) {
             _ = try cipher.copy(
                 tampered,
-                verifiedManifest: fixture.manifest,
+                trustedManifest: fixture.manifest,
                 sourceEntryID: Self.sourceEntryID,
                 destinationEntryID: Self.destinationEntryID,
                 destinationName: "email/copied",
@@ -259,7 +262,7 @@ struct V3EntryResealingTests {
         #expect(throws: V3EncryptedEntryError.authenticationFailed) {
             _ = try cipher.rename(
                 fixture.entry.canonicalBytes,
-                verifiedManifest: fixture.manifest,
+                trustedManifest: fixture.manifest,
                 sourceEntryID: Self.sourceEntryID,
                 destinationName: "email/renamed",
                 vaultKey: Data(repeating: 0xFF, count: 32),
@@ -269,7 +272,7 @@ struct V3EntryResealingTests {
         #expect(throws: V3EncryptedEntryError.manifestEntryNotFound) {
             _ = try cipher.copy(
                 fixture.entry.canonicalBytes,
-                verifiedManifest: fixture.manifest,
+                trustedManifest: fixture.manifest,
                 sourceEntryID: Self.otherEntryID,
                 destinationEntryID: Self.destinationEntryID,
                 destinationName: "email/copied",
@@ -299,7 +302,7 @@ struct V3EntryResealingTests {
         let sourceRecord = manifestEntry(for: source)
         let result = try V3EntryCipher().copy(
             source.canonicalBytes,
-            verifiedManifest: verifiedManifest(entries: [sourceRecord]),
+            trustedManifest: trustedManifest(entries: [sourceRecord]),
             sourceEntryID: Self.sourceEntryID,
             destinationEntryID: Self.destinationEntryID,
             destinationName: "unicode/copied",
@@ -321,7 +324,7 @@ struct V3EntryResealingTests {
         additionalEntries: [V3ManifestEntry] = []
     ) throws -> (
         entry: V3EncryptedEntry,
-        manifest: V3VerifiedManifest
+        manifest: V3TrustedManifest
     ) {
         let context = try V3EntryAuthenticationContext(
             vaultID: Self.vaultID,
@@ -341,7 +344,7 @@ struct V3EntryResealingTests {
             nonce: AES.GCM.Nonce(data: Self.sourceNonce)
         )
         let entries = [manifestEntry(for: entry)] + additionalEntries
-        return (entry, verifiedManifest(entries: entries))
+        return (entry, trustedManifest(entries: entries))
     }
 
     private func manifestEntry(for entry: V3EncryptedEntry) -> V3ManifestEntry {
@@ -355,7 +358,7 @@ struct V3EntryResealingTests {
         )
     }
 
-    private func verifiedManifest(entries: [V3ManifestEntry]) -> V3VerifiedManifest {
+    private func trustedManifest(entries: [V3ManifestEntry]) -> V3TrustedManifest {
         let body = V3ManifestBody(
             vaultID: Self.vaultID,
             mode: .local,
@@ -375,6 +378,19 @@ struct V3EntryResealingTests {
             canonicalBytes: Data(),
             canonicalContentBytes: Data()
         )
-        return V3VerifiedManifest(envelope: envelope, envelopeDigest: Data())
+        let envelopeDigest = Data(repeating: 0xA5, count: 32)
+        let verified = V3VerifiedManifest(
+            envelope: envelope,
+            envelopeDigest: envelopeDigest
+        )
+        let checkpoint = try! V3ManifestCheckpoint(
+            vaultID: Self.vaultID,
+            generation: body.generation,
+            envelopeDigest: envelopeDigest
+        )
+        return V3TrustedManifest(
+            verifiedManifest: verified,
+            checkpoint: checkpoint
+        )
     }
 }

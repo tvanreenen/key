@@ -12,6 +12,8 @@ public enum V3EncryptedEntryError: Error, Equatable, LocalizedError {
     case invalidTrustedContext
     case manifestEntryNotFound
     case digestMismatch
+    case replayedRevision(trustedRevision: UInt64, observedRevision: UInt64)
+    case conflictingRevision(trustedRevision: UInt64, observedRevision: UInt64)
     case contextMismatch
     case encryptionFailed
     case authenticationFailed
@@ -37,6 +39,10 @@ public enum V3EncryptedEntryError: Error, Equatable, LocalizedError {
             "The authenticated manifest does not contain the requested entry."
         case .digestMismatch:
             "Encrypted entry does not match its authenticated manifest digest."
+        case let .replayedRevision(trustedRevision, observedRevision):
+            "Encrypted entry rollback detected: trusted revision \(trustedRevision), observed revision \(observedRevision)."
+        case let .conflictingRevision(trustedRevision, observedRevision):
+            "Encrypted entry conflicts with trusted revision \(trustedRevision) at observed revision \(observedRevision)."
         case .contextMismatch:
             "Encrypted entry identity does not match its authenticated manifest entry."
         case .encryptionFailed:
@@ -53,7 +59,7 @@ public enum V3EncryptedEntryError: Error, Equatable, LocalizedError {
 ///
 /// Parsing establishes canonical encoding and structural validity only. Treat
 /// these values as untrusted until `V3EntryCipher.open` verifies the file
-/// against an authenticated manifest entry and successfully opens AES-GCM.
+/// against a freshness-approved manifest entry and successfully opens AES-GCM.
 public struct V3EncryptedEntry: Equatable, Sendable {
     public let context: V3EntryAuthenticationContext
     public let nonce: Data
@@ -195,24 +201,20 @@ public struct V3EntryCipher: Sendable {
         )
     }
 
-    /// Opens an encrypted entry only after binding it to authenticated
-    /// manifest state.
-    ///
-    /// The verified-manifest type prevents callers from opening against a
-    /// free-standing, unauthenticated entry record. Freshness still depends on
-    /// the trusted manifest state introduced by FMT-207.
+    /// Opens an encrypted entry only after binding it to authenticated,
+    /// freshness-approved manifest state.
     public func open(
         _ data: Data,
-        verifiedManifest: V3VerifiedManifest,
+        trustedManifest: V3TrustedManifest,
         entryID: String,
         vaultKey: Data
     ) throws -> String {
         guard vaultKey.count == 32 else {
             throw V3EncryptedEntryError.invalidVaultKey
         }
-        let body = verifiedManifest.envelope.content.manifest
+        let body = trustedManifest.envelope.content.manifest
         let manifestEntry = try authenticatedManifestEntry(
-            in: verifiedManifest,
+            in: trustedManifest,
             entryID: entryID
         )
         return try openTrusted(
@@ -256,6 +258,14 @@ public struct V3EntryCipher: Sendable {
             throw V3EncryptedEntryError.invalidTrustedContext
         }
         guard Data(SHA256.hash(data: data)) == expectedDigest else {
+            if let replayError = authenticatedDigestMismatchError(
+                data,
+                vaultID: vaultID,
+                manifestEntry: manifestEntry,
+                vaultKey: vaultKey
+            ) {
+                throw replayError
+            }
             throw V3EncryptedEntryError.digestMismatch
         }
 
@@ -297,10 +307,10 @@ public struct V3EntryCipher: Sendable {
     }
 
     func authenticatedManifestEntry(
-        in verifiedManifest: V3VerifiedManifest,
+        in trustedManifest: V3TrustedManifest,
         entryID: String
     ) throws -> V3ManifestEntry {
-        let matches = verifiedManifest.envelope.content.manifest.entries.filter {
+        let matches = trustedManifest.envelope.content.manifest.entries.filter {
             $0.entryID == entryID
         }
         guard let manifestEntry = matches.first else {
@@ -310,6 +320,46 @@ public struct V3EntryCipher: Sendable {
             throw V3EncryptedEntryError.invalidTrustedContext
         }
         return manifestEntry
+    }
+
+    private func authenticatedDigestMismatchError(
+        _ data: Data,
+        vaultID: String,
+        manifestEntry: V3ManifestEntry,
+        vaultKey: Data
+    ) -> V3EncryptedEntryError? {
+        guard let entry = try? parse(data),
+              entry.context.vaultID == vaultID,
+              entry.context.entryID == manifestEntry.entryID
+        else {
+            return nil
+        }
+
+        do {
+            let sealedBox = try AES.GCM.SealedBox(
+                nonce: AES.GCM.Nonce(data: entry.nonce),
+                ciphertext: entry.ciphertext,
+                tag: entry.tag
+            )
+            _ = try AES.GCM.open(
+                sealedBox,
+                using: SymmetricKey(data: vaultKey),
+                authenticating: entry.context.associatedData
+            )
+        } catch {
+            return nil
+        }
+
+        if entry.context.revision < manifestEntry.revision {
+            return .replayedRevision(
+                trustedRevision: manifestEntry.revision,
+                observedRevision: entry.context.revision
+            )
+        }
+        return .conflictingRevision(
+            trustedRevision: manifestEntry.revision,
+            observedRevision: entry.context.revision
+        )
     }
 
     func seal(
