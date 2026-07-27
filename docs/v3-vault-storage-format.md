@@ -360,10 +360,53 @@ The canonical encrypted entry file has these fields and no others:
 The plaintext is UTF-8. Type-specific plaintext validation is outside this
 storage envelope.
 
-The entry authenticator context defined by `FMT-204` MUST include every
-identity field above. `FMT-205` MUST authenticate that context with AES-GCM.
-A reader MUST compare all duplicated fields and the canonical-file SHA-256
-against the manifest before returning plaintext.
+### Entry Authentication Context
+
+The typed entry authentication context contains exactly:
+
+```json
+{
+  "format": "key-vault-entry",
+  "version": 3,
+  "vaultID": "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
+  "entryID": "018f4d39-930c-735d-8d6f-588e9b0a3a48",
+  "name": "email/personal",
+  "type": "secret",
+  "keyEpoch": 3,
+  "revision": 4
+}
+```
+
+The exact AES-GCM associated-data bytes are:
+
+```text
+UTF8("work.tvr.key/v3/entry-aad") || 0x00 || JCS(entryAuthenticationContext)
+```
+
+The fixed `format` and `version` values are the corresponding entry-file
+identity fields, not identifiers for a separate file format. A writer MUST
+construct the context from the identity it intends to commit. A reader MUST
+construct it from the authenticated manifest's `vaultID` and entry record, then
+require every duplicated entry-file field to equal that context.
+
+The context deliberately excludes:
+
+- manifest generation, because one immutable entry revision may be referenced
+  by multiple manifest generations;
+- `ciphertextDigest`, because it commits the completed canonical entry file
+  from the manifest and including it in the entry's own tag would be circular;
+  and
+- `encryption.nonce`, `ciphertext`, and `tag`, which are direct AES-GCM inputs
+  and output.
+
+`encryption.algorithm` is fixed to `AES-256-GCM` by version 3 and MUST be
+validated before opening. A reader MUST also compare the exact canonical-file
+SHA-256 with the authenticated manifest before returning plaintext.
+
+`FMT-205` MUST pass these exact associated-data bytes to AES-GCM sealing and
+opening. The bound revision prevents a ciphertext from validating under a
+different revision, but freshness still depends on trusted manifest state from
+`FMT-207`.
 
 ## Illustrative Objects
 

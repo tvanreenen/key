@@ -757,7 +757,7 @@ private func validateDisplayNames(_ devices: [V3ManifestDevice]) throws {
         guard !name.isEmpty,
               name.unicodeScalars.count <= 128,
               Data(name.utf8) == Data(name.precomposedStringWithCanonicalMapping.utf8),
-              !name.unicodeScalars.contains(where: isControlCharacter)
+              !name.unicodeScalars.contains(where: isV3ControlCharacter)
         else {
             throw V3ManifestError.semanticViolation("devices.displayName")
         }
@@ -869,23 +869,7 @@ private func validateEntryOrdering(
 }
 
 private func validateEntryName(_ name: String) throws {
-    let utf8 = Data(name.utf8)
-    let segments = name.split(separator: "/", omittingEmptySubsequences: false)
-    guard !name.isEmpty,
-          name.unicodeScalars.count <= 1_024,
-          utf8.count <= 1_024,
-          utf8 == Data(name.precomposedStringWithCanonicalMapping.utf8),
-          name.first != "/", name.last != "/",
-          !name.contains("\\"),
-          !name.unicodeScalars.contains(where: isControlCharacter),
-          let first = name.unicodeScalars.first,
-          let last = name.unicodeScalars.last,
-          !CharacterSet.whitespacesAndNewlines.contains(first),
-          !CharacterSet.whitespacesAndNewlines.contains(last),
-          segments.allSatisfy({
-              !$0.isEmpty && $0 != "." && $0 != ".." && $0.utf8.count <= 255
-          })
-    else {
+    guard isValidV3EntryName(name) else {
         throw V3ManifestError.semanticViolation("entries.name")
     }
 }
@@ -994,10 +978,6 @@ private func isLowP256Scalar(_ scalar: [UInt8]) -> Bool {
 
 private func utf8Precedes(_ lhs: String, _ rhs: String) -> Bool {
     Array(lhs.utf8).lexicographicallyPrecedes(Array(rhs.utf8))
-}
-
-private func isControlCharacter(_ scalar: UnicodeScalar) -> Bool {
-    scalar.value <= 0x1F || (0x7F...0x9F).contains(scalar.value)
 }
 
 private func stringMember(
@@ -1111,17 +1091,7 @@ private func uuidString(
     path: String
 ) throws -> String {
     let string = try string(value, path: path)
-    let characters = Array(string.utf8)
-    guard characters.count == 36,
-          characters.enumerated().allSatisfy({ index, byte in
-              if [8, 13, 18, 23].contains(index) {
-                  return byte == CharacterByteForBase64.hyphen
-              }
-              return (byte >= CharacterByteForBase64.zero && byte <= CharacterByteForBase64.nine)
-                  || (byte >= CharacterByteForBase64.lowerA && byte <= CharacterByteForBase64.lowerF)
-          }),
-          UUID(uuidString: string) != nil
-    else {
+    guard isValidV3UUID(string) else {
         throw V3ManifestError.invalidStructure(path)
     }
     return string
@@ -1152,7 +1122,6 @@ private enum CharacterByteForBase64 {
     static let upperA = UInt8(ascii: "A")
     static let upperZ = UInt8(ascii: "Z")
     static let lowerA = UInt8(ascii: "a")
-    static let lowerF = UInt8(ascii: "f")
     static let lowerZ = UInt8(ascii: "z")
     static let zero = UInt8(ascii: "0")
     static let nine = UInt8(ascii: "9")

@@ -9,13 +9,13 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `ff402b87aa57d4e38b0c135ce62ab89beca6154b` |
+| Production base | `main` at `18cfb3ef1249fe2390e87d1fdb1ea3013966d81a` |
 | Selected architecture | Authenticated, versioned transaction layer |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/implement-v3-manifest-authentication` |
+| Current branch | `agent/define-v3-entry-aad` |
 | Current PR | Not opened |
-| Next work | `FMT-204`: define the typed entry associated-data context |
+| Next work | `FMT-205`: seal and open entries using the defined associated data |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -53,9 +53,10 @@ Status: complete; squash-merged as `6ef98bd` in PR #13.
 
 ### Version 3 Authenticated Storage
 
-Status: `FMT-201` squash-merged as `f377093` in PR #14 and `FMT-202`
-squash-merged as `ff402b8` in PR #15. Manifest authentication implementation
-continues on `agent/implement-v3-manifest-authentication`.
+Status: `FMT-201` squash-merged as `f377093` in PR #14, `FMT-202`
+squash-merged as `ff402b8` in PR #15, and `FMT-203` squash-merged as
+`18cfb3e` in PR #16. Entry authentication work continues on
+`agent/define-v3-entry-aad`.
 
 - [x] `FMT-201` Specify canonical manifest-body and encrypted-entry schemas,
   encoding, ordering, normalization, and unknown-version behavior.
@@ -63,7 +64,7 @@ continues on `agent/implement-v3-manifest-authentication`.
 - [x] `FMT-203` Authenticate the complete manifest body.
 - [x] Isolate canonical JSON behind an internal module boundary with a
   documented path to independent publication.
-- [ ] `FMT-204` Define the typed entry associated-data context.
+- [x] `FMT-204` Define the typed entry associated-data context.
 - [ ] `FMT-205` Seal and open entries with that context as AES-GCM AAD.
 - [ ] `FMT-206` Make copy and rename decrypt-and-reseal operations.
 - [ ] `FMT-207` Detect manifest and entry replay.
@@ -125,10 +126,11 @@ Acceptance gate:
 | `DEC-006` | Accepted | Give the CLI full authority and the utility status/lock authority on separate authenticated endpoints. |
 | `DEC-007` | Accepted | Keep the signed nested helper, constrain launchd spawning, and re-register it on app upgrades. |
 | `DEC-008` | Accepted | Keep canonical JSON independent of vault schemas in an internal SwiftPM target; do not claim or publish full RFC 8785 conformance until complete number handling, upstream vectors, fuzzing, and independent review are complete. |
+| `DEC-009` | Accepted | Authenticate v3 entry identity as the entry-AAD domain label, a NUL delimiter, and canonical JSON over format, version, vault ID, entry ID, name, type, key epoch, and revision. Derive those values from authenticated manifest state when opening. |
 
 ## Validation Matrix
 
-- [ ] Canonical manifest and entry-context encoding tests.
+- [x] Canonical manifest and entry-context encoding tests.
 - [ ] Negative authentication tests for every bound field.
 - [ ] Manifest, entry, enrollment, and key-epoch replay tests.
 - [x] Installed XPC tests for intended and unintended signing identities.
@@ -153,5 +155,5 @@ Acceptance gate:
 
 ## Immediate Next Action
 
-Specify `FMT-204`: bind every version 3 entry identity field into one canonical
-AES-GCM associated-data context before implementing entry sealing and opening.
+Implement `FMT-205`: seal and open version 3 entries with AES-256-GCM using the
+exact typed associated-data bytes defined by `FMT-204`.
