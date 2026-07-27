@@ -547,6 +547,9 @@ The following decisions are not part of `FMT-201` or `FMT-202`:
 Until those work packages land, version 3 artifacts are specification fixtures,
 not trusted production state.
 
+Implementation boundaries and future extraction work are tracked in the
+[canonical JSON module plan](json-canonicalization.md).
+
 ## Normative References
 
 - [RFC 8785 — JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785.html)

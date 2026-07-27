@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import JSONCanonicalization
 import Testing
 @testable import KeyCore
 
@@ -57,7 +58,7 @@ struct V3ManifestAuthenticationTests {
     }
 
     @Test
-    func parserRejectsNonCanonicalDuplicateUnknownAndFutureJSON() throws {
+    func parserRejectsNonCanonicalUnknownAndFutureJSON() throws {
         let fixture = Fixture()
         let canonical = try fixture.envelope(
             content: fixture.content(parent: .object([("kind", .string("genesis"))]))
@@ -67,11 +68,6 @@ struct V3ManifestAuthenticationTests {
 
         #expect(throws: V3ManifestError.nonCanonicalJSON) {
             _ = try V3ManifestAuthenticator().parse(spaced)
-        }
-        #expect(throws: V3ManifestError.duplicateProperty) {
-            try V3ManifestAuthenticator().parse(
-                Data("{\"format\":\"key-vault-manifest-envelope\",\"format\":\"key-vault-manifest-envelope\",\"version\":3}".utf8)
-            )
         }
         #expect(throws: V3ManifestError.invalidStructure("$")) {
             try V3ManifestAuthenticator().parse(
@@ -83,16 +79,22 @@ struct V3ManifestAuthenticationTests {
                 Data("{\"format\":\"key-vault-manifest-envelope\",\"version\":4}".utf8)
             )
         }
-        #expect(throws: V3ManifestError.invalidEncoding) {
-            var bom = Data([0xEF, 0xBB, 0xBF])
-            bom.append(canonical)
-            _ = try V3ManifestAuthenticator().parse(bom)
+    }
+
+    @Test
+    func canonicalJSONFailuresMapToManifestErrors() {
+        #expect(throws: V3ManifestError.duplicateProperty) {
+            _ = try V3ManifestAuthenticator().parse(Data(#"{"a":1,"\u0061":2}"#.utf8))
         }
+        #expect(throws: V3ManifestError.invalidEncoding) {
+            _ = try V3ManifestAuthenticator().parse(Data([0xEF, 0xBB, 0xBF, 0x7B, 0x7D]))
+        }
+
+        let count = 33
+        let deeplyNested = String(repeating: "[", count: count)
+            + "0"
+            + String(repeating: "]", count: count)
         #expect(throws: V3ManifestError.invalidJSON) {
-            let arrays = 33
-            let deeplyNested = """
-            {"deep":\(String(repeating: "[", count: arrays))0\(String(repeating: "]", count: arrays)),"format":"key-vault-manifest-envelope","version":3}
-            """
             _ = try V3ManifestAuthenticator().parse(Data(deeplyNested.utf8))
         }
     }
@@ -456,7 +458,7 @@ private struct Fixture {
     }
 
     func content(
-        parent: V3JSONValue,
+        parent: CanonicalJSONValue,
         generation: UInt64 = 1,
         keyEpoch: UInt64 = 1,
         role: V3DeviceRole = .owner,
@@ -464,7 +466,7 @@ private struct Fixture {
         deviceID overriddenDeviceID: String? = nil,
         entryName: String = "email/personal",
         entryRevision: UInt64 = 4
-    ) -> V3JSONValue {
+    ) -> CanonicalJSONValue {
         .object([
             ("parent", parent),
             ("manifest", manifest(
@@ -487,9 +489,9 @@ private struct Fixture {
         deviceID overriddenDeviceID: String?,
         entryName: String,
         entryRevision: UInt64
-    ) -> V3JSONValue {
+    ) -> CanonicalJSONValue {
         let actualDeviceID = overriddenDeviceID ?? deviceID
-        let devices: [V3JSONValue] = includeDevice ? [
+        let devices: [CanonicalJSONValue] = includeDevice ? [
             .object([
                 ("deviceID", .string(actualDeviceID)),
                 ("displayName", .string("Laptop")),
@@ -508,7 +510,7 @@ private struct Fixture {
                 ("enrolledAtGeneration", .integer(0))
             ])
         ] : []
-        let wrappedKeys: [V3JSONValue] = includeDevice ? [
+        let wrappedKeys: [CanonicalJSONValue] = includeDevice ? [
             .object([
                 ("deviceID", .string(actualDeviceID)),
                 ("keyEpoch", .integer(keyEpoch)),
@@ -539,7 +541,7 @@ private struct Fixture {
         ])
     }
 
-    func parentReference(to envelope: Data, generation: UInt64) -> V3JSONValue {
+    func parentReference(to envelope: Data, generation: UInt64) -> CanonicalJSONValue {
         .object([
             ("kind", .string("manifest")),
             ("generation", .integer(generation)),
@@ -548,11 +550,11 @@ private struct Fixture {
     }
 
     func envelope(
-        content: V3JSONValue,
+        content: CanonicalJSONValue,
         signers: [(String, P256.Signing.PrivateKey)] = [],
         forceHighS: Bool = false
     ) throws -> Data {
-        let canonicalContent = V3CanonicalJSON.encode(content)
+        let canonicalContent = CanonicalJSON.encode(content)
         let tag = try V3ManifestAuthenticator.authenticationTag(
             canonicalContent: canonicalContent,
             vaultID: Self.vaultID,
@@ -560,7 +562,7 @@ private struct Fixture {
         )
         let input = V3ManifestAuthenticator.authenticationInput(for: canonicalContent)
         let digest = SHA256.hash(data: input)
-        let authorizations = try signers.map { signerID, privateKey -> V3JSONValue in
+        let authorizations = try signers.map { signerID, privateKey -> CanonicalJSONValue in
             let signature = try privateKey.signature(for: digest)
             let lowS = try V3ManifestAuthenticator.canonicalizeP256Signature(signature.rawRepresentation)
             let storedSignature = forceHighS ? highSSignature(fromLowS: lowS) : lowS
@@ -571,7 +573,7 @@ private struct Fixture {
             ])
         }
 
-        return V3CanonicalJSON.encode(.object([
+        return CanonicalJSON.encode(.object([
             ("format", .string("key-vault-manifest-envelope")),
             ("version", .integer(3)),
             ("content", content),
@@ -584,7 +586,7 @@ private struct Fixture {
         ]))
     }
 
-    private func manifestKeyEpoch(in content: V3JSONValue) -> UInt64 {
+    private func manifestKeyEpoch(in content: CanonicalJSONValue) -> UInt64 {
         guard case let .object(contentMembers) = content,
               case let .object(manifestMembers)? = contentMembers.first(where: { $0.0 == "manifest" })?.1,
               case let .integer(keyEpoch)? = manifestMembers.first(where: { $0.0 == "keyEpoch" })?.1

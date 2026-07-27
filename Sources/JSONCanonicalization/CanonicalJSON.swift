@@ -1,35 +1,41 @@
 import Foundation
 
-enum V3JSONValue {
+package enum CanonicalJSONError: Error, Equatable {
+    case invalidEncoding
+    case invalidJSON
+    case duplicateProperty
+}
+
+package enum CanonicalJSONValue {
     case null
     case bool(Bool)
     case integer(UInt64)
     case string(String)
-    case array([V3JSONValue])
-    case object([(String, V3JSONValue)])
+    case array([CanonicalJSONValue])
+    case object([(String, CanonicalJSONValue)])
 
-    var objectValue: [(String, V3JSONValue)]? {
+    package var objectValue: [(String, CanonicalJSONValue)]? {
         guard case let .object(value) = self else {
             return nil
         }
         return value
     }
 
-    var arrayValue: [V3JSONValue]? {
+    package var arrayValue: [CanonicalJSONValue]? {
         guard case let .array(value) = self else {
             return nil
         }
         return value
     }
 
-    var stringValue: String? {
+    package var stringValue: String? {
         guard case let .string(value) = self else {
             return nil
         }
         return value
     }
 
-    var integerValue: UInt64? {
+    package var integerValue: UInt64? {
         guard case let .integer(value) = self else {
             return nil
         }
@@ -37,28 +43,28 @@ enum V3JSONValue {
     }
 }
 
-enum V3CanonicalJSON {
+package enum CanonicalJSON {
     private static let maximumNestingDepth = 32
 
-    static func parse(_ data: Data) throws -> V3JSONValue {
+    package static func parse(_ data: Data) throws -> CanonicalJSONValue {
         guard !data.starts(with: [0xEF, 0xBB, 0xBF]) else {
-            throw V3ManifestError.invalidEncoding
+            throw CanonicalJSONError.invalidEncoding
         }
         var parser = Parser(bytes: Array(data), maximumNestingDepth: maximumNestingDepth)
         return try parser.parseDocument()
     }
 
-    static func encode(_ value: V3JSONValue) -> Data {
+    package static func encode(_ value: CanonicalJSONValue) -> Data {
         var bytes: [UInt8] = []
         append(value, to: &bytes)
         return Data(bytes)
     }
 
-    static func canonicalize(_ data: Data) throws -> Data {
+    package static func canonicalize(_ data: Data) throws -> Data {
         encode(try parse(data))
     }
 
-    private static func append(_ value: V3JSONValue, to bytes: inout [UInt8]) {
+    private static func append(_ value: CanonicalJSONValue, to bytes: inout [UInt8]) {
         switch value {
         case .null:
             bytes.append(contentsOf: "null".utf8)
@@ -127,30 +133,30 @@ private struct Parser {
     let maximumNestingDepth: Int
     var index = 0
 
-    mutating func parseDocument() throws -> V3JSONValue {
+    mutating func parseDocument() throws -> CanonicalJSONValue {
         skipWhitespace()
         let value = try parseValue(containerDepth: 0)
         skipWhitespace()
         guard index == bytes.count else {
-            throw V3ManifestError.invalidJSON
+            throw CanonicalJSONError.invalidJSON
         }
         return value
     }
 
-    private mutating func parseValue(containerDepth: Int) throws -> V3JSONValue {
+    private mutating func parseValue(containerDepth: Int) throws -> CanonicalJSONValue {
         guard let byte = current else {
-            throw V3ManifestError.invalidJSON
+            throw CanonicalJSONError.invalidJSON
         }
 
         switch byte {
         case CharacterByte.leftBrace:
             guard containerDepth < maximumNestingDepth else {
-                throw V3ManifestError.invalidJSON
+                throw CanonicalJSONError.invalidJSON
             }
             return try parseObject(containerDepth: containerDepth + 1)
         case CharacterByte.leftBracket:
             guard containerDepth < maximumNestingDepth else {
-                throw V3ManifestError.invalidJSON
+                throw CanonicalJSONError.invalidJSON
             }
             return try parseArray(containerDepth: containerDepth + 1)
         case CharacterByte.quote:
@@ -167,15 +173,15 @@ private struct Parser {
             try consume("null")
             return .null
         default:
-            throw V3ManifestError.invalidJSON
+            throw CanonicalJSONError.invalidJSON
         }
     }
 
-    private mutating func parseObject(containerDepth: Int) throws -> V3JSONValue {
+    private mutating func parseObject(containerDepth: Int) throws -> CanonicalJSONValue {
         index += 1
         skipWhitespace()
 
-        var members: [(String, V3JSONValue)] = []
+        var members: [(String, CanonicalJSONValue)] = []
         var encodedNames = Set<Data>()
         if consumeIf(CharacterByte.rightBrace) {
             return .object(members)
@@ -183,16 +189,16 @@ private struct Parser {
 
         while true {
             guard current == CharacterByte.quote else {
-                throw V3ManifestError.invalidJSON
+                throw CanonicalJSONError.invalidJSON
             }
             let name = try parseString()
             guard encodedNames.insert(Data(name.utf8)).inserted else {
-                throw V3ManifestError.duplicateProperty
+                throw CanonicalJSONError.duplicateProperty
             }
 
             skipWhitespace()
             guard consumeIf(CharacterByte.colon) else {
-                throw V3ManifestError.invalidJSON
+                throw CanonicalJSONError.invalidJSON
             }
             skipWhitespace()
             members.append((name, try parseValue(containerDepth: containerDepth)))
@@ -202,17 +208,17 @@ private struct Parser {
                 return .object(members)
             }
             guard consumeIf(CharacterByte.comma) else {
-                throw V3ManifestError.invalidJSON
+                throw CanonicalJSONError.invalidJSON
             }
             skipWhitespace()
         }
     }
 
-    private mutating func parseArray(containerDepth: Int) throws -> V3JSONValue {
+    private mutating func parseArray(containerDepth: Int) throws -> CanonicalJSONValue {
         index += 1
         skipWhitespace()
 
-        var values: [V3JSONValue] = []
+        var values: [CanonicalJSONValue] = []
         if consumeIf(CharacterByte.rightBracket) {
             return .array(values)
         }
@@ -224,7 +230,7 @@ private struct Parser {
                 return .array(values)
             }
             guard consumeIf(CharacterByte.comma) else {
-                throw V3ManifestError.invalidJSON
+                throw CanonicalJSONError.invalidJSON
             }
             skipWhitespace()
         }
@@ -232,7 +238,7 @@ private struct Parser {
 
     private mutating func parseString() throws -> String {
         guard consumeIf(CharacterByte.quote) else {
-            throw V3ManifestError.invalidJSON
+            throw CanonicalJSONError.invalidJSON
         }
 
         var decoded: [UInt8] = []
@@ -241,25 +247,25 @@ private struct Parser {
             case CharacterByte.quote:
                 index += 1
                 guard let value = String(data: Data(decoded), encoding: .utf8) else {
-                    throw V3ManifestError.invalidEncoding
+                    throw CanonicalJSONError.invalidEncoding
                 }
                 return value
             case CharacterByte.backslash:
                 index += 1
                 try appendEscape(to: &decoded)
             case 0x00...0x1F:
-                throw V3ManifestError.invalidJSON
+                throw CanonicalJSONError.invalidJSON
             default:
                 decoded.append(byte)
                 index += 1
             }
         }
-        throw V3ManifestError.invalidJSON
+        throw CanonicalJSONError.invalidJSON
     }
 
     private mutating func appendEscape(to decoded: inout [UInt8]) throws {
         guard let escape = current else {
-            throw V3ManifestError.invalidJSON
+            throw CanonicalJSONError.invalidJSON
         }
         index += 1
 
@@ -285,38 +291,38 @@ private struct Parser {
             let scalarValue: UInt32
             if (0xD800...0xDBFF).contains(first) {
                 guard consumeIf(CharacterByte.backslash), consumeIf(CharacterByte.u) else {
-                    throw V3ManifestError.invalidJSON
+                    throw CanonicalJSONError.invalidJSON
                 }
                 let second = try parseHexQuad()
                 guard (0xDC00...0xDFFF).contains(second) else {
-                    throw V3ManifestError.invalidJSON
+                    throw CanonicalJSONError.invalidJSON
                 }
                 scalarValue = 0x10000
                     + (UInt32(first - 0xD800) << 10)
                     + UInt32(second - 0xDC00)
             } else {
                 guard !(0xDC00...0xDFFF).contains(first) else {
-                    throw V3ManifestError.invalidJSON
+                    throw CanonicalJSONError.invalidJSON
                 }
                 scalarValue = UInt32(first)
             }
             guard let scalar = UnicodeScalar(scalarValue) else {
-                throw V3ManifestError.invalidJSON
+                throw CanonicalJSONError.invalidJSON
             }
             decoded.append(contentsOf: String(scalar).utf8)
         default:
-            throw V3ManifestError.invalidJSON
+            throw CanonicalJSONError.invalidJSON
         }
     }
 
     private mutating func parseHexQuad() throws -> UInt16 {
         guard index + 4 <= bytes.count else {
-            throw V3ManifestError.invalidJSON
+            throw CanonicalJSONError.invalidJSON
         }
         var value: UInt16 = 0
         for _ in 0..<4 {
             guard let digit = hexValue(bytes[index]) else {
-                throw V3ManifestError.invalidJSON
+                throw CanonicalJSONError.invalidJSON
             }
             value = value * 16 + UInt16(digit)
             index += 1
@@ -329,7 +335,7 @@ private struct Parser {
         if current == CharacterByte.zero {
             index += 1
             if let next = current, (CharacterByte.zero...CharacterByte.nine).contains(next) {
-                throw V3ManifestError.invalidJSON
+                throw CanonicalJSONError.invalidJSON
             }
         } else {
             while let byte = current, (CharacterByte.zero...CharacterByte.nine).contains(byte) {
@@ -338,13 +344,13 @@ private struct Parser {
         }
 
         if let next = current, next == CharacterByte.period || next == CharacterByte.e || next == CharacterByte.upperE {
-            throw V3ManifestError.invalidJSON
+            throw CanonicalJSONError.invalidJSON
         }
         guard let text = String(bytes: bytes[start..<index], encoding: .utf8),
               let value = UInt64(text),
               value <= 9_007_199_254_740_991
         else {
-            throw V3ManifestError.invalidJSON
+            throw CanonicalJSONError.invalidJSON
         }
         return value
     }
@@ -352,7 +358,7 @@ private struct Parser {
     private mutating func consume(_ literal: StaticString) throws {
         let expected = Array("\(literal)".utf8)
         guard bytes[index...].starts(with: expected) else {
-            throw V3ManifestError.invalidJSON
+            throw CanonicalJSONError.invalidJSON
         }
         index += expected.count
     }

@@ -12,6 +12,7 @@ state.
 | Production base | `main` at `ff402b87aa57d4e38b0c135ce62ab89beca6154b` |
 | Selected architecture | Authenticated, versioned transaction layer |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
+| Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
 | Current branch | `agent/implement-v3-manifest-authentication` |
 | Current PR | Not opened |
 | Next work | `FMT-204`: define the typed entry associated-data context |
@@ -60,6 +61,8 @@ continues on `agent/implement-v3-manifest-authentication`.
   encoding, ordering, normalization, and unknown-version behavior.
 - [x] `FMT-202` Select the manifest authority and authenticated envelope.
 - [x] `FMT-203` Authenticate the complete manifest body.
+- [x] Isolate canonical JSON behind an internal module boundary with a
+  documented path to independent publication.
 - [ ] `FMT-204` Define the typed entry associated-data context.
 - [ ] `FMT-205` Seal and open entries with that context as AES-GCM AAD.
 - [ ] `FMT-206` Make copy and rename decrypt-and-reseal operations.
@@ -121,6 +124,7 @@ Acceptance gate:
 | `DEC-005` | Open | Make vault-root changes helper-owned or require a locked/restarted helper. |
 | `DEC-006` | Accepted | Give the CLI full authority and the utility status/lock authority on separate authenticated endpoints. |
 | `DEC-007` | Accepted | Keep the signed nested helper, constrain launchd spawning, and re-register it on app upgrades. |
+| `DEC-008` | Accepted | Keep canonical JSON independent of vault schemas in an internal SwiftPM target; do not claim or publish full RFC 8785 conformance until complete number handling, upstream vectors, fuzzing, and independent review are complete. |
 
 ## Validation Matrix
 

@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import JSONCanonicalization
 
 public enum V3ManifestError: Error, Equatable, LocalizedError {
     case invalidEncoding
@@ -154,7 +155,12 @@ public struct V3ManifestAuthenticator: Sendable {
     public init() {}
 
     public func parse(_ data: Data) throws -> V3ManifestEnvelope {
-        let json = try V3CanonicalJSON.parse(data)
+        let json: CanonicalJSONValue
+        do {
+            json = try CanonicalJSON.parse(data)
+        } catch let error as CanonicalJSONError {
+            throw manifestError(for: error)
+        }
         guard let root = json.objectValue else {
             throw V3ManifestError.invalidStructure("$")
         }
@@ -172,7 +178,7 @@ public struct V3ManifestAuthenticator: Sendable {
             throw V3ManifestError.notVersion3(version)
         }
 
-        let canonical = V3CanonicalJSON.encode(json)
+        let canonical = CanonicalJSON.encode(json)
         guard canonical == data else {
             throw V3ManifestError.nonCanonicalJSON
         }
@@ -282,7 +288,7 @@ public struct V3ManifestAuthenticator: Sendable {
         signingPublicKey: Data,
         wrappingPublicKey: Data
     ) -> String {
-        let identity = V3JSONValue.object([
+        let identity = CanonicalJSONValue.object([
             ("format", .string("key-vault-device-identity")),
             ("version", .integer(3)),
             ("signingPublicKey", .object([
@@ -296,7 +302,7 @@ public struct V3ManifestAuthenticator: Sendable {
                 ("value", .string(encodeBase64URL(wrappingPublicKey)))
             ]))
         ])
-        return encodeBase64URL(Data(SHA256.hash(data: V3CanonicalJSON.encode(identity))))
+        return encodeBase64URL(Data(SHA256.hash(data: CanonicalJSON.encode(identity))))
     }
 
     static func canonicalizeP256Signature(_ rawSignature: Data) throws -> Data {
@@ -376,9 +382,20 @@ public struct V3ManifestAuthenticator: Sendable {
     }
 }
 
+private func manifestError(for error: CanonicalJSONError) -> V3ManifestError {
+    switch error {
+    case .invalidEncoding:
+        .invalidEncoding
+    case .invalidJSON:
+        .invalidJSON
+    case .duplicateProperty:
+        .duplicateProperty
+    }
+}
+
 private enum ManifestDecoder {
     static func decode(
-        root: [(String, V3JSONValue)],
+        root: [(String, CanonicalJSONValue)],
         canonicalBytes: Data
     ) throws -> V3ManifestEnvelope {
         try requireFields(
@@ -408,11 +425,11 @@ private enum ManifestDecoder {
             authentication: authentication,
             authorizations: authorizations,
             canonicalBytes: canonicalBytes,
-            canonicalContentBytes: V3CanonicalJSON.encode(contentValue)
+            canonicalContentBytes: CanonicalJSON.encode(contentValue)
         )
     }
 
-    private static func decodeParent(_ value: V3JSONValue) throws -> V3ManifestParent {
+    private static func decodeParent(_ value: CanonicalJSONValue) throws -> V3ManifestParent {
         let parent = try object(value, path: "$.content.parent")
         let kind = try string(
             try requiredMember("kind", in: parent, path: "$.content.parent"),
@@ -444,7 +461,7 @@ private enum ManifestDecoder {
         }
     }
 
-    private static func decodeManifest(_ value: V3JSONValue) throws -> V3ManifestBody {
+    private static func decodeManifest(_ value: CanonicalJSONValue) throws -> V3ManifestBody {
         let manifest = try object(value, path: "$.content.manifest")
         try requireFields(
             manifest,
@@ -512,7 +529,7 @@ private enum ManifestDecoder {
         )
     }
 
-    private static func decodeDevice(_ value: V3JSONValue, index: Int) throws -> V3ManifestDevice {
+    private static func decodeDevice(_ value: CanonicalJSONValue, index: Int) throws -> V3ManifestDevice {
         let path = "$.content.manifest.devices[\(index)]"
         let device = try object(value, path: path)
         try requireFields(
@@ -567,7 +584,7 @@ private enum ManifestDecoder {
     }
 
     private static func decodePublicKey(
-        _ value: V3JSONValue,
+        _ value: CanonicalJSONValue,
         algorithm: String,
         path: String
     ) throws -> V3DevicePublicKey {
@@ -590,7 +607,7 @@ private enum ManifestDecoder {
         ))
     }
 
-    private static func decodeWrappedKey(_ value: V3JSONValue, index: Int) throws -> V3WrappedKey {
+    private static func decodeWrappedKey(_ value: CanonicalJSONValue, index: Int) throws -> V3WrappedKey {
         let path = "$.content.manifest.wrappedKeys[\(index)]"
         let wrappedKey = try object(value, path: path)
         try requireFields(
@@ -620,7 +637,7 @@ private enum ManifestDecoder {
         )
     }
 
-    private static func decodeEntry(_ value: V3JSONValue, index: Int) throws -> V3ManifestEntry {
+    private static func decodeEntry(_ value: CanonicalJSONValue, index: Int) throws -> V3ManifestEntry {
         let path = "$.content.manifest.entries[\(index)]"
         let entry = try object(value, path: path)
         try requireFields(
@@ -659,7 +676,7 @@ private enum ManifestDecoder {
         )
     }
 
-    private static func decodeAuthentication(_ value: V3JSONValue) throws -> V3ManifestAuthentication {
+    private static func decodeAuthentication(_ value: CanonicalJSONValue) throws -> V3ManifestAuthentication {
         let path = "$.authentication"
         let authentication = try object(value, path: path)
         try requireFields(authentication, required: ["algorithm", "keyEpoch", "tag"], path: path)
@@ -682,7 +699,7 @@ private enum ManifestDecoder {
     }
 
     private static func decodeAuthorization(
-        _ value: V3JSONValue,
+        _ value: CanonicalJSONValue,
         index: Int
     ) throws -> V3ManifestAuthorization {
         let path = "$.authorizations[\(index)]"
@@ -985,30 +1002,30 @@ private func isControlCharacter(_ scalar: UnicodeScalar) -> Bool {
 
 private func stringMember(
     _ name: String,
-    in object: [(String, V3JSONValue)]
+    in object: [(String, CanonicalJSONValue)]
 ) -> String? {
     optionalMember(name, in: object)?.stringValue
 }
 
 private func integerMember(
     _ name: String,
-    in object: [(String, V3JSONValue)]
+    in object: [(String, CanonicalJSONValue)]
 ) -> UInt64? {
     optionalMember(name, in: object)?.integerValue
 }
 
 private func optionalMember(
     _ name: String,
-    in object: [(String, V3JSONValue)]
-) -> V3JSONValue? {
+    in object: [(String, CanonicalJSONValue)]
+) -> CanonicalJSONValue? {
     object.first(where: { $0.0 == name })?.1
 }
 
 private func requiredMember(
     _ name: String,
-    in object: [(String, V3JSONValue)],
+    in object: [(String, CanonicalJSONValue)],
     path: String
-) throws -> V3JSONValue {
+) throws -> CanonicalJSONValue {
     guard let value = optionalMember(name, in: object) else {
         throw V3ManifestError.invalidStructure("\(path).\(name)")
     }
@@ -1016,9 +1033,9 @@ private func requiredMember(
 }
 
 private func object(
-    _ value: V3JSONValue,
+    _ value: CanonicalJSONValue,
     path: String
-) throws -> [(String, V3JSONValue)] {
+) throws -> [(String, CanonicalJSONValue)] {
     guard let object = value.objectValue else {
         throw V3ManifestError.invalidStructure(path)
     }
@@ -1026,9 +1043,9 @@ private func object(
 }
 
 private func array(
-    _ value: V3JSONValue,
+    _ value: CanonicalJSONValue,
     path: String
-) throws -> [V3JSONValue] {
+) throws -> [CanonicalJSONValue] {
     guard let array = value.arrayValue else {
         throw V3ManifestError.invalidStructure(path)
     }
@@ -1036,7 +1053,7 @@ private func array(
 }
 
 private func string(
-    _ value: V3JSONValue,
+    _ value: CanonicalJSONValue,
     path: String
 ) throws -> String {
     guard let string = value.stringValue else {
@@ -1046,7 +1063,7 @@ private func string(
 }
 
 private func integer(
-    _ value: V3JSONValue,
+    _ value: CanonicalJSONValue,
     path: String
 ) throws -> UInt64 {
     guard let integer = value.integerValue else {
@@ -1056,7 +1073,7 @@ private func integer(
 }
 
 private func requireFields(
-    _ object: [(String, V3JSONValue)],
+    _ object: [(String, CanonicalJSONValue)],
     required: Set<String>,
     optional: Set<String> = [],
     path: String
@@ -1071,7 +1088,7 @@ private func requireFields(
 
 private func requireConstant(
     _ expected: String,
-    value: V3JSONValue,
+    value: CanonicalJSONValue,
     path: String
 ) throws {
     guard value.stringValue == expected else {
@@ -1081,7 +1098,7 @@ private func requireConstant(
 
 private func requireConstant(
     _ expected: UInt64,
-    value: V3JSONValue,
+    value: CanonicalJSONValue,
     path: String
 ) throws {
     guard value.integerValue == expected else {
@@ -1090,7 +1107,7 @@ private func requireConstant(
 }
 
 private func uuidString(
-    _ value: V3JSONValue,
+    _ value: CanonicalJSONValue,
     path: String
 ) throws -> String {
     let string = try string(value, path: path)
@@ -1111,7 +1128,7 @@ private func uuidString(
 }
 
 private func base64URLString(
-    _ value: V3JSONValue,
+    _ value: CanonicalJSONValue,
     length: Int? = nil,
     path: String
 ) throws -> String {
