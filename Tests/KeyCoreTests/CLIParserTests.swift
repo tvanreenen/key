@@ -51,6 +51,12 @@ struct CLIParserTests {
     }
 
     @Test
+    func parsesReadOnlyMigrationPreflight() throws {
+        let command = try CLIParser.parse(arguments: ["migrate", "--check"])
+        #expect(command == .migrationPreflight)
+    }
+
+    @Test
     func parsesGet() throws {
         let command = try CLIParser.parse(arguments: ["get", "github/personal"])
         #expect(command == .get(name: "github/personal"))
@@ -252,6 +258,22 @@ struct CLIParserTests {
     func rejectsUnknownVersionOptions() throws {
         #expect(throws: AppError.usage("Unknown option '--yaml' for version.\n\n\(CLIParser.usageText)")) {
             try CLIParser.parse(arguments: ["version", "--yaml"])
+        }
+    }
+
+    @Test
+    func rejectsMigrationWithoutExplicitCheck() throws {
+        #expect(throws: AppError.usage(
+            "Migration does not start automatically. Use `key migrate --check` to inspect readiness without changing the vault.\n\n\(CLIParser.usageText)"
+        )) {
+            try CLIParser.parse(arguments: ["migrate"])
+        }
+    }
+
+    @Test
+    func rejectsUnsupportedMigrationOptions() throws {
+        #expect(throws: AppError.usage("Unknown option '--apply' for migrate.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["migrate", "--apply"])
         }
     }
 

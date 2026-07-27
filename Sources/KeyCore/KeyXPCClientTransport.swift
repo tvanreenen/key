@@ -121,6 +121,7 @@ private extension KeyServiceRequest {
         case .lock: "lock"
         case .status: "status"
         case .list: "list"
+        case .migrationPreflight: "migration preflight"
         case .setKeychainMode: "keychain configuration"
         case .get: "get"
         case .addManual: "add"

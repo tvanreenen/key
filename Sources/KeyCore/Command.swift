@@ -20,6 +20,7 @@ public enum Command: Equatable {
     case help
     case version(json: Bool)
     case config(ConfigCommand)
+    case migrationPreflight
     case unlock
     case lock
     case get(name: String)

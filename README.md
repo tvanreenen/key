@@ -49,6 +49,7 @@ key remove <name> [--force]             # remove a secret
 key config get <config-name>            # print a config value
 key config set <config-name> <value>    # update a config value
 key config list                         # list known config values
+key migrate --check                     # check v2 migration readiness without changing the vault
 key version [--json]                    # print the CLI version
 ```
 

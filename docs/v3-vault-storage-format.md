@@ -1,7 +1,7 @@
 # Key Vault Version 3 Storage Format
 
-Status: normative schema, authority, replay, and membership specification for
-`FMT-201` through `FMT-208`.
+Status: normative schema, authority, replay, membership, and migration
+specification for `FMT-201` through `FMT-209`.
 
 This document freezes the data model and canonical encoding for the version 3
 vault manifest body, authenticated manifest envelope, and encrypted entry
@@ -534,6 +534,54 @@ does not accept caller-selected IDs; transaction and migration code that does
 construct identities MUST also reject IDs found in retained trusted history.
 Version 2 CLI copy and rename behavior remains unchanged until the version 3
 reader, writer, and transaction layer are enabled together.
+
+## Version 2 Migration Preflight And Rollback
+
+Migration is an explicit user action. Installing a release that understands
+version 3 MUST NOT rewrite an existing version 2 vault automatically.
+
+`key migrate --check` is the read-only compatibility check. It MUST:
+
+- enumerate every version 2 `.secret` entry through the shipping entry store;
+- require each logical name to satisfy the version 3 name rules;
+- require the supported version 2 typed AES-GCM file format;
+- authenticate and decrypt every entry with the currently selected vault key;
+- validate decrypted TOTP values as Base32 without returning plaintext;
+- report every discovered per-entry blocker in deterministic order; and
+- return failure when any entry is unreadable, unsupported, malformed,
+  undecryptable, semantically invalid, or incompatible with version 3 naming.
+
+The preflight MUST NOT create, replace, synchronize, or repair a Keychain item.
+It MUST NOT write, rename, delete, or change permissions on any vault file.
+An empty vault passes without loading or creating a vault key. Every result
+states that no migration has started.
+
+The report is a point-in-time diagnostic, not permission to skip later checks.
+A migration writer MUST rerun the complete preflight under the serialized
+mutation owner immediately before staging output.
+
+The later migration writer and transaction layer MUST implement this rollback
+contract:
+
+1. Treat the version 2 vault as the active and only authoritative generation
+   until a complete version 3 replacement has been staged and verified.
+2. Create version 3 artifacts in a distinct staging or immutable-generation
+   location. Never overwrite a version 2 entry in place.
+3. Authenticate and reopen every staged version 3 entry through its candidate
+   manifest before committing a root-pointer change.
+4. Make the root-pointer transition the only operation that selects version 3
+   as active state.
+5. On failure before that transition, discard only incomplete version 3
+   staging state; the untouched version 2 vault remains active.
+6. Retain the complete version 2 source after transition until the committed
+   version 3 vault has been reopened successfully and the user explicitly
+   chooses a later cleanup policy.
+7. On interruption during or after the transition, use transaction recovery
+   to select one complete generation. Never combine version 2 and version 3
+   files into a partially migrated active vault.
+
+`key migrate --check` implements only the diagnostic portion of this contract.
+It does not enable a version 3 writer or an apply command.
 
 ## Illustrative Objects
 

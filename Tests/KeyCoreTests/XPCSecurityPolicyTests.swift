@@ -9,6 +9,7 @@ struct XPCSecurityPolicyTests {
         .lock,
         .status,
         .list,
+        .migrationPreflight,
         .setKeychainMode(.local),
         .get(name: "entry"),
         .addManual(name: "entry", secret: "secret", type: .secret),
@@ -103,7 +104,16 @@ struct XPCSecurityPolicyTests {
         #expect(KeyServiceRequest.lock.responseTimeoutSeconds == 5)
         #expect(KeyServiceRequest.unlock.responseTimeoutSeconds == 120)
         #expect(KeyServiceRequest.get(name: "entry").responseTimeoutSeconds == 120)
+        #expect(KeyServiceRequest.migrationPreflight.responseTimeoutSeconds == 120)
         #expect(KeyServiceRequest.list.responseTimeoutSeconds == 30)
+    }
+
+    @Test
+    func migrationPreflightRequestRoundTripsAcrossXPCEncoding() throws {
+        let encoded = try JSONEncoder().encode(KeyServiceRequest.migrationPreflight)
+        let decoded = try JSONDecoder().decode(KeyServiceRequest.self, from: encoded)
+
+        #expect(decoded == .migrationPreflight)
     }
 
     @Test

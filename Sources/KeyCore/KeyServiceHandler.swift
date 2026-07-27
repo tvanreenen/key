@@ -63,6 +63,8 @@ public final class KeyServiceHandler {
                     return .success()
                 }
                 return .success(entries.joined(separator: "\n") + "\n")
+            case .migrationPreflight:
+                return migrationPreflightResponse()
             case let .setKeychainMode(mode):
                 try setKeychainMode(mode)
                 return .success()
@@ -94,6 +96,27 @@ public final class KeyServiceHandler {
             return .failure(error.localizedDescription)
         } catch {
             return .failure(error.localizedDescription)
+        }
+    }
+
+    private func migrationPreflightResponse() -> KeyServiceResponse {
+        do {
+            let report = try V2MigrationPreflight(
+                entryStore: entryStore,
+                cipher: cipher
+            ).inspect {
+                try keyStore.loadKey(
+                    mode: keychainMode(),
+                    reason: "Unlock key vault to check migration readiness.",
+                    createIfMissing: false
+                )
+            }
+            if report.isReady {
+                return .success(report.rendered + "\n")
+            }
+            return .failure(report.rendered)
+        } catch {
+            return .failure(V2MigrationPreflightReport.blockedInspection(error))
         }
     }
 

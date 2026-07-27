@@ -239,6 +239,49 @@ struct KeyCLIApplicationTests {
     }
 
     @Test
+    func migrationPreflightPrintsTheHelperReport() throws {
+        let report = """
+        Migration preflight passed.
+        Entries checked: 2 (1 secret, 1 TOTP entry).
+        No files or Keychain items were changed. Migration has not started.
+
+        """
+        let transport = MemoryTransport { request in
+            #expect(request == .migrationPreflight)
+            return .success(report)
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: ["migrate", "--check"]) == EXIT_SUCCESS)
+        #expect(io.stdout == report)
+        #expect(io.stderr == "")
+        #expect(transport.requests == [.migrationPreflight])
+    }
+
+    @Test
+    func blockedMigrationPreflightPrintsOnlyToStderr() throws {
+        let transport = MemoryTransport { request in
+            #expect(request == .migrationPreflight)
+            return .failure("Migration preflight blocked.\nMigration has not started.")
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: ["migrate", "--check"]) == EXIT_FAILURE)
+        #expect(io.stdout == "")
+        #expect(io.stderr == "Migration preflight blocked.\nMigration has not started.\n")
+    }
+
+    @Test
     func unlockSendsUnlockRequest() throws {
         let transport = MemoryTransport { request in
             #expect(request == .unlock)
