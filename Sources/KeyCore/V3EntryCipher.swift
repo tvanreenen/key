@@ -211,13 +211,10 @@ public struct V3EntryCipher: Sendable {
             throw V3EncryptedEntryError.invalidVaultKey
         }
         let body = verifiedManifest.envelope.content.manifest
-        let matches = body.entries.filter { $0.entryID == entryID }
-        guard let manifestEntry = matches.first else {
-            throw V3EncryptedEntryError.manifestEntryNotFound
-        }
-        guard matches.count == 1 else {
-            throw V3EncryptedEntryError.invalidTrustedContext
-        }
+        let manifestEntry = try authenticatedManifestEntry(
+            in: verifiedManifest,
+            entryID: entryID
+        )
         return try openTrusted(
             data,
             vaultID: body.vaultID,
@@ -232,6 +229,24 @@ public struct V3EntryCipher: Sendable {
         manifestEntry: V3ManifestEntry,
         vaultKey: Data
     ) throws -> String {
+        let plaintext = try openPlaintextDataTrusted(
+            data,
+            vaultID: vaultID,
+            manifestEntry: manifestEntry,
+            vaultKey: vaultKey
+        )
+        guard let decoded = String(data: plaintext, encoding: .utf8) else {
+            throw V3EncryptedEntryError.invalidPlaintext
+        }
+        return decoded
+    }
+
+    func openPlaintextDataTrusted(
+        _ data: Data,
+        vaultID: String,
+        manifestEntry: V3ManifestEntry,
+        vaultKey: Data
+    ) throws -> Data {
         guard vaultKey.count == 32 else {
             throw V3EncryptedEntryError.invalidVaultKey
         }
@@ -275,10 +290,26 @@ public struct V3EntryCipher: Sendable {
             throw V3EncryptedEntryError.authenticationFailed
         }
 
-        guard let decoded = String(data: plaintext, encoding: .utf8) else {
+        guard String(data: plaintext, encoding: .utf8) != nil else {
             throw V3EncryptedEntryError.invalidPlaintext
         }
-        return decoded
+        return plaintext
+    }
+
+    func authenticatedManifestEntry(
+        in verifiedManifest: V3VerifiedManifest,
+        entryID: String
+    ) throws -> V3ManifestEntry {
+        let matches = verifiedManifest.envelope.content.manifest.entries.filter {
+            $0.entryID == entryID
+        }
+        guard let manifestEntry = matches.first else {
+            throw V3EncryptedEntryError.manifestEntryNotFound
+        }
+        guard matches.count == 1 else {
+            throw V3EncryptedEntryError.invalidTrustedContext
+        }
+        return manifestEntry
     }
 
     func seal(
