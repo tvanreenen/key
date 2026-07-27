@@ -408,6 +408,34 @@ opening. The bound revision prevents a ciphertext from validating under a
 different revision, but freshness still depends on trusted manifest state from
 `FMT-207`.
 
+### Entry Sealing And Opening Contract
+
+The `FMT-205` implementation treats a parsed entry as untrusted structured
+data. Sealing generates a fresh 12-byte AES-GCM nonce, encrypts the UTF-8
+plaintext with the typed entry context as associated data, emits the exact
+canonical entry object, and returns the SHA-256 digest of those canonical bytes
+for the manifest record.
+
+The public opening API requires the verifier-produced manifest type and selects
+the entry by ID, rather than accepting a free-standing record that a caller
+could accidentally treat as authenticated. Before returning plaintext, the
+reader MUST:
+
+1. require an exact 32-byte vault key;
+2. decode the manifest's canonical base64url `ciphertextDigest` and compare it
+   with SHA-256 over the exact entry-file bytes;
+3. derive the expected typed context from authenticated manifest values;
+4. parse the exact version 3 schema, reject noncanonical JSON, unknown fields,
+   unsupported algorithms, and malformed encryption components;
+5. require every duplicated entry identity field to equal the manifest-derived
+   context;
+6. open AES-256-GCM using that context's associated-data bytes; and
+7. require valid UTF-8 before releasing plaintext.
+
+Cryptographic opening failures are reported as authentication failures without
+returning candidate plaintext. Standalone parsing does not authenticate an
+entry and MUST NOT be used as a trust decision.
+
 ## Illustrative Objects
 
 These examples are pretty-printed for readability and are not canonical byte
@@ -578,7 +606,6 @@ The following decisions are not part of `FMT-201` or `FMT-202`:
 
 - manifest authenticator implementation and key persistence (`FMT-203`);
 - exact AES-GCM associated-data bytes (`FMT-204`);
-- encryption/decryption implementation (`FMT-205`);
 - rename/copy resealing (`FMT-206`);
 - freshness storage and replay state (`FMT-207`);
 - full membership/wrapper consistency rules (`FMT-208`);
