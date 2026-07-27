@@ -782,6 +782,8 @@ private func validateSemantics(_ manifest: V3ManifestBody) throws {
             throw V3ManifestError.semanticViolation("devices.revokedAtGeneration")
         }
     }
+
+    try validateModeSpecificMembership(manifest)
 }
 
 private func validateDisplayNames(_ devices: [V3ManifestDevice]) throws {
@@ -865,6 +867,40 @@ private func validateWrappedKeyOrdering(
             }
         }
         previous = wrappedKey
+    }
+}
+
+private func validateModeSpecificMembership(_ manifest: V3ManifestBody) throws {
+    switch manifest.mode {
+    case .local:
+        guard manifest.devices.isEmpty else {
+            throw V3ManifestError.semanticViolation("devices.localMode")
+        }
+        guard manifest.wrappedKeys.isEmpty else {
+            throw V3ManifestError.semanticViolation("wrappedKeys.localMode")
+        }
+    case .shared:
+        let activeDevices = manifest.devices.filter { $0.status == .active }
+        guard activeDevices.contains(where: { $0.role == .owner }) else {
+            throw V3ManifestError.semanticViolation("devices.activeOwner")
+        }
+
+        let activeDeviceIDs = Set(activeDevices.map(\.deviceID))
+        for wrappedKey in manifest.wrappedKeys {
+            guard wrappedKey.keyEpoch == manifest.keyEpoch else {
+                throw V3ManifestError.semanticViolation("wrappedKeys.keyEpoch")
+            }
+            guard activeDeviceIDs.contains(wrappedKey.deviceID) else {
+                throw V3ManifestError.semanticViolation("wrappedKeys.deviceID")
+            }
+        }
+
+        let wrappedDeviceIDs = Set(manifest.wrappedKeys.map(\.deviceID))
+        guard wrappedDeviceIDs == activeDeviceIDs,
+              manifest.wrappedKeys.count == activeDeviceIDs.count
+        else {
+            throw V3ManifestError.semanticViolation("wrappedKeys.coverage")
+        }
     }
 }
 
