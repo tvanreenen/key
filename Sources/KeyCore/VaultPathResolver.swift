@@ -21,6 +21,9 @@ public enum VaultPathResolutionError: Error, Equatable, LocalizedError {
     case notFound(component: String)
     case symbolicLink(component: String)
     case notDirectory(component: String)
+    case filesystemAlias(component: String)
+    case providerPlaceholder(component: String)
+    case crossedFilesystem(component: String)
     case unexpectedType(path: String, expected: VaultResolvedPathKind)
     case openFailed(component: String, code: Int32)
     case inspectionFailed(path: String, code: Int32)
@@ -35,6 +38,12 @@ public enum VaultPathResolutionError: Error, Equatable, LocalizedError {
             return "Vault path component '\(component)' must not be a symbolic link."
         case let .notDirectory(component):
             return "Vault path component '\(component)' must be a directory."
+        case let .filesystemAlias(component):
+            return "Vault path component '\(component)' must not be a filesystem alias or hard link."
+        case let .providerPlaceholder(component):
+            return "Vault path component '\(component)' is an unmaterialized provider placeholder."
+        case let .crossedFilesystem(component):
+            return "Vault path component '\(component)' crosses out of the vault root filesystem."
         case let .unexpectedType(path, expected):
             return "Vault path '\(path)' must resolve to a \(expected.displayName)."
         case let .openFailed(component, code):
@@ -64,21 +73,40 @@ extension VaultRootDirectoryHandle {
             for (index, component) in path.components.enumerated() {
                 let isTerminal = index == path.components.index(before: path.components.endIndex)
                 let requiredKind: VaultResolvedPathKind = isTerminal ? expectedKind : .directory
+                try rejectDatalessPlaceholder(
+                    component,
+                    relativeTo: parentDescriptor,
+                    path: relativePath
+                )
                 let child = try openComponent(
                     component,
                     relativeTo: parentDescriptor,
                     expecting: requiredKind
                 )
+                do {
+                    try validateOpenedComponent(
+                        child,
+                        component: component,
+                        path: relativePath,
+                        expecting: requiredKind,
+                        rootDeviceID: identity.deviceID
+                    )
+                    if requiredKind == .regularFile {
+                        try rejectFinderAlias(
+                            child,
+                            component: component,
+                            path: relativePath
+                        )
+                    }
+                } catch {
+                    try? child.close()
+                    throw error
+                }
 
                 if isTerminal {
                     defer {
                         try? child.close()
                     }
-                    try verifyType(
-                        of: child,
-                        path: relativePath,
-                        expecting: expectedKind
-                    )
                     return try operation(child)
                 }
 
@@ -158,10 +186,93 @@ private func openComponent(
     return FileDescriptor(rawValue: rawDescriptor)
 }
 
-private func verifyType(
-    of descriptor: FileDescriptor,
+private func rejectFinderAlias(
+    _ descriptor: FileDescriptor,
+    component: String,
+    path: String
+) throws {
+    var finderInfo = [UInt8](repeating: 0, count: 32)
+    let count = finderInfo.withUnsafeMutableBytes { bytes in
+        fgetxattr(
+            descriptor.rawValue,
+            "com.apple.FinderInfo",
+            bytes.baseAddress,
+            bytes.count,
+            0,
+            0
+        )
+    }
+
+    if count < 0 {
+        guard errno == ENOATTR else {
+            throw VaultPathResolutionError.inspectionFailed(
+                path: path,
+                code: errno
+            )
+        }
+        return
+    }
+
+    guard count >= 10 else {
+        throw VaultPathResolutionError.filesystemAlias(
+            component: component
+        )
+    }
+    let finderFlags = UInt16(finderInfo[8]) << 8 | UInt16(finderInfo[9])
+    guard finderFlags & 0x8000 == 0 else {
+        throw VaultPathResolutionError.filesystemAlias(
+            component: component
+        )
+    }
+}
+
+private func rejectDatalessPlaceholder(
+    _ component: String,
+    relativeTo parentDescriptor: Int32,
+    path: String
+) throws {
+    var metadata = stat()
+    while true {
+        let result = fstatat(
+            parentDescriptor,
+            component,
+            &metadata,
+            AT_SYMLINK_NOFOLLOW
+        )
+        if result == 0 {
+            break
+        }
+
+        let code = errno
+        if code == EINTR {
+            continue
+        }
+        switch code {
+        case ENOENT:
+            throw VaultPathResolutionError.notFound(component: component)
+        case ENOTDIR:
+            throw VaultPathResolutionError.notDirectory(component: component)
+        default:
+            throw VaultPathResolutionError.inspectionFailed(
+                path: path,
+                code: code
+            )
+        }
+    }
+
+    guard metadata.st_flags & UInt32(SF_DATALESS) == 0 else {
+        throw VaultPathResolutionError.providerPlaceholder(
+            component: component
+        )
+    }
+}
+
+private func validateOpenedComponent(
+    _ descriptor: FileDescriptor,
+    component: String,
     path: String,
-    expecting expectedKind: VaultResolvedPathKind
+    expecting expectedKind: VaultResolvedPathKind,
+    rootDeviceID: UInt64
 ) throws {
     var metadata = stat()
     guard fstat(descriptor.rawValue, &metadata) == 0 else {
@@ -171,12 +282,49 @@ private func verifyType(
         )
     }
 
+    try validateOpenedComponentMetadata(
+        metadata,
+        component: component,
+        path: path,
+        expecting: expectedKind,
+        rootDeviceID: rootDeviceID
+    )
+}
+
+func validateOpenedComponentMetadata(
+    _ metadata: stat,
+    component: String,
+    path: String,
+    expecting expectedKind: VaultResolvedPathKind,
+    rootDeviceID: UInt64
+) throws {
     let observedType = metadata.st_mode & S_IFMT
     let expectedType = expectedKind == .directory ? S_IFDIR : S_IFREG
     guard observedType == expectedType else {
         throw VaultPathResolutionError.unexpectedType(
             path: path,
             expected: expectedKind
+        )
+    }
+
+    guard UInt64(metadata.st_dev) == rootDeviceID else {
+        throw VaultPathResolutionError.crossedFilesystem(
+            component: component
+        )
+    }
+    guard metadata.st_flags & UInt32(SF_DATALESS) == 0 else {
+        throw VaultPathResolutionError.providerPlaceholder(
+            component: component
+        )
+    }
+    guard metadata.st_flags & UInt32(SF_FIRMLINK) == 0 else {
+        throw VaultPathResolutionError.filesystemAlias(
+            component: component
+        )
+    }
+    if expectedKind == .regularFile, metadata.st_nlink != 1 {
+        throw VaultPathResolutionError.filesystemAlias(
+            component: component
         )
     }
 }

@@ -19,6 +19,7 @@ public enum VaultRootDirectoryHandleError: Error, Equatable, LocalizedError {
     case notDirectoryOrSymbolicLink(path: String)
     case openFailed(path: String, code: Int32)
     case identityFailed(path: String, code: Int32)
+    case configuredRootChanged(path: String)
 
     public var errorDescription: String? {
         switch self {
@@ -34,6 +35,8 @@ public enum VaultRootDirectoryHandleError: Error, Equatable, LocalizedError {
             return "Failed to open the vault root '\(path)' (POSIX error \(code))."
         case let .identityFailed(path, code):
             return "Failed to inspect the opened vault root '\(path)' (POSIX error \(code))."
+        case let .configuredRootChanged(path):
+            return "The configured vault root '\(path)' no longer names the directory opened for this session."
         }
     }
 }
@@ -124,7 +127,26 @@ public final class VaultRootDirectoryHandle: @unchecked Sendable {
 
     func withFileDescriptor<Result>(
         _ operation: (Int32) throws -> Result
-    ) rethrows -> Result {
-        try operation(descriptor.rawValue)
+    ) throws -> Result {
+        try verifyConfiguredRootIdentity()
+        return try operation(descriptor.rawValue)
+    }
+
+    private func verifyConfiguredRootIdentity() throws {
+        let displayPath = rootURL.path(percentEncoded: false)
+        let currentRoot: VaultRootDirectoryHandle
+        do {
+            currentRoot = try VaultRootDirectoryHandle(opening: rootURL)
+        } catch {
+            throw VaultRootDirectoryHandleError.configuredRootChanged(
+                path: displayPath
+            )
+        }
+
+        guard currentRoot.identity == identity else {
+            throw VaultRootDirectoryHandleError.configuredRootChanged(
+                path: displayPath
+            )
+        }
     }
 }
