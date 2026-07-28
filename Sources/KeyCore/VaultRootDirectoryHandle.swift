@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import System
 
 public struct VaultRootDirectoryIdentity: Equatable, Sendable {
     public let deviceID: UInt64
@@ -45,7 +46,7 @@ public final class VaultRootDirectoryHandle: @unchecked Sendable {
     public let rootURL: URL
     public let identity: VaultRootDirectoryIdentity
 
-    private let descriptor: Int32
+    private let descriptor: FileDescriptor
 
     public init(opening rootURL: URL) throws {
         guard rootURL.isFileURL else {
@@ -65,27 +66,38 @@ public final class VaultRootDirectoryHandle: @unchecked Sendable {
             throw VaultRootDirectoryHandleError.invalidPath
         }
 
-        let descriptor = Self.openDirectory(at: openPath)
-        guard descriptor >= 0 else {
-            let code = errno
-            switch code {
-            case ENOENT:
+        let descriptor: FileDescriptor
+        do {
+            descriptor = try FileDescriptor.open(
+                FilePath(openPath),
+                .readOnly,
+                options: [.directory, .noFollow, .closeOnExec]
+            )
+        } catch let error as Errno {
+            switch error {
+            case .noSuchFileOrDirectory:
                 throw VaultRootDirectoryHandleError.notFound(path: displayPath)
-            case ELOOP, ENOTDIR:
+            case .notDirectory:
                 throw VaultRootDirectoryHandleError.notDirectoryOrSymbolicLink(path: displayPath)
             default:
-                throw VaultRootDirectoryHandleError.openFailed(path: displayPath, code: code)
+                if error.rawValue == ELOOP {
+                    throw VaultRootDirectoryHandleError.notDirectoryOrSymbolicLink(path: displayPath)
+                }
+                throw VaultRootDirectoryHandleError.openFailed(
+                    path: displayPath,
+                    code: error.rawValue
+                )
             }
         }
 
         var metadata = stat()
-        guard fstat(descriptor, &metadata) == 0 else {
+        guard fstat(descriptor.rawValue, &metadata) == 0 else {
             let code = errno
-            Darwin.close(descriptor)
+            try? descriptor.close()
             throw VaultRootDirectoryHandleError.identityFailed(path: displayPath, code: code)
         }
         guard metadata.st_mode & S_IFMT == S_IFDIR else {
-            Darwin.close(descriptor)
+            try? descriptor.close()
             throw VaultRootDirectoryHandleError.notDirectoryOrSymbolicLink(path: displayPath)
         }
 
@@ -98,24 +110,12 @@ public final class VaultRootDirectoryHandle: @unchecked Sendable {
     }
 
     deinit {
-        Darwin.close(descriptor)
+        try? descriptor.close()
     }
 
     func withFileDescriptor<Result>(
         _ operation: (Int32) throws -> Result
     ) rethrows -> Result {
-        try operation(descriptor)
-    }
-
-    private static func openDirectory(at path: String) -> Int32 {
-        while true {
-            let descriptor = Darwin.open(
-                path,
-                O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
-            )
-            if descriptor >= 0 || errno != EINTR {
-                return descriptor
-            }
-        }
+        try operation(descriptor.rawValue)
     }
 }
