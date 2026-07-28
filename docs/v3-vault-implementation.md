@@ -9,13 +9,13 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `9eaac88eaf7f6bcd53d3e1ea71a1bafbc6e1dcc8` |
+| Production base | `main` at `542382f5516e292518486f85db9512c8c1bb662b` |
 | Selected architecture | Authenticated, versioned transaction layer |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/reject-prototype-enclave-metadata` |
+| Current branch | `agent/open-vault-root-handle` |
 | Current PR | Not opened |
-| Next work | `FS-301`: open and retain a trusted vault-root directory handle |
+| Next work | `FS-302`: resolve every child component relative to the trusted root with no-follow semantics |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -57,10 +57,9 @@ Status: `FMT-201` squash-merged as `f377093` in PR #14, `FMT-202`
 squash-merged as `ff402b8` in PR #15, `FMT-203` squash-merged as `18cfb3e`
 in PR #16, `FMT-204` squash-merged as `cceb783` in PR #17, `FMT-205`
 squash-merged as `942e444` in PR #18, and `FMT-206` squash-merged as
-`a390042` in PR #19, `FMT-207` squash-merged as `73775eb` in PR #20, and
-`FMT-208` squash-merged as `4ef1ffa` in PR #21, and `FMT-209`
-squash-merged as `9eaac88` in PR #22. Prototype-refusal work continues on
-`agent/reject-prototype-enclave-metadata`.
+`a390042` in PR #19, `FMT-207` squash-merged as `73775eb` in PR #20,
+`FMT-208` squash-merged as `4ef1ffa` in PR #21, `FMT-209` squash-merged as
+`9eaac88` in PR #22, and `FMT-210` squash-merged as `542382f` in PR #23.
 
 - [x] `FMT-201` Specify canonical manifest-body and encrypted-entry schemas,
   encoding, ordering, normalization, and unknown-version behavior.
@@ -85,7 +84,7 @@ Acceptance gate:
 
 ### PR 3 — Root-Contained Filesystem
 
-- [ ] Open and retain a trusted vault-root directory handle.
+- [x] `FS-301` Open and retain a trusted vault-root directory handle.
 - [ ] Resolve every component with no-follow semantics.
 - [ ] Reject symlinks, aliases, root substitution, and provider collisions.
 - [ ] Implement contained replace, move, and cleanup.
@@ -137,6 +136,7 @@ Acceptance gate:
 | `DEC-013` | Accepted | Keep local manifests free of device-membership and wrapped-key records. Require shared manifests to retain at least one active owner and exactly one current-epoch wrapped key for every active device, with no wrapper for a revoked or unknown device. Defer membership-transition ceremonies to enrollment and revocation work. |
 | `DEC-014` | Accepted | Make migration opt-in. Ship `key migrate --check` as a helper-owned, read-only v2 compatibility and decryptability check. A later writer must stage and verify v3 beside the untouched v2 source, commit only through the transaction root pointer, and retain v2 until verified reopen and explicit cleanup. |
 | `DEC-015` | Accepted | Treat the unreleased prototype as a migration exclusion, not a permanent runtime compatibility mode. `key migrate --check` refuses the exact root-level `.key-vault.json` marker before loading a key, while ordinary v2 reads remain unchanged and the strict v3 parser rejects prototype JSON. |
+| `DEC-016` | Accepted | Establish vault-root authority by opening the configured file URL once through Swift System's `FileDescriptor` with directory-only, no-follow, and close-on-exec semantics. Retain that descriptor and its device/inode identity for the lifetime of the filesystem session; later contained operations must resolve relative to the descriptor instead of trusting the configured path again. |
 
 ## Validation Matrix
 
@@ -147,6 +147,7 @@ Acceptance gate:
 - [x] Local/shared membership and current-epoch wrapped-key consistency tests.
 - [x] V2 migration-preflight compatibility, decryptability, and no-write tests.
 - [x] Prototype migration-marker and v3 parser rejection tests.
+- [x] Trusted vault-root type, no-follow open, retained-identity, and close-on-exec tests.
 - [ ] Enrollment and key-epoch replay tests.
 - [x] Installed XPC tests for intended and unintended signing identities.
 - [ ] Mutation/key-transition concurrency tests.
@@ -170,5 +171,5 @@ Acceptance gate:
 
 ## Immediate Next Action
 
-Implement `FS-301`: open and retain a trusted vault-root directory handle as
-the authority for later contained path resolution and mutation.
+Implement `FS-302`: resolve each relative child component from the trusted
+vault-root descriptor with no-follow semantics.
