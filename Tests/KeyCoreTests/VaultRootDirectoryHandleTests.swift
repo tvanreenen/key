@@ -14,11 +14,11 @@ struct VaultRootDirectoryHandleTests {
 
         #expect(handle.rootURL == root)
         #expect(handle.identity == rootIdentity)
-        #expect(handle.withFileDescriptor { fcntl($0, F_GETFD) } & FD_CLOEXEC != 0)
+        #expect(try handle.withFileDescriptor { fcntl($0, F_GETFD) } & FD_CLOEXEC != 0)
     }
 
     @Test
-    func retainedDescriptorRemainsBoundToOriginalDirectoryAfterPathReplacement() throws {
+    func rejectsConfiguredRootReplacementBeforeGrantingDescriptorAccess() throws {
         let parent = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: parent) }
         let root = parent.appendingPathComponent("vault", isDirectory: true)
@@ -30,11 +30,48 @@ struct VaultRootDirectoryHandleTests {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
         let movedIdentity = try identity(at: movedRoot)
         let replacementIdentity = try identity(at: root)
-        let descriptorIdentity = try handle.withFileDescriptor { try identity(of: $0) }
 
         #expect(handle.identity == movedIdentity)
         #expect(handle.identity != replacementIdentity)
-        #expect(descriptorIdentity == handle.identity)
+        #expect(throws: VaultRootDirectoryHandleError.configuredRootChanged(
+            path: root.path(percentEncoded: false)
+        )) {
+            try handle.withFileDescriptor { _ in
+                Issue.record("A replaced vault root granted descriptor access.")
+            }
+        }
+    }
+
+    @Test
+    func rejectsConfiguredRootRemovalOrSymlinkSubstitution() throws {
+        let parent = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let root = parent.appendingPathComponent("vault", isDirectory: true)
+        let replacement = parent.appendingPathComponent("replacement", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        try FileManager.default.createDirectory(at: replacement, withIntermediateDirectories: false)
+        let removedRootHandle = try VaultRootDirectoryHandle(opening: root)
+
+        try FileManager.default.removeItem(at: root)
+        #expect(throws: VaultRootDirectoryHandleError.configuredRootChanged(
+            path: root.path(percentEncoded: false)
+        )) {
+            try removedRootHandle.withFileDescriptor { _ in
+                Issue.record("A removed vault root granted descriptor access.")
+            }
+        }
+
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        let symlinkedRootHandle = try VaultRootDirectoryHandle(opening: root)
+        try FileManager.default.removeItem(at: root)
+        try FileManager.default.createSymbolicLink(at: root, withDestinationURL: replacement)
+        #expect(throws: VaultRootDirectoryHandleError.configuredRootChanged(
+            path: root.path(percentEncoded: false)
+        )) {
+            try symlinkedRootHandle.withFileDescriptor { _ in
+                Issue.record("A symlink-substituted vault root granted descriptor access.")
+            }
+        }
     }
 
     @Test
@@ -116,14 +153,6 @@ private func temporaryDirectory() throws -> URL {
 private func identity(at url: URL) throws -> VaultRootDirectoryIdentity {
     var metadata = stat()
     guard lstat(url.path(percentEncoded: false), &metadata) == 0 else {
-        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
-    }
-    return identity(from: metadata)
-}
-
-private func identity(of descriptor: Int32) throws -> VaultRootDirectoryIdentity {
-    var metadata = stat()
-    guard fstat(descriptor, &metadata) == 0 else {
         throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
     }
     return identity(from: metadata)

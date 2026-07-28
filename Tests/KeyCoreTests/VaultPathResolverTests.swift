@@ -175,6 +175,171 @@ struct VaultPathResolverTests {
             }
         }
     }
+
+    @Test
+    func rejectsHardLinkedTerminalFiles() throws {
+        let root = try temporaryVaultDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let entry = root.appendingPathComponent("entry", isDirectory: false)
+        let alias = root.appendingPathComponent("entry-alias", isDirectory: false)
+        try Data("entry".utf8).write(to: entry)
+        #expect(link(
+            entry.path(percentEncoded: false),
+            alias.path(percentEncoded: false)
+        ) == 0)
+        let rootHandle = try VaultRootDirectoryHandle(opening: root)
+
+        #expect(throws: VaultPathResolutionError.filesystemAlias(
+            component: "entry"
+        )) {
+            try rootHandle.withResolvedDescriptor(
+                at: "entry",
+                expecting: .regularFile
+            ) { _ in
+                Issue.record("A hard-linked file reached the descriptor operation.")
+            }
+        }
+    }
+
+    @Test
+    func rejectsFinderAliasFiles() throws {
+        let root = try temporaryVaultDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let alias = root.appendingPathComponent("finder-alias", isDirectory: false)
+        try Data("alias".utf8).write(to: alias)
+        var finderInfo = [UInt8](repeating: 0, count: 32)
+        finderInfo[8] = 0x80
+        let setResult = finderInfo.withUnsafeBytes { bytes in
+            setxattr(
+                alias.path(percentEncoded: false),
+                "com.apple.FinderInfo",
+                bytes.baseAddress,
+                bytes.count,
+                0,
+                0
+            )
+        }
+        #expect(setResult == 0)
+        let rootHandle = try VaultRootDirectoryHandle(opening: root)
+
+        #expect(throws: VaultPathResolutionError.filesystemAlias(
+            component: "finder-alias"
+        )) {
+            try rootHandle.withResolvedDescriptor(
+                at: "finder-alias",
+                expecting: .regularFile
+            ) { _ in
+                Issue.record("A Finder alias reached the descriptor operation.")
+            }
+        }
+    }
+
+    @Test
+    func rejectsResolutionAfterConfiguredRootReplacement() throws {
+        let parent = try temporaryVaultDirectory()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let root = parent.appendingPathComponent("vault", isDirectory: true)
+        let original = parent.appendingPathComponent("original", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        try Data("original".utf8).write(
+            to: root.appendingPathComponent("manifest.json", isDirectory: false)
+        )
+        let rootHandle = try VaultRootDirectoryHandle(opening: root)
+
+        try FileManager.default.moveItem(at: root, to: original)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        try Data("replacement".utf8).write(
+            to: root.appendingPathComponent("manifest.json", isDirectory: false)
+        )
+
+        #expect(throws: VaultRootDirectoryHandleError.configuredRootChanged(
+            path: root.path(percentEncoded: false)
+        )) {
+            try rootHandle.withResolvedDescriptor(
+                at: "manifest.json",
+                expecting: .regularFile
+            ) { _ in
+                Issue.record("Resolution continued after vault-root replacement.")
+            }
+        }
+    }
+
+    @Test
+    func rejectsDatalessFirmlinkAndCrossFilesystemMetadata() throws {
+        #expect(throws: VaultPathResolutionError.providerPlaceholder(
+            component: "entry"
+        )) {
+            try validateOpenedComponentMetadata(
+                VaultPathMetadata(
+                    objectKind: .regularFile,
+                    deviceID: 7,
+                    linkCount: 1,
+                    isDataless: true,
+                    isFirmlink: false
+                ),
+                component: "entry",
+                path: "entries/entry",
+                expecting: .regularFile,
+                rootDeviceID: 7
+            )
+        }
+
+        #expect(throws: VaultPathResolutionError.filesystemAlias(
+            component: "entry"
+        )) {
+            try validateOpenedComponentMetadata(
+                VaultPathMetadata(
+                    objectKind: .regularFile,
+                    deviceID: 7,
+                    linkCount: 1,
+                    isDataless: false,
+                    isFirmlink: true
+                ),
+                component: "entry",
+                path: "entries/entry",
+                expecting: .regularFile,
+                rootDeviceID: 7
+            )
+        }
+
+        #expect(throws: VaultPathResolutionError.crossedFilesystem(
+            component: "entry"
+        )) {
+            try validateOpenedComponentMetadata(
+                VaultPathMetadata(
+                    objectKind: .regularFile,
+                    deviceID: 7,
+                    linkCount: 1,
+                    isDataless: false,
+                    isFirmlink: false
+                ),
+                component: "entry",
+                path: "entries/entry",
+                expecting: .regularFile,
+                rootDeviceID: 8
+            )
+        }
+    }
+
+    @Test
+    func failsClosedWhenPreOpenInspectionFails() throws {
+        let root = try temporaryVaultDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let rootHandle = try VaultRootDirectoryHandle(opening: root)
+        let overlongComponent = String(repeating: "a", count: 1_024)
+
+        #expect(throws: VaultPathResolutionError.inspectionFailed(
+            path: overlongComponent,
+            code: ENAMETOOLONG
+        )) {
+            try rootHandle.withResolvedDescriptor(
+                at: overlongComponent,
+                expecting: .regularFile
+            ) { _ in
+                Issue.record("A failed metadata preflight reached openat.")
+            }
+        }
+    }
 }
 
 private func temporaryVaultDirectory() throws -> URL {
