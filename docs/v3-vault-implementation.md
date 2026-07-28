@@ -9,13 +9,13 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `4e6a0f014fc4c93476288e78f00fcb0fd7be9435` |
+| Production base | `main` at `632adfd43d402fc0e7f49f1eb573131d64de3308` |
 | Selected architecture | Authenticated, versioned transaction layer |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/detect-vault-substitution-and-collisions` |
+| Current branch | `agent/contained-vault-mutations` |
 | Current PR | Not opened |
-| Next work | `FS-304`: implement contained replace, move, and cleanup |
+| Next work | `FS-305`: coordinate vault-root changes with the running helper |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -84,14 +84,15 @@ Acceptance gate:
 
 ### PR 3 — Root-Contained Filesystem
 
-Status: `FS-301` squash-merged as `da33a66` in PR #24 and `FS-302`
-squash-merged as `4e6a0f0` in PR #25. Substitution and collision defenses
-continue on `agent/detect-vault-substitution-and-collisions`.
+Status: `FS-301` squash-merged as `da33a66` in PR #24, `FS-302`
+squash-merged as `4e6a0f0` in PR #25, and `FS-303` squash-merged as
+`632adfd` in PR #26. Contained filesystem mutations continue on
+`agent/contained-vault-mutations`.
 
 - [x] `FS-301` Open and retain a trusted vault-root directory handle.
 - [x] `FS-302` Resolve every component with no-follow semantics.
 - [x] `FS-303` Reject symlinks, aliases, root substitution, and provider collisions.
-- [ ] Implement contained replace, move, and cleanup.
+- [x] `FS-304` Implement contained replace, move, and cleanup.
 - [ ] Coordinate vault-root changes with the running helper.
 
 ### PR 4 — Transaction Engine
@@ -143,6 +144,7 @@ continue on `agent/detect-vault-substitution-and-collisions`.
 | `DEC-016` | Accepted | Establish vault-root authority by opening the configured file URL once through Swift System's `FileDescriptor` with directory-only, no-follow, and close-on-exec semantics. Retain that descriptor and its device/inode identity for the lifetime of the filesystem session; later contained operations must resolve relative to the descriptor instead of trusting the configured path again. |
 | `DEC-017` | Accepted | Accept only canonical, nonempty relative child paths. Open one component at a time from the trusted root with `openat`, no-follow, close-on-exec, and directory-only semantics for every intermediate component. Verify that the terminal descriptor has the requested directory or regular-file type before use, and open special files nonblocking so an unexpected FIFO cannot stall the helper. |
 | `DEC-018` | Accepted | Before granting retained-root descriptor access, reopen the configured root with the original no-follow rules and require the same device/inode identity. Keep resolved components on the root device; reject Finder aliases, firmlinks, multiply linked regular files, and dataless provider placeholders. Model provider name collisions explicitly: canonical Unicode equivalents always collide, and case variants collide when the selected provider is case-insensitive. |
+| `DEC-019` | Accepted | Resolve mutation parents from the retained vault-root descriptor and pass terminal names directly to `renameat`, exclusive `renameatx_np`, or `unlinkat`. Limit replacement to validated regular files, make moves no-overwrite, and restrict cleanup to validated regular files or already-empty directories. These primitives guarantee local namespace containment and atomic rename behavior; the transaction engine and provider qualification remain responsible for synchronization and crash durability. |
 
 ## Validation Matrix
 
@@ -160,6 +162,7 @@ continue on `agent/detect-vault-substitution-and-collisions`.
 - [ ] Mutation/key-transition concurrency tests.
 - [ ] Transaction fault injection at every phase.
 - [x] Root substitution, filesystem alias, provider-placeholder, and provider-name collision tests.
+- [x] Descriptor-relative replace, exclusive move, and non-recursive cleanup tests.
 - [ ] Local-v2 migration and rollback tests.
 - [ ] Revocation tests with retained old keys.
 - [ ] Recovery tests for missing devices and corrupt or conflicting state.
@@ -178,5 +181,5 @@ continue on `agent/detect-vault-substitution-and-collisions`.
 
 ## Immediate Next Action
 
-Implement `FS-304`: add descriptor-relative replace, move, and cleanup
-operations that cannot escape the trusted vault root.
+Implement `FS-305`: coordinate vault-root configuration changes with the
+running helper so no session continues with stale root authority.
