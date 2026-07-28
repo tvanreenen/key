@@ -9,8 +9,13 @@ public final class KeyServiceHandler {
     private let configStore: KeyConfigStore?
     private let cipher: VaultCipher
     private let now: () -> Date
+    private let requestQueue = DispatchQueue(
+        label: "work.tvr.key.service-handler.requests",
+        attributes: .concurrent
+    )
     private let stateQueue = DispatchQueue(label: "work.tvr.key.service-handler")
     private var currentKeychainMode: KeychainMode
+    private var vaultRootChangePending = false
 
     public init(
         keyStore: VaultKeyStoring,
@@ -42,7 +47,35 @@ public final class KeyServiceHandler {
     }
 
     public func handle(_ request: KeyServiceRequest) -> KeyServiceResponse {
+        if request.isVaultDirectoryChange {
+            return requestQueue.sync(flags: .barrier) {
+                guard !vaultRootChangePending else {
+                    return .failure(
+                        "The vault directory changed and Key Agent is restarting. Run `key lock`, then retry the command."
+                    )
+                }
+                let response = handleRequest(request)
+                if response.exitCode == EXIT_SUCCESS {
+                    vaultRootChangePending = true
+                }
+                return response
+            }
+        }
+
+        return requestQueue.sync {
+            guard !vaultRootChangePending || request == .lock else {
+                return .failure(
+                    "The vault directory changed and Key Agent is restarting. Run `key lock`, then retry the command."
+                )
+            }
+            return handleRequest(request)
+        }
+    }
+
+    private func handleRequest(_ request: KeyServiceRequest) -> KeyServiceResponse {
         do {
+            try verifyConfiguredVaultRoot(for: request)
+
             switch request {
             case .unlock:
                 _ = try loadVaultKey(
@@ -65,6 +98,9 @@ public final class KeyServiceHandler {
                 return .success(entries.joined(separator: "\n") + "\n")
             case .migrationPreflight:
                 return migrationPreflightResponse()
+            case let .setVaultDirectory(path):
+                try setVaultDirectory(path)
+                return .success()
             case let .setKeychainMode(mode):
                 try setKeychainMode(mode)
                 return .success()
@@ -97,6 +133,45 @@ public final class KeyServiceHandler {
         } catch {
             return .failure(error.localizedDescription)
         }
+    }
+
+    private func verifyConfiguredVaultRoot(
+        for request: KeyServiceRequest
+    ) throws {
+        guard
+            request != .lock,
+            !request.isVaultDirectoryChange,
+            let configStore
+        else {
+            return
+        }
+
+        let configuredRoot: URL
+        do {
+            configuredRoot = try configStore
+                .configuredVaultDirectoryURL()
+                .standardizedFileURL
+        } catch {
+            keyStore.invalidate()
+            throw error
+        }
+        guard configuredRoot == entryStore.rootURL.standardizedFileURL else {
+            keyStore.invalidate()
+            throw AppError.operationRefused(
+                "The vault directory configuration changed while Key Agent was running. Run `key lock`, then retry the command."
+            )
+        }
+    }
+
+    private func setVaultDirectory(_ path: String) throws {
+        guard let configStore else {
+            throw AppError.service(
+                "Key Agent cannot update the vault directory without its configuration store."
+            )
+        }
+
+        _ = try configStore.setValue(path, for: .vaultDir)
+        keyStore.invalidate()
     }
 
     private func migrationPreflightResponse() -> KeyServiceResponse {
@@ -388,6 +463,16 @@ public final class KeyServiceHandler {
             return decryptedValue
         case .totp:
             return try TOTPGenerator.generateCode(fromBase32Seed: decryptedValue, at: now())
+        }
+    }
+}
+
+private extension KeyServiceRequest {
+    var isVaultDirectoryChange: Bool {
+        if case .setVaultDirectory = self {
+            true
+        } else {
+            false
         }
     }
 }

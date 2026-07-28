@@ -134,14 +134,16 @@ struct KeyCLIApplicationTests {
     }
 
     @Test
-    func configSetUpdatesVaultDirectoryWithoutTransport() throws {
+    func configSetVaultDirectoryUsesTransport() throws {
         let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
 
-        let transport = MemoryTransport { _ in
-            Issue.record("transport should not be called for config set")
+        let transport = MemoryTransport { request in
+            #expect(
+                request == .setVaultDirectory(path: "~/Secrets Vault")
+            )
             return .success()
         }
         let io = MemoryIO(stdinIsTTY: false)
@@ -157,7 +159,18 @@ struct KeyCLIApplicationTests {
         #expect(app.run(arguments: ["config", "set", "vault-dir", "~/Secrets Vault"]) == EXIT_SUCCESS)
         #expect(io.stdout == "")
         #expect(io.stderr == "")
-        #expect(try configStore.getValue(for: .vaultDir) == homeDirectory.appendingPathComponent("Secrets Vault", isDirectory: true).standardizedFileURL.path(percentEncoded: false))
+        #expect(
+            transport.requests == [
+                .setVaultDirectory(path: "~/Secrets Vault")
+            ]
+        )
+        #expect(
+            try configStore.getValue(for: .vaultDir)
+                == homeDirectory
+                    .appendingPathComponent(".key", isDirectory: true)
+                    .standardizedFileURL
+                    .path(percentEncoded: false)
+        )
     }
 
     @Test

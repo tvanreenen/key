@@ -32,7 +32,7 @@ final class KeyXPCReplyState: @unchecked Sendable {
 
 @objc public protocol KeyXPCProtocol {
     func sendRequest(_ requestData: NSData, withReply reply: @escaping (NSData?, NSString?) -> Void)
-    func completeLock()
+    func completeShutdown()
 }
 
 public final class KeyXPCClientTransport: KeyServiceTransport {
@@ -100,9 +100,10 @@ public final class KeyXPCClientTransport: KeyServiceTransport {
 
         do {
             let response = try decoder.decode(KeyServiceResponse.self, from: capturedData)
-            if request == .lock, response.exitCode == EXIT_SUCCESS {
+            if request.requiresHelperShutdownAfterSuccess,
+               response.exitCode == EXIT_SUCCESS {
                 invalidatesOnReturn = false
-                proxy.completeLock()
+                proxy.completeShutdown()
                 connection.scheduleSendBarrierBlock {
                     connection.invalidate()
                 }
@@ -122,6 +123,7 @@ private extension KeyServiceRequest {
         case .status: "status"
         case .list: "list"
         case .migrationPreflight: "migration preflight"
+        case .setVaultDirectory: "vault directory configuration"
         case .setKeychainMode: "keychain configuration"
         case .get: "get"
         case .addManual: "add"

@@ -10,6 +10,7 @@ struct XPCSecurityPolicyTests {
         .status,
         .list,
         .migrationPreflight,
+        .setVaultDirectory(path: "/tmp/vault"),
         .setKeychainMode(.local),
         .get(name: "entry"),
         .addManual(name: "entry", secret: "secret", type: .secret),
@@ -106,6 +107,10 @@ struct XPCSecurityPolicyTests {
         #expect(KeyServiceRequest.get(name: "entry").responseTimeoutSeconds == 120)
         #expect(KeyServiceRequest.migrationPreflight.responseTimeoutSeconds == 120)
         #expect(KeyServiceRequest.list.responseTimeoutSeconds == 30)
+        #expect(
+            KeyServiceRequest.setVaultDirectory(path: "/tmp/vault")
+                .responseTimeoutSeconds == nil
+        )
     }
 
     @Test
@@ -117,7 +122,29 @@ struct XPCSecurityPolicyTests {
     }
 
     @Test
+    func vaultDirectoryRequestRoundTripsAndRequiresHelperRestart() throws {
+        let request = KeyServiceRequest.setVaultDirectory(
+            path: "~/Secrets"
+        )
+        let encoded = try JSONEncoder().encode(request)
+        let decoded = try JSONDecoder().decode(
+            KeyServiceRequest.self,
+            from: encoded
+        )
+
+        #expect(decoded == request)
+        #expect(request.requiresHelperShutdownAfterSuccess)
+        #expect(KeyServiceRequest.lock.requiresHelperShutdownAfterSuccess)
+        #expect(!KeyServiceRequest.setKeychainMode(.local)
+            .requiresHelperShutdownAfterSuccess)
+    }
+
+    @Test
     func mutationsWaitForDefinitiveCompletion() {
+        #expect(
+            KeyServiceRequest.setVaultDirectory(path: "/tmp/vault")
+                .responseTimeoutSeconds == nil
+        )
         #expect(KeyServiceRequest.setKeychainMode(.local).responseTimeoutSeconds == nil)
         #expect(KeyServiceRequest.addManual(name: "entry", secret: "secret", type: .secret).responseTimeoutSeconds == nil)
         #expect(KeyServiceRequest.editManual(name: "entry", secret: "secret", type: .secret).responseTimeoutSeconds == nil)

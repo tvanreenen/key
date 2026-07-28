@@ -6,6 +6,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     case status
     case list
     case migrationPreflight
+    case setVaultDirectory(path: String)
     case setKeychainMode(KeychainMode)
     case get(name: String)
     case addManual(name: String, secret: String, type: SecretEntryType)
@@ -22,8 +23,18 @@ public enum KeyServiceRequest: Codable, Equatable {
             120
         case .list:
             30
-        case .setKeychainMode, .addManual, .editManual, .copyEntry, .moveEntry, .removeEntry:
+        case .setVaultDirectory, .setKeychainMode, .addManual, .editManual, .copyEntry, .moveEntry, .removeEntry:
             nil
+        }
+    }
+
+    /// Whether the XPC client must complete the post-reply shutdown handshake.
+    public var requiresHelperShutdownAfterSuccess: Bool {
+        switch self {
+        case .lock, .setVaultDirectory:
+            true
+        default:
+            false
         }
     }
 
@@ -35,6 +46,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case secret
         case type
         case force
+        case vaultDirectory
         case keychainMode
     }
 
@@ -44,6 +56,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case status
         case list
         case migrationPreflight
+        case setVaultDirectory
         case setKeychainMode
         case get
         case addManual
@@ -66,6 +79,13 @@ public enum KeyServiceRequest: Codable, Equatable {
             self = .list
         case .migrationPreflight:
             self = .migrationPreflight
+        case .setVaultDirectory:
+            self = .setVaultDirectory(
+                path: try container.decode(
+                    String.self,
+                    forKey: .vaultDirectory
+                )
+            )
         case .setKeychainMode:
             self = .setKeychainMode(try container.decode(KeychainMode.self, forKey: .keychainMode))
         case .get:
@@ -112,6 +132,9 @@ public enum KeyServiceRequest: Codable, Equatable {
             try container.encode(Kind.list, forKey: .kind)
         case .migrationPreflight:
             try container.encode(Kind.migrationPreflight, forKey: .kind)
+        case let .setVaultDirectory(path):
+            try container.encode(Kind.setVaultDirectory, forKey: .kind)
+            try container.encode(path, forKey: .vaultDirectory)
         case let .setKeychainMode(mode):
             try container.encode(Kind.setKeychainMode, forKey: .kind)
             try container.encode(mode, forKey: .keychainMode)

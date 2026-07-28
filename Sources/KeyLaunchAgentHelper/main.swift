@@ -43,7 +43,7 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
     private let stateLock = NSLock()
-    private var lockCompleted = false
+    private var shutdownAuthorized = false
 
     init(
         handler: KeyServiceHandler,
@@ -88,8 +88,9 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
         do {
             let response = handler.handle(request)
             let responseData = try encoder.encode(response)
-            if request == .lock, response.exitCode == EXIT_SUCCESS {
-                markLockCompleted()
+            if request.requiresHelperShutdownAfterSuccess,
+               response.exitCode == EXIT_SUCCESS {
+                markShutdownAuthorized()
             }
             reply(responseData as NSData, nil)
         } catch {
@@ -97,22 +98,22 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
         }
     }
 
-    func completeLock() {
+    func completeShutdown() {
         stateLock.lock()
-        let shouldShutdown = lockCompleted
-        lockCompleted = false
+        let shouldShutdown = shutdownAuthorized
+        shutdownAuthorized = false
         stateLock.unlock()
 
         if shouldShutdown {
             lifecycleController.shutdown()
         } else {
-            logger.error("Denied helper shutdown because this connection has not completed a lock request.")
+            logger.error("Denied helper shutdown because this connection has not completed a shutdown-authorizing request.")
         }
     }
 
-    private func markLockCompleted() {
+    private func markShutdownAuthorized() {
         stateLock.lock()
-        lockCompleted = true
+        shutdownAuthorized = true
         stateLock.unlock()
     }
 }
@@ -122,7 +123,8 @@ private func run() -> Never {
     let logger = Logger(subsystem: configuration.helperBundleIdentifier, category: "XPC")
 
     do {
-        let rootURL = try EntryStore.defaultRootURL()
+        let configStore = KeyConfigStore()
+        let keyConfiguration = try configStore.load()
         let sessionKeyStore = SessionVaultKeyStore(
             underlying: VaultKeyStore(configuration: configuration)
         )
@@ -132,7 +134,11 @@ private func run() -> Never {
         }
         let handler = KeyServiceHandler(
             keyStore: sessionKeyStore,
-            entryStore: EntryStore(rootURL: rootURL)
+            entryStore: EntryStore(
+                rootURL: keyConfiguration.vaultDirectoryURL
+            ),
+            keychainMode: keyConfiguration.keychainMode,
+            configStore: configStore
         )
         #if DEBUG
         let signingPolicy = KeyXPCCodeSigningPolicy.development
