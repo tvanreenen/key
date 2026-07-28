@@ -9,13 +9,13 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `632adfd43d402fc0e7f49f1eb573131d64de3308` |
+| Production base | `main` at `45713e5462720cdf030871fa88d9c608df978080` |
 | Selected architecture | Authenticated, versioned transaction layer |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/contained-vault-mutations` |
+| Current branch | `agent/coordinate-vault-root-changes` |
 | Current PR | Not opened |
-| Next work | `FS-305`: coordinate vault-root changes with the running helper |
+| Next work | Introduce one transaction mutation owner with operation IDs |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -85,15 +85,16 @@ Acceptance gate:
 ### PR 3 — Root-Contained Filesystem
 
 Status: `FS-301` squash-merged as `da33a66` in PR #24, `FS-302`
-squash-merged as `4e6a0f0` in PR #25, and `FS-303` squash-merged as
-`632adfd` in PR #26. Contained filesystem mutations continue on
-`agent/contained-vault-mutations`.
+squash-merged as `4e6a0f0` in PR #25, `FS-303` squash-merged as
+`632adfd` in PR #26, and `FS-304` squash-merged as `45713e5` in PR #27.
+Vault-root change coordination continues on
+`agent/coordinate-vault-root-changes`.
 
 - [x] `FS-301` Open and retain a trusted vault-root directory handle.
 - [x] `FS-302` Resolve every component with no-follow semantics.
 - [x] `FS-303` Reject symlinks, aliases, root substitution, and provider collisions.
 - [x] `FS-304` Implement contained replace, move, and cleanup.
-- [ ] Coordinate vault-root changes with the running helper.
+- [x] `FS-305` Coordinate vault-root changes with the running helper.
 
 ### PR 4 — Transaction Engine
 
@@ -130,7 +131,7 @@ squash-merged as `4e6a0f0` in PR #25, and `FS-303` squash-merged as
 | `DEC-002` | Proposed | Reject silent multi-writer merge; use expected generations and explicit conflicts. |
 | `DEC-003` | Open | Define recovery when every enrolled device is lost. |
 | `DEC-004` | Open | Define supported providers and required atomic commit semantics. |
-| `DEC-005` | Open | Make vault-root changes helper-owned or require a locked/restarted helper. |
+| `DEC-005` | Accepted | Make vault-root configuration changes helper-owned through the authenticated full-CLI XPC channel. Serialize the change after in-flight handler work, persist it, invalidate the warm key session, refuse later work from the stale handler, and shut the helper down after its successful reply. Re-read the configured root before other requests and fail closed if the file was changed or removed out of band. |
 | `DEC-006` | Accepted | Give the CLI full authority and the utility status/lock authority on separate authenticated endpoints. |
 | `DEC-007` | Accepted | Keep the signed nested helper, constrain launchd spawning, and re-register it on app upgrades. |
 | `DEC-008` | Accepted | Keep canonical JSON independent of vault schemas in an internal SwiftPM target; do not claim or publish full RFC 8785 conformance until complete number handling, upstream vectors, fuzzing, and independent review are complete. |
@@ -163,6 +164,7 @@ squash-merged as `4e6a0f0` in PR #25, and `FS-303` squash-merged as
 - [ ] Transaction fault injection at every phase.
 - [x] Root substitution, filesystem alias, provider-placeholder, and provider-name collision tests.
 - [x] Descriptor-relative replace, exclusive move, and non-recursive cleanup tests.
+- [x] Helper-owned vault-root change, stale-session refusal, and out-of-band configuration tests.
 - [ ] Local-v2 migration and rollback tests.
 - [ ] Revocation tests with retained old keys.
 - [ ] Recovery tests for missing devices and corrupt or conflicting state.
@@ -181,5 +183,5 @@ squash-merged as `4e6a0f0` in PR #25, and `FS-303` squash-merged as
 
 ## Immediate Next Action
 
-Implement `FS-305`: coordinate vault-root configuration changes with the
-running helper so no session continues with stale root authority.
+Begin the transaction engine by introducing one serialized mutation owner
+with durable operation IDs.

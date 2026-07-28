@@ -158,7 +158,36 @@ public struct KeyConfigStore {
         ]
     }
 
+    /// Reads the existing configured root without creating config or vault
+    /// state. The running helper uses this as a fail-closed consistency check.
+    func configuredVaultDirectoryURL() throws -> URL {
+        let paths = configurationPaths()
+        let configPath = paths.configFileURL.path(percentEncoded: false)
+        guard fileManager.fileExists(atPath: configPath) else {
+            throw AppError.invalidConfiguration(
+                "Key config file '\(paths.configFileURL.path)' does not exist."
+            )
+        }
+        try ensurePathIsNotDirectory(
+            at: paths.configFileURL,
+            failureMessage: "Key config file '\(paths.configFileURL.path)' exists but is a directory."
+        )
+        return try loadConfigurationFile(from: paths.configFileURL)
+            .vaultDirectoryURL
+    }
+
     private func bootstrapPaths() throws -> BootstrapPaths {
+        let paths = configurationPaths()
+
+        try ensureDirectoryExists(
+            at: paths.configDirectoryURL,
+            failureMessage: "Key config directory '\(paths.configDirectoryURL.path)' exists but is not a directory."
+        )
+
+        return paths
+    }
+
+    private func configurationPaths() -> BootstrapPaths {
         let configDirectoryURL = homeDirectoryURL
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
@@ -167,11 +196,6 @@ public struct KeyConfigStore {
             .appendingPathComponent("config.toml", isDirectory: false)
         let defaultVaultURL = homeDirectoryURL
             .appendingPathComponent(".key", isDirectory: true)
-
-        try ensureDirectoryExists(
-            at: configDirectoryURL,
-            failureMessage: "Key config directory '\(configDirectoryURL.path)' exists but is not a directory."
-        )
 
         return BootstrapPaths(
             configDirectoryURL: configDirectoryURL,
