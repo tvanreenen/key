@@ -1,14 +1,14 @@
 import Foundation
 
-public enum VaultProviderCaseSensitivity: Equatable, Sendable {
+enum VaultProviderCaseSensitivity: Equatable, Sendable {
     case sensitive
     case insensitive
 }
 
-public enum VaultProviderNamePolicyError: Error, Equatable, LocalizedError {
+enum VaultProviderNamePolicyError: Error, Equatable, LocalizedError {
     case collision(first: String, second: String)
 
-    public var errorDescription: String? {
+    var errorDescription: String? {
         switch self {
         case let .collision(first, second):
             return "Vault entry names '\(first)' and '\(second)' collide under the selected provider's naming rules."
@@ -16,14 +16,14 @@ public enum VaultProviderNamePolicyError: Error, Equatable, LocalizedError {
     }
 }
 
-public struct VaultProviderNamePolicy: Equatable, Sendable {
-    public let caseSensitivity: VaultProviderCaseSensitivity
+struct VaultProviderNamePolicy: Equatable, Sendable {
+    let caseSensitivity: VaultProviderCaseSensitivity
 
-    public init(caseSensitivity: VaultProviderCaseSensitivity) {
+    init(caseSensitivity: VaultProviderCaseSensitivity) {
         self.caseSensitivity = caseSensitivity
     }
 
-    public func validateNoCollisions(in names: [String]) throws {
+    func validateNoCollisions(in names: [String]) throws {
         var observedNames: [String: String] = [:]
 
         for name in names {

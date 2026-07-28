@@ -266,17 +266,17 @@ struct VaultPathResolverTests {
 
     @Test
     func rejectsDatalessFirmlinkAndCrossFilesystemMetadata() throws {
-        var metadata = stat()
-        metadata.st_mode = mode_t(S_IFREG | 0o600)
-        metadata.st_nlink = 1
-        metadata.st_dev = 7
-
-        metadata.st_flags = UInt32(SF_DATALESS)
         #expect(throws: VaultPathResolutionError.providerPlaceholder(
             component: "entry"
         )) {
             try validateOpenedComponentMetadata(
-                metadata,
+                VaultPathMetadata(
+                    objectKind: .regularFile,
+                    deviceID: 7,
+                    linkCount: 1,
+                    isDataless: true,
+                    isFirmlink: false
+                ),
                 component: "entry",
                 path: "entries/entry",
                 expecting: .regularFile,
@@ -284,12 +284,17 @@ struct VaultPathResolverTests {
             )
         }
 
-        metadata.st_flags = UInt32(SF_FIRMLINK)
         #expect(throws: VaultPathResolutionError.filesystemAlias(
             component: "entry"
         )) {
             try validateOpenedComponentMetadata(
-                metadata,
+                VaultPathMetadata(
+                    objectKind: .regularFile,
+                    deviceID: 7,
+                    linkCount: 1,
+                    isDataless: false,
+                    isFirmlink: true
+                ),
                 component: "entry",
                 path: "entries/entry",
                 expecting: .regularFile,
@@ -297,12 +302,17 @@ struct VaultPathResolverTests {
             )
         }
 
-        metadata.st_flags = 0
         #expect(throws: VaultPathResolutionError.crossedFilesystem(
             component: "entry"
         )) {
             try validateOpenedComponentMetadata(
-                metadata,
+                VaultPathMetadata(
+                    objectKind: .regularFile,
+                    deviceID: 7,
+                    linkCount: 1,
+                    isDataless: false,
+                    isFirmlink: false
+                ),
                 component: "entry",
                 path: "entries/entry",
                 expecting: .regularFile,
