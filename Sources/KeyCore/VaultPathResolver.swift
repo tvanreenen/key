@@ -77,35 +77,13 @@ extension VaultRootDirectoryHandle {
             for (index, component) in path.components.enumerated() {
                 let isTerminal = index == path.components.index(before: path.components.endIndex)
                 let requiredKind: VaultResolvedPathKind = isTerminal ? expectedKind : .directory
-                try rejectDatalessPlaceholder(
+                let child = try openValidatedComponent(
                     component,
                     relativeTo: parentDescriptor,
-                    path: relativePath
+                    path: relativePath,
+                    expecting: requiredKind,
+                    rootDeviceID: identity.deviceID
                 )
-                let child = try openComponent(
-                    component,
-                    relativeTo: parentDescriptor,
-                    expecting: requiredKind
-                )
-                do {
-                    try validateOpenedComponent(
-                        child,
-                        component: component,
-                        path: relativePath,
-                        expecting: requiredKind,
-                        rootDeviceID: identity.deviceID
-                    )
-                    if requiredKind == .regularFile {
-                        try rejectFinderAlias(
-                            child,
-                            component: component,
-                            path: relativePath
-                        )
-                    }
-                } catch {
-                    try? child.close()
-                    throw error
-                }
 
                 if isTerminal {
                     return try child.closeAfter {
@@ -123,10 +101,118 @@ extension VaultRootDirectoryHandle {
             preconditionFailure("A validated vault path must contain at least one component.")
         }
     }
+
+    /// Lends the trusted parent descriptor and terminal name for one path.
+    ///
+    /// This is the mutation-side counterpart to `withResolvedDescriptor`.
+    /// Every parent component is opened and validated beneath the retained
+    /// vault root. The terminal name is never interpreted as a path.
+    ///
+    /// - Important: The descriptor is valid only for the dynamic extent of
+    ///   `operation`. The closure must not store or return it.
+    func withResolvedParentDescriptor<Result>(
+        at relativePath: String,
+        _ operation: (Int32, String) throws -> Result
+    ) throws -> Result {
+        let path = try ValidatedVaultRelativePath(relativePath)
+
+        return try withFileDescriptor { rootDescriptor in
+            let ownedParent = try openValidatedParent(
+                of: path,
+                rootDescriptor: rootDescriptor,
+                path: relativePath
+            )
+            defer {
+                try? ownedParent?.close()
+            }
+
+            return try operation(
+                ownedParent?.rawValue ?? rootDescriptor,
+                path.terminalComponent
+            )
+        }
+    }
+
+    /// Lends trusted parent descriptors and terminal names for two paths.
+    ///
+    /// Both paths are resolved during one root-identity check so a rename can
+    /// operate only between already-opened directories beneath that root.
+    ///
+    /// - Important: The descriptors are valid only for the dynamic extent of
+    ///   `operation`. The closure must not store or return either descriptor.
+    func withResolvedParentDescriptors<Result>(
+        at firstRelativePath: String,
+        and secondRelativePath: String,
+        _ operation: (Int32, String, Int32, String) throws -> Result
+    ) throws -> Result {
+        let firstPath = try ValidatedVaultRelativePath(firstRelativePath)
+        let secondPath = try ValidatedVaultRelativePath(secondRelativePath)
+
+        return try withFileDescriptor { rootDescriptor in
+            let firstOwnedParent = try openValidatedParent(
+                of: firstPath,
+                rootDescriptor: rootDescriptor,
+                path: firstRelativePath
+            )
+            defer {
+                try? firstOwnedParent?.close()
+            }
+
+            let secondOwnedParent = try openValidatedParent(
+                of: secondPath,
+                rootDescriptor: rootDescriptor,
+                path: secondRelativePath
+            )
+            defer {
+                try? secondOwnedParent?.close()
+            }
+
+            return try operation(
+                firstOwnedParent?.rawValue ?? rootDescriptor,
+                firstPath.terminalComponent,
+                secondOwnedParent?.rawValue ?? rootDescriptor,
+                secondPath.terminalComponent
+            )
+        }
+    }
+
+    private func openValidatedParent(
+        of path: ValidatedVaultRelativePath,
+        rootDescriptor: Int32,
+        path displayPath: String
+    ) throws -> FileDescriptor? {
+        var ownedParent: FileDescriptor?
+        var parentDescriptor = rootDescriptor
+
+        do {
+            for component in path.components.dropLast() {
+                let child = try openValidatedComponent(
+                    component,
+                    relativeTo: parentDescriptor,
+                    path: displayPath,
+                    expecting: .directory,
+                    rootDeviceID: identity.deviceID
+                )
+                if let previousParent = ownedParent {
+                    try? previousParent.close()
+                }
+                ownedParent = child
+                parentDescriptor = child.rawValue
+            }
+            return ownedParent
+        } catch {
+            try? ownedParent?.close()
+            throw error
+        }
+    }
 }
 
 private struct ValidatedVaultRelativePath {
     let components: [String]
+
+    var terminalComponent: String {
+        components[components.index(before: components.endIndex)]
+    }
 
     init(_ path: String) throws {
         guard
@@ -148,6 +234,45 @@ private struct ValidatedVaultRelativePath {
         }
 
         self.components = components.map(String.init)
+    }
+}
+
+private func openValidatedComponent(
+    _ component: String,
+    relativeTo parentDescriptor: Int32,
+    path: String,
+    expecting expectedKind: VaultResolvedPathKind,
+    rootDeviceID: UInt64
+) throws -> FileDescriptor {
+    try rejectDatalessPlaceholder(
+        component,
+        relativeTo: parentDescriptor,
+        path: path
+    )
+    let child = try openComponent(
+        component,
+        relativeTo: parentDescriptor,
+        expecting: expectedKind
+    )
+    do {
+        try validateOpenedComponent(
+            child,
+            component: component,
+            path: path,
+            expecting: expectedKind,
+            rootDeviceID: rootDeviceID
+        )
+        if expectedKind == .regularFile {
+            try rejectFinderAlias(
+                child,
+                component: component,
+                path: path
+            )
+        }
+        return child
+    } catch {
+        try? child.close()
+        throw error
     }
 }
 
