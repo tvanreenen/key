@@ -1,0 +1,182 @@
+import Darwin
+import Foundation
+import System
+
+public enum VaultResolvedPathKind: Equatable, Sendable {
+    case directory
+    case regularFile
+
+    fileprivate var displayName: String {
+        switch self {
+        case .directory:
+            return "directory"
+        case .regularFile:
+            return "regular file"
+        }
+    }
+}
+
+public enum VaultPathResolutionError: Error, Equatable, LocalizedError {
+    case invalidRelativePath
+    case notFound(component: String)
+    case symbolicLink(component: String)
+    case notDirectory(component: String)
+    case unexpectedType(path: String, expected: VaultResolvedPathKind)
+    case openFailed(component: String, code: Int32)
+    case inspectionFailed(path: String, code: Int32)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidRelativePath:
+            return "A vault path must be a nonempty relative path without empty, '.', '..', or NUL components."
+        case let .notFound(component):
+            return "Vault path component '\(component)' does not exist."
+        case let .symbolicLink(component):
+            return "Vault path component '\(component)' must not be a symbolic link."
+        case let .notDirectory(component):
+            return "Vault path component '\(component)' must be a directory."
+        case let .unexpectedType(path, expected):
+            return "Vault path '\(path)' must resolve to a \(expected.displayName)."
+        case let .openFailed(component, code):
+            return "Failed to open vault path component '\(component)' (POSIX error \(code))."
+        case let .inspectionFailed(path, code):
+            return "Failed to inspect vault path '\(path)' (POSIX error \(code))."
+        }
+    }
+}
+
+extension VaultRootDirectoryHandle {
+    func withResolvedDescriptor<Result>(
+        at relativePath: String,
+        expecting expectedKind: VaultResolvedPathKind,
+        _ operation: (FileDescriptor) throws -> Result
+    ) throws -> Result {
+        let path = try ValidatedVaultRelativePath(relativePath)
+
+        return try withFileDescriptor { rootDescriptor in
+            var ownedParent: FileDescriptor?
+            defer {
+                try? ownedParent?.close()
+            }
+
+            var parentDescriptor = rootDescriptor
+
+            for (index, component) in path.components.enumerated() {
+                let isTerminal = index == path.components.index(before: path.components.endIndex)
+                let requiredKind: VaultResolvedPathKind = isTerminal ? expectedKind : .directory
+                let child = try openComponent(
+                    component,
+                    relativeTo: parentDescriptor,
+                    expecting: requiredKind
+                )
+
+                if isTerminal {
+                    defer {
+                        try? child.close()
+                    }
+                    try verifyType(
+                        of: child,
+                        path: relativePath,
+                        expecting: expectedKind
+                    )
+                    return try operation(child)
+                }
+
+                if let previousParent = ownedParent {
+                    try? previousParent.close()
+                }
+                ownedParent = child
+                parentDescriptor = child.rawValue
+            }
+
+            preconditionFailure("A validated vault path must contain at least one component.")
+        }
+    }
+}
+
+private struct ValidatedVaultRelativePath {
+    let components: [String]
+
+    init(_ path: String) throws {
+        guard
+            !path.isEmpty,
+            !path.hasPrefix("/"),
+            !path.utf8.contains(0)
+        else {
+            throw VaultPathResolutionError.invalidRelativePath
+        }
+
+        let components = path.split(
+            separator: "/",
+            omittingEmptySubsequences: false
+        )
+        guard components.allSatisfy({
+            !$0.isEmpty && $0 != "." && $0 != ".."
+        }) else {
+            throw VaultPathResolutionError.invalidRelativePath
+        }
+
+        self.components = components.map(String.init)
+    }
+}
+
+private func openComponent(
+    _ component: String,
+    relativeTo parentDescriptor: Int32,
+    expecting expectedKind: VaultResolvedPathKind
+) throws -> FileDescriptor {
+    var flags = O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC
+    if expectedKind == .directory {
+        flags |= O_DIRECTORY
+    }
+
+    let rawDescriptor: Int32
+    while true {
+        let result = Darwin.openat(parentDescriptor, component, flags)
+        if result >= 0 {
+            rawDescriptor = result
+            break
+        }
+        if errno != EINTR {
+            let code = errno
+            switch code {
+            case ENOENT:
+                throw VaultPathResolutionError.notFound(component: component)
+            case ELOOP:
+                throw VaultPathResolutionError.symbolicLink(component: component)
+            case ENOTDIR:
+                throw VaultPathResolutionError.notDirectory(component: component)
+            default:
+                throw VaultPathResolutionError.openFailed(
+                    component: component,
+                    code: code
+                )
+            }
+        }
+    }
+
+    return FileDescriptor(rawValue: rawDescriptor)
+}
+
+private func verifyType(
+    of descriptor: FileDescriptor,
+    path: String,
+    expecting expectedKind: VaultResolvedPathKind
+) throws {
+    var metadata = stat()
+    guard fstat(descriptor.rawValue, &metadata) == 0 else {
+        throw VaultPathResolutionError.inspectionFailed(
+            path: path,
+            code: errno
+        )
+    }
+
+    let observedType = metadata.st_mode & S_IFMT
+    let expectedType = expectedKind == .directory ? S_IFDIR : S_IFREG
+    guard observedType == expectedType else {
+        throw VaultPathResolutionError.unexpectedType(
+            path: path,
+            expected: expectedKind
+        )
+    }
+}

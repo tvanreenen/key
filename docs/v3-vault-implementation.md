@@ -9,13 +9,13 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `542382f5516e292518486f85db9512c8c1bb662b` |
+| Production base | `main` at `da33a66ed761bce95085f82e115f45c00e26c5c7` |
 | Selected architecture | Authenticated, versioned transaction layer |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/open-vault-root-handle` |
+| Current branch | `agent/resolve-vault-path-components` |
 | Current PR | Not opened |
-| Next work | `FS-302`: resolve every child component relative to the trusted root with no-follow semantics |
+| Next work | `FS-303`: reject aliases, root substitution, and provider collisions |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -84,8 +84,11 @@ Acceptance gate:
 
 ### PR 3 — Root-Contained Filesystem
 
+Status: `FS-301` squash-merged as `da33a66` in PR #24. Component-safe
+resolution continues on `agent/resolve-vault-path-components`.
+
 - [x] `FS-301` Open and retain a trusted vault-root directory handle.
-- [ ] Resolve every component with no-follow semantics.
+- [x] `FS-302` Resolve every component with no-follow semantics.
 - [ ] Reject symlinks, aliases, root substitution, and provider collisions.
 - [ ] Implement contained replace, move, and cleanup.
 - [ ] Coordinate vault-root changes with the running helper.
@@ -137,6 +140,7 @@ Acceptance gate:
 | `DEC-014` | Accepted | Make migration opt-in. Ship `key migrate --check` as a helper-owned, read-only v2 compatibility and decryptability check. A later writer must stage and verify v3 beside the untouched v2 source, commit only through the transaction root pointer, and retain v2 until verified reopen and explicit cleanup. |
 | `DEC-015` | Accepted | Treat the unreleased prototype as a migration exclusion, not a permanent runtime compatibility mode. `key migrate --check` refuses the exact root-level `.key-vault.json` marker before loading a key, while ordinary v2 reads remain unchanged and the strict v3 parser rejects prototype JSON. |
 | `DEC-016` | Accepted | Establish vault-root authority by opening the configured file URL once through Swift System's `FileDescriptor` with directory-only, no-follow, and close-on-exec semantics. Retain that descriptor and its device/inode identity for the lifetime of the filesystem session; later contained operations must resolve relative to the descriptor instead of trusting the configured path again. |
+| `DEC-017` | Accepted | Accept only canonical, nonempty relative child paths. Open one component at a time from the trusted root with `openat`, no-follow, close-on-exec, and directory-only semantics for every intermediate component. Verify that the terminal descriptor has the requested directory or regular-file type before use, and open special files nonblocking so an unexpected FIFO cannot stall the helper. |
 
 ## Validation Matrix
 
@@ -148,6 +152,7 @@ Acceptance gate:
 - [x] V2 migration-preflight compatibility, decryptability, and no-write tests.
 - [x] Prototype migration-marker and v3 parser rejection tests.
 - [x] Trusted vault-root type, no-follow open, retained-identity, and close-on-exec tests.
+- [x] Component-by-component relative resolution, traversal rejection, symlink rejection, and terminal-type tests.
 - [ ] Enrollment and key-epoch replay tests.
 - [x] Installed XPC tests for intended and unintended signing identities.
 - [ ] Mutation/key-transition concurrency tests.
@@ -171,5 +176,5 @@ Acceptance gate:
 
 ## Immediate Next Action
 
-Implement `FS-302`: resolve each relative child component from the trusted
-vault-root descriptor with no-follow semantics.
+Implement `FS-303`: reject aliases, root substitution, and provider
+collisions.
