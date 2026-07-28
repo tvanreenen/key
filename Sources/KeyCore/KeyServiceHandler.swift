@@ -9,6 +9,7 @@ public final class KeyServiceHandler {
     private let configStore: KeyConfigStore?
     private let cipher: VaultCipher
     private let now: () -> Date
+    private let mutationOwner: any VaultTransactionMutationOwning
     private let requestQueue = DispatchQueue(
         label: "work.tvr.key.service-handler.requests",
         attributes: .concurrent
@@ -17,7 +18,7 @@ public final class KeyServiceHandler {
     private var currentKeychainMode: KeychainMode
     private var vaultRootChangePending = false
 
-    public init(
+    public convenience init(
         keyStore: VaultKeyStoring,
         entryStore: EntryStore,
         keychainMode: KeychainMode = .local,
@@ -25,11 +26,32 @@ public final class KeyServiceHandler {
         cipher: VaultCipher = VaultCipher(),
         now: @escaping () -> Date = Date.init
     ) {
+        self.init(
+            keyStore: keyStore,
+            entryStore: entryStore,
+            keychainMode: keychainMode,
+            configStore: configStore,
+            cipher: cipher,
+            now: now,
+            mutationOwner: VaultTransactionMutationOwner()
+        )
+    }
+
+    init(
+        keyStore: VaultKeyStoring,
+        entryStore: EntryStore,
+        keychainMode: KeychainMode = .local,
+        configStore: KeyConfigStore? = nil,
+        cipher: VaultCipher = VaultCipher(),
+        now: @escaping () -> Date = Date.init,
+        mutationOwner: any VaultTransactionMutationOwning
+    ) {
         self.keyStore = keyStore
         self.entryStore = entryStore
         self.configStore = configStore
         self.cipher = cipher
         self.now = now
+        self.mutationOwner = mutationOwner
         self.currentKeychainMode = keychainMode
     }
 
@@ -67,6 +89,15 @@ public final class KeyServiceHandler {
                 return .failure(
                     "The vault directory changed and Key Agent is restarting. Run `key lock`, then retry the command."
                 )
+            }
+            if let mutationKind = request.transactionMutationKind {
+                do {
+                    return try mutationOwner.perform(mutationKind) { _ in
+                        handleRequest(request)
+                    }
+                } catch {
+                    return .failure(error.localizedDescription)
+                }
             }
             return handleRequest(request)
         }
@@ -473,6 +504,23 @@ private extension KeyServiceRequest {
             true
         } else {
             false
+        }
+    }
+
+    var transactionMutationKind: VaultTransactionMutationKind? {
+        switch self {
+        case .addManual:
+            .addEntry
+        case .editManual:
+            .editEntry
+        case .copyEntry:
+            .copyEntry
+        case .moveEntry:
+            .moveEntry
+        case .removeEntry:
+            .removeEntry
+        default:
+            nil
         }
     }
 }

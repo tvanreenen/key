@@ -9,13 +9,13 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `45713e5462720cdf030871fa88d9c608df978080` |
+| Production base | `main` at `3a9606240b404e76f48f0f447a0427c6b93ab24f` |
 | Selected architecture | Authenticated, versioned transaction layer |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/coordinate-vault-root-changes` |
+| Current branch | `agent/transaction-mutation-owner` |
 | Current PR | Not opened |
-| Next work | Introduce one transaction mutation owner with operation IDs |
+| Next work | Require expected manifest generations and explicit conflicts |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -98,13 +98,20 @@ Vault-root change coordination continues on
 
 ### PR 4 — Transaction Engine
 
-- [ ] Introduce one mutation owner with operation IDs.
+- [x] `TXN-401` Introduce one mutation owner with operation IDs.
 - [ ] Require expected manifest generations and explicit conflicts.
 - [ ] Stage immutable entries and the next manifest.
 - [ ] Commit with one verified root-pointer transition.
 - [ ] Persist recovery state before irreversible effects.
 - [ ] Stream re-encryption and recover at every interruption phase.
 - [ ] Resolve the shipping protected-write `EPERM` failures.
+
+`TXN-401` routes the current add, edit, copy, move, and remove operations
+through one synchronous serial owner inside Key Agent while leaving reads
+concurrent. Every accepted mutation attempt receives a canonical lowercase
+UUID operation ID. The ID is stable input for later staging, journal, and
+recovery records; this increment does not yet persist those records and does
+not claim crash recovery.
 
 ### PR 5 — Enrollment And Revocation
 
@@ -165,6 +172,7 @@ Vault-root change coordination continues on
 - [x] Root substitution, filesystem alias, provider-placeholder, and provider-name collision tests.
 - [x] Descriptor-relative replace, exclusive move, and non-recursive cleanup tests.
 - [x] Helper-owned vault-root change, stale-session refusal, and out-of-band configuration tests.
+- [x] Serialized mutation ownership, canonical operation-ID, and mutation-routing tests.
 - [ ] Local-v2 migration and rollback tests.
 - [ ] Revocation tests with retained old keys.
 - [ ] Recovery tests for missing devices and corrupt or conflicting state.
@@ -183,5 +191,5 @@ Vault-root change coordination continues on
 
 ## Immediate Next Action
 
-Begin the transaction engine by introducing one serialized mutation owner
-with durable operation IDs.
+Implement the expected-generation guard so concurrent or stale writers fail
+with an explicit conflict before staging transaction output.
