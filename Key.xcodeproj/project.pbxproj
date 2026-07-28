@@ -33,6 +33,7 @@
 		A3020001A3020001A3020001 /* VaultPathResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3020002A3020002A3020002 /* VaultPathResolver.swift */; };
 		A3030001A3030001A3030001 /* VaultProviderNamePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3030002A3030002A3030002 /* VaultProviderNamePolicy.swift */; };
 		A3040001A3040001A3040001 /* VaultContainedMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3040002A3040002A3040002 /* VaultContainedMutation.swift */; };
+		A4010001A4010001A4010001 /* VaultTransactionMutationOwner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4010002A4010002A4010002 /* VaultTransactionMutationOwner.swift */; };
 		A15F350B2230881FFC292742 /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
 		AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA3251E5B71729E191F7889A /* Command.swift */; };
 		B4BE69F25B811392D2FBBE3C /* KeyCLIApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */; };
@@ -111,6 +112,7 @@
 		A3020002A3020002A3020002 /* VaultPathResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultPathResolver.swift; sourceTree = "<group>"; };
 		A3030002A3030002A3030002 /* VaultProviderNamePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultProviderNamePolicy.swift; sourceTree = "<group>"; };
 		A3040002A3040002A3040002 /* VaultContainedMutation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultContainedMutation.swift; sourceTree = "<group>"; };
+		A4010002A4010002A4010002 /* VaultTransactionMutationOwner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultTransactionMutationOwner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -169,6 +171,7 @@
 				A3020002A3020002A3020002 /* VaultPathResolver.swift */,
 				A3030002A3030002A3030002 /* VaultProviderNamePolicy.swift */,
 				A3040002A3040002A3040002 /* VaultContainedMutation.swift */,
+				A4010002A4010002A4010002 /* VaultTransactionMutationOwner.swift */,
 				B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */,
 			);
 			path = KeyCore;
@@ -462,6 +465,7 @@
 				A3020001A3020001A3020001 /* VaultPathResolver.swift in Sources */,
 				A3030001A3030001A3030001 /* VaultProviderNamePolicy.swift in Sources */,
 				A3040001A3040001A3040001 /* VaultContainedMutation.swift in Sources */,
+				A4010001A4010001A4010001 /* VaultTransactionMutationOwner.swift in Sources */,
 				2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */,
 				9FAE42E9C3A14B0F8D7E6A11 /* VaultLocationResolver.swift in Sources */,
 				1B7D7F2E9AE24855D9046ED3 /* VaultKeyStore.swift in Sources */,
