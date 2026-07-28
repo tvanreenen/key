@@ -9,13 +9,13 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `4ef1ffa8d284355350316861275b1793b5cbed93` |
+| Production base | `main` at `9eaac88eaf7f6bcd53d3e1ea71a1bafbc6e1dcc8` |
 | Selected architecture | Authenticated, versioned transaction layer |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/implement-v3-migration-preflight` |
+| Current branch | `agent/reject-prototype-enclave-metadata` |
 | Current PR | Not opened |
-| Next work | `FMT-210`: refuse unsupported prototype enclave metadata |
+| Next work | `FS-301`: open and retain a trusted vault-root directory handle |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -58,8 +58,9 @@ squash-merged as `ff402b8` in PR #15, `FMT-203` squash-merged as `18cfb3e`
 in PR #16, `FMT-204` squash-merged as `cceb783` in PR #17, `FMT-205`
 squash-merged as `942e444` in PR #18, and `FMT-206` squash-merged as
 `a390042` in PR #19, `FMT-207` squash-merged as `73775eb` in PR #20, and
-`FMT-208` squash-merged as `4ef1ffa` in PR #21. Migration-preflight work
-continues on `agent/implement-v3-migration-preflight`.
+`FMT-208` squash-merged as `4ef1ffa` in PR #21, and `FMT-209`
+squash-merged as `9eaac88` in PR #22. Prototype-refusal work continues on
+`agent/reject-prototype-enclave-metadata`.
 
 - [x] `FMT-201` Specify canonical manifest-body and encrypted-entry schemas,
   encoding, ordering, normalization, and unknown-version behavior.
@@ -73,7 +74,7 @@ continues on `agent/implement-v3-migration-preflight`.
 - [x] `FMT-207` Detect manifest and entry replay.
 - [x] `FMT-208` Reject inconsistent membership and wrapped-key state.
 - [x] `FMT-209` Add read-only local-v2 migration preflight and rollback steps.
-- [ ] `FMT-210` Refuse unsupported prototype enclave metadata.
+- [x] `FMT-210` Refuse unsupported prototype enclave metadata.
 
 Acceptance gate:
 
@@ -135,6 +136,7 @@ Acceptance gate:
 | `DEC-012` | Accepted | Treat authentication and freshness as separate gates. Persist one exact vault ID, generation, and manifest-envelope digest in the non-synchronizing device-local Keychain; advance it under the serialized helper mutation owner with an expected-checkpoint guard only after verifying the exact child transition. Require the freshness-approved manifest type for entry open, copy, and rename. |
 | `DEC-013` | Accepted | Keep local manifests free of device-membership and wrapped-key records. Require shared manifests to retain at least one active owner and exactly one current-epoch wrapped key for every active device, with no wrapper for a revoked or unknown device. Defer membership-transition ceremonies to enrollment and revocation work. |
 | `DEC-014` | Accepted | Make migration opt-in. Ship `key migrate --check` as a helper-owned, read-only v2 compatibility and decryptability check. A later writer must stage and verify v3 beside the untouched v2 source, commit only through the transaction root pointer, and retain v2 until verified reopen and explicit cleanup. |
+| `DEC-015` | Accepted | Treat the unreleased prototype as a migration exclusion, not a permanent runtime compatibility mode. `key migrate --check` refuses the exact root-level `.key-vault.json` marker before loading a key, while ordinary v2 reads remain unchanged and the strict v3 parser rejects prototype JSON. |
 
 ## Validation Matrix
 
@@ -144,6 +146,7 @@ Acceptance gate:
 - [x] Manifest generation/digest and entry revision replay tests.
 - [x] Local/shared membership and current-epoch wrapped-key consistency tests.
 - [x] V2 migration-preflight compatibility, decryptability, and no-write tests.
+- [x] Prototype migration-marker and v3 parser rejection tests.
 - [ ] Enrollment and key-epoch replay tests.
 - [x] Installed XPC tests for intended and unintended signing identities.
 - [ ] Mutation/key-transition concurrency tests.
@@ -167,6 +170,5 @@ Acceptance gate:
 
 ## Immediate Next Action
 
-Implement `FMT-210`: identify and refuse unsupported prototype enclave
-metadata so it cannot be mistaken for a version 2 source or trusted version 3
-state.
+Implement `FS-301`: open and retain a trusted vault-root directory handle as
+the authority for later contained path resolution and mutation.
