@@ -100,10 +100,13 @@ struct V2MigrationPreflightReport: Equatable, Sendable {
 /// The supplied key loader must perform a read-only load with key creation and
 /// repair disabled. An empty vault deliberately does not call it.
 struct V2MigrationPreflight {
+    private static let unsupportedPrototypeMetadataFilename = ".key-vault.json"
+
     let entryStore: EntryStore
     let cipher: VaultCipher
 
     func inspect(loadVaultKey: () throws -> Data) throws -> V2MigrationPreflightReport {
+        try refuseUnsupportedPrototypeMetadata()
         let entryNames = try entryStore.listEntries()
         guard !entryNames.isEmpty else {
             return V2MigrationPreflightReport(
@@ -179,6 +182,41 @@ struct V2MigrationPreflight {
             secretCount: secretCount,
             totpCount: totpCount,
             problems: problems
+        )
+    }
+
+    private func refuseUnsupportedPrototypeMetadata(
+        fileManager: FileManager = .default
+    ) throws {
+        let rootPath = entryStore.rootURL.path(percentEncoded: false)
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: rootPath, isDirectory: &isDirectory),
+              isDirectory.boolValue
+        else {
+            return
+        }
+
+        let children: [URL]
+        do {
+            children = try fileManager.contentsOfDirectory(
+                at: entryStore.rootURL,
+                includingPropertiesForKeys: nil,
+                options: []
+            )
+        } catch {
+            throw AppError.io(
+                "Failed to inspect the version 2 vault for unsupported migration metadata: \(error.localizedDescription)"
+            )
+        }
+
+        guard children.contains(where: {
+            $0.lastPathComponent == Self.unsupportedPrototypeMetadataFilename
+        }) else {
+            return
+        }
+
+        throw AppError.operationRefused(
+            "The vault contains '\(Self.unsupportedPrototypeMetadataFilename)' from the unreleased Secure Enclave sharing prototype. That prototype is not a supported migration source."
         )
     }
 }

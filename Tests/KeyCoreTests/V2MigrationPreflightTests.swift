@@ -78,6 +78,41 @@ struct V2MigrationPreflightTests {
     }
 
     @Test
+    func prototypeMarkerBlocksMigrationWithoutBlockingVersion2Reads() throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = EntryStore(rootURL: root)
+        let vaultKey = Data((0..<32).map(UInt8.init))
+        try store.save(
+            VaultCipher().encrypt("portable-secret", keyData: vaultKey),
+            as: "mail/personal",
+            overwrite: false
+        )
+        try Data(#"{"version":1,"securityMode":"enclave"}"#.utf8).write(
+            to: root.appendingPathComponent(".key-vault.json", isDirectory: false)
+        )
+        let before = try fileSnapshot(at: root)
+
+        let keyStore = MemoryVaultKeyStore()
+        keyStore.localKeyData = vaultKey
+        let handler = KeyServiceHandler(keyStore: keyStore, entryStore: store)
+
+        #expect(handler.handle(.get(name: "mail/personal")) == .success("portable-secret"))
+
+        let response = handler.handle(.migrationPreflight)
+        let message = try #require(response.errorMessage)
+
+        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(message.contains("unreleased Secure Enclave sharing prototype"))
+        #expect(message.contains("not a supported migration source"))
+        #expect(message.hasSuffix("No files or Keychain items were changed. Migration has not started."))
+        #expect(keyStore.loadCount == 1)
+        #expect(keyStore.storeCount == 0)
+        #expect(try fileSnapshot(at: root) == before)
+    }
+
+    @Test
     func incompatibleCorruptAndUndecryptableEntriesAreAllReported() throws {
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

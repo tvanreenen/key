@@ -1,7 +1,7 @@
 # Key Vault Version 3 Storage Format
 
-Status: normative schema, authority, replay, membership, and migration
-specification for `FMT-201` through `FMT-209`.
+Status: normative schema, authority, replay, membership, migration, and
+prototype-refusal specification for `FMT-201` through `FMT-210`.
 
 This document freezes the data model and canonical encoding for the version 3
 vault manifest body, authenticated manifest envelope, and encrypted entry
@@ -583,6 +583,27 @@ contract:
 `key migrate --check` implements only the diagnostic portion of this contract.
 It does not enable a version 3 writer or an apply command.
 
+## Unsupported Prototype Enclave State
+
+The unreleased Secure Enclave sharing prototype at revision
+`84e7ddb79141d8f1665f3c1bf2e4254677a988a2` is not a compatibility format. Its
+root-level `.key-vault.json` file contains unauthenticated version 1
+authorization, membership, epoch, and wrapped-key records. Those records MUST
+NOT become a version 3 trust anchor.
+
+`key migrate --check` MUST inspect the direct children of the selected vault
+root for the exact `.key-vault.json` marker before loading a vault key. Presence
+blocks migration regardless of the marker's contents, readability, or file
+type. The preflight MUST NOT decode, repair, delete, rename, or rewrite the
+prototype marker and MUST preserve its ordinary guarantees against file and
+Keychain item writes.
+
+This refusal is limited to migration. Shipping version 2 reads remain
+unchanged because they neither interpret nor trust the prototype metadata.
+Version 3 parsers independently require their exact format discriminator,
+version, canonical encoding, and schema, and MUST reject prototype JSON as a
+version 3 manifest.
+
 ## Illustrative Objects
 
 These examples are pretty-printed for readability and are not canonical byte
@@ -754,7 +775,7 @@ The following decisions are not part of `FMT-201` or `FMT-202`:
 - manifest authenticator implementation and key persistence (`FMT-203`);
 - exact AES-GCM associated-data bytes (`FMT-204`);
 - full membership/wrapper consistency rules (`FMT-208`);
-- migration and prototype refusal (`FMT-209`, `FMT-210`);
+- physical migration execution beyond preflight;
 - physical root-pointer, generation, and transaction layout (`TXN-403`,
   `TXN-404`); and
 - root-contained filesystem operations (`FS-301` through `FS-305`).

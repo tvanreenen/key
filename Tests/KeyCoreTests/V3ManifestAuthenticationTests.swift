@@ -90,6 +90,17 @@ struct V3ManifestAuthenticationTests {
     }
 
     @Test
+    func unreleasedPrototypeMetadataIsNotAVersion3Manifest() {
+        let prototypeMetadata = Data(
+            #"{"devices":[],"epoch":1,"securityMode":"enclave","vaultID":"prototype-vault","version":1,"wrappedKeys":[]}"#.utf8
+        )
+
+        #expect(throws: V3ManifestError.invalidStructure("$.format")) {
+            _ = try V3ManifestAuthenticator().parse(prototypeMetadata)
+        }
+    }
+
+    @Test
     func canonicalJSONFailuresMapToManifestErrors() {
         #expect(throws: V3ManifestError.duplicateProperty) {
             _ = try V3ManifestAuthenticator().parse(Data(#"{"a":1,"\u0061":2}"#.utf8))
