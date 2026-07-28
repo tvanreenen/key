@@ -83,6 +83,20 @@ struct VaultRootDirectoryHandleTests {
     }
 
     @Test
+    func rejectsRelativeAndRemoteAuthorityFileURLs() {
+        #expect(throws: VaultRootDirectoryHandleError.invalidPath) {
+            _ = try VaultRootDirectoryHandle(
+                opening: URL(string: "file:relative-vault")!
+            )
+        }
+        #expect(throws: VaultRootDirectoryHandleError.invalidPath) {
+            _ = try VaultRootDirectoryHandle(
+                opening: URL(string: "file://example.com/private/tmp/vault")!
+            )
+        }
+    }
+
+    @Test
     func rejectsPathContainingNullByte() {
         #expect(throws: VaultRootDirectoryHandleError.invalidPath) {
             _ = try VaultRootDirectoryHandle(

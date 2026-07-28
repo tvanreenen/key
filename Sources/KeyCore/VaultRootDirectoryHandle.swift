@@ -54,6 +54,15 @@ public final class VaultRootDirectoryHandle: @unchecked Sendable {
         }
 
         let displayPath = rootURL.path(percentEncoded: false)
+        if let host = rootURL.host,
+           !host.isEmpty,
+           host.caseInsensitiveCompare("localhost") != .orderedSame {
+            throw VaultRootDirectoryHandleError.invalidPath
+        }
+        guard displayPath.hasPrefix("/") else {
+            throw VaultRootDirectoryHandleError.invalidPath
+        }
+
         var openPath = rootURL.standardizedFileURL.path(percentEncoded: false)
         while openPath.count > 1, openPath.hasSuffix("/") {
             openPath.removeLast()
