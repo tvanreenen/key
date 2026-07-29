@@ -258,7 +258,7 @@ public struct V3ManifestReplayProtector: Sendable {
         let verified = try authenticator.verify(
             candidateData,
             vaultKey: candidateVaultKey,
-            trustAnchor: .parent(trustedParentData)
+            trustAnchor: .verifiedParents([parent.verifiedManifest])
         )
         guard verified.envelope.content.manifest.vaultID == expectedVaultID else {
             throw V3ManifestReplayError.vaultMismatch

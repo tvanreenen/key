@@ -36,50 +36,19 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "parent",
+        "parents",
         "manifest"
       ],
       "properties": {
-        "parent": {
-          "oneOf": [
-            {
-              "$ref": "#/$defs/genesisParent"
-            },
-            {
-              "$ref": "#/$defs/manifestParent"
-            }
-          ]
+        "parents": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "v3-common.schema.json#/$defs/sha256"
+          }
         },
         "manifest": {
           "$ref": "v3-manifest-body.schema.json"
-        }
-      }
-    },
-    "genesisParent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "kind"
-      ],
-      "properties": {
-        "kind": {
-          "const": "genesis"
-        }
-      }
-    },
-    "manifestParent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "kind",
-        "digest"
-      ],
-      "properties": {
-        "kind": {
-          "const": "manifest"
-        },
-        "digest": {
-          "$ref": "v3-common.schema.json#/$defs/sha256"
         }
       }
     },

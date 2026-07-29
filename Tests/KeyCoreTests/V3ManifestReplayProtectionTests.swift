@@ -99,7 +99,7 @@ struct V3ManifestReplayProtectionTests {
             vaultKey: Self.key
         )
         let child = try manifestData(
-            parent: parentReference(to: parent),
+            parents: parentReferences(to: [parent]),
             entryName: "email/current"
         )
 
@@ -148,7 +148,7 @@ struct V3ManifestReplayProtectionTests {
         }
 
         let child = try manifestData(
-            parent: parentReference(to: genesis)
+            parents: parentReferences(to: [genesis])
         )
         #expect(throws: V3ManifestReplayError.unexpectedHead) {
             _ = try protector.trustCurrent(
@@ -181,7 +181,7 @@ struct V3ManifestReplayProtectionTests {
             vaultKey: Self.key
         )
         let wrongKeyChild = try manifestData(
-            parent: parentReference(to: parent),
+            parents: parentReferences(to: [parent]),
             signingKey: Data(repeating: 0xFF, count: 32)
         )
 
@@ -197,7 +197,7 @@ struct V3ManifestReplayProtectionTests {
         #expect(store.checkpoint(vaultID: Self.vaultID) == trustedParent.checkpoint.canonicalBytes)
 
         let validChild = try manifestData(
-            parent: parentReference(to: parent)
+            parents: parentReferences(to: [parent])
         )
         store.failNextReplace = true
         #expect(throws: V3ManifestCheckpointStoreError.conflict) {
@@ -212,8 +212,37 @@ struct V3ManifestReplayProtectionTests {
         #expect(store.checkpoint(vaultID: Self.vaultID) == trustedParent.checkpoint.canonicalBytes)
     }
 
+    @Test
+    func mergeRejectsAnAuthenticatedParentFromAnotherVault() throws {
+        let authenticator = V3ManifestAuthenticator()
+        let genesis = try manifestData()
+        let otherGenesis = try manifestData(vaultID: Self.otherVaultID)
+        let verifiedGenesis = try authenticator.verify(
+            genesis,
+            vaultKey: Self.key,
+            trustAnchor: .localGenesis(vaultID: Self.vaultID)
+        )
+        let verifiedOtherGenesis = try authenticator.verify(
+            otherGenesis,
+            vaultKey: Self.key,
+            trustAnchor: .localGenesis(vaultID: Self.otherVaultID)
+        )
+        let candidate = try manifestData(
+            parents: parentReferences(to: [genesis, otherGenesis]),
+            entryName: "email/merged"
+        )
+
+        #expect(throws: V3ManifestError.parentMismatch) {
+            _ = try authenticator.verify(
+                candidate,
+                vaultKey: Self.key,
+                trustAnchor: .verifiedParents([verifiedGenesis, verifiedOtherGenesis])
+            )
+        }
+    }
+
     private func manifestData(
-        parent: CanonicalJSONValue = .object([("kind", .string("genesis"))]),
+        parents: CanonicalJSONValue = .array([]),
         vaultID: String = V3ManifestReplayProtectionTests.vaultID,
         entryName: String? = nil,
         signingKey: Data = V3ManifestReplayProtectionTests.key
@@ -237,7 +266,7 @@ struct V3ManifestReplayProtectionTests {
         }
 
         let content = CanonicalJSONValue.object([
-            ("parent", parent),
+            ("parents", parents),
             ("manifest", .object([
                 ("format", .string("key-vault-manifest")),
                 ("version", .integer(3)),
@@ -267,12 +296,14 @@ struct V3ManifestReplayProtectionTests {
         ]))
     }
 
-    private func parentReference(to parent: Data) -> CanonicalJSONValue {
-        .object([
-            ("kind", .string("manifest")),
-            ("digest", .string(Base64URL.encode(Data(SHA256.hash(data: parent)))))
-        ])
+    private func parentReferences(to parents: [Data]) -> CanonicalJSONValue {
+        let digests = parents
+            .map { Data(SHA256.hash(data: $0)) }
+            .sorted(by: { $0.lexicographicallyPrecedes($1) })
+            .map { CanonicalJSONValue.string(Base64URL.encode($0)) }
+        return .array(digests)
     }
+
 }
 
 private final class MemoryManifestCheckpointStore:

@@ -1,8 +1,8 @@
 # Key Vault Version 3 Storage Format
 
 Status: normative schema, authority, replay, membership, migration,
-prototype-refusal, exact-head, and exact-key-identity specification through
-`KEY-403`.
+prototype-refusal, exact-head, exact-key-identity, and canonical multi-parent
+history specification through `HIST-404`.
 
 This document defines the current unreleased data model and canonical encoding
 for the version 3 vault manifest body, authenticated manifest envelope, and
@@ -154,9 +154,9 @@ The canonical manifest body has these fields and no others:
 | `wrappedKeys` | array | Per-device wrappers for vault keys |
 | `entries` | array | Complete set of committed entry records |
 
-The authenticated envelope MUST authenticate the exact JCS bytes of this entire
-object together with its parent-manifest reference. It MUST NOT authenticate a
-projection that omits an admitted field.
+The authenticated envelope MUST authenticate the exact JCS bytes of this
+entire object together with its complete parent-manifest set. It MUST NOT
+authenticate a projection that omits an admitted field.
 
 ### Device Record
 
@@ -261,11 +261,15 @@ Version 3 uses a layered authority model:
 - Every manifest has an HMAC-SHA-256 tag under a key derived from the current
   vault encryption key. This proves current vault-key possession and keeps
   ordinary CLI mutations fast and noninteractive.
-- A transition that changes mode, active key ID, devices, device roles, device
-  status, public keys, or wrapped keys additionally requires at least one
-  P-256 ECDSA signature from a device that was an active `owner` in the parent
-  manifest. This supplies device attribution and prevents an ordinary member
-  that knows the vault key from changing authority.
+- A single-parent transition that changes mode, active key ID, devices, device
+  roles, device status, public keys, or wrapped keys additionally requires at
+  least one P-256 ECDSA signature from a device that was an active `owner` in
+  the parent manifest. This supplies device attribution and prevents an
+  ordinary member that knows the vault key from changing authority.
+- A multi-parent transition is admitted only when every parent and the
+  candidate have identical vault identity, mode, active key ID, membership,
+  roles, public keys, statuses, and wrapped-key state. A merge cannot change
+  authority and carries no owner authorization.
 
 A signature is not required when only the committed entry set changes.
 Verifiers determine this by comparing the authenticated parent and candidate
@@ -288,15 +292,22 @@ The persisted envelope has exactly:
 |---|---|
 | `format` | Exactly `key-vault-manifest-envelope` |
 | `version` | Exactly `3` |
-| `content` | Parent reference plus the complete manifest body |
+| `content` | Complete parent-digest set plus the complete manifest body |
 | `authentication` | Exact-current-key derived HMAC |
 | `authorizations` | Sorted owner signatures; empty for ordinary entry-only transitions |
 
-`content.parent` is either `{"kind":"genesis"}` or an object containing
-`kind: "manifest"` and canonical base64url SHA-256 of the exact canonical
-parent-envelope bytes. A non-genesis candidate MUST name the exact trusted
-parent digest. `HIST-404` later replaces this singular reference with a
-canonical parent-digest array for authenticated merge history.
+`content.parents` is an array of canonical base64url SHA-256 digests over the
+exact canonical parent-envelope bytes. Genesis has no parents, an ordinary
+commit has exactly one, and a merge commit has two or more. Digests MUST be
+strictly increasing by their decoded 32-byte values, which also rejects
+duplicates. A non-genesis candidate MUST name the complete exact set of
+verified parents.
+
+The verification API accepts parent history only as `V3VerifiedManifest`
+values. Raw synchronized files cannot become parent authority merely because
+their digest appears in a candidate. Repository traversal in `STORE-405` is
+responsible for authenticating each branch from established ancestry before
+passing those typed results to merge verification.
 
 The common authentication input is:
 
@@ -326,7 +337,8 @@ is the canonical 64-byte `r || s` raw representation, with `s` normalized to
 the lower half of the P-256 group order before encoding.
 
 Authorizations MUST be sorted by `signerDeviceID` and MUST NOT repeat a signer.
-Signers are resolved only from the authenticated parent manifest. A public key
+For a single-parent authority change, signers are resolved only from the
+authenticated parent manifest. A public key
 introduced by the candidate cannot authorize its own introduction.
 
 ### Verification Order
@@ -334,14 +346,17 @@ introduced by the candidate cannot authorize its own introduction.
 A reader MUST:
 
 1. validate canonical encoding and structural schemas without side effects;
-2. require the parent reference to match the locally trusted current envelope;
+2. require the complete canonical parent set to match supplied verified
+   manifests, including the locally trusted current envelope when advancing
+   device-local state;
 3. load the addressed local key or select and unwrap only the candidate's
    exact-current-key wrapper, treating all candidate fields as untrusted;
 4. derive the supplied key's ID, require it to match the manifest's
    authenticated key ID, then derive the manifest authentication key and verify
    the HMAC in constant time;
-5. compare parent and candidate authority fields;
-6. require and verify an active-parent-owner signature for an authority change;
+5. compare every parent and candidate authority field;
+6. for one parent, require and verify an active-parent-owner signature for an
+   authority change; for multiple parents, reject every authority difference;
 7. apply all manifest semantic checks; and only then
 8. expose the candidate as authenticated state.
 
@@ -388,14 +403,21 @@ exposing it as current:
   authenticated ancestor. That graph-aware classification belongs to
   `STORE-405`.
 
-During this linear increment, advancement accepts exactly one authenticated
-child of the checkpointed parent. The reader first reopens the exact parent
-bytes through the checkpoint, verifies that the child names that exact parent
-digest, performs the complete child verification order above, and only then
-replaces the checkpoint while requiring the expected prior checkpoint. The
-parent and child vault keys are separate inputs because a valid authority
-transition may replace the vault key. Authentication, semantic, authorization,
-or persistence failure leaves the prior checkpoint unchanged.
+Advancement currently accepts exactly one authenticated child of the
+checkpointed parent. The reader first reopens the exact parent through the
+checkpoint, verifies the child's parent set, performs the verification order
+above, and only then replaces the checkpoint while requiring the expected
+prior checkpoint. The parent and candidate vault keys are separate inputs
+because a valid single-parent authority transition may replace the vault key.
+Authentication, semantic, authorization, or persistence failure leaves the
+prior checkpoint unchanged.
+
+This increment can authenticate the direct parent set of a merge but MUST NOT
+promote that merge to the device-local checkpoint from
+`V3VerifiedManifest` values alone. `STORE-405` must first prove that every
+branch reaches established trusted history. A later freshness API will accept
+that ancestry proof rather than treating cryptographic validity as freshness.
+Calculating the merged entry set remains `MERGE-406`.
 
 Only this freshness gate produces a `V3TrustedManifest`. Public entry open,
 copy, and rename operations require that type rather than a merely
@@ -691,10 +713,9 @@ Authenticated envelope:
   "format": "key-vault-manifest-envelope",
   "version": 3,
   "content": {
-    "parent": {
-      "kind": "manifest",
-      "digest": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-    },
+    "parents": [
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    ],
     "manifest": {
       "format": "key-vault-manifest",
       "version": 3,
@@ -790,10 +811,10 @@ defined by a later specification.
 
 ## Deliberately Deferred
 
-`HIST-402` and `KEY-403` establish exact digest-based identities for linear
-authenticated history and vault keys. They deliberately do not define:
+`HIST-402`, `KEY-403`, and `HIST-404` establish exact digest-based identities
+for authenticated history and vault keys, including safe multi-parent
+admission. They deliberately do not define:
 
-- canonical multi-parent merge history (`HIST-404`);
 - immutable physical object layout and head discovery (`STORE-405`);
 - automatic reconciliation (`MERGE-406`);
 - transaction publication and recovery (`TXN-407` and `TXN-408`); or
