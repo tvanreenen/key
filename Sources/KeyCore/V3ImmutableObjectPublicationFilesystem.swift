@@ -23,7 +23,121 @@ enum V3ImmutableObjectPublicationError: Error, Equatable, LocalizedError {
     }
 }
 
-extension V3FilesystemImmutableObjectSource: V3ImmutableObjectPublishing {
+struct V3FilesystemTransactionArtifactStore:
+    V3TransactionArtifactStore,
+    Sendable
+{
+    let rootHandle: VaultRootDirectoryHandle
+    private let reader: V3FilesystemImmutableObjectSource
+    private let stagedObjectWriter: V3AtomicStagedObjectWriter
+
+    init(
+        rootHandle: VaultRootDirectoryHandle,
+        writeObserver: any V3AtomicStagedObjectWriteObserving =
+            V3NoopAtomicStagedObjectWriteObserver()
+    ) {
+        self.rootHandle = rootHandle
+        reader = V3FilesystemImmutableObjectSource(rootHandle: rootHandle)
+        stagedObjectWriter = V3AtomicStagedObjectWriter(
+            rootHandle: rootHandle,
+            observer: writeObserver
+        )
+    }
+
+    func manifestDigests(
+        maximumCount: Int
+    ) throws -> V3RepositoryDirectoryListing {
+        try reader.manifestDigests(maximumCount: maximumCount)
+    }
+
+    func readManifest(
+        digest: Data,
+        maximumBytes: Int
+    ) throws -> V3RepositoryObjectRead {
+        try reader.readManifest(digest: digest, maximumBytes: maximumBytes)
+    }
+
+    func readEntry(
+        entryID: String,
+        digest: Data,
+        maximumBytes: Int
+    ) throws -> V3RepositoryObjectRead {
+        try reader.readEntry(
+            entryID: entryID,
+            digest: digest,
+            maximumBytes: maximumBytes
+        )
+    }
+}
+
+extension V3FilesystemTransactionArtifactStore {
+    func persistRecoveryIntent(
+        _ data: Data,
+        operationID: VaultTransactionOperationID
+    ) throws {
+        let intent: V3ImmutableTransactionRecoveryIntent
+        do {
+            intent = try V3ImmutableTransactionRecoveryIntent(
+                canonicalBytes: data
+            )
+        } catch {
+            throw V3ImmutableObjectPublicationError.digestMismatch
+        }
+        guard intent.operationID == operationID else {
+            throw V3ImmutableObjectPublicationError.invalidPath
+        }
+        try writeStagedObject(
+            data,
+            at: recoveryIntentPath(operationID: operationID)
+        )
+    }
+
+    func readRecoveryIntent(
+        operationID: VaultTransactionOperationID,
+        maximumBytes: Int
+    ) throws -> V3RepositoryObjectRead {
+        try readRecoveryObject(
+            at: recoveryIntentPath(operationID: operationID),
+            maximumBytes: maximumBytes
+        )
+    }
+
+    func readStagedEntry(
+        entryID: String,
+        digest: Data,
+        operationID: VaultTransactionOperationID,
+        maximumBytes: Int
+    ) throws -> V3RepositoryObjectRead {
+        guard isValidV3UUID(entryID), digest.count == 32 else {
+            return .invalid
+        }
+        return try readRecoveryObject(
+            at: stagedEntryPath(
+                operationID: operationID,
+                entryID: entryID,
+                digest: digest
+            ),
+            maximumBytes: maximumBytes
+        )
+    }
+
+    func readStagedManifest(
+        digest: Data,
+        operationID: VaultTransactionOperationID,
+        maximumBytes: Int
+    ) throws -> V3RepositoryObjectRead {
+        guard digest.count == 32 else {
+            return .invalid
+        }
+        return try readRecoveryObject(
+            at: stagedManifestPath(
+                operationID: operationID,
+                digest: digest
+            ),
+            maximumBytes: maximumBytes
+        )
+    }
+
     func stageEntry(
         _ data: Data,
         entryID: String,
@@ -101,53 +215,111 @@ extension V3FilesystemImmutableObjectSource: V3ImmutableObjectPublishing {
         )
     }
 
+    func removeStagedEntry(
+        _ data: Data,
+        entryID: String,
+        digest: Data,
+        operationID: VaultTransactionOperationID
+    ) throws {
+        try validateImmutableObject(
+            data,
+            digest: digest,
+            entryID: entryID
+        )
+        try removeExactRecoveryObject(
+            data,
+            at: stagedEntryPath(
+                operationID: operationID,
+                entryID: entryID,
+                digest: digest
+            )
+        )
+    }
+
+    func removeStagedManifest(
+        _ data: Data,
+        digest: Data,
+        operationID: VaultTransactionOperationID
+    ) throws {
+        try validateImmutableObject(data, digest: digest)
+        try removeExactRecoveryObject(
+            data,
+            at: stagedManifestPath(
+                operationID: operationID,
+                digest: digest
+            )
+        )
+    }
+
+    func removeRecoveryIntent(
+        _ data: Data,
+        operationID: VaultTransactionOperationID
+    ) throws {
+        let intent = try V3ImmutableTransactionRecoveryIntent(
+            canonicalBytes: data
+        )
+        guard intent.operationID == operationID else {
+            throw V3ImmutableObjectPublicationError.invalidPath
+        }
+        try removeExactRecoveryObject(
+            data,
+            at: recoveryIntentPath(operationID: operationID)
+        )
+    }
+
+    func removeEmptyTransactionDirectories(
+        operationID: VaultTransactionOperationID,
+        entryIDs: [String]
+    ) throws {
+        guard entryIDs.allSatisfy(isValidV3UUID) else {
+            throw V3ImmutableObjectPublicationError.invalidPath
+        }
+        for entryID in Set(entryIDs).sorted() {
+            try removeDirectoryIfEmpty(
+                at: ".transactions/\(operationID)/entries/\(entryID)"
+            )
+        }
+        try removeDirectoryIfEmpty(
+            at: ".transactions/\(operationID)/entries"
+        )
+        try removeDirectoryIfEmpty(
+            at: ".transactions/\(operationID)/manifests"
+        )
+        try removeDirectoryIfEmpty(
+            at: ".transactions/\(operationID)"
+        )
+        try removeDirectoryIfEmpty(at: ".transactions")
+    }
+
+    private func readRecoveryObject(
+        at path: String,
+        maximumBytes: Int
+    ) throws -> V3RepositoryObjectRead {
+        do {
+            return try rootHandle.withResolvedDescriptor(
+                at: path,
+                expecting: .regularFile
+            ) { descriptor in
+                readObjectData(
+                    descriptor: descriptor.rawValue,
+                    maximumBytes: maximumBytes
+                )
+            }
+        } catch let error as VaultRootDirectoryHandleError {
+            throw error
+        } catch VaultPathResolutionError.notFound,
+                VaultPathResolutionError.providerPlaceholder {
+            return .unavailable
+        } catch {
+            return .invalid
+        }
+    }
+
     private func writeStagedObject(
         _ data: Data,
         at path: String
     ) throws {
-        try rootHandle.withCreatedParentDescriptor(at: path) {
-            parentDescriptor, name in
-            let descriptor: Int32
-            while true {
-                // SAFETY: `name` is one validated, NUL-free component and the
-                // descriptor is an already validated directory beneath the
-                // opened vault root.
-                let result = unsafe Darwin.openat(
-                    parentDescriptor,
-                    name,
-                    O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
-                    S_IRUSR | S_IWUSR
-                )
-                if result >= 0 {
-                    descriptor = result
-                    break
-                }
-                let code = errno
-                if code == EINTR {
-                    continue
-                }
-                if code == EEXIST {
-                    try requireExactObject(data, at: path)
-                    return
-                }
-                throw V3ImmutableObjectPublicationError.operationFailed(
-                    path: path,
-                    code: code
-                )
-            }
-            defer { Darwin.close(descriptor) }
-
-            do {
-                _ = try FileDescriptor(rawValue: descriptor).writeAll(data)
-            } catch {
-                throw V3ImmutableObjectPublicationError.operationFailed(
-                    path: path,
-                    code: (error as? Errno)?.rawValue ?? EIO
-                )
-            }
-            try synchronizeFile(descriptor, path: path)
-            try synchronizeDirectory(parentDescriptor, path: path)
-        }
+        try stagedObjectWriter.install(data, at: path)
     }
 
     private func publishStagedObject(
@@ -228,6 +400,78 @@ extension V3FilesystemImmutableObjectSource: V3ImmutableObjectPublishing {
         }
     }
 
+    private func removeExactRecoveryObject(
+        _ expected: Data,
+        at path: String
+    ) throws {
+        do {
+            try requireExactObject(expected, at: path)
+            try rootHandle.withResolvedParentDescriptor(at: path) {
+                parentDescriptor, name in
+                while true {
+                    // SAFETY: `name` is a validated terminal component and
+                    // `parentDescriptor` is retained beneath the vault root.
+                    if unsafe unlinkat(parentDescriptor, name, 0) == 0 {
+                        try synchronizeDirectory(
+                            parentDescriptor,
+                            path: path
+                        )
+                        return
+                    }
+                    let code = errno
+                    if code == EINTR {
+                        continue
+                    }
+                    if code == ENOENT {
+                        return
+                    }
+                    throw V3ImmutableObjectPublicationError.operationFailed(
+                        path: path,
+                        code: code
+                    )
+                }
+            }
+        } catch VaultPathResolutionError.notFound {
+            return
+        }
+    }
+
+    private func removeDirectoryIfEmpty(at path: String) throws {
+        do {
+            try rootHandle.withResolvedParentDescriptor(at: path) {
+                parentDescriptor, name in
+                while true {
+                    // SAFETY: `name` is a validated terminal component and
+                    // the directory-relative removal cannot follow it.
+                    if unsafe unlinkat(
+                        parentDescriptor,
+                        name,
+                        AT_REMOVEDIR
+                    ) == 0 {
+                        try synchronizeDirectory(
+                            parentDescriptor,
+                            path: path
+                        )
+                        return
+                    }
+                    let code = errno
+                    if code == EINTR {
+                        continue
+                    }
+                    if code == ENOENT || code == ENOTEMPTY {
+                        return
+                    }
+                    throw V3ImmutableObjectPublicationError.operationFailed(
+                        path: path,
+                        code: code
+                    )
+                }
+            }
+        } catch VaultPathResolutionError.notFound {
+            return
+        }
+    }
+
     private func validateImmutableObject(
         _ data: Data,
         digest: Data,
@@ -244,7 +488,7 @@ extension V3FilesystemImmutableObjectSource: V3ImmutableObjectPublishing {
     }
 }
 
-private extension VaultRootDirectoryHandle {
+extension VaultRootDirectoryHandle {
     func ensureParentDirectories(of relativePath: String) throws {
         try withCreatedParentDescriptor(at: relativePath) { _, _ in }
     }
@@ -332,6 +576,12 @@ private func stagedEntryPath(
     ".transactions/\(operationID)/entries/\(entryID)/\(v3LowercaseHex(digest)).json"
 }
 
+private func recoveryIntentPath(
+    operationID: VaultTransactionOperationID
+) -> String {
+    ".transactions/\(operationID)/intent.json"
+}
+
 private func stagedManifestPath(
     operationID: VaultTransactionOperationID,
     digest: Data
@@ -339,7 +589,7 @@ private func stagedManifestPath(
     ".transactions/\(operationID)/manifests/\(v3LowercaseHex(digest)).json"
 }
 
-private func synchronizeFile(
+func synchronizeFile(
     _ descriptor: Int32,
     path: String
 ) throws {
@@ -373,7 +623,7 @@ private func synchronizeFile(
     }
 }
 
-private func synchronizeDirectory(
+func synchronizeDirectory(
     _ descriptor: Int32,
     path: String
 ) throws {

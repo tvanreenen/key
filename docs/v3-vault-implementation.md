@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `1a39fce` |
+| Production base | `main` at `bbc0213` |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/publish-v3-transactions` |
+| Current branch | `agent/recover-v3-transactions` |
 | Current PR | Not opened |
-| Active increment | `TXN-407` implementation in progress |
-| Next work | Review and merge immutable transaction publication, then begin `TXN-408` |
+| Active increment | `TXN-408` recovery and fault injection in progress |
+| Next work | Complete recovery review and release-environment protected-write validation |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -110,8 +110,8 @@ security or durability boundary and updates this tracker before it merges.
 | `HIST-404` | Complete; PR #32 | Support canonical multi-parent manifests and authenticated merge history |
 | `STORE-405` | Complete; PR #33 | Read immutable digest-addressed objects and classify repository state |
 | `MERGE-406` | Complete; PR #34 | Reconcile independent path changes and return typed conflicts |
-| `TXN-407` | Implemented; awaiting review | Publish entries first and the expected-head manifest last |
-| `TXN-408` | Planned | Recover every interrupted transaction phase and resolve protected writes |
+| `TXN-407` | Complete; PR #35 | Publish entries first and the expected-head manifest last |
+| `TXN-408` | In progress | Recover every interrupted transaction phase and resolve protected writes |
 | `UX-409` | Planned | Add typed service failures, status, and conflict-resolution CLI commands |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
@@ -228,7 +228,7 @@ Acceptance gate:
 
 #### `STORE-405` — Immutable Object Repository
 
-Status: implemented on `agent/discover-trusted-manifest-history`; awaiting review.
+Status: complete; squash-merged in PR #33.
 
 Introduce a read-only repository over immutable lowercase-hex digest paths:
 
@@ -295,7 +295,7 @@ Acceptance gate:
 
 #### `MERGE-406` — Deterministic Reconciliation
 
-Status: implemented on `agent/reconcile-vault-history`; awaiting review.
+Status: complete; squash-merged in PR #34.
 
 Implement a pure common-ancestor and three-way comparison engine over logical
 paths, stable entry IDs, and exact ciphertext digests. Independently changed
@@ -336,7 +336,7 @@ Acceptance gate:
 
 #### `TXN-407` — Immutable Transaction Publisher
 
-Status: implemented on `agent/publish-v3-transactions`; awaiting review.
+Status: complete; squash-merged as `bbc0213` in PR #35.
 
 Connect version 3 to the serialized mutation owner. Capture the exact ready
 head inside the helper, stage immutable encrypted entries, recheck the expected
@@ -389,17 +389,88 @@ Acceptance gate:
 
 #### `TXN-408` — Recovery And Fault Injection
 
-Persist recovery intent before irreversible effects, resume or safely abandon
-interrupted staging, test interruption after every phase, and resolve the
-shipping protected-write `EPERM` failures. Cleanup remains conservative and
-never removes the only readable object or provider-delayed content.
+Status: in progress on `agent/recover-v3-transactions`.
+
+Before staging begins, the publisher now prepares a small recovery anchor in
+the same non-synchronizing, device-local Keychain domain as the checkpoint.
+The anchor identifies the vault, operation, exact shared-intent digest, and
+whether shared intent became durable. The publisher then persists one
+canonical immutable intent at `.transactions/<operation-id>/intent.json` and
+arms the local anchor before staging.
+
+The shared intent records the exact old checkpoint, exact ordered head
+digests, candidate manifest digest, mutation kind, and the newly staged entry
+object identities. It contains no plaintext, keys, timestamps, transport
+metadata, or mutable publication-phase counter. Neither the shared intent nor
+the local anchor has vault authority: recovery must authenticate the real
+candidate against the recorded parents, revalidate every entry context and
+digest, and satisfy the device-local expected-checkpoint guard.
+
+Separating the two records is important for multi-device folders. iCloud or
+another provider can deliver one device's shared intent before its staged
+files. A second device has no matching local anchor, so it ignores that intent
+and cannot abandon, resume, or delete the first device's in-flight state.
+
+Recovery derives progress from authenticated filesystem facts instead of
+trusting a phase flag. If no final manifest exists and required staging is
+absent, it safely retains the old checkpoint and abandons the attempt. If
+complete staging remains and the exact old checkpoint and heads still match,
+it resumes entry-first publication. If the final manifest is already durable,
+it validates the candidate and entries before advancing the checkpoint. If
+the checkpoint already names the candidate, only validated staging cleanup
+remains.
+
+A checkpoint that changed to some other head causes the locally anchored
+staged attempt to be abandoned without replacing that head. Shared intents
+without this device's exact local anchor are ignored rather than ordered by
+operation ID, filename, timestamp, or provider metadata. New local publication
+is blocked while a recovery anchor for that vault remains, so callers cannot
+skip recovery after restart.
+
+Cleanup removes only exact known staged bytes, removes the exact canonical
+shared staging, and then clears the device-local anchor once the transaction
+has a complete old or new outcome. Shared-intent and empty-directory cleanup
+is best effort after the anchor clears. Immutable repository objects are never
+deleted. An interruption can therefore leave inert shared staging, but without
+a matching local anchor it has no recovery or vault authority and is safely
+ignored.
+
+Fault injection now covers every publication boundary in both the in-memory
+model and the directory-relative filesystem adapter: local-anchor preparation,
+shared-intent persistence, recovery arming, each stage and publish phase,
+final-object validation, checkpoint advancement, and cleanup. Every tested
+interruption converges to the complete old or complete new checkpoint with no
+retained actionable local anchor.
+
+A Swift Testing child-process exit test terminates the writer after a complete
+temporary object is synchronized but before its exclusive rename. The
+canonical shared-intent and staging paths remain absent at that point, so
+recovery cannot parse partial bytes as durable state. A later attempt can
+safely create a fresh exclusively named temporary file while leaving the
+terminated process's non-authoritative temporary file inert.
+
+Provider caveat: if interruption occurs before the local anchor records that
+shared intent was durable, an unavailable intent can be safely abandoned to
+the old checkpoint because staging could not yet have begun. Once recovery is
+armed, unavailable shared intent or authoritative content is retained and
+reported as transport-unavailable rather than cleaned or guessed at. If no
+authoritative candidate manifest exists and the authenticated intent proves
+required staging was never published, recovery may retain the old checkpoint;
+the caller may need to retry the mutation after transport settles.
+
+The remaining `TXN-408` release gate is environmental. The signed and
+sandboxed shipping application still needs to pass the protected-write tests
+that previously surfaced `EPERM`, together with representative provider
+testing. Version 3 writing remains disabled until that evidence exists.
 
 Acceptance gate:
 
-- Every interruption recovers to the complete old or complete new head.
-- Recovery never invents, silently selects, or rolls back a head.
-- Provider delay remains distinguishable from local transaction failure.
-- Protected writes pass in the release environment.
+- [x] Every injected interruption recovers to the complete old or complete new
+  head in the model and real filesystem adapter.
+- [x] Recovery never invents, silently selects, or rolls back a head.
+- [x] Provider-unavailable recovery is distinct from invalid recovery state.
+- [ ] Protected writes pass in the signed release environment.
+- [ ] Representative synchronized providers pass the recovery matrix.
 
 #### `UX-409` — Typed Status And Conflict UX
 
@@ -567,6 +638,6 @@ formats or transport stacks:
 
 ## Immediate Next Action
 
-Review and merge `TXN-407`. After it merges, begin `TXN-408` recovery intent
-and phase-by-phase fault injection; keep the v3 writer disabled until every
-interrupted publication state has a deterministic recovery outcome.
+Review the `TXN-408` recovery implementation, then run the protected-write and
+provider recovery matrix in the signed release environment. Keep the version 3
+writer disabled until those remaining environmental gates pass.

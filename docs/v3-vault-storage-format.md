@@ -602,6 +602,7 @@ history conflicts cannot enter publication.
 New objects are staged at:
 
 ```text
+.transactions/<operation-id>/intent.json
 .transactions/<operation-id>/entries/<entry-id>/<64-lowercase-hex-digest>.json
 .transactions/<operation-id>/manifests/<64-lowercase-hex-digest>.json
 ```
@@ -610,6 +611,19 @@ The operation ID is a canonical lowercase UUID assigned inside the serialized
 helper mutation owner. These paths are staging state only. Repository
 discovery MUST ignore them, and neither their names nor their contents have
 manifest authority.
+
+Each canonical staging path is installed by synchronizing complete bytes to a
+fresh, exclusively created, same-directory hidden temporary file and then
+using an exclusive atomic rename. A crash can leave a hidden `*.partial` file,
+but it cannot expose partial bytes at a canonical intent, entry, or manifest
+staging path. Hidden temporary files have no recovery or manifest authority,
+MUST be ignored, and MUST NOT be reopened or truncated by a later attempt.
+
+Before creating shared transaction state, the publishing device MUST create a
+small expected-value-guarded recovery anchor outside the synchronized vault.
+The current implementation stores it beside the device-local checkpoint in
+the non-synchronizing Keychain. A device MUST interpret, resume, abandon, or
+clean a shared intent only when it has the exact matching local anchor.
 
 The publisher performs these steps in order:
 
@@ -622,7 +636,9 @@ The publisher performs these steps in order:
 4. verify every reused entry object at its existing immutable digest path and
    reject a candidate whose projected repository-wide object, history-depth,
    or aggregate-byte usage exceeds the reader's bounds;
-5. exclusively create and synchronize staged entry and manifest files;
+5. prepare the device-local recovery anchor, exclusively create and
+   synchronize the immutable shared intent, arm the local anchor, then create
+   the staged entry and manifest files;
 6. observe authenticated repository state and resource usage again and stop
    if either the
    checkpoint or head set changed;
@@ -648,12 +664,90 @@ be atomically excluded by a provider-neutral filesystem protocol; because
 publication is immutable, it creates another authenticated branch instead of
 overwriting history.
 
-This publication sequence is not the complete crash-recovery protocol. An
-interruption can leave unreferenced entry objects, a valid manifest whose local
-checkpoint has not advanced, or retained staging files. These objects MUST NOT
-be guessed at or aggressively deleted. `TXN-408` defines persisted recovery
-intent, phase resumption, conservative cleanup, and fault injection before the
-version 3 writer may ship.
+### Transaction Recovery Intent
+
+The canonical recovery intent has exactly these fields:
+
+| Field | Type | Requirement |
+|---|---|---|
+| `format` | string | Exactly `key-vault-transaction-recovery` |
+| `version` | integer | Exactly `1` |
+| `operationID` | string | Canonical lowercase UUID matching its directory |
+| `kind` | enum | Original add, edit, copy, move, or remove mutation |
+| `vaultID` | UUID | Must match the checkpoint and candidate |
+| `expectedCheckpoint` | checkpoint object | Exact canonical old checkpoint |
+| `expectedHeads` | digest array | Nonempty, unique, ascending byte order |
+| `candidateManifestDigest` | base64url | SHA-256 of exact candidate bytes |
+| `stagedEntries` | entry reference array | Unique ascending entry ID and digest pairs |
+
+Each staged entry reference contains exactly `entryID` and `digest`. The intent
+MUST NOT contain a vault key, plaintext, timestamp, provider identifier,
+device-local path, or mutable phase counter. It is durable evidence of what
+the helper attempted, not authority to complete the attempt.
+
+The canonical device-local recovery anchor has exactly these fields:
+
+| Field | Type | Requirement |
+|---|---|---|
+| `format` | string | Exactly `key-vault-transaction-recovery-anchor` |
+| `version` | integer | Exactly `1` |
+| `operationID` | string | Canonical lowercase UUID |
+| `vaultID` | UUID | Keychain account and shared intent must match |
+| `intentDigest` | base64url | SHA-256 of exact canonical shared intent |
+| `phase` | enum | Exactly `prepared` or `recoverable` |
+
+`prepared` means the device reserved the operation but shared intent may not
+have become durable; no staging or publication can have begun. `recoverable`
+means the exact shared intent was durable before any staging began. Anchor
+replacement and removal MUST use exact expected-value guards and MUST NOT use
+Keychain synchronization.
+
+Before another local mutation for the same vault can publish, recovery MUST
+resolve the existing device-local anchor under the serialized mutation owner.
+Recovery MUST:
+
+1. load the canonical local anchor for the vault;
+2. load a bounded canonical shared intent whose operation ID and digest match
+   that anchor;
+3. load and validate the exact device-local checkpoint;
+4. reconstruct the recorded authenticated parent proof;
+5. authenticate the candidate with its identified vault key and exact parents;
+6. validate every staged or published entry against candidate context and
+   digest;
+7. derive the completed publication phase from staged objects, final immutable
+   objects,
+   and the checkpoint rather than trusting mutable journal state;
+8. finish publication only if the old checkpoint and required repository state
+   still satisfy the recorded expected values; and
+9. validate and remove only exact known staged bytes, clear the local anchor
+   once the transaction has a complete old or new outcome, and then remove the
+   exact shared intent and empty transaction directories on a best-effort
+   basis.
+
+If a `prepared` local anchor's shared intent is unavailable, recovery MAY clear
+the anchor and retain the complete old checkpoint because no staging could
+have begun. If a `recoverable` anchor's shared intent is unavailable, recovery
+MUST retain the anchor and report transport-unavailable.
+
+If the candidate manifest is absent and authenticated intent proves required
+staging is unavailable, recovery MAY abandon the attempt at the complete old
+checkpoint. Already published entries remain harmless immutable orphans. If
+the final candidate manifest or candidate checkpoint exists, unavailable
+required content MUST be treated as transport-unavailable and retained for
+later recovery.
+
+If the checkpoint names another head, recovery MUST NOT replace it. The
+candidate, if already published, remains an immutable branch for ordinary
+reconciliation. Shared intents without this device's exact local anchor MUST
+be ignored. They MUST NOT be selected or cleaned using UUID, directory order,
+modification time, or provider metadata.
+
+Cleanup MUST NOT delete an immutable entry or manifest. Once exact staged
+content has been validated and the transaction has a complete old or new
+outcome, the local anchor MAY clear before best-effort shared cleanup. An
+operation directory without this device's exact local anchor has no recovery
+authority and MUST be ignored; this permits safe synchronization and restart
+with inert shared staging still present.
 
 ## Encrypted Entry File
 
@@ -1032,12 +1126,15 @@ defined by a later specification.
 
 ## Deliberately Deferred
 
-`HIST-402`, `KEY-403`, `HIST-404`, `STORE-405`, `MERGE-406`, and `TXN-407`
+`HIST-402`, `KEY-403`, `HIST-404`, `STORE-405`, `MERGE-406`, `TXN-407`, and
+the core `TXN-408` recovery protocol
 establish exact digest-based identities, safe multi-parent authentication,
 bounded read-only discovery, deterministic logical reconciliation, and
-entry-first immutable publication. They deliberately do not define:
+restartable entry-first immutable publication. They deliberately do not
+define:
 
-- transaction recovery (`TXN-408`); or
+- release-environment protected-write and synchronized-provider validation;
+- typed status and conflict UX (`UX-409`); or
 - physical migration execution beyond preflight.
 
 Until those work packages land, version 3 artifacts remain disabled as trusted

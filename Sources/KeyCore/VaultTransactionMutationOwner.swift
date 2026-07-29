@@ -64,6 +64,7 @@ enum VaultTransactionMutationKind: String, Codable, Sendable {
     case copyEntry
     case moveEntry
     case removeEntry
+    case recoverInterruptedTransaction
 }
 
 struct VaultTransactionMutationContext: Equatable, Sendable {
@@ -87,7 +88,7 @@ protocol VaultTransactionMutationOwning: Sendable {
 /// isolation.
 final class VaultTransactionMutationOwner:
     VaultTransactionMutationOwning,
-    @unchecked Sendable
+    Sendable
 {
     private let queue: DispatchQueue
     private let makeOperationID: @Sendable () -> VaultTransactionOperationID
