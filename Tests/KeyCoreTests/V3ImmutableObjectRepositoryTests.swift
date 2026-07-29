@@ -36,10 +36,13 @@ struct V3ImmutableObjectRepositoryTests {
             ]
         )
 
-        let classification = try V3ImmutableObjectRepository(source: source).classify(
+        let observation = try V3ImmutableObjectRepository(
+            source: source
+        ).observeForPublication(
             trustedCurrent: trustedLeft,
             vaultKeys: [Self.vaultKey]
         )
+        let classification = observation.classification
 
         #expect(classification.status == .contentConflicted)
         #expect(classification.issues.isEmpty)
@@ -47,6 +50,11 @@ struct V3ImmutableObjectRepositoryTests {
         #expect(Set(classification.heads.map(\.envelopeDigest)) == Set([
             digest(left), digest(right)
         ]))
+        let usage = try #require(observation.resourceUsage)
+        #expect(usage.manifestObjectCount == 3)
+        #expect(usage.maximumHistoryDepth == 1)
+        #expect(usage.referencedEntryObjectCount == 1)
+        #expect(usage.totalEntryBytes == rightEntry.data.count)
     }
 
     @Test
@@ -749,7 +757,10 @@ private struct MemoryV3ObjectSource: V3ImmutableObjectReading {
         guard manifests.count <= maximumCount else {
             return .limitExceeded
         }
-        return .available(Array(manifests.keys))
+        return .available(
+            digests: Array(manifests.keys),
+            objectCount: manifests.count
+        )
     }
 
     func readManifest(

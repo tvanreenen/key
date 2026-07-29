@@ -3,7 +3,7 @@ import Foundation
 import System
 
 enum V3RepositoryDirectoryListing {
-    case available([Data])
+    case available(digests: [Data], objectCount: Int)
     case unavailable
     case invalid
     case limitExceeded
@@ -44,8 +44,11 @@ struct V3FilesystemImmutableObjectSource: V3ImmutableObjectReading {
                     descriptor: descriptor.rawValue,
                     maximumCount: maximumCount
                 ) {
-                case let .names(names):
-                    return .available(names.compactMap(manifestDigest(fromFilename:)))
+                case let .names(names, objectCount):
+                    return .available(
+                        digests: names.compactMap(manifestDigest(fromFilename:)),
+                        objectCount: objectCount
+                    )
                 case .limitExceeded:
                     return .limitExceeded
                 case .invalid:
@@ -112,7 +115,7 @@ struct V3FilesystemImmutableObjectSource: V3ImmutableObjectReading {
 }
 
 private enum DirectoryEntries {
-    case names([String])
+    case names([String], objectCount: Int)
     case limitExceeded
     case invalid
 }
@@ -136,12 +139,17 @@ private func directoryEntryNames(
     while true {
         errno = 0
         guard let entry = readdir(directory) else {
-            return errno == 0 ? .names(names) : .invalid
+            return errno == 0
+                ? .names(names, objectCount: observedCount)
+                : .invalid
         }
         var nameBytes = entry.pointee.d_name
         let name = withUnsafeBytes(of: &nameBytes) { bytes -> String? in
             let count = min(Int(entry.pointee.d_namlen), bytes.count)
             return String(data: Data(bytes.prefix(count)), encoding: .utf8)
+        }
+        if name == "." || name == ".." {
+            continue
         }
         observedCount += 1
         guard observedCount <= maximumCount else {
@@ -150,15 +158,11 @@ private func directoryEntryNames(
         guard let name else {
             continue
         }
-        guard name != ".", name != ".." else {
-            observedCount -= 1
-            continue
-        }
         names.append(name)
     }
 }
 
-private func readObjectData(
+func readObjectData(
     descriptor: Int32,
     maximumBytes: Int
 ) -> V3RepositoryObjectRead {

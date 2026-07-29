@@ -591,6 +591,70 @@ parent head, and deterministic manifest content. It is not an authenticated or
 published manifest. The transaction publisher defined later MUST authenticate
 and durably commit it under the expected-head rules.
 
+### Immutable Transaction Publication
+
+One helper-owned mutation publishes a candidate only from a complete
+authenticated ancestry proof. The candidate's direct parents MUST equal the
+proof's exact heads. A multi-parent automatic merge candidate MUST equal the
+deterministic reconciliation plan; unresolved content, security, revision, or
+history conflicts cannot enter publication.
+
+New objects are staged at:
+
+```text
+.transactions/<operation-id>/entries/<entry-id>/<64-lowercase-hex-digest>.json
+.transactions/<operation-id>/manifests/<64-lowercase-hex-digest>.json
+```
+
+The operation ID is a canonical lowercase UUID assigned inside the serialized
+helper mutation owner. These paths are staging state only. Repository
+discovery MUST ignore them, and neither their names nor their contents have
+manifest authority.
+
+The publisher performs these steps in order:
+
+1. observe a complete authenticated proof and capture its exact device-local
+   checkpoint and ordered head set;
+2. authenticate the candidate against those exact parents and reject any
+   unresolved reconciliation result;
+3. validate each new encrypted entry against the candidate context, digest,
+   and current vault key;
+4. verify every reused entry object at its existing immutable digest path and
+   reject a candidate whose projected repository-wide object, history-depth,
+   or aggregate-byte usage exceeds the reader's bounds;
+5. exclusively create and synchronize staged entry and manifest files;
+6. observe authenticated repository state and resource usage again and stop
+   if either the
+   checkpoint or head set changed;
+7. move staged entries to their final digest paths with an atomic,
+   no-overwrite rename and synchronize the affected directories;
+8. reopen every candidate entry from its final path and revalidate its digest,
+   canonical context, and repository limits;
+9. move the candidate manifest to its final digest path with the same
+   no-overwrite and synchronization rules, then reopen its exact bytes; and
+10. replace the device-local checkpoint only when its prior canonical bytes
+    still equal the captured checkpoint.
+
+An existing destination is accepted only when it contains the exact requested
+bytes. Content-addressed identical writes therefore converge, while any
+different existing bytes fail closed. No `--force` policy may replace an
+immutable object, skip authentication, bypass a conflict, or weaken the
+expected-head check.
+
+Staging may create private directories before the final head recheck. If that
+recheck fails, no object is moved into the authoritative `entries` or
+`manifests` layouts. A synchronized head that arrives after the recheck cannot
+be atomically excluded by a provider-neutral filesystem protocol; because
+publication is immutable, it creates another authenticated branch instead of
+overwriting history.
+
+This publication sequence is not the complete crash-recovery protocol. An
+interruption can leave unreferenced entry objects, a valid manifest whose local
+checkpoint has not advanced, or retained staging files. These objects MUST NOT
+be guessed at or aggressively deleted. `TXN-408` defines persisted recovery
+intent, phase resumption, conservative cleanup, and fault injection before the
+version 3 writer may ship.
+
 ## Encrypted Entry File
 
 The canonical encrypted entry file has these fields and no others:
@@ -968,12 +1032,12 @@ defined by a later specification.
 
 ## Deliberately Deferred
 
-`HIST-402`, `KEY-403`, `HIST-404`, `STORE-405`, and `MERGE-406` establish exact
-digest-based identities, safe multi-parent authentication, bounded read-only
-discovery, and deterministic logical reconciliation over immutable objects.
-They deliberately do not define:
+`HIST-402`, `KEY-403`, `HIST-404`, `STORE-405`, `MERGE-406`, and `TXN-407`
+establish exact digest-based identities, safe multi-parent authentication,
+bounded read-only discovery, deterministic logical reconciliation, and
+entry-first immutable publication. They deliberately do not define:
 
-- transaction publication and recovery (`TXN-407` and `TXN-408`); or
+- transaction recovery (`TXN-408`); or
 - physical migration execution beyond preflight.
 
 Until those work packages land, version 3 artifacts remain disabled as trusted

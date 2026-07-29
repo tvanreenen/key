@@ -237,7 +237,7 @@ private struct ValidatedVaultRelativePath {
     }
 }
 
-private func openValidatedComponent(
+func openValidatedComponent(
     _ component: String,
     relativeTo parentDescriptor: Int32,
     path: String,

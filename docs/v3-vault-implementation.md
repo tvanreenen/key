@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `885587a` |
+| Production base | `main` at `1a39fce` |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/reconcile-vault-history` |
+| Current branch | `agent/publish-v3-transactions` |
 | Current PR | Not opened |
-| Active increment | `MERGE-406` implementation in progress |
-| Next work | Review and merge deterministic reconciliation, then begin `TXN-407` |
+| Active increment | `TXN-407` implementation in progress |
+| Next work | Review and merge immutable transaction publication, then begin `TXN-408` |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -109,8 +109,8 @@ security or durability boundary and updates this tracker before it merges.
 | `KEY-403` | Complete; PR #31 | Replace counter-only key epochs with exact vault-key identities |
 | `HIST-404` | Complete; PR #32 | Support canonical multi-parent manifests and authenticated merge history |
 | `STORE-405` | Complete; PR #33 | Read immutable digest-addressed objects and classify repository state |
-| `MERGE-406` | Implemented; awaiting review | Reconcile independent path changes and return typed conflicts |
-| `TXN-407` | Planned | Publish entries first and the expected-head manifest last |
+| `MERGE-406` | Complete; PR #34 | Reconcile independent path changes and return typed conflicts |
+| `TXN-407` | Implemented; awaiting review | Publish entries first and the expected-head manifest last |
 | `TXN-408` | Planned | Recover every interrupted transaction phase and resolve protected writes |
 | `UX-409` | Planned | Add typed service failures, status, and conflict-resolution CLI commands |
 
@@ -336,19 +336,56 @@ Acceptance gate:
 
 #### `TXN-407` — Immutable Transaction Publisher
 
+Status: implemented on `agent/publish-v3-transactions`; awaiting review.
+
 Connect version 3 to the serialized mutation owner. Capture the exact ready
 head inside the helper, stage immutable encrypted entries, recheck the expected
 head, durably publish referenced entry objects, and publish the authenticated
 manifest last. Local transaction operation IDs remain in staging and recovery
 records; they do not make deterministic logical merge state device-specific.
 
+The publisher authenticates a candidate against the exact observed parents and
+refuses unresolved content, security, or history conflicts. For an automatic
+merge, the candidate must equal the reconciler's deterministic content
+exactly. Newly staged entries must match candidate manifest context, digest,
+and current key, while reused entries are reopened from their immutable paths
+before and after staging. A device-local checkpoint must anchor at least one
+current head; other authenticated heads may be sibling branches from an older
+common ancestor.
+
+Repository discovery carries its bounded manifest, history-depth, referenced
+entry, and aggregate-byte usage into publication. The publisher projects the
+candidate against those repository-wide totals both before staging and during
+the final head recheck, so it cannot advance the checkpoint into a state that
+the bounded reader would immediately classify as recovery-required.
+
+Staged files live under `.transactions/<operation-id>/` and have no authority.
+After the head recheck, entry objects move to their final digest paths with
+exclusive no-overwrite renames. The publisher reopens every referenced entry,
+then moves the manifest to its final digest path, reopens the exact manifest,
+and finally advances the device-local checkpoint with an expected-value guard.
+Identical existing objects converge; different existing bytes fail closed.
+
+The implementation uses Swift System's typed `FileDescriptor.writeAll` for
+complete staged writes and a shared pure-Swift lowercase hexadecimal encoder.
+The Darwin-only directory-relative create and exclusive-rename calls remain in
+one small adapter, with their validated descriptor and path-component
+preconditions documented at each explicitly unsafe call.
+
+This increment establishes safe publication ordering, not complete crash
+recovery. A failure after immutable entry publication can leave harmless
+unreferenced entry objects. A failure after manifest publication but before
+checkpoint advancement can leave a valid uncheckpointed descendant. Staging
+directories are intentionally retained for `TXN-408` recovery rather than
+being guessed at or aggressively deleted.
+
 Acceptance gate:
 
-- A changed expected head publishes nothing.
-- A failed entry write cannot expose a manifest that references it.
-- Every published manifest references only durable immutable objects.
-- `--force` cannot bypass expected-head, trust, or conflict checks.
-- Reads remain concurrent.
+- [x] A changed expected head publishes no final repository object.
+- [x] A failed entry write cannot expose a manifest that references it.
+- [x] Every published manifest references only durable immutable objects.
+- [x] `--force` cannot bypass expected-head, trust, or conflict checks.
+- [x] Reads remain concurrent.
 
 #### `TXN-408` — Recovery And Fault Injection
 
@@ -483,6 +520,7 @@ formats or transport stacks:
 | `DEC-023` | Accepted | Define `keyID` as canonical base64url of HKDF-SHA256 over the exact 32-byte vault key, salted by canonical vault UUID bytes with `work.tvr.key/v3/vault-key-id` as the domain-separated info label. Require supplied keys to match this authenticated ID before manifest authentication or entry encryption/decryption. |
 | `DEC-024` | Accepted | Store immutable manifest and entry objects under lowercase hexadecimal SHA-256 filenames so content addressing remains collision-safe on case-insensitive providers. Discover history read-only from the exact device-local checkpoint, reopen its digest-linked ancestors, fully authenticate forward descendants, and expose a typed ancestry proof only when every referenced object is complete and valid. Treat missing or dataless provider objects as incomplete transport, referenced invalid objects or exhausted bounds as recovery-required state, and unrelated invalid objects as non-authoritative noise. |
 | `DEC-025` | Accepted | Reconcile complete authenticated history by stable entry ID against one unique nearest common ancestor. Automatically combine zero or one valid advancing change per entry across any number of heads, but preserve revision rollback, same-revision substitution, edit/edit, delete/edit, rename-plus-edit, conflicting rename, destination, security-state, and criss-cross-base ambiguity as typed conflicts. Enforce revision monotonicity again when authenticating a parent-to-child transition; a merge may reuse only an exact, unambiguous highest parent revision. Treat rename-plus-edit conservatively because opaque ciphertext resealed under name-bound AAD cannot prove that the rename branch preserved the ancestor value. |
+| `DEC-026` | Accepted | Publish a v3 transaction only inside the serialized mutation owner. Stage canonical immutable entry and manifest bytes under a local operation ID, recheck the exact authenticated checkpoint and head set, publish entries through exclusive digest-path renames, reopen every referenced entry, publish and reopen the manifest last, then advance the device-local checkpoint with an expected-value guard. Staging has no authority and remains available for later recovery. A remote head arriving after the final recheck creates an ordinary immutable branch rather than overwriting either history. |
 
 ## Validation Matrix
 
@@ -509,6 +547,8 @@ formats or transport stacks:
 - [x] Serialized mutation ownership, canonical operation-ID, and mutation-routing tests.
 - [x] Deterministic multi-head reconciliation, exact conflict-version,
   destination-collision, authority-divergence, and criss-cross-history tests.
+- [x] Expected-head, entry-first, no-overwrite, durable-object, and
+  manifest-last publication tests.
 - [ ] Local-v2 migration and rollback tests.
 - [ ] Revocation tests with retained old keys.
 - [ ] Recovery tests for missing devices and corrupt or conflicting state.
@@ -527,7 +567,6 @@ formats or transport stacks:
 
 ## Immediate Next Action
 
-Review and merge `MERGE-406`. After it merges, begin `TXN-407` immutable
-transaction publication; do not advance a checkpoint or expose a merge
-manifest until expected-head revalidation and entry-first durability are
-implemented.
+Review and merge `TXN-407`. After it merges, begin `TXN-408` recovery intent
+and phase-by-phase fault injection; keep the v3 writer disabled until every
+interrupted publication state has a deterministic recovery outcome.

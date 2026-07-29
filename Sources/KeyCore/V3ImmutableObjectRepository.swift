@@ -27,11 +27,31 @@ public struct V3ManifestAncestryProof: Equatable, Sendable {
     public let heads: [V3VerifiedManifest]
 }
 
+/// Resource usage observed while producing a complete ancestry proof.
+///
+/// Manifest totals include unrelated objects that consume the bounded
+/// directory budget. Entry totals cover the distinct immutable objects
+/// referenced by the authenticated manifest graph.
+struct V3ManifestRepositoryUsage: Equatable, Sendable {
+    let manifestObjectCount: Int
+    let maximumHistoryDepth: Int
+    let totalManifestBytes: Int
+    let referencedEntryObjectCount: Int
+    let totalEntryBytes: Int
+}
+
 public struct V3VaultRepositoryClassification: Equatable, Sendable {
     public let status: V3VaultRepositoryStatus
     public let heads: [V3VaultHead]
     public let issues: [V3VaultRepositoryIssue]
     public let ancestryProof: V3ManifestAncestryProof?
+}
+
+/// Internal state captured with one repository classification for a guarded
+/// publication attempt.
+struct V3VaultRepositoryObservation: Equatable, Sendable {
+    let classification: V3VaultRepositoryClassification
+    let resourceUsage: V3ManifestRepositoryUsage?
 }
 
 struct V3ManifestRepositoryLimits: Equatable, Sendable {
@@ -112,6 +132,16 @@ public struct V3ImmutableObjectRepository: Sendable {
         trustedCurrent: V3TrustedManifest,
         vaultKeys: [Data]
     ) throws -> V3VaultRepositoryClassification {
+        try observeForPublication(
+            trustedCurrent: trustedCurrent,
+            vaultKeys: vaultKeys
+        ).classification
+    }
+
+    func observeForPublication(
+        trustedCurrent: V3TrustedManifest,
+        vaultKeys: [Data]
+    ) throws -> V3VaultRepositoryObservation {
         var keysByID: [V3VaultKeyID: Data] = [:]
         let vaultID = trustedCurrent.envelope.content.manifest.vaultID
         for key in vaultKeys {
@@ -121,34 +151,39 @@ public struct V3ImmutableObjectRepository: Sendable {
             )
             keysByID[keyID] = key
         }
-        return try classify(
+        return try observeForPublication(
             trustedCurrent: trustedCurrent,
             keysByID: keysByID
         )
     }
 
-    private func classify(
+    private func observeForPublication(
         trustedCurrent: V3TrustedManifest,
         keysByID: [V3VaultKeyID: Data]
-    ) throws -> V3VaultRepositoryClassification {
+    ) throws -> V3VaultRepositoryObservation {
         let listing = try source.manifestDigests(
             maximumCount: limits.maximumManifestObjects
         )
         var incompleteIssues: [V3VaultRepositoryIssue] = []
         var recoveryIssues: [V3VaultRepositoryIssue] = []
         let enumeratedDigests: [Data]
+        let listedManifestObjectCount: Int
 
         switch listing {
-        case let .available(digests):
+        case let .available(digests, objectCount):
             enumeratedDigests = digests
+            listedManifestObjectCount = objectCount
         case .unavailable:
             enumeratedDigests = []
+            listedManifestObjectCount = 0
             incompleteIssues.append(.manifestDirectoryUnavailable)
         case .invalid:
             enumeratedDigests = []
+            listedManifestObjectCount = 0
             recoveryIssues.append(.invalidReferencedObject(path: "manifests"))
         case .limitExceeded:
             enumeratedDigests = []
+            listedManifestObjectCount = 0
             recoveryIssues.append(.resourceLimitExceeded)
         }
 
@@ -594,9 +629,9 @@ public struct V3ImmutableObjectRepository: Sendable {
             }
         }
 
+        var totalEntryBytes = 0
         if recoveryIssues.isEmpty, incompleteIssues.isEmpty {
             let entryCipher = V3EntryCipher()
-            var totalEntryBytes = 0
             for reference in entryContexts.keys.sorted(by: entryReferencePrecedes) {
                 let encodedDigest = Base64URL.encode(reference.digest)
                 let path = entryPath(
@@ -647,19 +682,25 @@ public struct V3ImmutableObjectRepository: Sendable {
         let heads = try headManifests.map(V3VaultHead.init(verifiedManifest:))
 
         if !recoveryIssues.isEmpty {
-            return V3VaultRepositoryClassification(
-                status: .recoveryRequired,
-                heads: heads,
-                issues: recoveryIssues + incompleteIssues,
-                ancestryProof: nil
+            return V3VaultRepositoryObservation(
+                classification: V3VaultRepositoryClassification(
+                    status: .recoveryRequired,
+                    heads: heads,
+                    issues: recoveryIssues + incompleteIssues,
+                    ancestryProof: nil
+                ),
+                resourceUsage: nil
             )
         }
         if !incompleteIssues.isEmpty {
-            return V3VaultRepositoryClassification(
-                status: .incomplete,
-                heads: heads,
-                issues: incompleteIssues,
-                ancestryProof: nil
+            return V3VaultRepositoryObservation(
+                classification: V3VaultRepositoryClassification(
+                    status: .incomplete,
+                    heads: heads,
+                    issues: incompleteIssues,
+                    ancestryProof: nil
+                ),
+                resourceUsage: nil
             )
         }
 
@@ -682,11 +723,23 @@ public struct V3ImmutableObjectRepository: Sendable {
         } else {
             status = .securityConflicted
         }
-        return V3VaultRepositoryClassification(
-            status: status,
-            heads: heads,
-            issues: [],
-            ancestryProof: proof
+        return V3VaultRepositoryObservation(
+            classification: V3VaultRepositoryClassification(
+                status: status,
+                heads: heads,
+                issues: [],
+                ancestryProof: proof
+            ),
+            resourceUsage: V3ManifestRepositoryUsage(
+                manifestObjectCount: max(
+                    listedManifestObjectCount,
+                    observations.count
+                ),
+                maximumHistoryDepth: historyDepth.values.max() ?? 0,
+                totalManifestBytes: totalManifestBytes,
+                referencedEntryObjectCount: entryContexts.count,
+                totalEntryBytes: totalEntryBytes
+            )
         )
     }
 }
@@ -758,18 +811,25 @@ private func canonicalDigest(_ encoded: String) -> Data? {
 }
 
 func manifestPath(for digest: Data) -> String {
-    "manifests/\(lowercaseHex(digest)).json"
+    "manifests/\(v3LowercaseHex(digest)).json"
 }
 
 func entryPath(entryID: String, digest: String) -> String {
     guard let digestBytes = canonicalDigest(digest) else {
         return "entries/\(entryID)/invalid-digest.json"
     }
-    return "entries/\(entryID)/\(lowercaseHex(digestBytes)).json"
+    return "entries/\(entryID)/\(v3LowercaseHex(digestBytes)).json"
 }
 
-private func lowercaseHex(_ data: Data) -> String {
-    data.map { String(format: "%02x", $0) }.joined()
+func v3LowercaseHex(_ data: Data) -> String {
+    let digits = Array("0123456789abcdef".utf8)
+    var encoded: [UInt8] = []
+    encoded.reserveCapacity(data.count * 2)
+    for byte in data {
+        encoded.append(digits[Int(byte >> 4)])
+        encoded.append(digits[Int(byte & 0x0f)])
+    }
+    return String(decoding: encoded, as: UTF8.self)
 }
 
 private func dataPrecedes(_ lhs: Data, _ rhs: Data) -> Bool {
