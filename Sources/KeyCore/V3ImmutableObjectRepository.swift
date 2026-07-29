@@ -278,17 +278,27 @@ public struct V3ImmutableObjectRepository: Sendable {
             }
 
             var parentDepth = -1
+            var allParentsValid = true
             for encodedParent in manifest.envelope.content.parents {
-                guard let parentDigest = canonicalDigest(encodedParent),
-                      let depth = try anchorCheckpointHistory(
-                          digest: parentDigest,
-                          trustedOverride: nil,
-                          distanceFromCheckpoint: distanceFromCheckpoint + 1
-                      )
-                else {
-                    return nil
+                guard let parentDigest = canonicalDigest(encodedParent) else {
+                    recoveryIssues.append(.invalidReferencedObject(
+                        path: manifestPath(for: digest)
+                    ))
+                    allParentsValid = false
+                    continue
                 }
-                parentDepth = max(parentDepth, depth)
+                if let depth = try anchorCheckpointHistory(
+                    digest: parentDigest,
+                    trustedOverride: nil,
+                    distanceFromCheckpoint: distanceFromCheckpoint + 1
+                ) {
+                    parentDepth = max(parentDepth, depth)
+                } else {
+                    allParentsValid = false
+                }
+            }
+            guard allParentsValid else {
+                return nil
             }
 
             let depth = parentDepth + 1
@@ -546,13 +556,30 @@ public struct V3ImmutableObjectRepository: Sendable {
 
         var entryContexts: [EntryObjectKey: [V3EntryAuthenticationContext]] = [:]
         if recoveryIssues.isEmpty, incompleteIssues.isEmpty {
-            for manifest in verified.values {
+            collectEntryContexts: for manifest in verified.values {
                 for entry in manifest.envelope.content.manifest.entries {
-                    guard let digest = canonicalDigest(entry.ciphertextDigest),
-                          let context = try? V3EntryAuthenticationContext(
-                              vaultID: manifest.envelope.content.manifest.vaultID,
-                              entry: entry
-                          )
+                    guard let digest = canonicalDigest(entry.ciphertextDigest) else {
+                        recoveryIssues.append(.invalidReferencedObject(
+                            path: entryPath(
+                                entryID: entry.entryID,
+                                digest: entry.ciphertextDigest
+                            )
+                        ))
+                        continue
+                    }
+                    let objectKey = EntryObjectKey(
+                        entryID: entry.entryID,
+                        digest: digest
+                    )
+                    if entryContexts[objectKey] == nil,
+                       entryContexts.count >= limits.maximumReferencedEntryObjects {
+                        recoveryIssues.append(.resourceLimitExceeded)
+                        break collectEntryContexts
+                    }
+                    guard let context = try? V3EntryAuthenticationContext(
+                        vaultID: manifest.envelope.content.manifest.vaultID,
+                        entry: entry
+                    )
                     else {
                         recoveryIssues.append(.invalidReferencedObject(
                             path: entryPath(
@@ -562,14 +589,8 @@ public struct V3ImmutableObjectRepository: Sendable {
                         ))
                         continue
                     }
-                    entryContexts[
-                        EntryObjectKey(entryID: entry.entryID, digest: digest),
-                        default: []
-                    ].append(context)
+                    entryContexts[objectKey, default: []].append(context)
                 }
-            }
-            if entryContexts.count > limits.maximumReferencedEntryObjects {
-                recoveryIssues.append(.resourceLimitExceeded)
             }
         }
 

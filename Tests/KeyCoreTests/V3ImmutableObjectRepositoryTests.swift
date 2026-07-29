@@ -188,6 +188,57 @@ struct V3ImmutableObjectRepositoryTests {
     }
 
     @Test
+    func checkpointMergeReportsCorruptionAlongsideAMissingParent() throws {
+        let genesis = try localManifest()
+        let verifiedGenesis = try verifiedLocalGenesis(genesis)
+        let branchA = try localManifest(
+            parents: [genesis],
+            markerEntryName: "branch/a"
+        )
+        let branchB = try localManifest(
+            parents: [genesis],
+            markerEntryName: "branch/b"
+        )
+        let orderedParents = [branchA, branchB].sorted {
+            digest($0).lexicographicallyPrecedes(digest($1))
+        }
+        let missingParent = orderedParents[0]
+        let corruptParent = orderedParents[1]
+        let verifiedParents = try orderedParents.map {
+            try V3ManifestAuthenticator().verify(
+                $0,
+                vaultKey: Self.vaultKey,
+                trustAnchor: .verifiedParents([verifiedGenesis])
+            )
+        }
+        let merge = try localManifest(parents: orderedParents)
+        let trustedMerge = try trustedManifest(
+            merge,
+            parents: verifiedParents
+        )
+        var corruptBytes = corruptParent
+        corruptBytes[corruptBytes.startIndex] ^= 0x01
+        let source = MemoryV3ObjectSource(manifests: [
+            digest(merge): merge,
+            digest(corruptParent): corruptBytes
+        ])
+
+        let classification = try V3ImmutableObjectRepository(source: source).classify(
+            trustedCurrent: trustedMerge,
+            vaultKeys: [Self.vaultKey]
+        )
+
+        #expect(classification.status == .recoveryRequired)
+        #expect(classification.ancestryProof == nil)
+        #expect(classification.issues.contains(.manifestUnavailable(
+            digest: Base64URL.encode(digest(missingParent))
+        )))
+        #expect(classification.issues.contains(.invalidReferencedObject(
+            path: manifestPath(for: digest(corruptParent))
+        )))
+    }
+
+    @Test
     func invalidUnreferencedObjectsCannotReplaceTrustedHistory() throws {
         let genesis = try localManifest()
         let trustedGenesis = try trustedManifest(genesis)
@@ -309,6 +360,45 @@ struct V3ImmutableObjectRepositoryTests {
                 digest: sealed.record.ciphertextDigest
             )
         )))
+    }
+
+    @Test
+    func entryObjectLimitStopsCollectionAtConfiguredCap() throws {
+        let firstEntry = try sealedEntry(name: "entry/first").record
+        let genesis = try localManifest(entry: firstEntry)
+        let secondEntry = V3ManifestEntry(
+            entryID: "018f4d39-930c-735d-8d6f-588e9b0a3a49",
+            name: "entry/second",
+            type: firstEntry.type,
+            revision: firstEntry.revision,
+            keyID: firstEntry.keyID,
+            ciphertextDigest: firstEntry.ciphertextDigest
+        )
+        let child = try localManifest(
+            parents: [genesis],
+            entry: secondEntry
+        )
+        let trustedGenesis = try trustedManifest(genesis)
+        let source = MemoryV3ObjectSource(manifests: [
+            digest(genesis): genesis,
+            digest(child): child
+        ])
+
+        let classification = try V3ImmutableObjectRepository(
+            source: source,
+            limits: V3ManifestRepositoryLimits(
+                maximumManifestObjects: 2,
+                maximumHistoryDepth: 1,
+                maximumReferencedEntryObjects: 1
+            )
+        ).classify(
+            trustedCurrent: trustedGenesis,
+            vaultKeys: [Self.vaultKey]
+        )
+
+        #expect(classification.status == .recoveryRequired)
+        #expect(classification.issues == [.resourceLimitExceeded])
+        #expect(classification.ancestryProof == nil)
     }
 
     @Test
