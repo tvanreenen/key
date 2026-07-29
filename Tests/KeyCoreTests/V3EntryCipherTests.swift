@@ -492,7 +492,6 @@ struct V3EntryCipherTests {
         let envelope = V3ManifestEnvelope(
             content: V3ManifestContent(parent: .genesis, manifest: body),
             authentication: V3ManifestAuthentication(
-                keyID: context.keyID,
                 tag: String(repeating: "A", count: 43)
             ),
             authorizations: [],

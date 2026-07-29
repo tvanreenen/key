@@ -86,7 +86,6 @@ public struct V3ManifestDevice: Equatable, Sendable {
 
 public struct V3WrappedKey: Equatable, Sendable {
     public let deviceID: String
-    public let keyID: V3VaultKeyID
     public let ciphertext: String
 }
 
@@ -119,7 +118,6 @@ public struct V3ManifestContent: Equatable, Sendable {
 }
 
 public struct V3ManifestAuthentication: Equatable, Sendable {
-    public let keyID: V3VaultKeyID
     public let tag: String
 }
 
@@ -389,9 +387,7 @@ public struct V3ManifestAuthenticator: Sendable {
         } catch {
             throw V3ManifestError.authenticationFailed
         }
-        guard candidate.authentication.keyID == candidate.content.manifest.keyID,
-              candidate.content.manifest.keyID == expectedKeyID
-        else {
+        guard candidate.content.manifest.keyID == expectedKeyID else {
             throw V3ManifestError.authenticationFailed
         }
         let suppliedTag = try decodeBase64URL(
@@ -675,7 +671,7 @@ private enum ManifestDecoder {
         let wrappedKey = try object(value, path: path)
         try requireFields(
             wrappedKey,
-            required: ["deviceID", "keyID", "algorithm", "ciphertext"],
+            required: ["deviceID", "algorithm", "ciphertext"],
             path: path
         )
         try requireConstant(
@@ -688,10 +684,6 @@ private enum ManifestDecoder {
                 requiredMember("deviceID", in: wrappedKey, path: path),
                 length: 43,
                 path: "\(path).deviceID"
-            ),
-            keyID: try vaultKeyID(
-                requiredMember("keyID", in: wrappedKey, path: path),
-                path: "\(path).keyID"
             ),
             ciphertext: try base64URLString(
                 requiredMember("ciphertext", in: wrappedKey, path: path),
@@ -742,17 +734,13 @@ private enum ManifestDecoder {
     private static func decodeAuthentication(_ value: CanonicalJSONValue) throws -> V3ManifestAuthentication {
         let path = "$.authentication"
         let authentication = try object(value, path: path)
-        try requireFields(authentication, required: ["algorithm", "keyID", "tag"], path: path)
+        try requireFields(authentication, required: ["algorithm", "tag"], path: path)
         try requireConstant(
             "HKDF-SHA256+HMAC-SHA256",
             value: requiredMember("algorithm", in: authentication, path: path),
             path: "\(path).algorithm"
         )
         return V3ManifestAuthentication(
-            keyID: try vaultKeyID(
-                requiredMember("keyID", in: authentication, path: path),
-                path: "\(path).keyID"
-            ),
             tag: try base64URLString(
                 requiredMember("tag", in: authentication, path: path),
                 length: 43,
@@ -855,29 +843,17 @@ private func validateDeviceOrderingAndIdentity(_ devices: [V3ManifestDevice]) th
 }
 
 private func validateWrappedKeyOrdering(_ wrappedKeys: [V3WrappedKey]) throws {
-    var previous: V3WrappedKey?
-    var seen = Set<String>()
+    var previousDeviceID: String?
     for wrappedKey in wrappedKeys {
         _ = try decodeBase64URL(
             wrappedKey.ciphertext,
             error: .semanticViolation("wrappedKeys.ciphertext")
         )
-        let identity = "\(wrappedKey.keyID.rawValue):\(wrappedKey.deviceID)"
-        guard seen.insert(identity).inserted else {
-            throw V3ManifestError.semanticViolation("wrappedKeys.duplicate")
+        if let previousDeviceID,
+           !utf8Precedes(previousDeviceID, wrappedKey.deviceID) {
+            throw V3ManifestError.semanticViolation("wrappedKeys.order")
         }
-        if let previous {
-            let correctlyOrdered = utf8Precedes(
-                previous.keyID.rawValue,
-                wrappedKey.keyID.rawValue
-            )
-                || (previous.keyID == wrappedKey.keyID
-                    && utf8Precedes(previous.deviceID, wrappedKey.deviceID))
-            guard correctlyOrdered else {
-                throw V3ManifestError.semanticViolation("wrappedKeys.order")
-            }
-        }
-        previous = wrappedKey
+        previousDeviceID = wrappedKey.deviceID
     }
 }
 
@@ -898,9 +874,6 @@ private func validateModeSpecificMembership(_ manifest: V3ManifestBody) throws {
 
         let activeDeviceIDs = Set(activeDevices.map(\.deviceID))
         for wrappedKey in manifest.wrappedKeys {
-            guard wrappedKey.keyID == manifest.keyID else {
-                throw V3ManifestError.semanticViolation("wrappedKeys.keyID")
-            }
             guard activeDeviceIDs.contains(wrappedKey.deviceID) else {
                 throw V3ManifestError.semanticViolation("wrappedKeys.deviceID")
             }

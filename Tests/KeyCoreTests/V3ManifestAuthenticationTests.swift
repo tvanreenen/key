@@ -154,7 +154,7 @@ struct V3ManifestAuthenticationTests {
                 "$.content.manifest.entries[0]"
             ),
             (
-                "\"keyID\":\"\(Fixture.keyID.rawValue)\",\"tag\"",
+                "\"tag\"",
                 "\"keyEpoch\":1,\"tag\"",
                 "$.authentication"
             )
@@ -175,8 +175,40 @@ struct V3ManifestAuthenticationTests {
         )) {
             _ = try V3ManifestAuthenticator().parse(replacing(
                 shared,
-                "\"deviceID\":\"\(fixture.deviceID)\",\"keyID\":\"\(Fixture.keyID.rawValue)\"",
-                with: "\"deviceID\":\"\(fixture.deviceID)\",\"keyEpoch\":1"
+                "\"ciphertext\":\"AQID\",\"deviceID\":\"\(fixture.deviceID)\"}",
+                with: "\"ciphertext\":\"AQID\",\"deviceID\":\"\(fixture.deviceID)\",\"keyEpoch\":1}"
+            ))
+        }
+    }
+
+    @Test
+    func redundantActiveKeyIDFieldsAreRejectedAsUnknown() throws {
+        let fixture = Fixture()
+        let local = try fixture.envelope(
+            content: fixture.content(
+                parent: .object([("kind", .string("genesis"))]),
+                mode: .local,
+                includeDevice: false
+            )
+        )
+        #expect(throws: V3ManifestError.invalidStructure("$.authentication")) {
+            _ = try V3ManifestAuthenticator().parse(replacing(
+                local,
+                "\"tag\"",
+                with: "\"keyID\":\"\(Fixture.keyID.rawValue)\",\"tag\""
+            ))
+        }
+
+        let shared = try fixture.envelope(
+            content: fixture.content(parent: .object([("kind", .string("genesis"))]))
+        )
+        #expect(throws: V3ManifestError.invalidStructure(
+            "$.content.manifest.wrappedKeys[0]"
+        )) {
+            _ = try V3ManifestAuthenticator().parse(replacing(
+                shared,
+                "\"ciphertext\":\"AQID\",\"deviceID\":\"\(fixture.deviceID)\"}",
+                with: "\"ciphertext\":\"AQID\",\"deviceID\":\"\(fixture.deviceID)\",\"keyID\":\"\(Fixture.keyID.rawValue)\"}"
             ))
         }
     }
@@ -270,15 +302,10 @@ struct V3ManifestAuthenticationTests {
         }
 
         #expect(throws: V3ManifestError.authenticationFailed) {
-            var mutated = replacing(
+            let mutated = replacing(
                 localEnvelope,
                 "\"keyID\":\"\(Fixture.keyID.rawValue)\",\"mode\"",
                 with: "\"keyID\":\"\(Fixture.alternateKeyID.rawValue)\",\"mode\""
-            )
-            mutated = replacing(
-                mutated,
-                "\"keyID\":\"\(Fixture.keyID.rawValue)\",\"tag\"",
-                with: "\"keyID\":\"\(Fixture.alternateKeyID.rawValue)\",\"tag\""
             )
             _ = try V3ManifestAuthenticator().verify(
                 mutated,
@@ -305,12 +332,7 @@ struct V3ManifestAuthenticationTests {
             ("status", "\"status\":\"active\"", "\"status\":\"revoked\""),
             ("signingPublicKey", fixture.signingPublicKeyValue, fixture.alternateSigningPublicKeyValue),
             ("wrappingPublicKey", fixture.wrappingPublicKeyValue, fixture.alternateWrappingPublicKeyValue),
-            ("wrappedKeyCiphertext", "\"ciphertext\":\"AQID\",\"deviceID\"", "\"ciphertext\":\"BAUG\",\"deviceID\""),
-            (
-                "wrappedKeyID",
-                "\"deviceID\":\"\(fixture.deviceID)\",\"keyID\":\"\(Fixture.keyID.rawValue)\"",
-                "\"deviceID\":\"\(fixture.deviceID)\",\"keyID\":\"\(Fixture.alternateKeyID.rawValue)\""
-            )
+            ("wrappedKeyCiphertext", "\"ciphertext\":\"AQID\",\"deviceID\"", "\"ciphertext\":\"BAUG\",\"deviceID\"")
         ]
 
         for (_, original, replacement) in sharedReplacements {
@@ -569,18 +591,6 @@ struct V3ManifestAuthenticationTests {
             )
         }
 
-        let staleWrapper = try signedCandidate(fixture.content(
-            parent: parentReference,
-            wrapperKeyID: Fixture.alternateKeyID
-        ))
-        #expect(throws: V3ManifestError.semanticViolation("wrappedKeys.keyID")) {
-            try V3ManifestAuthenticator().verify(
-                staleWrapper,
-                vaultKey: Fixture.vaultKey,
-                trustAnchor: .parent(parent)
-            )
-        }
-
         let unknownRecipient = try signedCandidate(fixture.content(
             parent: parentReference,
             wrapperDeviceID: fixture.alternateDeviceID
@@ -721,7 +731,6 @@ private struct Fixture {
         status: V3DeviceStatus = .active,
         includeDevice: Bool = true,
         includeWrapper: Bool? = nil,
-        wrapperKeyID: V3VaultKeyID? = nil,
         wrapperDeviceID: String? = nil,
         additionalDeviceRole: V3DeviceRole? = nil,
         deviceID overriddenDeviceID: String? = nil,
@@ -738,7 +747,6 @@ private struct Fixture {
                 status: status,
                 includeDevice: includeDevice,
                 includeWrapper: includeWrapper,
-                wrapperKeyID: wrapperKeyID,
                 wrapperDeviceID: wrapperDeviceID,
                 additionalDeviceRole: additionalDeviceRole,
                 deviceID: overriddenDeviceID,
@@ -756,7 +764,6 @@ private struct Fixture {
         status: V3DeviceStatus,
         includeDevice: Bool,
         includeWrapper: Bool?,
-        wrapperKeyID: V3VaultKeyID?,
         wrapperDeviceID: String?,
         additionalDeviceRole: V3DeviceRole?,
         deviceID overriddenDeviceID: String?,
@@ -807,29 +814,25 @@ private struct Fixture {
             .sorted { Data($0.0.utf8).lexicographicallyPrecedes(Data($1.0.utf8)) }
             .map(\.1)
 
-        var wrapperRecords: [(String, String, CanonicalJSONValue)] = []
+        var wrapperRecords: [(String, CanonicalJSONValue)] = []
         if includeWrapper ?? includeDevice {
             let actualWrapperDeviceID = wrapperDeviceID ?? actualDeviceID
-            let actualWrapperKeyID = wrapperKeyID ?? keyID
-            wrapperRecords.append((actualWrapperKeyID.rawValue, actualWrapperDeviceID, .object([
+            wrapperRecords.append((actualWrapperDeviceID, .object([
                 ("deviceID", .string(actualWrapperDeviceID)),
-                ("keyID", .string(actualWrapperKeyID.rawValue)),
                 ("algorithm", .string("p256-ecies-x963-sha256-aes-gcm")),
                 ("ciphertext", .string("AQID"))
             ])))
         }
         if additionalDeviceRole != nil {
-            wrapperRecords.append((keyID.rawValue, alternateDeviceID, .object([
+            wrapperRecords.append((alternateDeviceID, .object([
                 ("deviceID", .string(alternateDeviceID)),
-                ("keyID", .string(keyID.rawValue)),
                 ("algorithm", .string("p256-ecies-x963-sha256-aes-gcm")),
                 ("ciphertext", .string("BAUG"))
             ])))
         }
-        let wrappedKeys = wrapperRecords.sorted {
-            $0.0 < $1.0 || ($0.0 == $1.0
-                && Data($0.1.utf8).lexicographicallyPrecedes(Data($1.1.utf8)))
-        }.map(\.2)
+        let wrappedKeys = wrapperRecords
+            .sorted { Data($0.0.utf8).lexicographicallyPrecedes(Data($1.0.utf8)) }
+            .map(\.1)
 
         return .object([
             ("format", .string("key-vault-manifest")),
@@ -890,22 +893,10 @@ private struct Fixture {
             ("content", content),
             ("authentication", .object([
                 ("algorithm", .string("HKDF-SHA256+HMAC-SHA256")),
-                ("keyID", .string(manifestKeyID(in: content).rawValue)),
                 ("tag", .string(encodeBase64URL(tag)))
             ])),
             ("authorizations", .array(authorizations))
         ]))
-    }
-
-    private func manifestKeyID(in content: CanonicalJSONValue) -> V3VaultKeyID {
-        guard case let .object(contentMembers) = content,
-              case let .object(manifestMembers)? = contentMembers.first(where: { $0.0 == "manifest" })?.1,
-              case let .string(rawKeyID)? = manifestMembers.first(where: { $0.0 == "keyID" })?.1,
-              let keyID = try? V3VaultKeyID(rawValue: rawKeyID)
-        else {
-            preconditionFailure("Fixture content has no valid manifest key ID.")
-        }
-        return keyID
     }
 }
 

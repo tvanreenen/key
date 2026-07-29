@@ -142,16 +142,12 @@
       "additionalProperties": false,
       "required": [
         "deviceID",
-        "keyID",
         "algorithm",
         "ciphertext"
       ],
       "properties": {
         "deviceID": {
           "$ref": "v3-common.schema.json#/$defs/deviceID"
-        },
-        "keyID": {
-          "$ref": "v3-common.schema.json#/$defs/vaultKeyID"
         },
         "algorithm": {
           "const": "p256-ecies-x963-sha256-aes-gcm"

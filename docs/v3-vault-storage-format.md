@@ -210,16 +210,16 @@ transitions. Role semantics and enrollment authorization are finalized by
 | Field | Type | Requirement |
 |---|---|---|
 | `deviceID` | device ID | Recipient device |
-| `keyID` | 43-character base64url | Identity of the wrapped vault key |
 | `algorithm` | enum | `p256-ecies-x963-sha256-aes-gcm` |
 | `ciphertext` | base64url | Complete algorithm output |
 
 Local manifests MUST have empty `devices` and `wrappedKeys` arrays. Shared
 manifests MUST contain at least one active owner and exactly one wrapper at the
-manifest's current `keyID` for every active device. After unwrapping, a reader
-MUST derive the resulting key's ID and require that exact value. A wrapper MUST
-NOT name a revoked or unknown device. Older wrapped keys do not belong in the
-current manifest.
+manifest's current `keyID` for every active device. The wrapper inherits that
+identity from the manifest rather than repeating it. After unwrapping, a reader
+MUST derive the resulting key's ID and require it to equal `manifest.keyID`. A
+wrapper MUST NOT name a revoked or unknown device. Older wrapped keys do not
+belong in the current manifest.
 
 ### Manifest Entry Record
 
@@ -240,7 +240,7 @@ immutable digest-addressed object layout is finalized by `STORE-405`.
 JCS does not reorder arrays. Producers MUST sort:
 
 - `devices` by the UTF-8 bytes of `deviceID`;
-- `wrappedKeys` by the UTF-8 bytes of `keyID`, then `deviceID`; and
+- `wrappedKeys` by the UTF-8 bytes of `deviceID`; and
 - `entries` by normalized `name`, then `entryID`, comparing UTF-8 bytes.
 
 Readers MUST reject unsorted arrays. Readers MUST also reject:
@@ -316,9 +316,9 @@ HKDF-SHA256(
 ```
 
 `authentication.tag` is the complete 32-byte HMAC-SHA-256 output over the
-common authentication input. `authentication.keyID` MUST equal
-`content.manifest.keyID`, and both MUST equal the ID derived from the supplied
-vault key before the manifest can authenticate.
+common authentication input. `content.manifest.keyID` MUST equal the ID derived
+from the supplied vault key before the manifest can authenticate. The
+authentication object does not repeat the active key ID.
 
 Each authorization signs SHA-256 of the same common authentication input using
 the signer's dedicated Secure Enclave P-256 signing key. The stored signature
@@ -337,9 +337,9 @@ A reader MUST:
 2. require the parent reference to match the locally trusted current envelope;
 3. load the addressed local key or select and unwrap only the candidate's
    exact-current-key wrapper, treating all candidate fields as untrusted;
-4. derive the supplied key's ID, require it to match both authenticated key-ID
-   fields, then derive the manifest authentication key and verify the HMAC in
-   constant time;
+4. derive the supplied key's ID, require it to match the manifest's
+   authenticated key ID, then derive the manifest authentication key and verify
+   the HMAC in constant time;
 5. compare parent and candidate authority fields;
 6. require and verify an active-parent-owner signature for an authority change;
 7. apply all manifest semantic checks; and only then
@@ -667,7 +667,6 @@ Manifest body:
   "wrappedKeys": [
     {
       "deviceID": "DzO1MpK36yEEcRSR1JUYExdqhU-2FMv_jYlp5gZ99xs",
-      "keyID": "YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA",
       "algorithm": "p256-ecies-x963-sha256-aes-gcm",
       "ciphertext": "AQIDBA"
     }
@@ -723,7 +722,6 @@ Authenticated envelope:
       "wrappedKeys": [
         {
           "deviceID": "DzO1MpK36yEEcRSR1JUYExdqhU-2FMv_jYlp5gZ99xs",
-          "keyID": "YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA",
           "algorithm": "p256-ecies-x963-sha256-aes-gcm",
           "ciphertext": "AQIDBA"
         }
@@ -733,7 +731,6 @@ Authenticated envelope:
   },
   "authentication": {
     "algorithm": "HKDF-SHA256+HMAC-SHA256",
-    "keyID": "YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA",
     "tag": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
   },
   "authorizations": [

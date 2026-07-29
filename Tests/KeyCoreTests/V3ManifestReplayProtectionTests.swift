@@ -261,7 +261,6 @@ struct V3ManifestReplayProtectionTests {
             ("content", content),
             ("authentication", .object([
                 ("algorithm", .string("HKDF-SHA256+HMAC-SHA256")),
-                ("keyID", .string(keyID.rawValue)),
                 ("tag", .string(Base64URL.encode(tag)))
             ])),
             ("authorizations", .array([]))

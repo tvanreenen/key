@@ -162,17 +162,16 @@ Current branch: `agent/replace-key-epochs-with-key-identities`.
 
 Scope:
 
-- Replace `keyEpoch` with a typed `keyID` in manifest bodies, wrapped-key
-  records, entry records, manifest authentication, encrypted entry files,
-  entry AAD, schemas, examples, and tests.
+- Replace `keyEpoch` with a typed `keyID` in manifest bodies, entry records,
+  encrypted entry files, entry AAD, schemas, examples, and tests.
 - Derive the 32-byte ID with HKDF-SHA256 from the exact 32-byte vault key,
   the canonical vault UUID bytes as salt, and the domain-separated
   `work.tvr.key/v3/vault-key-id` info label.
 - Encode the result as canonical unpadded 43-character base64url.
 - Require manifest authentication and entry sealing/opening to derive the
   supplied key's ID and match authenticated metadata before cryptographic use.
-- Require every shared-mode active-device wrapper to name the manifest's exact
-  current key ID.
+- Let every shared-mode active-device wrapper inherit the manifest's exact
+  current key ID, then verify the unwrapped key against that single authority.
 - Treat a changed active key ID as an authority change requiring an active
   parent-owner signature.
 - Retain per-entry `revision`; it identifies revisions of one stable entry, not
@@ -192,7 +191,8 @@ Out of scope:
 Acceptance gate:
 
 - Different vault keys cannot be mistaken for the same security state.
-- Entry, wrapper, and authentication-key substitution continues to fail.
+- Entry, wrapped-key-result, and authentication-key substitution continues to
+  fail.
 - The key ID is vault-specific and has an exact independent vector.
 - No merge behavior is introduced by this increment.
 
