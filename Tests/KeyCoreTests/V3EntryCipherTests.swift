@@ -9,6 +9,14 @@ struct V3EntryCipherTests {
     private static let entryID = "018f4d39-930c-735d-8d6f-588e9b0a3a48"
     private static let key = Data(0..<32)
     private static let nonce = Data(0xA0...0xAB)
+    private static let keyID = try! V3VaultKeyID.derive(
+        vaultKey: key,
+        vaultID: vaultID
+    )
+    private static let alternateKeyID = try! V3VaultKeyID.derive(
+        vaultKey: Data(repeating: 0xFF, count: 32),
+        vaultID: vaultID
+    )
 
     @Test
     func deterministicSealMatchesExactVectorAndOpens() throws {
@@ -19,10 +27,10 @@ struct V3EntryCipherTests {
             vaultKey: Self.key,
             nonce: try AES.GCM.Nonce(data: Self.nonce)
         )
-        let expected = Data(#"{"encryption":{"algorithm":"AES-256-GCM","ciphertext":"hXcOXyCodp8KCvWgYlqivwTYPGLrlzEY_X5K4w","nonce":"oKGio6Slpqeoqaqr","tag":"iCgs8pFFHUFFjA9QjnwiNQ"},"entryID":"018f4d39-930c-735d-8d6f-588e9b0a3a48","format":"key-vault-entry","keyEpoch":3,"name":"email/personal","revision":4,"type":"secret","vaultID":"018f4d38-7d5a-7b20-b0f1-97d6e96c44b3","version":3}"#.utf8)
+        let expected = Data(#"{"encryption":{"algorithm":"AES-256-GCM","ciphertext":"hXcOXyCodp8KCvWgYlqivwTYPGLrlzEY_X5K4w","nonce":"oKGio6Slpqeoqaqr","tag":"ZPuWt7iIjJEoK-GOTrPxPQ"},"entryID":"018f4d39-930c-735d-8d6f-588e9b0a3a48","format":"key-vault-entry","keyID":"YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA","name":"email/personal","revision":4,"type":"secret","vaultID":"018f4d38-7d5a-7b20-b0f1-97d6e96c44b3","version":3}"#.utf8)
 
         #expect(entry.canonicalBytes == expected)
-        #expect(entry.ciphertextDigest == "odUZPiZO7s2KFOHj_qbbdNaM3zR9BSf73he2vpIi_yY")
+        #expect(entry.ciphertextDigest == "J4YmO39caeVQKdVeSrURsou9fYnj7DY0QEz-lGTJPUE")
         #expect(try open(entry, context: context) == "correct horse battery staple")
     }
 
@@ -48,12 +56,16 @@ struct V3EntryCipherTests {
     func everyBoundFieldIsCryptographicallyAuthenticated() throws {
         let originalContext = try makeContext()
         let original = try deterministicEntry(context: originalContext)
+        let alternateVaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b4"
+        let alternateVaultKeyID = try V3VaultKeyID.derive(
+            vaultKey: Self.key,
+            vaultID: alternateVaultID
+        )
         let substitutions = try [
-            makeContext(vaultID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b4"),
+            makeContext(vaultID: alternateVaultID, keyID: alternateVaultKeyID),
             makeContext(entryID: "018f4d39-930c-735d-8d6f-588e9b0a3a49"),
             makeContext(name: "email/work"),
             makeContext(type: .totp),
-            makeContext(keyEpoch: 4),
             makeContext(revision: 5)
         ]
 
@@ -77,6 +89,25 @@ struct V3EntryCipherTests {
                     vaultKey: Self.key
                 )
             }
+        }
+
+        let substitutedKeyContext = try makeContext(keyID: Self.alternateKeyID)
+        let substitutedKeyData = entryData(
+            context: substitutedKeyContext,
+            nonce: original.nonce,
+            ciphertext: original.ciphertext,
+            tag: original.tag
+        )
+        #expect(throws: V3EncryptedEntryError.keyIdentityMismatch) {
+            _ = try V3EntryCipher().openTrusted(
+                substitutedKeyData,
+                vaultID: substitutedKeyContext.vaultID,
+                manifestEntry: manifestEntry(
+                    context: substitutedKeyContext,
+                    digest: digest(of: substitutedKeyData)
+                ),
+                vaultKey: Self.key
+            )
         }
     }
 
@@ -148,6 +179,45 @@ struct V3EntryCipherTests {
                 fork.canonicalBytes,
                 trustedManifest: manifest,
                 entryID: Self.entryID,
+                vaultKey: Self.key
+            )
+        }
+    }
+
+    @Test
+    func digestMismatchClassificationRequiresAnHonestObservedKeyID() throws {
+        let currentContext = try makeContext(revision: 5)
+        let current = try V3EntryCipher().seal(
+            Data("current".utf8),
+            context: currentContext,
+            vaultKey: Self.key,
+            nonce: AES.GCM.Nonce(data: Data(0xB0...0xBB))
+        )
+        let dishonestContext = try makeContext(
+            keyID: Self.alternateKeyID,
+            revision: 4
+        )
+        let sealed = try AES.GCM.seal(
+            Data("historical".utf8),
+            using: SymmetricKey(data: Self.key),
+            nonce: AES.GCM.Nonce(data: Data(0xC0...0xCB)),
+            authenticating: dishonestContext.associatedData
+        )
+        let dishonestData = entryData(
+            context: dishonestContext,
+            nonce: Data(0xC0...0xCB),
+            ciphertext: sealed.ciphertext,
+            tag: sealed.tag
+        )
+
+        #expect(throws: V3EncryptedEntryError.digestMismatch) {
+            _ = try V3EntryCipher().openTrusted(
+                dishonestData,
+                vaultID: Self.vaultID,
+                manifestEntry: manifestEntry(
+                    context: currentContext,
+                    digest: current.ciphertextDigest
+                ),
                 vaultKey: Self.key
             )
         }
@@ -226,7 +296,7 @@ struct V3EntryCipherTests {
                 vaultKey: Self.key
             )
         }
-        #expect(throws: V3EncryptedEntryError.authenticationFailed) {
+        #expect(throws: V3EncryptedEntryError.keyIdentityMismatch) {
             _ = try V3EntryCipher().openTrusted(
                 entry.canonicalBytes,
                 vaultID: context.vaultID,
@@ -267,6 +337,14 @@ struct V3EntryCipherTests {
             _ = try V3EntryCipher().parse(
                 Data(canonical.replacingOccurrences(of: "AES-256-GCM", with: "AES.GCM").utf8)
             )
+        }
+        #expect(throws: V3EncryptedEntryError.invalidStructure("$")) {
+            _ = try V3EntryCipher().parse(Data(
+                canonical.replacingOccurrences(
+                    of: #""keyID":"\#(Self.keyID.rawValue)""#,
+                    with: #""keyEpoch":3"#
+                ).utf8
+            ))
         }
     }
 
@@ -372,7 +450,7 @@ struct V3EntryCipherTests {
         entryID: String = V3EntryCipherTests.entryID,
         name: String = "email/personal",
         type: SecretEntryType = .secret,
-        keyEpoch: UInt64 = 3,
+        keyID: V3VaultKeyID = V3EntryCipherTests.keyID,
         revision: UInt64 = 4
     ) throws -> V3EntryAuthenticationContext {
         try V3EntryAuthenticationContext(
@@ -380,7 +458,7 @@ struct V3EntryCipherTests {
             entryID: entryID,
             name: name,
             type: type,
-            keyEpoch: keyEpoch,
+            keyID: keyID,
             revision: revision
         )
     }
@@ -394,7 +472,7 @@ struct V3EntryCipherTests {
             name: context.name,
             type: context.type,
             revision: context.revision,
-            keyEpoch: context.keyEpoch,
+            keyID: context.keyID,
             ciphertextDigest: digest
         )
     }
@@ -406,7 +484,7 @@ struct V3EntryCipherTests {
         let body = V3ManifestBody(
             vaultID: context.vaultID,
             mode: .local,
-            keyEpoch: context.keyEpoch,
+            keyID: context.keyID,
             devices: [],
             wrappedKeys: [],
             entries: [manifestEntry(context: context, digest: digest)]
@@ -414,7 +492,6 @@ struct V3EntryCipherTests {
         let envelope = V3ManifestEnvelope(
             content: V3ManifestContent(parent: .genesis, manifest: body),
             authentication: V3ManifestAuthentication(
-                keyEpoch: context.keyEpoch,
                 tag: String(repeating: "A", count: 43)
             ),
             authorizations: [],
@@ -449,7 +526,7 @@ struct V3EntryCipherTests {
             ("entryID", .string(context.entryID)),
             ("name", .string(context.name)),
             ("type", .string(context.type.rawValue)),
-            ("keyEpoch", .integer(context.keyEpoch)),
+            ("keyID", .string(context.keyID.rawValue)),
             ("revision", .integer(context.revision)),
             ("encryption", .object([
                 ("algorithm", .string("AES-256-GCM")),

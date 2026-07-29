@@ -9,6 +9,10 @@ struct V3EntryResealingTests {
     private static let destinationEntryID = "018f4d3a-a844-72ad-983e-b09a8fc0e924"
     private static let otherEntryID = "018f4d3b-033d-770e-a63c-ddb280e24d1f"
     private static let key = Data(0..<32)
+    private static let keyID = try! V3VaultKeyID.derive(
+        vaultKey: key,
+        vaultID: vaultID
+    )
     private static let sourceNonce = Data(0xA0...0xAB)
     private static let destinationNonce = Data(0xB0...0xBB)
 
@@ -29,7 +33,7 @@ struct V3EntryResealingTests {
         #expect(result.encryptedEntry.context.entryID == Self.destinationEntryID)
         #expect(result.encryptedEntry.context.name == "email/copied")
         #expect(result.encryptedEntry.context.type == .totp)
-        #expect(result.encryptedEntry.context.keyEpoch == 3)
+        #expect(result.encryptedEntry.context.keyID == Self.keyID)
         #expect(result.encryptedEntry.context.revision == 1)
         #expect(result.encryptedEntry.nonce == Self.destinationNonce)
         #expect(result.encryptedEntry.canonicalBytes != fixture.entry.canonicalBytes)
@@ -62,7 +66,7 @@ struct V3EntryResealingTests {
         #expect(result.encryptedEntry.context.entryID == Self.sourceEntryID)
         #expect(result.encryptedEntry.context.name == "email/renamed")
         #expect(result.encryptedEntry.context.type == .secret)
-        #expect(result.encryptedEntry.context.keyEpoch == 3)
+        #expect(result.encryptedEntry.context.keyID == Self.keyID)
         #expect(result.encryptedEntry.context.revision == 5)
         #expect(result.encryptedEntry.nonce == Self.destinationNonce)
         #expect(result.encryptedEntry.canonicalBytes != fixture.entry.canonicalBytes)
@@ -118,7 +122,7 @@ struct V3EntryResealingTests {
                     name: "email/existing",
                     type: .secret,
                     revision: 2,
-                    keyEpoch: 3,
+                    keyID: Self.keyID,
                     ciphertextDigest: String(repeating: "A", count: 43)
                 )
             ]
@@ -181,7 +185,7 @@ struct V3EntryResealingTests {
                     name: "email/existing",
                     type: .secret,
                     revision: 2,
-                    keyEpoch: 3,
+                    keyID: Self.keyID,
                     ciphertextDigest: String(repeating: "A", count: 43)
                 )
             ]
@@ -225,7 +229,7 @@ struct V3EntryResealingTests {
             name: "email/personal",
             type: .secret,
             revision: 9_007_199_254_740_991,
-            keyEpoch: 3,
+            keyID: Self.keyID,
             ciphertextDigest: fixture.entry.ciphertextDigest
         )
         #expect(throws: V3EntryResealingError.revisionOverflow) {
@@ -259,7 +263,7 @@ struct V3EntryResealingTests {
                 nonce: nonce
             )
         }
-        #expect(throws: V3EncryptedEntryError.authenticationFailed) {
+        #expect(throws: V3EncryptedEntryError.keyIdentityMismatch) {
             _ = try cipher.rename(
                 fixture.entry.canonicalBytes,
                 trustedManifest: fixture.manifest,
@@ -289,7 +293,7 @@ struct V3EntryResealingTests {
             entryID: Self.sourceEntryID,
             name: "unicode/value",
             type: .secret,
-            keyEpoch: 3,
+            keyID: Self.keyID,
             revision: 1
         )
         let plaintext = Data("cafe\u{301}".utf8)
@@ -331,7 +335,7 @@ struct V3EntryResealingTests {
             entryID: Self.sourceEntryID,
             name: "email/personal",
             type: type,
-            keyEpoch: 3,
+            keyID: Self.keyID,
             revision: 4
         )
         let plaintext = type == .totp
@@ -353,7 +357,7 @@ struct V3EntryResealingTests {
             name: entry.context.name,
             type: entry.context.type,
             revision: entry.context.revision,
-            keyEpoch: entry.context.keyEpoch,
+            keyID: entry.context.keyID,
             ciphertextDigest: entry.ciphertextDigest
         )
     }
@@ -362,7 +366,7 @@ struct V3EntryResealingTests {
         let body = V3ManifestBody(
             vaultID: Self.vaultID,
             mode: .local,
-            keyEpoch: 3,
+            keyID: Self.keyID,
             devices: [],
             wrappedKeys: [],
             entries: entries
@@ -370,7 +374,6 @@ struct V3EntryResealingTests {
         let envelope = V3ManifestEnvelope(
             content: V3ManifestContent(parent: .genesis, manifest: body),
             authentication: V3ManifestAuthentication(
-                keyEpoch: 3,
                 tag: String(repeating: "A", count: 43)
             ),
             authorizations: [],

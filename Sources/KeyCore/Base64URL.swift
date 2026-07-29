@@ -3,7 +3,8 @@ import Foundation
 enum Base64URL {
     static func encode(_ data: Data) -> String {
         // macOS 26.4 adds .base64URLAlphabet and .omitPaddingCharacter.
-        // Keep this portable path while the package supports macOS 13.
+        // Once macOS 26.4 is the minimum, replace this translation with:
+        // data.base64EncodedString(options: [.base64URLAlphabet, .omitPaddingCharacter])
         data.base64EncodedString()
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")

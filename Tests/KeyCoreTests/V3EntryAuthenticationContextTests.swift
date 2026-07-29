@@ -5,11 +5,17 @@ import Testing
 struct V3EntryAuthenticationContextTests {
     private static let fixtureVaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
     private static let fixtureEntryID = "018f4d39-930c-735d-8d6f-588e9b0a3a48"
+    private static let fixtureKeyID = try! V3VaultKeyID(
+        rawValue: String(repeating: "A", count: 43)
+    )
+    private static let alternateKeyID = try! V3VaultKeyID(
+        rawValue: Base64URL.encode(Data(repeating: 1, count: 32))
+    )
 
     @Test
     func canonicalContextAndAssociatedDataMatchExactVector() throws {
         let context = try makeContext()
-        let canonical = Data(#"{"entryID":"018f4d39-930c-735d-8d6f-588e9b0a3a48","format":"key-vault-entry","keyEpoch":3,"name":"email/personal","revision":4,"type":"secret","vaultID":"018f4d38-7d5a-7b20-b0f1-97d6e96c44b3","version":3}"#.utf8)
+        let canonical = Data(#"{"entryID":"018f4d39-930c-735d-8d6f-588e9b0a3a48","format":"key-vault-entry","keyID":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","name":"email/personal","revision":4,"type":"secret","vaultID":"018f4d38-7d5a-7b20-b0f1-97d6e96c44b3","version":3}"#.utf8)
         var associatedData = Data("work.tvr.key/v3/entry-aad".utf8)
         associatedData.append(0)
         associatedData.append(canonical)
@@ -26,7 +32,7 @@ struct V3EntryAuthenticationContextTests {
             makeContext(entryID: "018f4d39-930c-735d-8d6f-588e9b0a3a49"),
             makeContext(name: "email/work"),
             makeContext(type: .totp),
-            makeContext(keyEpoch: 4),
+            makeContext(keyID: Self.alternateKeyID),
             makeContext(revision: 5)
         ]
 
@@ -40,7 +46,7 @@ struct V3EntryAuthenticationContextTests {
             name: "email/personal",
             type: .secret,
             revision: 4,
-            keyEpoch: 3,
+            keyID: Self.fixtureKeyID,
             ciphertextDigest: String(repeating: "A", count: 43)
         )
 
@@ -64,9 +70,6 @@ struct V3EntryAuthenticationContextTests {
         #expect(throws: V3EntryAuthenticationContextError.invalidName) {
             _ = try makeContext(name: "cafe\u{301}")
         }
-        #expect(throws: V3EntryAuthenticationContextError.invalidKeyEpoch) {
-            _ = try makeContext(keyEpoch: 9_007_199_254_740_992)
-        }
         #expect(throws: V3EntryAuthenticationContextError.invalidRevision) {
             _ = try makeContext(revision: 0)
         }
@@ -75,12 +78,48 @@ struct V3EntryAuthenticationContextTests {
         }
     }
 
+    @Test
+    func vaultKeyIDRejectsInvalidInputsAndIsVaultScoped() throws {
+        #expect(throws: V3VaultKeyIDError.invalidEncoding) {
+            _ = try V3VaultKeyID(rawValue: "not-a-key-id")
+        }
+        #expect(throws: V3VaultKeyIDError.invalidVaultKey) {
+            _ = try V3VaultKeyID.derive(
+                vaultKey: Data(repeating: 0, count: 31),
+                vaultID: Self.fixtureVaultID
+            )
+        }
+        #expect(throws: V3VaultKeyIDError.invalidVaultID) {
+            _ = try V3VaultKeyID.derive(
+                vaultKey: Data(0..<32),
+                vaultID: "not-a-vault-id"
+            )
+        }
+
+        let keyID = try V3VaultKeyID.derive(
+            vaultKey: Data(0..<32),
+            vaultID: Self.fixtureVaultID
+        )
+        let otherVaultID = try V3VaultKeyID.derive(
+            vaultKey: Data(0..<32),
+            vaultID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b4"
+        )
+        let otherKeyID = try V3VaultKeyID.derive(
+            vaultKey: Data(repeating: 0xFF, count: 32),
+            vaultID: Self.fixtureVaultID
+        )
+
+        #expect(keyID.rawValue == "YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA")
+        #expect(keyID != otherVaultID)
+        #expect(keyID != otherKeyID)
+    }
+
     private func makeContext(
         vaultID: String = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
         entryID: String = "018f4d39-930c-735d-8d6f-588e9b0a3a48",
         name: String = "email/personal",
         type: SecretEntryType = .secret,
-        keyEpoch: UInt64 = 3,
+        keyID: V3VaultKeyID = V3EntryAuthenticationContextTests.fixtureKeyID,
         revision: UInt64 = 4
     ) throws -> V3EntryAuthenticationContext {
         try V3EntryAuthenticationContext(
@@ -88,7 +127,7 @@ struct V3EntryAuthenticationContextTests {
             entryID: entryID,
             name: name,
             type: type,
-            keyEpoch: keyEpoch,
+            keyID: keyID,
             revision: revision
         )
     }

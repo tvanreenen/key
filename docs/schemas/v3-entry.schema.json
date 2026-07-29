@@ -11,7 +11,7 @@
     "entryID",
     "name",
     "type",
-    "keyEpoch",
+    "keyID",
     "revision",
     "encryption"
   ],
@@ -34,8 +34,8 @@
     "type": {
       "$ref": "v3-common.schema.json#/$defs/entryType"
     },
-    "keyEpoch": {
-      "$ref": "v3-common.schema.json#/$defs/safeInteger"
+    "keyID": {
+      "$ref": "v3-common.schema.json#/$defs/vaultKeyID"
     },
     "revision": {
       "$ref": "v3-common.schema.json#/$defs/positiveSafeInteger"

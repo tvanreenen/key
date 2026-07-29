@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `78b4921` |
+| Production base | `main` at `205ac4f` |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/require-expected-vault-head` |
+| Current branch | `agent/replace-key-epochs-with-key-identities` |
 | Current PR | Not opened |
-| Active increment | `HIST-402` implemented on branch; awaiting review |
-| Next work | Commit and review the exact-head implementation, then begin `KEY-403` |
+| Active increment | `KEY-403` implemented on branch; awaiting review |
+| Next work | Review and merge exact vault-key identity, then begin `HIST-404` |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -27,12 +27,12 @@ unavailable or explicitly experimental until every release gate below passes.
   authorized helper operations.
 - [ ] `INV-02` Enrollment authenticates both device keys, roles, vault ID,
   fresh nonces, and an independently compared transcript.
-- [x] `INV-03` Membership, key epoch, wrapped keys, and committed entries form
+- [x] `INV-03` Membership, exact vault-key identity, wrapped keys, and committed entries form
   one authenticated state.
 - [ ] `INV-04` Revocation rotates the vault key and removes future decrypt
   authority from the revoked device.
 - [ ] `INV-05` Every entry authenticates vault ID, normalized name, type,
-  format version, key epoch, and revision.
+  format version, exact vault-key ID, and revision.
 - [x] `INV-06` Replayed manifests and entries are detected explicitly.
 - [ ] `INV-07` Concurrent mutations serialize or return a revision conflict.
 - [ ] `INV-08` Recovery observes one complete old or new authenticated head,
@@ -78,7 +78,7 @@ squash-merged as `942e444` in PR #18, and `FMT-206` squash-merged as
 
 Acceptance gate:
 
-- Cross-vault, name, type, key-epoch, and revision substitution fails.
+- Cross-vault, name, type, key-ID, and revision substitution fails.
 - A manifest other than the exact checkpointed head is never silently trusted.
 - Unknown or inconsistent metadata fails closed.
 - Migration never deletes the only readable vault state.
@@ -105,8 +105,8 @@ security or durability boundary and updates this tracker before it merges.
 | Increment | Status | Purpose |
 |---|---|---|
 | `TXN-401` | Complete; PR #29 | Serialize helper-owned mutations and assign local operation IDs |
-| `HIST-402` | Implemented; awaiting review | Identify trusted vault state by an exact authenticated head digest |
-| `KEY-403` | Planned | Replace counter-only key epochs with exact vault-key identities |
+| `HIST-402` | Complete; PR #30 | Identify trusted vault state by an exact authenticated head digest |
+| `KEY-403` | Implemented; awaiting review | Replace counter-only key epochs with exact vault-key identities |
 | `HIST-404` | Planned | Admit canonical multi-parent manifests and authenticated merge history |
 | `STORE-405` | Planned | Read immutable digest-addressed objects and classify repository state |
 | `MERGE-406` | Planned | Reconcile independent path changes and return typed conflicts |
@@ -123,7 +123,7 @@ not claim crash recovery.
 
 #### `HIST-402` — Exact Authenticated Heads
 
-Current branch: `agent/require-expected-vault-head`.
+Status: complete; squash-merged as `205ac4f` in PR #30.
 
 Scope:
 
@@ -158,17 +158,42 @@ Acceptance gate:
 
 #### `KEY-403` — Exact Vault-Key Identity
 
-Replace `keyEpoch` as a key identity with a cryptographically bound `keyID`.
-Entries, wrappers, manifest authentication, and associated data will name that
-exact identity. This prevents two offline branches from independently creating
-different keys that both happen to be called the same next epoch. The precise
-identifier construction is a format decision and must be documented and
-reviewed before implementation.
+Current branch: `agent/replace-key-epochs-with-key-identities`.
+
+Scope:
+
+- Replace `keyEpoch` with a typed `keyID` in manifest bodies, entry records,
+  encrypted entry files, entry AAD, schemas, examples, and tests.
+- Derive the 32-byte ID with HKDF-SHA256 from the exact 32-byte vault key,
+  the canonical vault UUID bytes as salt, and the domain-separated
+  `work.tvr.key/v3/vault-key-id` info label.
+- Encode the result as canonical unpadded 43-character base64url.
+- Require manifest authentication and entry sealing/opening to derive the
+  supplied key's ID and match authenticated metadata before cryptographic use.
+- Let every shared-mode active-device wrapper inherit the manifest's exact
+  current key ID, then verify the unwrapped key against that single authority.
+- Treat a changed active key ID as an authority change requiring an active
+  parent-owner signature.
+- Retain per-entry `revision`; it identifies revisions of one stable entry, not
+  vault keys or global state.
+
+This prevents two offline branches from independently creating different keys
+that both happen to be called the same next epoch.
+
+Out of scope:
+
+- multi-parent manifests or reconciliation;
+- key rotation and wrapped-key creation ceremonies;
+- immutable object storage and head discovery;
+- transaction publication or recovery; and
+- any shipping version 2 behavior.
 
 Acceptance gate:
 
 - Different vault keys cannot be mistaken for the same security state.
-- Entry, wrapper, and authentication-key substitution continues to fail.
+- Entry, wrapped-key-result, and authentication-key substitution continues to
+  fail.
+- The key ID is vault-specific and has an exact independent vector.
 - No merge behavior is introduced by this increment.
 
 #### `HIST-404` — Merge-Capable Manifest History
@@ -362,11 +387,11 @@ formats or transport stacks:
 | `DEC-006` | Accepted | Give the CLI full authority and the utility status/lock authority on separate authenticated endpoints. |
 | `DEC-007` | Accepted | Keep the signed nested helper, constrain launchd spawning, and re-register it on app upgrades. |
 | `DEC-008` | Accepted | Keep canonical JSON independent of vault schemas in an internal SwiftPM target; do not claim or publish full RFC 8785 conformance until complete number handling, upstream vectors, fuzzing, and independent review are complete. |
-| `DEC-009` | Accepted | Authenticate v3 entry identity as the entry-AAD domain label, a NUL delimiter, and canonical JSON over format, version, vault ID, entry ID, name, type, key epoch, and revision. Derive those values from authenticated manifest state when opening. |
+| `DEC-009` | Accepted | Authenticate v3 entry identity as the entry-AAD domain label, a NUL delimiter, and canonical JSON over format, version, vault ID, entry ID, name, type, exact vault-key ID, and revision. Derive those values from authenticated manifest state when opening. |
 | `DEC-010` | Accepted | Keep v3 entry parsing explicitly untrusted. Before releasing plaintext, require the authenticated manifest digest and manifest-derived context to match the canonical file, then open AES-256-GCM with the exact typed associated data and require UTF-8 plaintext. |
-| `DEC-011` | Accepted | Implement v3 copy and rename as authenticated decrypt-and-reseal operations. Copy creates a fresh logical entry at revision 1; rename preserves the logical entry ID and advances its revision. Both preserve exact valid UTF-8 plaintext bytes, type, and key epoch and require a fresh nonce. |
+| `DEC-011` | Accepted | Implement v3 copy and rename as authenticated decrypt-and-reseal operations. Copy creates a fresh logical entry at revision 1; rename preserves the logical entry ID and advances its revision. Both preserve exact valid UTF-8 plaintext bytes, type, and exact key ID and require a fresh nonce. |
 | `DEC-012` | Accepted | Treat authentication and freshness as separate gates. Persist one exact vault ID and manifest-envelope digest in the non-synchronizing device-local Keychain; advance it under the serialized helper mutation owner with an expected-checkpoint guard only after verifying authenticated ancestry. Require the freshness-approved manifest type for entry open, copy, and rename. |
-| `DEC-013` | Accepted | Keep local manifests free of device-membership and wrapped-key records. Require shared manifests to retain at least one active owner and exactly one current-epoch wrapped key for every active device, with no wrapper for a revoked or unknown device. Defer membership-transition ceremonies to enrollment and revocation work. |
+| `DEC-013` | Accepted | Keep local manifests free of device-membership and wrapped-key records. Require shared manifests to retain at least one active owner and exactly one exact-current-key wrapper for every active device, with no wrapper for a revoked or unknown device. Defer membership-transition ceremonies to enrollment and revocation work. |
 | `DEC-014` | Accepted | Make migration opt-in. Ship `key migrate --check` as a helper-owned, read-only v2 compatibility and decryptability check. A later writer must stage and verify v3 beside the untouched v2 source, select it only through an authenticated-head commit and device-local checkpoint transition, and retain v2 until verified reopen and explicit cleanup. |
 | `DEC-015` | Accepted | Treat the unreleased prototype as a migration exclusion, not a permanent runtime compatibility mode. `key migrate --check` refuses the exact root-level `.key-vault.json` marker before loading a key, while ordinary v2 reads remain unchanged and the strict v3 parser rejects prototype JSON. |
 | `DEC-016` | Accepted | Establish vault-root authority by opening the configured file URL once through Swift System's `FileDescriptor` with directory-only, no-follow, and close-on-exec semantics. Retain that descriptor and its device/inode identity for the lifetime of the filesystem session; later contained operations must resolve relative to the descriptor instead of trusting the configured path again. |
@@ -376,7 +401,7 @@ formats or transport stacks:
 | `DEC-020` | Accepted | Model synchronized vault history as immutable authenticated manifests named by exact digest. Genesis has no parents, ordinary commits have one, and later merge commits have a canonical sorted parent set. Derive current heads from authenticated reachability instead of trusting a synchronized mutable pointer. |
 | `DEC-021` | Accepted | Keep graph mechanics out of the ordinary CLI. Automatically merge non-overlapping changes, continue unaffected reads during content conflicts, pause mutations for genuine ambiguity, and provide explicit status and conflict commands with stable machine-readable outcomes. |
 | `DEC-022` | Accepted | Reserve `--force` for confirmation and overwrite policy; it never bypasses trust, expected-head, completeness, rollback, or conflict checks. Permit stale reads only through an explicit `--allow-stale` request and never permit stale writes. |
-| `DEC-023` | Proposed | Replace counter-only `keyEpoch` identity with an exact cryptographically bound `keyID` before multi-parent history ships. |
+| `DEC-023` | Accepted | Define `keyID` as canonical base64url of HKDF-SHA256 over the exact 32-byte vault key, salted by canonical vault UUID bytes with `work.tvr.key/v3/vault-key-id` as the domain-separated info label. Require supplied keys to match this authenticated ID before manifest authentication or entry encryption/decryption. |
 
 ## Validation Matrix
 
@@ -384,12 +409,13 @@ formats or transport stacks:
 - [x] Negative authentication tests for every bound field.
 - [x] Copy/rename identity, revision, collision, and exact-byte resealing tests.
 - [x] Exact-head and single-parent replay tests without manifest generations.
-- [x] Local/shared membership and current-epoch wrapped-key consistency tests.
+- [x] Local/shared membership and exact-current-key wrapped-key consistency tests.
 - [x] V2 migration-preflight compatibility, decryptability, and no-write tests.
 - [x] Prototype migration-marker and v3 parser rejection tests.
 - [x] Trusted vault-root type, no-follow open, retained-identity, and close-on-exec tests.
 - [x] Component-by-component relative resolution, traversal rejection, symlink rejection, and terminal-type tests.
-- [ ] Enrollment and key-epoch replay tests.
+- [x] Vault-key ID derivation, substitution, and cross-vault separation tests.
+- [ ] Enrollment and key-identity replay tests.
 - [x] Installed XPC tests for intended and unintended signing identities.
 - [ ] Mutation/key-transition concurrency tests.
 - [ ] Transaction fault injection at every phase.
@@ -415,6 +441,6 @@ formats or transport stacks:
 
 ## Immediate Next Action
 
-Review and merge `HIST-402`. After it merges, begin `KEY-403`; do not introduce
-multi-parent manifests until exact vault-key identity is specified and
-implemented.
+Review and merge `KEY-403`. After it merges, begin `HIST-404`; do not introduce
+immutable repository discovery or reconciliation until canonical multi-parent
+history is specified and implemented.

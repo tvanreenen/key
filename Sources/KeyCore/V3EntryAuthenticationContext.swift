@@ -5,7 +5,6 @@ public enum V3EntryAuthenticationContextError: Error, Equatable, LocalizedError 
     case invalidVaultID
     case invalidEntryID
     case invalidName
-    case invalidKeyEpoch
     case invalidRevision
 
     public var errorDescription: String? {
@@ -16,8 +15,6 @@ public enum V3EntryAuthenticationContextError: Error, Equatable, LocalizedError 
             "The version 3 entry context has an invalid entry ID."
         case .invalidName:
             "The version 3 entry context has an invalid entry name."
-        case .invalidKeyEpoch:
-            "The version 3 entry context has an invalid key epoch."
         case .invalidRevision:
             "The version 3 entry context has an invalid revision."
         }
@@ -36,7 +33,7 @@ public struct V3EntryAuthenticationContext: Equatable, Sendable {
     public let entryID: String
     public let name: String
     public let type: SecretEntryType
-    public let keyEpoch: UInt64
+    public let keyID: V3VaultKeyID
     public let revision: UInt64
 
     public init(
@@ -44,7 +41,7 @@ public struct V3EntryAuthenticationContext: Equatable, Sendable {
         entryID: String,
         name: String,
         type: SecretEntryType,
-        keyEpoch: UInt64,
+        keyID: V3VaultKeyID,
         revision: UInt64
     ) throws {
         guard isValidV3UUID(vaultID) else {
@@ -56,9 +53,6 @@ public struct V3EntryAuthenticationContext: Equatable, Sendable {
         guard isValidV3EntryName(name) else {
             throw V3EntryAuthenticationContextError.invalidName
         }
-        guard keyEpoch <= v3MaximumSafeInteger else {
-            throw V3EntryAuthenticationContextError.invalidKeyEpoch
-        }
         guard revision > 0, revision <= v3MaximumSafeInteger else {
             throw V3EntryAuthenticationContextError.invalidRevision
         }
@@ -67,7 +61,7 @@ public struct V3EntryAuthenticationContext: Equatable, Sendable {
         self.entryID = entryID
         self.name = name
         self.type = type
-        self.keyEpoch = keyEpoch
+        self.keyID = keyID
         self.revision = revision
     }
 
@@ -77,7 +71,7 @@ public struct V3EntryAuthenticationContext: Equatable, Sendable {
             entryID: entry.entryID,
             name: entry.name,
             type: entry.type,
-            keyEpoch: entry.keyEpoch,
+            keyID: entry.keyID,
             revision: entry.revision
         )
     }
@@ -91,7 +85,7 @@ public struct V3EntryAuthenticationContext: Equatable, Sendable {
             ("entryID", .string(entryID)),
             ("name", .string(name)),
             ("type", .string(type.rawValue)),
-            ("keyEpoch", .integer(keyEpoch)),
+            ("keyID", .string(keyID.rawValue)),
             ("revision", .integer(revision))
         ]))
     }

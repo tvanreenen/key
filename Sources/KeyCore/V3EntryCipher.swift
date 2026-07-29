@@ -9,6 +9,7 @@ public enum V3EncryptedEntryError: Error, Equatable, LocalizedError {
     case nonCanonicalJSON
     case invalidStructure(String)
     case invalidVaultKey
+    case keyIdentityMismatch
     case invalidTrustedContext
     case manifestEntryNotFound
     case digestMismatch
@@ -33,6 +34,8 @@ public enum V3EncryptedEntryError: Error, Equatable, LocalizedError {
             "Encrypted entry has an invalid structure at \(path)."
         case .invalidVaultKey:
             "The version 3 vault key must contain exactly 32 bytes."
+        case .keyIdentityMismatch:
+            "The supplied vault key does not match the authenticated version 3 key ID."
         case .invalidTrustedContext:
             "The authenticated manifest supplied an invalid entry context."
         case .manifestEntryNotFound:
@@ -118,7 +121,7 @@ public struct V3EntryCipher: Sendable {
             root,
             required: [
                 "format", "version", "vaultID", "entryID", "name",
-                "type", "keyEpoch", "revision", "encryption"
+                "type", "keyID", "revision", "encryption"
             ],
             path: "$"
         )
@@ -129,6 +132,15 @@ public struct V3EntryCipher: Sendable {
             throw V3EncryptedEntryError.invalidStructure("$.version")
         }
 
+        let keyID: V3VaultKeyID
+        do {
+            keyID = try V3VaultKeyID(
+                rawValue: requiredEntryString("keyID", in: root, path: "$")
+            )
+        } catch {
+            throw V3EncryptedEntryError.invalidStructure("$.keyID")
+        }
+
         let context: V3EntryAuthenticationContext
         do {
             context = try V3EntryAuthenticationContext(
@@ -136,7 +148,7 @@ public struct V3EntryCipher: Sendable {
                 entryID: try requiredEntryString("entryID", in: root, path: "$"),
                 name: try requiredEntryString("name", in: root, path: "$"),
                 type: try requiredEntryType("type", in: root, path: "$"),
-                keyEpoch: try requiredEntryInteger("keyEpoch", in: root, path: "$"),
+                keyID: keyID,
                 revision: try requiredEntryInteger("revision", in: root, path: "$")
             )
         } catch let error as V3EntryAuthenticationContextError {
@@ -147,8 +159,6 @@ public struct V3EntryCipher: Sendable {
                 throw V3EncryptedEntryError.invalidStructure("$.entryID")
             case .invalidName:
                 throw V3EncryptedEntryError.invalidStructure("$.name")
-            case .invalidKeyEpoch:
-                throw V3EncryptedEntryError.invalidStructure("$.keyEpoch")
             case .invalidRevision:
                 throw V3EncryptedEntryError.invalidStructure("$.revision")
             }
@@ -252,6 +262,11 @@ public struct V3EntryCipher: Sendable {
         guard vaultKey.count == 32 else {
             throw V3EncryptedEntryError.invalidVaultKey
         }
+        try requireMatchingKeyID(
+            manifestEntry.keyID,
+            vaultKey: vaultKey,
+            vaultID: vaultID
+        )
         guard let expectedDigest = Base64URL.decodeCanonical(
             manifestEntry.ciphertextDigest
         ), expectedDigest.count == 32 else {
@@ -330,7 +345,12 @@ public struct V3EntryCipher: Sendable {
     ) -> V3EncryptedEntryError? {
         guard let entry = try? parse(data),
               entry.context.vaultID == vaultID,
-              entry.context.entryID == manifestEntry.entryID
+              entry.context.entryID == manifestEntry.entryID,
+              let derivedKeyID = try? V3VaultKeyID.derive(
+                  vaultKey: vaultKey,
+                  vaultID: vaultID
+              ),
+              entry.context.keyID == derivedKeyID
         else {
             return nil
         }
@@ -371,6 +391,11 @@ public struct V3EntryCipher: Sendable {
         guard vaultKey.count == 32 else {
             throw V3EncryptedEntryError.invalidVaultKey
         }
+        try requireMatchingKeyID(
+            context.keyID,
+            vaultKey: vaultKey,
+            vaultID: context.vaultID
+        )
 
         let sealedBox: AES.GCM.SealedBox
         do {
@@ -414,7 +439,7 @@ private func encodeEntry(
         ("entryID", .string(context.entryID)),
         ("name", .string(context.name)),
         ("type", .string(context.type.rawValue)),
-        ("keyEpoch", .integer(context.keyEpoch)),
+        ("keyID", .string(context.keyID.rawValue)),
         ("revision", .integer(context.revision)),
         ("encryption", .object([
             ("algorithm", .string("AES-256-GCM")),
@@ -423,6 +448,27 @@ private func encodeEntry(
             ("tag", .string(Base64URL.encode(tag)))
         ]))
     ]))
+}
+
+private func requireMatchingKeyID(
+    _ expectedKeyID: V3VaultKeyID,
+    vaultKey: Data,
+    vaultID: String
+) throws {
+    let derivedKeyID: V3VaultKeyID
+    do {
+        derivedKeyID = try V3VaultKeyID.derive(
+            vaultKey: vaultKey,
+            vaultID: vaultID
+        )
+    } catch V3VaultKeyIDError.invalidVaultKey {
+        throw V3EncryptedEntryError.invalidVaultKey
+    } catch {
+        throw V3EncryptedEntryError.invalidTrustedContext
+    }
+    guard derivedKeyID == expectedKeyID else {
+        throw V3EncryptedEntryError.keyIdentityMismatch
+    }
 }
 
 private func entryError(for error: CanonicalJSONError) -> V3EncryptedEntryError {

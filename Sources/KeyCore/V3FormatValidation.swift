@@ -1,6 +1,63 @@
+import CryptoKit
 import Foundation
 
 let v3MaximumSafeInteger: UInt64 = 9_007_199_254_740_991
+
+public enum V3VaultKeyIDError: Error, Equatable, LocalizedError {
+    case invalidVaultID
+    case invalidVaultKey
+    case invalidEncoding
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidVaultID:
+            "A version 3 vault-key ID requires a canonical vault UUID."
+        case .invalidVaultKey:
+            "A version 3 vault-key ID requires a 32-byte vault key."
+        case .invalidEncoding:
+            "A version 3 vault-key ID must be a canonical base64url-encoded 32-byte value."
+        }
+    }
+}
+
+/// Vault-scoped, non-secret identity of one exact version 3 vault key.
+///
+/// The identifier is a domain-separated HKDF-SHA256 output. It can be stored
+/// in authenticated metadata without disclosing the vault key.
+public struct V3VaultKeyID: Equatable, Hashable, Sendable {
+    private static let derivationInfo = Data("work.tvr.key/v3/vault-key-id".utf8)
+
+    public let rawValue: String
+
+    public init(rawValue: String) throws {
+        guard let bytes = Base64URL.decodeCanonical(rawValue),
+              bytes.count == 32
+        else {
+            throw V3VaultKeyIDError.invalidEncoding
+        }
+        self.rawValue = rawValue
+    }
+
+    public static func derive(
+        vaultKey: Data,
+        vaultID: String
+    ) throws -> V3VaultKeyID {
+        guard vaultKey.count == 32 else {
+            throw V3VaultKeyIDError.invalidVaultKey
+        }
+        guard let salt = v3UUIDBytes(vaultID) else {
+            throw V3VaultKeyIDError.invalidVaultID
+        }
+        let derived = HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: SymmetricKey(data: vaultKey),
+            salt: salt,
+            info: derivationInfo,
+            outputByteCount: 32
+        )
+        let bytes = derived.withUnsafeBytes { Data($0) }
+        return try V3VaultKeyID(rawValue: Base64URL.encode(bytes))
+    }
+}
 
 func isValidV3UUID(_ value: String) -> Bool {
     let bytes = Array(value.utf8)
@@ -16,6 +73,25 @@ func isValidV3UUID(_ value: String) -> Bool {
         return false
     }
     return UUID(uuidString: value) != nil
+}
+
+func v3UUIDBytes(_ value: String) -> Data? {
+    guard isValidV3UUID(value) else {
+        return nil
+    }
+    let compact = value.replacingOccurrences(of: "-", with: "")
+    var bytes = Data()
+    bytes.reserveCapacity(16)
+    var index = compact.startIndex
+    for _ in 0..<16 {
+        let next = compact.index(index, offsetBy: 2)
+        guard let byte = UInt8(compact[index..<next], radix: 16) else {
+            return nil
+        }
+        bytes.append(byte)
+        index = next
+    }
+    return bytes
 }
 
 func isValidV3EntryName(_ name: String) -> Bool {

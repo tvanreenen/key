@@ -21,6 +21,10 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
+    "vaultKeyID": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
     "sha256": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"

@@ -112,8 +112,8 @@ struct V3ManifestAuthenticationTests {
         )
         let bodyWithGeneration = replacing(
             parent,
-            "\"format\":\"key-vault-manifest\",\"keyEpoch\"",
-            with: "\"format\":\"key-vault-manifest\",\"generation\":1,\"keyEpoch\""
+            "\"format\":\"key-vault-manifest\",\"keyID\"",
+            with: "\"format\":\"key-vault-manifest\",\"generation\":1,\"keyID\""
         )
         #expect(throws: V3ManifestError.invalidStructure("$.content.manifest")) {
             _ = try V3ManifestAuthenticator().parse(bodyWithGeneration)
@@ -129,6 +129,87 @@ struct V3ManifestAuthenticationTests {
         )
         #expect(throws: V3ManifestError.invalidStructure("$.content.parent")) {
             _ = try V3ManifestAuthenticator().parse(parentWithGeneration)
+        }
+    }
+
+    @Test
+    func removedKeyEpochFieldsAreRejectedAsUnknown() throws {
+        let fixture = Fixture()
+        let local = try fixture.envelope(
+            content: fixture.content(
+                parent: .object([("kind", .string("genesis"))]),
+                mode: .local,
+                includeDevice: false
+            )
+        )
+        let replacements = [
+            (
+                "\"keyID\":\"\(Fixture.keyID.rawValue)\",\"mode\"",
+                "\"keyEpoch\":1,\"mode\"",
+                "$.content.manifest"
+            ),
+            (
+                "\"keyID\":\"\(Fixture.keyID.rawValue)\",\"name\"",
+                "\"keyEpoch\":1,\"name\"",
+                "$.content.manifest.entries[0]"
+            ),
+            (
+                "\"tag\"",
+                "\"keyEpoch\":1,\"tag\"",
+                "$.authentication"
+            )
+        ]
+        for (original, replacement, path) in replacements {
+            #expect(throws: V3ManifestError.invalidStructure(path)) {
+                _ = try V3ManifestAuthenticator().parse(
+                    replacing(local, original, with: replacement)
+                )
+            }
+        }
+
+        let shared = try fixture.envelope(
+            content: fixture.content(parent: .object([("kind", .string("genesis"))]))
+        )
+        #expect(throws: V3ManifestError.invalidStructure(
+            "$.content.manifest.wrappedKeys[0]"
+        )) {
+            _ = try V3ManifestAuthenticator().parse(replacing(
+                shared,
+                "\"ciphertext\":\"AQID\",\"deviceID\":\"\(fixture.deviceID)\"}",
+                with: "\"ciphertext\":\"AQID\",\"deviceID\":\"\(fixture.deviceID)\",\"keyEpoch\":1}"
+            ))
+        }
+    }
+
+    @Test
+    func redundantActiveKeyIDFieldsAreRejectedAsUnknown() throws {
+        let fixture = Fixture()
+        let local = try fixture.envelope(
+            content: fixture.content(
+                parent: .object([("kind", .string("genesis"))]),
+                mode: .local,
+                includeDevice: false
+            )
+        )
+        #expect(throws: V3ManifestError.invalidStructure("$.authentication")) {
+            _ = try V3ManifestAuthenticator().parse(replacing(
+                local,
+                "\"tag\"",
+                with: "\"keyID\":\"\(Fixture.keyID.rawValue)\",\"tag\""
+            ))
+        }
+
+        let shared = try fixture.envelope(
+            content: fixture.content(parent: .object([("kind", .string("genesis"))]))
+        )
+        #expect(throws: V3ManifestError.invalidStructure(
+            "$.content.manifest.wrappedKeys[0]"
+        )) {
+            _ = try V3ManifestAuthenticator().parse(replacing(
+                shared,
+                "\"ciphertext\":\"AQID\",\"deviceID\":\"\(fixture.deviceID)\"}",
+                with: "\"ciphertext\":\"AQID\",\"deviceID\":\"\(fixture.deviceID)\",\"keyID\":\"\(Fixture.keyID.rawValue)\"}"
+            ))
         }
     }
 
@@ -191,7 +272,11 @@ struct V3ManifestAuthenticationTests {
             ("entryName", "\"name\":\"email/personal\"", "\"name\":\"email/work\""),
             ("entryType", "\"type\":\"secret\"", "\"type\":\"totp\""),
             ("entryRevision", "\"revision\":4", "\"revision\":5"),
-            ("entryKeyEpoch", "\"keyEpoch\":1,\"name\"", "\"keyEpoch\":0,\"name\""),
+            (
+                "entryKeyID",
+                "\"keyID\":\"\(Fixture.keyID.rawValue)\",\"name\"",
+                "\"keyID\":\"\(Fixture.alternateKeyID.rawValue)\",\"name\""
+            ),
             ("ciphertextDigest", Fixture.digest, String(repeating: "E", count: 43))
         ]
 
@@ -217,12 +302,11 @@ struct V3ManifestAuthenticationTests {
         }
 
         #expect(throws: V3ManifestError.authenticationFailed) {
-            var mutated = replacing(
+            let mutated = replacing(
                 localEnvelope,
-                "\"keyEpoch\":1,\"mode\"",
-                with: "\"keyEpoch\":2,\"mode\""
+                "\"keyID\":\"\(Fixture.keyID.rawValue)\",\"mode\"",
+                with: "\"keyID\":\"\(Fixture.alternateKeyID.rawValue)\",\"mode\""
             )
-            mutated = replacing(mutated, "\"keyEpoch\":1,\"tag\"", with: "\"keyEpoch\":2,\"tag\"")
             _ = try V3ManifestAuthenticator().verify(
                 mutated,
                 vaultKey: Fixture.vaultKey,
@@ -248,12 +332,7 @@ struct V3ManifestAuthenticationTests {
             ("status", "\"status\":\"active\"", "\"status\":\"revoked\""),
             ("signingPublicKey", fixture.signingPublicKeyValue, fixture.alternateSigningPublicKeyValue),
             ("wrappingPublicKey", fixture.wrappingPublicKeyValue, fixture.alternateWrappingPublicKeyValue),
-            ("wrappedKeyCiphertext", "\"ciphertext\":\"AQID\",\"deviceID\"", "\"ciphertext\":\"BAUG\",\"deviceID\""),
-            (
-                "wrappedKeyEpoch",
-                "\"deviceID\":\"\(fixture.deviceID)\",\"keyEpoch\":1",
-                "\"deviceID\":\"\(fixture.deviceID)\",\"keyEpoch\":0"
-            )
+            ("wrappedKeyCiphertext", "\"ciphertext\":\"AQID\",\"deviceID\"", "\"ciphertext\":\"BAUG\",\"deviceID\"")
         ]
 
         for (_, original, replacement) in sharedReplacements {
@@ -324,28 +403,32 @@ struct V3ManifestAuthenticationTests {
         )
         let candidateContent = fixture.content(
             parent: fixture.parentReference(to: parent),
-            keyEpoch: 2
+            keyID: Fixture.alternateKeyID
         )
-        let unsigned = try fixture.envelope(content: candidateContent)
+        let unsigned = try fixture.envelope(
+            content: candidateContent,
+            vaultKey: Fixture.alternateVaultKey
+        )
 
         #expect(throws: V3ManifestError.authorizationRequired) {
             try V3ManifestAuthenticator().verify(
                 unsigned,
-                vaultKey: Fixture.vaultKey,
+                vaultKey: Fixture.alternateVaultKey,
                 trustAnchor: .parent(parent)
             )
         }
 
         let signed = try fixture.envelope(
             content: candidateContent,
-            signers: [(fixture.deviceID, fixture.signingPrivateKey)]
+            signers: [(fixture.deviceID, fixture.signingPrivateKey)],
+            vaultKey: Fixture.alternateVaultKey
         )
         let verified = try V3ManifestAuthenticator().verify(
             signed,
-            vaultKey: Fixture.vaultKey,
+            vaultKey: Fixture.alternateVaultKey,
             trustAnchor: .parent(parent)
         )
-        #expect(verified.envelope.content.manifest.keyEpoch == 2)
+        #expect(verified.envelope.content.manifest.keyID == Fixture.alternateKeyID)
         #expect(verified.envelope.authorizations.map(\.signerDeviceID) == [fixture.deviceID])
     }
 
@@ -360,17 +443,18 @@ struct V3ManifestAuthenticationTests {
         )
         let memberCandidateContent = ownerFixture.content(
             parent: ownerFixture.parentReference(to: memberParent),
-            keyEpoch: 2,
+            keyID: Fixture.alternateKeyID,
             additionalDeviceRole: .member
         )
         let memberSigned = try ownerFixture.envelope(
             content: memberCandidateContent,
-            signers: [(ownerFixture.alternateDeviceID, ownerFixture.alternateSigningPrivateKey)]
+            signers: [(ownerFixture.alternateDeviceID, ownerFixture.alternateSigningPrivateKey)],
+            vaultKey: Fixture.alternateVaultKey
         )
         #expect(throws: V3ManifestError.authorizationFailed) {
             try V3ManifestAuthenticator().verify(
                 memberSigned,
-                vaultKey: Fixture.vaultKey,
+                vaultKey: Fixture.alternateVaultKey,
                 trustAnchor: .parent(memberParent)
             )
         }
@@ -401,17 +485,18 @@ struct V3ManifestAuthenticationTests {
         )
         let ownerCandidateContent = ownerFixture.content(
             parent: ownerFixture.parentReference(to: ownerParent),
-            keyEpoch: 2
+            keyID: Fixture.alternateKeyID
         )
         let highSSigned = try ownerFixture.envelope(
             content: ownerCandidateContent,
             signers: [(ownerFixture.deviceID, ownerFixture.signingPrivateKey)],
-            forceHighS: true
+            forceHighS: true,
+            vaultKey: Fixture.alternateVaultKey
         )
         #expect(throws: V3ManifestError.authorizationFailed) {
             try V3ManifestAuthenticator().verify(
                 highSSigned,
-                vaultKey: Fixture.vaultKey,
+                vaultKey: Fixture.alternateVaultKey,
                 trustAnchor: .parent(ownerParent)
             )
         }
@@ -506,18 +591,6 @@ struct V3ManifestAuthenticationTests {
             )
         }
 
-        let staleWrapper = try signedCandidate(fixture.content(
-            parent: parentReference,
-            wrapperKeyEpoch: 0
-        ))
-        #expect(throws: V3ManifestError.semanticViolation("wrappedKeys.keyEpoch")) {
-            try V3ManifestAuthenticator().verify(
-                staleWrapper,
-                vaultKey: Fixture.vaultKey,
-                trustAnchor: .parent(parent)
-            )
-        }
-
         let unknownRecipient = try signedCandidate(fixture.content(
             parent: parentReference,
             wrapperDeviceID: fixture.alternateDeviceID
@@ -605,6 +678,15 @@ private struct Fixture {
     static let entryID = "018f4d39-930c-735d-8d6f-588e9b0a3a48"
     static let digest = String(repeating: "A", count: 43)
     static let vaultKey = Data((0..<32).map(UInt8.init))
+    static let alternateVaultKey = Data(repeating: 0xFF, count: 32)
+    static let keyID = try! V3VaultKeyID.derive(
+        vaultKey: vaultKey,
+        vaultID: vaultID
+    )
+    static let alternateKeyID = try! V3VaultKeyID.derive(
+        vaultKey: alternateVaultKey,
+        vaultID: vaultID
+    )
 
     let signingPrivateKey = P256.Signing.PrivateKey()
     let wrappingPrivateKey = P256.KeyAgreement.PrivateKey()
@@ -644,50 +726,50 @@ private struct Fixture {
     func content(
         parent: CanonicalJSONValue,
         mode: V3VaultMode = .shared,
-        keyEpoch: UInt64 = 1,
+        keyID: V3VaultKeyID = Fixture.keyID,
         role: V3DeviceRole = .owner,
         status: V3DeviceStatus = .active,
         includeDevice: Bool = true,
         includeWrapper: Bool? = nil,
-        wrapperKeyEpoch: UInt64? = nil,
         wrapperDeviceID: String? = nil,
         additionalDeviceRole: V3DeviceRole? = nil,
         deviceID overriddenDeviceID: String? = nil,
         entryName: String = "email/personal",
-        entryRevision: UInt64 = 4
+        entryRevision: UInt64 = 4,
+        entryKeyID: V3VaultKeyID = Fixture.keyID
     ) -> CanonicalJSONValue {
         .object([
             ("parent", parent),
             ("manifest", manifest(
                 mode: mode,
-                keyEpoch: keyEpoch,
+                keyID: keyID,
                 role: role,
                 status: status,
                 includeDevice: includeDevice,
                 includeWrapper: includeWrapper,
-                wrapperKeyEpoch: wrapperKeyEpoch,
                 wrapperDeviceID: wrapperDeviceID,
                 additionalDeviceRole: additionalDeviceRole,
                 deviceID: overriddenDeviceID,
                 entryName: entryName,
-                entryRevision: entryRevision
+                entryRevision: entryRevision,
+                entryKeyID: entryKeyID
             ))
         ])
     }
 
     func manifest(
         mode: V3VaultMode,
-        keyEpoch: UInt64,
+        keyID: V3VaultKeyID,
         role: V3DeviceRole,
         status: V3DeviceStatus,
         includeDevice: Bool,
         includeWrapper: Bool?,
-        wrapperKeyEpoch: UInt64?,
         wrapperDeviceID: String?,
         additionalDeviceRole: V3DeviceRole?,
         deviceID overriddenDeviceID: String?,
         entryName: String,
-        entryRevision: UInt64
+        entryRevision: UInt64,
+        entryKeyID: V3VaultKeyID
     ) -> CanonicalJSONValue {
         let actualDeviceID = overriddenDeviceID ?? deviceID
         var deviceRecords: [(String, CanonicalJSONValue)] = []
@@ -732,36 +814,32 @@ private struct Fixture {
             .sorted { Data($0.0.utf8).lexicographicallyPrecedes(Data($1.0.utf8)) }
             .map(\.1)
 
-        var wrapperRecords: [(UInt64, String, CanonicalJSONValue)] = []
+        var wrapperRecords: [(String, CanonicalJSONValue)] = []
         if includeWrapper ?? includeDevice {
             let actualWrapperDeviceID = wrapperDeviceID ?? actualDeviceID
-            let actualWrapperKeyEpoch = wrapperKeyEpoch ?? keyEpoch
-            wrapperRecords.append((actualWrapperKeyEpoch, actualWrapperDeviceID, .object([
+            wrapperRecords.append((actualWrapperDeviceID, .object([
                 ("deviceID", .string(actualWrapperDeviceID)),
-                ("keyEpoch", .integer(actualWrapperKeyEpoch)),
                 ("algorithm", .string("p256-ecies-x963-sha256-aes-gcm")),
                 ("ciphertext", .string("AQID"))
             ])))
         }
         if additionalDeviceRole != nil {
-            wrapperRecords.append((keyEpoch, alternateDeviceID, .object([
+            wrapperRecords.append((alternateDeviceID, .object([
                 ("deviceID", .string(alternateDeviceID)),
-                ("keyEpoch", .integer(keyEpoch)),
                 ("algorithm", .string("p256-ecies-x963-sha256-aes-gcm")),
                 ("ciphertext", .string("BAUG"))
             ])))
         }
-        let wrappedKeys = wrapperRecords.sorted {
-            $0.0 < $1.0 || ($0.0 == $1.0
-                && Data($0.1.utf8).lexicographicallyPrecedes(Data($1.1.utf8)))
-        }.map(\.2)
+        let wrappedKeys = wrapperRecords
+            .sorted { Data($0.0.utf8).lexicographicallyPrecedes(Data($1.0.utf8)) }
+            .map(\.1)
 
         return .object([
             ("format", .string("key-vault-manifest")),
             ("version", .integer(3)),
             ("vaultID", .string(Self.vaultID)),
             ("mode", .string(mode.rawValue)),
-            ("keyEpoch", .integer(keyEpoch)),
+            ("keyID", .string(keyID.rawValue)),
             ("devices", .array(devices)),
             ("wrappedKeys", .array(wrappedKeys)),
             ("entries", .array([
@@ -770,7 +848,7 @@ private struct Fixture {
                     ("name", .string(entryName)),
                     ("type", .string("secret")),
                     ("revision", .integer(entryRevision)),
-                    ("keyEpoch", .integer(min(keyEpoch, 1))),
+                    ("keyID", .string(entryKeyID.rawValue)),
                     ("ciphertextDigest", .string(Self.digest))
                 ])
             ]))
@@ -787,13 +865,14 @@ private struct Fixture {
     func envelope(
         content: CanonicalJSONValue,
         signers: [(String, P256.Signing.PrivateKey)] = [],
-        forceHighS: Bool = false
+        forceHighS: Bool = false,
+        vaultKey: Data = Fixture.vaultKey
     ) throws -> Data {
         let canonicalContent = CanonicalJSON.encode(content)
         let tag = try V3ManifestAuthenticator.authenticationTag(
             canonicalContent: canonicalContent,
             vaultID: Self.vaultID,
-            vaultKey: Self.vaultKey
+            vaultKey: vaultKey
         )
         let input = V3ManifestAuthenticator.authenticationInput(for: canonicalContent)
         let digest = SHA256.hash(data: input)
@@ -814,21 +893,10 @@ private struct Fixture {
             ("content", content),
             ("authentication", .object([
                 ("algorithm", .string("HKDF-SHA256+HMAC-SHA256")),
-                ("keyEpoch", .integer(manifestKeyEpoch(in: content))),
                 ("tag", .string(encodeBase64URL(tag)))
             ])),
             ("authorizations", .array(authorizations))
         ]))
-    }
-
-    private func manifestKeyEpoch(in content: CanonicalJSONValue) -> UInt64 {
-        guard case let .object(contentMembers) = content,
-              case let .object(manifestMembers)? = contentMembers.first(where: { $0.0 == "manifest" })?.1,
-              case let .integer(keyEpoch)? = manifestMembers.first(where: { $0.0 == "keyEpoch" })?.1
-        else {
-            preconditionFailure("Fixture content has no manifest key epoch.")
-        }
-        return keyEpoch
     }
 }
 
