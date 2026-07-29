@@ -72,15 +72,11 @@
       "additionalProperties": false,
       "required": [
         "kind",
-        "generation",
         "digest"
       ],
       "properties": {
         "kind": {
           "const": "manifest"
-        },
-        "generation": {
-          "$ref": "v3-common.schema.json#/$defs/safeInteger"
         },
         "digest": {
           "$ref": "v3-common.schema.json#/$defs/sha256"

@@ -15,8 +15,8 @@ state.
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
 | Current branch | `agent/require-expected-vault-head` |
 | Current PR | Not opened |
-| Active increment | `HIST-402` Identify trusted vault state by its exact authenticated manifest digest |
-| Next work | Remove manifest generations while retaining single-parent history |
+| Active increment | `HIST-402` implemented on branch; awaiting review |
+| Next work | Commit and review the exact-head implementation, then begin `KEY-403` |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -78,10 +78,10 @@ squash-merged as `942e444` in PR #18, and `FMT-206` squash-merged as
 
 Acceptance gate:
 
-- Cross-vault, name, type, generation, and revision substitution fails.
-- Historical manifests or entries return explicit rollback/conflict errors.
+- Cross-vault, name, type, key-epoch, and revision substitution fails.
+- A manifest other than the exact checkpointed head is never silently trusted.
 - Unknown or inconsistent metadata fails closed.
-- Migration never deletes the only readable generation.
+- Migration never deletes the only readable vault state.
 
 ### PR 3 — Root-Contained Filesystem
 
@@ -105,7 +105,7 @@ security or durability boundary and updates this tracker before it merges.
 | Increment | Status | Purpose |
 |---|---|---|
 | `TXN-401` | Complete; PR #29 | Serialize helper-owned mutations and assign local operation IDs |
-| `HIST-402` | In progress | Identify trusted vault state by an exact authenticated head digest |
+| `HIST-402` | Implemented; awaiting review | Identify trusted vault state by an exact authenticated head digest |
 | `KEY-403` | Planned | Replace counter-only key epochs with exact vault-key identities |
 | `HIST-404` | Planned | Admit canonical multi-parent manifests and authenticated merge history |
 | `STORE-405` | Planned | Read immutable digest-addressed objects and classify repository state |
@@ -305,7 +305,35 @@ Acceptance gate:
 - Immutable history is retained initially. Provider-safe garbage collection is
   deferred until recovery and realistic provider tests establish safe rules.
 
-### PR 5 — Enrollment And Revocation
+### Design Lineage
+
+The history and conflict model applies established ideas to Enclave's narrow
+file-vault domain; it is not a new general-purpose synchronization protocol.
+These references are non-normative, and Enclave does not adopt their on-disk
+formats or transport stacks:
+
+- [Git's data model](https://git-scm.com/docs/gitdatamodel.html) supplies
+  immutable content-addressed objects, parent-linked history, and merge
+  ancestry. Enclave does not adopt Git's mutable refs or text merge machinery.
+- [restic's repository design](https://github.com/restic/restic/blob/master/doc/design.rst)
+  supplies the publication invariant that referenced immutable data is durable
+  before the snapshot naming it is published.
+- [CouchDB's conflict model](https://docs.couchdb.org/en/stable/replication/conflicts.html)
+  demonstrates retaining concurrent revision leaves for later reconciliation.
+  Enclave does not silently expose a deterministic winner.
+- [Automerge's merge rules](https://automerge.org/docs/reference/under-the-hood/merge-rules/)
+  inform common-ancestor comparison and automatic combination of independent
+  fields. Enclave does not require a general CRDT engine for coarse vault
+  entries.
+- [The Update Framework specification](https://theupdateframework.github.io/specification/)
+  informs rollback, freeze, fast-forward, and mix-and-match threat analysis.
+  Enclave uses authenticated ancestry rather than TUF's centralized version
+  stream.
+- [Tahoe-LAFS architecture](https://tahoe-lafs.readthedocs.io/en/latest/architecture.html)
+  informs the separation between immutable encrypted objects, human-readable
+  names, and future least-authority sharing capabilities.
+
+### Enrollment And Revocation Track
 
 - [ ] Bind enrollment to both keys, roles, vault ID, nonces, and expiry.
 - [ ] Derive and independently display a transcript authentication value.
@@ -313,7 +341,7 @@ Acceptance gate:
 - [ ] Add device inspection and revoke/rotate commands.
 - [ ] Re-encrypt for remaining devices after revocation.
 
-### PR 6 — Recovery, CLI UX, And Release
+### Release Track
 
 - [ ] Decide and test the all-devices-lost policy.
 - [ ] Add doctor, transaction, conflict, recovery, and device diagnostics.
@@ -339,7 +367,7 @@ Acceptance gate:
 | `DEC-011` | Accepted | Implement v3 copy and rename as authenticated decrypt-and-reseal operations. Copy creates a fresh logical entry at revision 1; rename preserves the logical entry ID and advances its revision. Both preserve exact valid UTF-8 plaintext bytes, type, and key epoch and require a fresh nonce. |
 | `DEC-012` | Accepted | Treat authentication and freshness as separate gates. Persist one exact vault ID and manifest-envelope digest in the non-synchronizing device-local Keychain; advance it under the serialized helper mutation owner with an expected-checkpoint guard only after verifying authenticated ancestry. Require the freshness-approved manifest type for entry open, copy, and rename. |
 | `DEC-013` | Accepted | Keep local manifests free of device-membership and wrapped-key records. Require shared manifests to retain at least one active owner and exactly one current-epoch wrapped key for every active device, with no wrapper for a revoked or unknown device. Defer membership-transition ceremonies to enrollment and revocation work. |
-| `DEC-014` | Accepted | Make migration opt-in. Ship `key migrate --check` as a helper-owned, read-only v2 compatibility and decryptability check. A later writer must stage and verify v3 beside the untouched v2 source, commit only through the transaction root pointer, and retain v2 until verified reopen and explicit cleanup. |
+| `DEC-014` | Accepted | Make migration opt-in. Ship `key migrate --check` as a helper-owned, read-only v2 compatibility and decryptability check. A later writer must stage and verify v3 beside the untouched v2 source, select it only through an authenticated-head commit and device-local checkpoint transition, and retain v2 until verified reopen and explicit cleanup. |
 | `DEC-015` | Accepted | Treat the unreleased prototype as a migration exclusion, not a permanent runtime compatibility mode. `key migrate --check` refuses the exact root-level `.key-vault.json` marker before loading a key, while ordinary v2 reads remain unchanged and the strict v3 parser rejects prototype JSON. |
 | `DEC-016` | Accepted | Establish vault-root authority by opening the configured file URL once through Swift System's `FileDescriptor` with directory-only, no-follow, and close-on-exec semantics. Retain that descriptor and its device/inode identity for the lifetime of the filesystem session; later contained operations must resolve relative to the descriptor instead of trusting the configured path again. |
 | `DEC-017` | Accepted | Accept only canonical, nonempty relative child paths. Open one component at a time from the trusted root with `openat`, no-follow, close-on-exec, and directory-only semantics for every intermediate component. Verify that the terminal descriptor has the requested directory or regular-file type before use, and open special files nonblocking so an unexpected FIFO cannot stall the helper. |
@@ -355,8 +383,7 @@ Acceptance gate:
 - [x] Canonical manifest and entry-context encoding tests.
 - [x] Negative authentication tests for every bound field.
 - [x] Copy/rename identity, revision, collision, and exact-byte resealing tests.
-- [x] Manifest generation/digest and entry revision replay tests.
-- [ ] Exact-head and manifest-ancestry replay tests without generation counters.
+- [x] Exact-head and single-parent replay tests without manifest generations.
 - [x] Local/shared membership and current-epoch wrapped-key consistency tests.
 - [x] V2 migration-preflight compatibility, decryptability, and no-write tests.
 - [x] Prototype migration-marker and v3 parser rejection tests.
@@ -388,9 +415,6 @@ Acceptance gate:
 
 ## Immediate Next Action
 
-Complete `HIST-402`: remove manifest generations, make the exact authenticated
-manifest digest the trusted head identity, preserve single-parent child
-verification, and update schemas, specification text, examples, and tests.
-
-After `HIST-402` merges, begin `KEY-403`; do not introduce multi-parent
-manifests until exact vault-key identity is specified and implemented.
+Review and merge `HIST-402`. After it merges, begin `KEY-403`; do not introduce
+multi-parent manifests until exact vault-key identity is specified and
+implemented.

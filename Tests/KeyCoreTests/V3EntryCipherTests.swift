@@ -406,7 +406,6 @@ struct V3EntryCipherTests {
         let body = V3ManifestBody(
             vaultID: context.vaultID,
             mode: .local,
-            generation: 1,
             keyEpoch: context.keyEpoch,
             devices: [],
             wrappedKeys: [],
@@ -429,7 +428,6 @@ struct V3EntryCipherTests {
         )
         let checkpoint = try! V3ManifestCheckpoint(
             vaultID: context.vaultID,
-            generation: body.generation,
             envelopeDigest: envelopeDigest
         )
         return V3TrustedManifest(

@@ -82,8 +82,6 @@ public struct V3ManifestDevice: Equatable, Sendable {
     public let status: V3DeviceStatus
     public let signingPublicKey: V3DevicePublicKey
     public let wrappingPublicKey: V3DevicePublicKey
-    public let enrolledAtGeneration: UInt64
-    public let revokedAtGeneration: UInt64?
 }
 
 public struct V3WrappedKey: Equatable, Sendable {
@@ -104,7 +102,6 @@ public struct V3ManifestEntry: Equatable, Sendable {
 public struct V3ManifestBody: Equatable, Sendable {
     public let vaultID: String
     public let mode: V3VaultMode
-    public let generation: UInt64
     public let keyEpoch: UInt64
     public let devices: [V3ManifestDevice]
     public let wrappedKeys: [V3WrappedKey]
@@ -113,7 +110,7 @@ public struct V3ManifestBody: Equatable, Sendable {
 
 public enum V3ManifestParent: Equatable, Sendable {
     case genesis
-    case manifest(generation: UInt64, digest: String)
+    case manifest(digest: String)
 }
 
 public struct V3ManifestContent: Equatable, Sendable {
@@ -142,6 +139,47 @@ public struct V3ManifestEnvelope: Equatable, Sendable {
 public struct V3VerifiedManifest: Equatable, Sendable {
     public let envelope: V3ManifestEnvelope
     public let envelopeDigest: Data
+}
+
+public enum V3VaultHeadError: Error, Equatable, LocalizedError {
+    case invalidVaultID
+    case invalidDigest
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidVaultID:
+            "A version 3 vault head requires a canonical vault UUID."
+        case .invalidDigest:
+            "A version 3 vault head requires a complete SHA-256 manifest-envelope digest."
+        }
+    }
+}
+
+/// Exact identity of one authenticated manifest-envelope state.
+///
+/// The digest is SHA-256 over the canonical envelope bytes. It establishes
+/// identity; it does not imply that the manifest is current on this device.
+public struct V3VaultHead: Equatable, Sendable {
+    public let vaultID: String
+    public let envelopeDigest: Data
+
+    public init(vaultID: String, envelopeDigest: Data) throws {
+        guard isValidV3UUID(vaultID) else {
+            throw V3VaultHeadError.invalidVaultID
+        }
+        guard envelopeDigest.count == 32 else {
+            throw V3VaultHeadError.invalidDigest
+        }
+        self.vaultID = vaultID
+        self.envelopeDigest = envelopeDigest
+    }
+
+    init(verifiedManifest: V3VerifiedManifest) throws {
+        try self.init(
+            vaultID: verifiedManifest.envelope.content.manifest.vaultID,
+            envelopeDigest: verifiedManifest.envelopeDigest
+        )
+    }
 }
 
 public enum V3ManifestTrustAnchor: Equatable, Sendable {
@@ -212,9 +250,7 @@ public struct V3ManifestAuthenticator: Sendable {
         case let .parent(parentData):
             let parsedParent = try parse(parentData)
             try validateSemantics(parsedParent.content.manifest)
-            guard case let .manifest(generation, digest) = candidate.content.parent,
-                  generation == parsedParent.content.manifest.generation,
-                  candidate.content.manifest.generation == generation + 1,
+            guard case let .manifest(digest) = candidate.content.parent,
                   candidate.content.manifest.vaultID == parsedParent.content.manifest.vaultID,
                   try decodeBase64URL(digest, expectedByteCount: 32)
                     == Data(SHA256.hash(data: parentData))
@@ -253,7 +289,6 @@ public struct V3ManifestAuthenticator: Sendable {
         }
         let candidate = try parse(candidateData)
         guard candidate.content.manifest.vaultID == checkpoint.vaultID,
-              candidate.content.manifest.generation == checkpoint.generation,
               Data(SHA256.hash(data: candidateData)) == checkpoint.envelopeDigest
         else {
             throw V3ManifestError.parentMismatch
@@ -475,14 +510,10 @@ private enum ManifestDecoder {
         case "manifest":
             try requireFields(
                 parent,
-                required: ["kind", "generation", "digest"],
+                required: ["kind", "digest"],
                 path: "$.content.parent"
             )
             return .manifest(
-                generation: try integer(
-                    try requiredMember("generation", in: parent, path: "$.content.parent"),
-                    path: "$.content.parent.generation"
-                ),
                 digest: try base64URLString(
                     try requiredMember("digest", in: parent, path: "$.content.parent"),
                     length: 43,
@@ -499,7 +530,7 @@ private enum ManifestDecoder {
         try requireFields(
             manifest,
             required: [
-                "format", "version", "vaultID", "mode", "generation", "keyEpoch",
+                "format", "version", "vaultID", "mode", "keyEpoch",
                 "devices", "wrappedKeys", "entries"
             ],
             path: "$.content.manifest"
@@ -548,10 +579,6 @@ private enum ManifestDecoder {
                 path: "$.content.manifest.vaultID"
             ),
             mode: mode,
-            generation: try integer(
-                requiredMember("generation", in: manifest, path: "$.content.manifest"),
-                path: "$.content.manifest.generation"
-            ),
             keyEpoch: try integer(
                 requiredMember("keyEpoch", in: manifest, path: "$.content.manifest"),
                 path: "$.content.manifest.keyEpoch"
@@ -569,9 +596,8 @@ private enum ManifestDecoder {
             device,
             required: [
                 "deviceID", "displayName", "role", "status", "signingPublicKey",
-                "wrappingPublicKey", "enrolledAtGeneration"
+                "wrappingPublicKey"
             ],
-            optional: ["revokedAtGeneration"],
             path: path
         )
 
@@ -605,14 +631,7 @@ private enum ManifestDecoder {
                 requiredMember("wrappingPublicKey", in: device, path: path),
                 algorithm: "P-256-ECDH",
                 path: "\(path).wrappingPublicKey"
-            ),
-            enrolledAtGeneration: try integer(
-                requiredMember("enrolledAtGeneration", in: device, path: path),
-                path: "\(path).enrolledAtGeneration"
-            ),
-            revokedAtGeneration: try optionalMember("revokedAtGeneration", in: device).map {
-                try integer($0, path: "\(path).revokedAtGeneration")
-            }
+            )
         )
     }
 
@@ -767,22 +786,6 @@ private func validateSemantics(_ manifest: V3ManifestBody) throws {
     try validateDeviceOrderingAndIdentity(manifest.devices)
     try validateWrappedKeyOrdering(manifest.wrappedKeys, manifestKeyEpoch: manifest.keyEpoch)
     try validateEntryOrdering(manifest.entries, manifestKeyEpoch: manifest.keyEpoch)
-
-    for device in manifest.devices {
-        guard device.enrolledAtGeneration <= manifest.generation else {
-            throw V3ManifestError.semanticViolation("devices.enrolledAtGeneration")
-        }
-        switch (device.status, device.revokedAtGeneration) {
-        case (.active, nil):
-            break
-        case let (.revoked, .some(generation))
-            where generation >= device.enrolledAtGeneration && generation <= manifest.generation:
-            break
-        default:
-            throw V3ManifestError.semanticViolation("devices.revokedAtGeneration")
-        }
-    }
-
     try validateModeSpecificMembership(manifest)
 }
 

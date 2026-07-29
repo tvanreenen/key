@@ -14,13 +14,29 @@ struct V3ManifestReplayProtectionTests {
     func checkpointHasStrictCanonicalRepresentation() throws {
         let checkpoint = try V3ManifestCheckpoint(
             vaultID: Self.vaultID,
-            generation: 12,
             envelopeDigest: Data(0..<32)
         )
-        let expected = Data(#"{"envelopeDigest":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8","format":"key-vault-manifest-checkpoint","generation":12,"vaultID":"018f4d38-7d5a-7b20-b0f1-97d6e96c44b3","version":1}"#.utf8)
+        let expected = Data(#"{"envelopeDigest":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8","format":"key-vault-manifest-checkpoint","vaultID":"018f4d38-7d5a-7b20-b0f1-97d6e96c44b3","version":1}"#.utf8)
+        let expectedHead = try V3VaultHead(
+            vaultID: Self.vaultID,
+            envelopeDigest: Data(0..<32)
+        )
 
         #expect(checkpoint.canonicalBytes == expected)
         #expect(try V3ManifestCheckpoint(canonicalBytes: expected) == checkpoint)
+        #expect(checkpoint.head == expectedHead)
+        #expect(throws: V3VaultHeadError.invalidVaultID) {
+            _ = try V3VaultHead(
+                vaultID: "not-a-vault-id",
+                envelopeDigest: Data(0..<32)
+            )
+        }
+        #expect(throws: V3VaultHeadError.invalidDigest) {
+            _ = try V3VaultHead(
+                vaultID: Self.vaultID,
+                envelopeDigest: Data(repeating: 0, count: 31)
+            )
+        }
 
         #expect(throws: V3ManifestReplayError.invalidCheckpoint) {
             _ = try V3ManifestCheckpoint(canonicalBytes: Data((" " + String(decoding: expected, as: UTF8.self)).utf8))
@@ -37,7 +53,6 @@ struct V3ManifestReplayProtectionTests {
         #expect(throws: V3ManifestReplayError.invalidCheckpoint) {
             _ = try V3ManifestCheckpoint(
                 vaultID: Self.vaultID,
-                generation: 12,
                 envelopeDigest: Data(repeating: 0, count: 31)
             )
         }
@@ -47,7 +62,7 @@ struct V3ManifestReplayProtectionTests {
     func localGenesisBootstrapPersistsAndReopensExactCurrentManifest() throws {
         let store = MemoryManifestCheckpointStore()
         let protector = V3ManifestReplayProtector(store: store)
-        let genesis = try manifestData(generation: 1)
+        let genesis = try manifestData()
 
         let trusted = try protector.bootstrapLocalGenesis(
             genesis,
@@ -55,7 +70,6 @@ struct V3ManifestReplayProtectionTests {
             vaultKey: Self.key
         )
 
-        #expect(trusted.checkpoint.generation == 1)
         #expect(trusted.checkpoint.envelopeDigest == Data(SHA256.hash(data: genesis)))
         #expect(store.checkpoint(vaultID: Self.vaultID) == trusted.checkpoint.canonicalBytes)
         #expect(
@@ -75,18 +89,17 @@ struct V3ManifestReplayProtectionTests {
     }
 
     @Test
-    func exactChildAdvanceReplacesCheckpointAndRejectsParentRollback() throws {
+    func exactChildAdvanceReplacesCheckpointAndRejectsUnexpectedPriorHead() throws {
         let store = MemoryManifestCheckpointStore()
         let protector = V3ManifestReplayProtector(store: store)
-        let parent = try manifestData(generation: 1)
+        let parent = try manifestData()
         _ = try protector.bootstrapLocalGenesis(
             parent,
             expectedVaultID: Self.vaultID,
             vaultKey: Self.key
         )
         let child = try manifestData(
-            parent: parentReference(to: parent, generation: 1),
-            generation: 2,
+            parent: parentReference(to: parent),
             entryName: "email/current"
         )
 
@@ -98,7 +111,6 @@ struct V3ManifestReplayProtectionTests {
             candidateVaultKey: Self.key
         )
 
-        #expect(trustedChild.checkpoint.generation == 2)
         #expect(
             try protector.trustCurrent(
                 child,
@@ -106,10 +118,7 @@ struct V3ManifestReplayProtectionTests {
                 vaultKey: Self.key
             ) == trustedChild
         )
-        #expect(throws: V3ManifestReplayError.rollbackDetected(
-            trustedGeneration: 2,
-            observedGeneration: 1
-        )) {
+        #expect(throws: V3ManifestReplayError.unexpectedHead) {
             _ = try protector.trustCurrent(
                 parent,
                 expectedVaultID: Self.vaultID,
@@ -119,18 +128,18 @@ struct V3ManifestReplayProtectionTests {
     }
 
     @Test
-    func sameGenerationForkFutureJumpAndWrongVaultAreDistinct() throws {
+    func unexpectedDigestAndWrongVaultAreDistinct() throws {
         let store = MemoryManifestCheckpointStore()
         let protector = V3ManifestReplayProtector(store: store)
-        let genesis = try manifestData(generation: 1)
+        let genesis = try manifestData()
         _ = try protector.bootstrapLocalGenesis(
             genesis,
             expectedVaultID: Self.vaultID,
             vaultKey: Self.key
         )
 
-        let sibling = try manifestData(generation: 1, entryName: "email/fork")
-        #expect(throws: V3ManifestReplayError.divergentManifest(generation: 1)) {
+        let sibling = try manifestData(entryName: "email/fork")
+        #expect(throws: V3ManifestReplayError.unexpectedHead) {
             _ = try protector.trustCurrent(
                 sibling,
                 expectedVaultID: Self.vaultID,
@@ -139,13 +148,9 @@ struct V3ManifestReplayProtectionTests {
         }
 
         let child = try manifestData(
-            parent: parentReference(to: genesis, generation: 1),
-            generation: 2
+            parent: parentReference(to: genesis)
         )
-        #expect(throws: V3ManifestReplayError.untrustedAdvance(
-            trustedGeneration: 1,
-            observedGeneration: 2
-        )) {
+        #expect(throws: V3ManifestReplayError.unexpectedHead) {
             _ = try protector.trustCurrent(
                 child,
                 expectedVaultID: Self.vaultID,
@@ -154,7 +159,6 @@ struct V3ManifestReplayProtectionTests {
         }
 
         let otherVault = try manifestData(
-            generation: 1,
             vaultID: Self.otherVaultID
         )
         #expect(throws: V3ManifestReplayError.vaultMismatch) {
@@ -170,15 +174,14 @@ struct V3ManifestReplayProtectionTests {
     func failedAuthenticationAndCheckpointConflictLeaveTrustUnchanged() throws {
         let store = MemoryManifestCheckpointStore()
         let protector = V3ManifestReplayProtector(store: store)
-        let parent = try manifestData(generation: 1)
+        let parent = try manifestData()
         let trustedParent = try protector.bootstrapLocalGenesis(
             parent,
             expectedVaultID: Self.vaultID,
             vaultKey: Self.key
         )
         let wrongKeyChild = try manifestData(
-            parent: parentReference(to: parent, generation: 1),
-            generation: 2,
+            parent: parentReference(to: parent),
             signingKey: Data(repeating: 0xFF, count: 32)
         )
 
@@ -194,8 +197,7 @@ struct V3ManifestReplayProtectionTests {
         #expect(store.checkpoint(vaultID: Self.vaultID) == trustedParent.checkpoint.canonicalBytes)
 
         let validChild = try manifestData(
-            parent: parentReference(to: parent, generation: 1),
-            generation: 2
+            parent: parentReference(to: parent)
         )
         store.failNextReplace = true
         #expect(throws: V3ManifestCheckpointStoreError.conflict) {
@@ -212,7 +214,6 @@ struct V3ManifestReplayProtectionTests {
 
     private func manifestData(
         parent: CanonicalJSONValue = .object([("kind", .string("genesis"))]),
-        generation: UInt64,
         vaultID: String = V3ManifestReplayProtectionTests.vaultID,
         entryName: String? = nil,
         signingKey: Data = V3ManifestReplayProtectionTests.key
@@ -238,7 +239,6 @@ struct V3ManifestReplayProtectionTests {
                 ("version", .integer(3)),
                 ("vaultID", .string(vaultID)),
                 ("mode", .string("local")),
-                ("generation", .integer(generation)),
                 ("keyEpoch", .integer(1)),
                 ("devices", .array([])),
                 ("wrappedKeys", .array([])),
@@ -264,13 +264,9 @@ struct V3ManifestReplayProtectionTests {
         ]))
     }
 
-    private func parentReference(
-        to parent: Data,
-        generation: UInt64
-    ) -> CanonicalJSONValue {
+    private func parentReference(to parent: Data) -> CanonicalJSONValue {
         .object([
             ("kind", .string("manifest")),
-            ("generation", .integer(generation)),
             ("digest", .string(Base64URL.encode(Data(SHA256.hash(data: parent)))))
         ])
     }

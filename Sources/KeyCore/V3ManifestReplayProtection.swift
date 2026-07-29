@@ -6,9 +6,7 @@ public enum V3ManifestReplayError: Error, Equatable, LocalizedError {
     case invalidCheckpoint
     case checkpointNotFound
     case vaultMismatch
-    case rollbackDetected(trustedGeneration: UInt64, observedGeneration: UInt64)
-    case divergentManifest(generation: UInt64)
-    case untrustedAdvance(trustedGeneration: UInt64, observedGeneration: UInt64)
+    case unexpectedHead
 
     public var errorDescription: String? {
         switch self {
@@ -18,12 +16,8 @@ public enum V3ManifestReplayError: Error, Equatable, LocalizedError {
             "No local version 3 manifest checkpoint exists for this vault."
         case .vaultMismatch:
             "The observed manifest belongs to a different vault."
-        case let .rollbackDetected(trustedGeneration, observedGeneration):
-            "Manifest rollback detected: trusted generation \(trustedGeneration), observed generation \(observedGeneration)."
-        case let .divergentManifest(generation):
-            "A different manifest is already trusted at generation \(generation)."
-        case let .untrustedAdvance(trustedGeneration, observedGeneration):
-            "Manifest generation \(observedGeneration) cannot be trusted directly from generation \(trustedGeneration); verify each child transition."
+        case .unexpectedHead:
+            "The observed manifest is not the exact head trusted by this device; verify its authenticated ancestry before changing the checkpoint."
         }
     }
 }
@@ -51,24 +45,32 @@ public enum V3ManifestCheckpointStoreError: Error, Equatable, LocalizedError {
 /// Checkpoints are deliberately small so they can be stored outside the
 /// synchronized vault in this device's non-synchronizing Keychain.
 public struct V3ManifestCheckpoint: Equatable, Sendable {
-    public let vaultID: String
-    public let generation: UInt64
-    public let envelopeDigest: Data
+    public let head: V3VaultHead
+
+    public var vaultID: String {
+        head.vaultID
+    }
+
+    public var envelopeDigest: Data {
+        head.envelopeDigest
+    }
+
+    public init(head: V3VaultHead) {
+        self.head = head
+    }
 
     public init(
         vaultID: String,
-        generation: UInt64,
         envelopeDigest: Data
     ) throws {
-        guard isValidV3UUID(vaultID),
-              generation <= v3MaximumSafeInteger,
-              envelopeDigest.count == 32
-        else {
+        do {
+            self.init(head: try V3VaultHead(
+                vaultID: vaultID,
+                envelopeDigest: envelopeDigest
+            ))
+        } catch {
             throw V3ManifestReplayError.invalidCheckpoint
         }
-        self.vaultID = vaultID
-        self.generation = generation
-        self.envelopeDigest = envelopeDigest
     }
 
     public init(canonicalBytes: Data) throws {
@@ -81,12 +83,11 @@ public struct V3ManifestCheckpoint: Equatable, Sendable {
         guard CanonicalJSON.encode(json) == canonicalBytes,
               let object = json.objectValue,
               Set(object.map(\.0)) == Set([
-                "envelopeDigest", "format", "generation", "vaultID", "version"
+                "envelopeDigest", "format", "vaultID", "version"
               ]),
               checkpointString("format", in: object) == "key-vault-manifest-checkpoint",
               checkpointInteger("version", in: object) == 1,
               let vaultID = checkpointString("vaultID", in: object),
-              let generation = checkpointInteger("generation", in: object),
               let digestString = checkpointString("envelopeDigest", in: object),
               let envelopeDigest = Base64URL.decodeCanonical(digestString)
         else {
@@ -94,7 +95,6 @@ public struct V3ManifestCheckpoint: Equatable, Sendable {
         }
         try self.init(
             vaultID: vaultID,
-            generation: generation,
             envelopeDigest: envelopeDigest
         )
     }
@@ -104,22 +104,17 @@ public struct V3ManifestCheckpoint: Equatable, Sendable {
             ("format", .string("key-vault-manifest-checkpoint")),
             ("version", .integer(1)),
             ("vaultID", .string(vaultID)),
-            ("generation", .integer(generation)),
             ("envelopeDigest", .string(Base64URL.encode(envelopeDigest)))
         ]))
     }
 
     init(verifiedManifest: V3VerifiedManifest) throws {
-        try self.init(
-            vaultID: verifiedManifest.envelope.content.manifest.vaultID,
-            generation: verifiedManifest.envelope.content.manifest.generation,
-            envelopeDigest: verifiedManifest.envelopeDigest
-        )
+        self.init(head: try V3VaultHead(verifiedManifest: verifiedManifest))
     }
 }
 
-/// Authenticated manifest state whose exact generation and digest have also
-/// passed the device-local freshness gate.
+/// Authenticated manifest state whose exact head has also passed the
+/// device-local freshness gate.
 public struct V3TrustedManifest: Equatable, Sendable {
     public let verifiedManifest: V3VerifiedManifest
     public let checkpoint: V3ManifestCheckpoint
@@ -203,8 +198,8 @@ public struct V3ManifestReplayProtector: Sendable {
         )
     }
 
-    /// Re-opens only the exact generation and envelope digest already anchored
-    /// in this device's local checkpoint.
+    /// Re-opens only the exact head already anchored in this device's local
+    /// checkpoint.
     public func trustCurrent(
         _ manifestData: Data,
         expectedVaultID: String,
@@ -223,24 +218,10 @@ public struct V3ManifestReplayProtector: Sendable {
         guard observedBody.vaultID == expectedVaultID else {
             throw V3ManifestReplayError.vaultMismatch
         }
-        if observedBody.generation < checkpoint.generation {
-            throw V3ManifestReplayError.rollbackDetected(
-                trustedGeneration: checkpoint.generation,
-                observedGeneration: observedBody.generation
-            )
-        }
-        if observedBody.generation > checkpoint.generation {
-            throw V3ManifestReplayError.untrustedAdvance(
-                trustedGeneration: checkpoint.generation,
-                observedGeneration: observedBody.generation
-            )
-        }
 
         let observedDigest = Data(SHA256.hash(data: manifestData))
         guard observedDigest == checkpoint.envelopeDigest else {
-            throw V3ManifestReplayError.divergentManifest(
-                generation: checkpoint.generation
-            )
+            throw V3ManifestReplayError.unexpectedHead
         }
 
         let verified = try authenticator.verifyCheckpointedCurrent(

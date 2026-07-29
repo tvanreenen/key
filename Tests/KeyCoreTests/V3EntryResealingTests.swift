@@ -362,7 +362,6 @@ struct V3EntryResealingTests {
         let body = V3ManifestBody(
             vaultID: Self.vaultID,
             mode: .local,
-            generation: 12,
             keyEpoch: 3,
             devices: [],
             wrappedKeys: [],
@@ -385,7 +384,6 @@ struct V3EntryResealingTests {
         )
         let checkpoint = try! V3ManifestCheckpoint(
             vaultID: Self.vaultID,
-            generation: body.generation,
             envelopeDigest: envelopeDigest
         )
         return V3TrustedManifest(

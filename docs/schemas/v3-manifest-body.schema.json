@@ -10,7 +10,6 @@
     "version",
     "vaultID",
     "mode",
-    "generation",
     "keyEpoch",
     "devices",
     "wrappedKeys",
@@ -32,9 +31,6 @@
         "local",
         "shared"
       ]
-    },
-    "generation": {
-      "$ref": "v3-common.schema.json#/$defs/safeInteger"
     },
     "keyEpoch": {
       "$ref": "v3-common.schema.json#/$defs/safeInteger"
@@ -68,8 +64,7 @@
         "role",
         "status",
         "signingPublicKey",
-        "wrappingPublicKey",
-        "enrolledAtGeneration"
+        "wrappingPublicKey"
       ],
       "properties": {
         "deviceID": {
@@ -99,40 +94,8 @@
         },
         "wrappingPublicKey": {
           "$ref": "#/$defs/wrappingPublicKey"
-        },
-        "enrolledAtGeneration": {
-          "$ref": "v3-common.schema.json#/$defs/safeInteger"
-        },
-        "revokedAtGeneration": {
-          "$ref": "v3-common.schema.json#/$defs/safeInteger"
         }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "status": {
-                "const": "revoked"
-              }
-            },
-            "required": [
-              "status"
-            ]
-          },
-          "then": {
-            "required": [
-              "revokedAtGeneration"
-            ]
-          },
-          "else": {
-            "not": {
-              "required": [
-                "revokedAtGeneration"
-              ]
-            }
-          }
-        }
-      ]
+      }
     },
     "signingPublicKey": {
       "type": "object",
