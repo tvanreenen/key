@@ -326,7 +326,7 @@ struct V3ImmutableObjectRepositoryTests {
             entryID: sealed.record.entryID,
             name: "email/renamed",
             type: sealed.record.type,
-            revision: sealed.record.revision,
+            revision: sealed.record.revision + 1,
             keyID: sealed.record.keyID,
             ciphertextDigest: sealed.record.ciphertextDigest
         )

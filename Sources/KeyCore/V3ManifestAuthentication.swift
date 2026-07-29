@@ -314,6 +314,10 @@ public struct V3ManifestAuthenticator: Sendable {
             } else if !candidate.authorizations.isEmpty {
                 throw V3ManifestError.unexpectedAuthorization
             }
+            try validateEntryRevisionTransition(
+                to: candidate.content.manifest,
+                from: parents
+            )
             return
         }
 
@@ -336,6 +340,63 @@ public struct V3ManifestAuthenticator: Sendable {
         }
         guard candidate.authorizations.isEmpty else {
             throw V3ManifestError.unexpectedAuthorization
+        }
+        try validateEntryRevisionTransition(
+            to: candidate.content.manifest,
+            from: parents
+        )
+    }
+
+    private func validateEntryRevisionTransition(
+        to candidate: V3ManifestBody,
+        from parents: [V3VerifiedManifest]
+    ) throws {
+        let parentEntriesByID = try parents.map { parent in
+            var entriesByID: [String: V3ManifestEntry] = [:]
+            for entry in parent.envelope.content.manifest.entries {
+                guard entriesByID.updateValue(
+                    entry,
+                    forKey: entry.entryID
+                ) == nil else {
+                    throw V3ManifestError.semanticViolation("entries.duplicate")
+                }
+            }
+            return entriesByID
+        }
+
+        for candidateEntry in candidate.entries {
+            let parentEntries = parentEntriesByID.compactMap {
+                $0[candidateEntry.entryID]
+            }
+
+            guard !parentEntries.isEmpty else {
+                guard candidateEntry.revision == 1 else {
+                    throw V3ManifestError.semanticViolation("entries.revision")
+                }
+                continue
+            }
+
+            guard let highestRevision = parentEntries.map(\.revision).max()
+            else {
+                throw V3ManifestError.semanticViolation("entries.revision")
+            }
+            let highestRevisionEntries = parentEntries.filter {
+                $0.revision == highestRevision
+            }
+
+            if parentEntries.contains(candidateEntry) {
+                guard candidateEntry.revision == highestRevision,
+                      highestRevisionEntries.allSatisfy({
+                          $0 == candidateEntry
+                      })
+                else {
+                    throw V3ManifestError.semanticViolation("entries.revision")
+                }
+            } else {
+                guard candidateEntry.revision > highestRevision else {
+                    throw V3ManifestError.semanticViolation("entries.revision")
+                }
+            }
         }
     }
 
