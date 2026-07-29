@@ -1,12 +1,14 @@
 # Key Vault Version 3 Storage Format
 
-Status: normative schema, authority, replay, membership, migration, and
-prototype-refusal specification for `FMT-201` through `FMT-210`.
+Status: normative schema, authority, replay, membership, migration,
+prototype-refusal, and exact-head specification through `HIST-402`.
 
-This document freezes the data model and canonical encoding for the version 3
-vault manifest body, authenticated manifest envelope, and encrypted entry
-files. The envelope uses layered symmetric authentication and device
-authorization as defined below.
+This document defines the current unreleased data model and canonical encoding
+for the version 3 vault manifest body, authenticated manifest envelope, and
+encrypted entry files. The envelope uses layered symmetric authentication and
+device authorization as defined below. Planned format changes are explicitly
+listed under Deliberately Deferred and must update this specification before
+implementation.
 
 No version 3 reader or writer is enabled by this specification.
 
@@ -31,7 +33,7 @@ Version 3 has one manifest body that names a complete logical vault state.
 That body commits:
 
 - the vault identity and security mode;
-- the manifest generation and active key epoch;
+- the active key epoch;
 - device membership and roles;
 - wrapped keys eligible for the active epoch; and
 - every committed entry identity, logical name, semantic type, revision,
@@ -41,9 +43,9 @@ An entry file repeats its authenticated identity context beside its AES-GCM
 payload. Those fields are untrusted until authenticated as associated data by
 `FMT-204` and `FMT-205`.
 
-Unchanged entries can be referenced by successive manifest generations without
-being re-encrypted. Therefore an entry contains its own revision and key epoch,
-not the generation number of a particular manifest that references it.
+Unchanged entries can be referenced by successive manifests without being
+re-encrypted. Therefore an entry contains its own revision and key epoch, while
+the exact authenticated envelope digest identifies each complete vault state.
 
 ## Canonical JSON
 
@@ -104,13 +106,13 @@ protocol identities differ.
 | `vaultID` | lowercase UUID | Random, permanent identity of one vault |
 | `entryID` | lowercase UUID | Random, permanent identity of one logical entry |
 | `deviceID` | 43-character base64url | SHA-256 fingerprint of the canonical signing/wrapping public-key pair |
-| `generation` | nonnegative safe integer | Monotonic committed manifest generation |
 | `keyEpoch` | nonnegative safe integer | Monotonic vault encryption-key epoch |
 | `revision` | positive safe integer | Monotonic revision of one `entryID` |
 
 IDs MUST NOT be reused after deletion or revocation. Counters MUST NOT wrap.
 The transaction and enrollment specifications will define exactly when each
-counter advances.
+remaining counter advances. Manifest freshness, ancestry, and concurrency MUST
+NOT be inferred from either counter.
 
 ## Manifest Body
 
@@ -122,7 +124,6 @@ The canonical manifest body has these fields and no others:
 | `version` | integer | Exactly `3` |
 | `vaultID` | UUID | Permanent vault identity |
 | `mode` | enum | `local` or `shared` |
-| `generation` | integer | Current committed manifest generation |
 | `keyEpoch` | integer | Current vault-key epoch |
 | `devices` | array | Device membership records |
 | `wrappedKeys` | array | Per-device wrappers for vault keys |
@@ -142,8 +143,6 @@ projection that omits an admitted field.
 | `status` | enum | `active` or `revoked` |
 | `signingPublicKey` | object | P-256 ECDSA public key in X9.63 encoding |
 | `wrappingPublicKey` | object | P-256 ECDH public key in X9.63 encoding |
-| `enrolledAtGeneration` | integer | First generation containing the device |
-| `revokedAtGeneration` | integer | Required only when `status` is `revoked` |
 
 Each public-key value MUST decode to the 65-byte uncompressed P-256 X9.63 form,
 including the leading `0x04`, and MUST represent a valid point on the curve.
@@ -175,8 +174,11 @@ therefore ordinary entry-only manifests deliberately do not require a
 signature.
 
 Revoked records remain in the manifest so a removed identity cannot be silently
-reintroduced as if it were new. Role semantics and enrollment authorization
-are finalized by `ENR-501` through `ENR-505`.
+reintroduced as if it were new. Enrollment and revocation are authenticated
+history transitions derived by comparing a manifest with its parent; the
+current snapshot does not carry a counter pretending to identify those
+transitions. Role semantics and enrollment authorization are finalized by
+`ENR-501` through `ENR-505`.
 
 ### Wrapped-Key Record
 
@@ -204,9 +206,8 @@ manifest.
 | `keyEpoch` | integer | Epoch used to encrypt this revision |
 | `ciphertextDigest` | 43-character base64url | SHA-256 of the exact canonical entry-file bytes |
 
-The physical entry filename is derived from `entryID`; it is not supplied by
-the manifest. The transaction/filesystem specifications will finalize the
-generation directory layout.
+The manifest supplies logical entry identity, not a trusted physical path. The
+immutable digest-addressed object layout is finalized by `STORE-405`.
 
 ### Manifest Ordering And Invariants
 
@@ -221,10 +222,6 @@ Readers MUST reject unsorted arrays. Readers MUST also reject:
 - duplicate device IDs, entry IDs, or normalized entry names;
 - a device ID that does not equal the fingerprint of its canonical signing and
   wrapping public-key pair;
-- `enrolledAtGeneration` later than the manifest generation;
-- an active device with `revokedAtGeneration`;
-- a revoked device without `revokedAtGeneration`, or with a revocation
-  generation earlier than enrollment or later than the manifest;
 - an entry or wrapped key whose `keyEpoch` exceeds the manifest `keyEpoch`;
 - a local manifest with any device or wrapped-key record;
 - a shared manifest without an active owner;
@@ -271,9 +268,10 @@ The persisted envelope has exactly:
 | `authorizations` | Sorted owner signatures; empty for ordinary entry-only transitions |
 
 `content.parent` is either `{"kind":"genesis"}` or an object containing
-`kind: "manifest"`, the parent generation, and SHA-256 of the exact canonical
-parent-envelope bytes. A non-genesis candidate MUST advance the parent
-generation by exactly one.
+`kind: "manifest"` and canonical base64url SHA-256 of the exact canonical
+parent-envelope bytes. A non-genesis candidate MUST name the exact trusted
+parent digest. `HIST-404` later replaces this singular reference with a
+canonical parent-digest array for authenticated merge history.
 
 The common authentication input is:
 
@@ -319,7 +317,7 @@ A reader MUST:
 7. apply all manifest semantic checks; and only then
 8. expose the candidate as authenticated state.
 
-Failure at any step leaves the trusted current generation unchanged.
+Failure at any step leaves the trusted current head unchanged.
 
 An HMAC alone does not establish freshness. A reader MUST also pass the
 device-local manifest freshness gate below before treating authenticated
@@ -335,7 +333,6 @@ The checkpoint is canonical JSON with exactly:
 | `format` | Exactly `key-vault-manifest-checkpoint` |
 | `version` | Exactly `1` |
 | `vaultID` | The independently expected vault UUID |
-| `generation` | The current trusted manifest generation |
 | `envelopeDigest` | Canonical base64url SHA-256 of the exact current manifest-envelope bytes |
 
 The checkpoint is rollback state, not synchronized vault content. The shipping
@@ -354,23 +351,23 @@ later enrollment and migration ceremonies.
 For an existing checkpoint, a reader classifies an observed manifest before
 exposing it as current:
 
-- a lower generation is an explicit rollback;
-- the same generation with a different envelope digest is an explicit
-  divergent-manifest conflict;
-- a higher generation cannot be adopted directly; and
-- only the exact generation and digest already in the checkpoint may be
-  reopened as current.
+- only the exact vault ID and envelope digest already in the checkpoint may be
+  reopened as current;
+- any other manifest from the same vault is an unexpected head and MUST NOT be
+  adopted from its fields or counters; and
+- rollback, descendant, and fork classification requires authenticating the
+  observed manifest's parent history back to the checkpointed head or a common
+  authenticated ancestor. That graph-aware classification belongs to
+  `STORE-405`.
 
-After the transaction layer has durably committed the candidate root pointer
-and retained the parent for recovery, advancement accepts exactly one
-authenticated child of the checkpointed parent. The reader first reopens the
-exact parent bytes through the checkpoint, then performs the complete child
-verification order above, and only then replaces the checkpoint while
-requiring the expected prior checkpoint. The parent and child vault keys are
-separate inputs because a valid authority transition may advance the key
-epoch. Authentication, semantic, authorization, or persistence failure leaves
-the prior checkpoint unchanged; transaction recovery can retry using the
-retained parent and committed child.
+During this linear increment, advancement accepts exactly one authenticated
+child of the checkpointed parent. The reader first reopens the exact parent
+bytes through the checkpoint, verifies that the child names that exact parent
+digest, performs the complete child verification order above, and only then
+replaces the checkpoint while requiring the expected prior checkpoint. The
+parent and child vault keys are separate inputs because a valid authority
+transition may advance the key epoch. Authentication, semantic, authorization,
+or persistence failure leaves the prior checkpoint unchanged.
 
 Only this freshness gate produces a `V3TrustedManifest`. Public entry open,
 copy, and rename operations require that type rather than a merely
@@ -446,8 +443,8 @@ require every duplicated entry-file field to equal that context.
 
 The context deliberately excludes:
 
-- manifest generation, because one immutable entry revision may be referenced
-  by multiple manifest generations;
+- manifest-envelope digest and parent history, because one immutable entry
+  revision may be referenced by multiple authenticated manifests;
 - `ciphertextDigest`, because it commits the completed canonical entry file
   from the manifest and including it in the entry's own tag would be circular;
   and
@@ -563,21 +560,21 @@ mutation owner immediately before staging output.
 The later migration writer and transaction layer MUST implement this rollback
 contract:
 
-1. Treat the version 2 vault as the active and only authoritative generation
+1. Treat the version 2 vault as the active and only authoritative state
    until a complete version 3 replacement has been staged and verified.
-2. Create version 3 artifacts in a distinct staging or immutable-generation
+2. Create version 3 artifacts in a distinct staging or immutable-object
    location. Never overwrite a version 2 entry in place.
 3. Authenticate and reopen every staged version 3 entry through its candidate
-   manifest before committing a root-pointer change.
-4. Make the root-pointer transition the only operation that selects version 3
-   as active state.
-5. On failure before that transition, discard only incomplete version 3
-   staging state; the untouched version 2 vault remains active.
+   manifest before publishing an authenticated version 3 head.
+4. Make the authenticated-head commit and device-local checkpoint transition
+   the only operation that selects version 3 as active state.
+5. On failure before that transition, discard only incomplete version 3 staging
+   state; the untouched version 2 vault remains active.
 6. Retain the complete version 2 source after transition until the committed
    version 3 vault has been reopened successfully and the user explicitly
    chooses a later cleanup policy.
 7. On interruption during or after the transition, use transaction recovery
-   to select one complete generation. Never combine version 2 and version 3
+   to select one complete state. Never combine version 2 and version 3
    files into a partially migrated active vault.
 
 `key migrate --check` implements only the diagnostic portion of this contract.
@@ -617,7 +614,6 @@ Manifest body:
   "version": 3,
   "vaultID": "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
   "mode": "shared",
-  "generation": 12,
   "keyEpoch": 3,
   "devices": [
     {
@@ -634,8 +630,7 @@ Manifest body:
         "algorithm": "P-256-ECDH",
         "encoding": "x963",
         "value": "BHzyexiNA09-ilI4AwS1GsPAiWnid_IbNaYLSPxHZpl4B3dVENuO0EApPZrGn3Qw27p9reY86YIpngS3nSJ4c9E"
-      },
-      "enrolledAtGeneration": 1
+      }
     }
   ],
   "wrappedKeys": [
@@ -668,7 +663,6 @@ Authenticated envelope:
   "content": {
     "parent": {
       "kind": "manifest",
-      "generation": 11,
       "digest": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     },
     "manifest": {
@@ -676,7 +670,6 @@ Authenticated envelope:
       "version": 3,
       "vaultID": "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
       "mode": "shared",
-      "generation": 12,
       "keyEpoch": 3,
       "devices": [
         {
@@ -693,8 +686,7 @@ Authenticated envelope:
             "algorithm": "P-256-ECDH",
             "encoding": "x963",
             "value": "BHzyexiNA09-ilI4AwS1GsPAiWnid_IbNaYLSPxHZpl4B3dVENuO0EApPZrGn3Qw27p9reY86YIpngS3nSJ4c9E"
-          },
-          "enrolledAtGeneration": 1
+          }
         }
       ],
       "wrappedKeys": [
@@ -770,18 +762,18 @@ defined by a later specification.
 
 ## Deliberately Deferred
 
-The following decisions are not part of `FMT-201` or `FMT-202`:
+`HIST-402` establishes exact digest-based identity for linear authenticated
+history. It deliberately does not define:
 
-- manifest authenticator implementation and key persistence (`FMT-203`);
-- exact AES-GCM associated-data bytes (`FMT-204`);
-- full membership/wrapper consistency rules (`FMT-208`);
-- physical migration execution beyond preflight;
-- physical root-pointer, generation, and transaction layout (`TXN-403`,
-  `TXN-404`); and
-- root-contained filesystem operations (`FS-301` through `FS-305`).
+- exact vault-key identity (`KEY-403`);
+- canonical multi-parent merge history (`HIST-404`);
+- immutable physical object layout and head discovery (`STORE-405`);
+- automatic reconciliation (`MERGE-406`);
+- transaction publication and recovery (`TXN-407` and `TXN-408`); or
+- physical migration execution beyond preflight.
 
-Until those work packages land, version 3 artifacts are specification fixtures,
-not trusted production state.
+Until those work packages land, version 3 artifacts remain disabled as trusted
+production state.
 
 Implementation boundaries and future extraction work are tracked in the
 [canonical JSON module plan](json-canonicalization.md).

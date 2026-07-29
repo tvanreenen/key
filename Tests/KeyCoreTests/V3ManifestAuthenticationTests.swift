@@ -101,6 +101,38 @@ struct V3ManifestAuthenticationTests {
     }
 
     @Test
+    func removedGenerationFieldsAreRejectedAsUnknown() throws {
+        let fixture = Fixture()
+        let parent = try fixture.envelope(
+            content: fixture.content(
+                parent: .object([("kind", .string("genesis"))]),
+                mode: .local,
+                includeDevice: false
+            )
+        )
+        let bodyWithGeneration = replacing(
+            parent,
+            "\"format\":\"key-vault-manifest\",\"keyEpoch\"",
+            with: "\"format\":\"key-vault-manifest\",\"generation\":1,\"keyEpoch\""
+        )
+        #expect(throws: V3ManifestError.invalidStructure("$.content.manifest")) {
+            _ = try V3ManifestAuthenticator().parse(bodyWithGeneration)
+        }
+
+        let child = try fixture.envelope(
+            content: fixture.content(parent: fixture.parentReference(to: parent))
+        )
+        let parentWithGeneration = replacing(
+            child,
+            ",\"kind\":\"manifest\"",
+            with: ",\"generation\":1,\"kind\":\"manifest\""
+        )
+        #expect(throws: V3ManifestError.invalidStructure("$.content.parent")) {
+            _ = try V3ManifestAuthenticator().parse(parentWithGeneration)
+        }
+    }
+
+    @Test
     func canonicalJSONFailuresMapToManifestErrors() {
         #expect(throws: V3ManifestError.duplicateProperty) {
             _ = try V3ManifestAuthenticator().parse(Data(#"{"a":1,"\u0061":2}"#.utf8))
@@ -155,7 +187,6 @@ struct V3ManifestAuthenticationTests {
         }
 
         let localReplacements = [
-            ("generation", "\"generation\":1,\"keyEpoch\"", "\"generation\":2,\"keyEpoch\""),
             ("entryID", Fixture.entryID, "018f4d39-930c-735d-8d6f-588e9b0a3a49"),
             ("entryName", "\"name\":\"email/personal\"", "\"name\":\"email/work\""),
             ("entryType", "\"type\":\"secret\"", "\"type\":\"totp\""),
@@ -204,8 +235,7 @@ struct V3ManifestAuthenticationTests {
         )
         let child = try fixture.envelope(
             content: fixture.content(
-                parent: fixture.parentReference(to: parent, generation: 1),
-                generation: 2,
+                parent: fixture.parentReference(to: parent),
                 entryRevision: 5
             )
         )
@@ -218,7 +248,6 @@ struct V3ManifestAuthenticationTests {
             ("status", "\"status\":\"active\"", "\"status\":\"revoked\""),
             ("signingPublicKey", fixture.signingPublicKeyValue, fixture.alternateSigningPublicKeyValue),
             ("wrappingPublicKey", fixture.wrappingPublicKeyValue, fixture.alternateWrappingPublicKeyValue),
-            ("enrolledAtGeneration", "\"enrolledAtGeneration\":0", "\"enrolledAtGeneration\":1"),
             ("wrappedKeyCiphertext", "\"ciphertext\":\"AQID\",\"deviceID\"", "\"ciphertext\":\"BAUG\",\"deviceID\""),
             (
                 "wrappedKeyEpoch",
@@ -245,14 +274,12 @@ struct V3ManifestAuthenticationTests {
         let parent = try fixture.envelope(
             content: fixture.content(
                 parent: .object([("kind", .string("genesis"))]),
-                generation: 1,
                 entryRevision: 4
             )
         )
         let child = try fixture.envelope(
             content: fixture.content(
-                parent: fixture.parentReference(to: parent, generation: 1),
-                generation: 2,
+                parent: fixture.parentReference(to: parent),
                 entryRevision: 5
             )
         )
@@ -263,7 +290,7 @@ struct V3ManifestAuthenticationTests {
             trustAnchor: .parent(parent)
         )
 
-        #expect(verified.envelope.content.manifest.generation == 2)
+        #expect(verified.envelope.content.manifest.entries.first?.revision == 5)
         #expect(verified.envelope.authorizations.isEmpty)
     }
 
@@ -276,8 +303,7 @@ struct V3ManifestAuthenticationTests {
         let otherParent = replacing(parent, Fixture.digest, with: String(repeating: "C", count: 43))
         let child = try fixture.envelope(
             content: fixture.content(
-                parent: fixture.parentReference(to: otherParent, generation: 1),
-                generation: 2
+                parent: fixture.parentReference(to: otherParent)
             )
         )
 
@@ -297,8 +323,7 @@ struct V3ManifestAuthenticationTests {
             content: fixture.content(parent: .object([("kind", .string("genesis"))]))
         )
         let candidateContent = fixture.content(
-            parent: fixture.parentReference(to: parent, generation: 1),
-            generation: 2,
+            parent: fixture.parentReference(to: parent),
             keyEpoch: 2
         )
         let unsigned = try fixture.envelope(content: candidateContent)
@@ -334,8 +359,7 @@ struct V3ManifestAuthenticationTests {
             )
         )
         let memberCandidateContent = ownerFixture.content(
-            parent: ownerFixture.parentReference(to: memberParent, generation: 1),
-            generation: 2,
+            parent: ownerFixture.parentReference(to: memberParent),
             keyEpoch: 2,
             additionalDeviceRole: .member
         )
@@ -357,8 +381,7 @@ struct V3ManifestAuthenticationTests {
             )
         )
         let introducedContent = ownerFixture.content(
-            parent: ownerFixture.parentReference(to: ownerOnlyParent, generation: 1),
-            generation: 2,
+            parent: ownerFixture.parentReference(to: ownerOnlyParent),
             additionalDeviceRole: .member
         )
         let introducedSigned = try ownerFixture.envelope(
@@ -377,8 +400,7 @@ struct V3ManifestAuthenticationTests {
             content: ownerFixture.content(parent: .object([("kind", .string("genesis"))]))
         )
         let ownerCandidateContent = ownerFixture.content(
-            parent: ownerFixture.parentReference(to: ownerParent, generation: 1),
-            generation: 2,
+            parent: ownerFixture.parentReference(to: ownerParent),
             keyEpoch: 2
         )
         let highSSigned = try ownerFixture.envelope(
@@ -402,8 +424,7 @@ struct V3ManifestAuthenticationTests {
             content: fixture.content(parent: .object([("kind", .string("genesis"))]))
         )
         let content = fixture.content(
-            parent: fixture.parentReference(to: parent, generation: 1),
-            generation: 2,
+            parent: fixture.parentReference(to: parent),
             entryRevision: 5
         )
         let signed = try fixture.envelope(
@@ -426,7 +447,7 @@ struct V3ManifestAuthenticationTests {
         let parent = try fixture.envelope(
             content: fixture.content(parent: .object([("kind", .string("genesis"))]))
         )
-        let parentReference = fixture.parentReference(to: parent, generation: 1)
+        let parentReference = fixture.parentReference(to: parent)
 
         func signedCandidate(_ content: CanonicalJSONValue) throws -> Data {
             try fixture.envelope(
@@ -437,8 +458,7 @@ struct V3ManifestAuthenticationTests {
 
         let localWithDevice = try signedCandidate(fixture.content(
             parent: parentReference,
-            mode: .local,
-            generation: 2
+            mode: .local
         ))
         #expect(throws: V3ManifestError.semanticViolation("devices.localMode")) {
             try V3ManifestAuthenticator().verify(
@@ -451,7 +471,6 @@ struct V3ManifestAuthenticationTests {
         let localWithWrapper = try signedCandidate(fixture.content(
             parent: parentReference,
             mode: .local,
-            generation: 2,
             includeDevice: false,
             includeWrapper: true
         ))
@@ -465,7 +484,6 @@ struct V3ManifestAuthenticationTests {
 
         let ownerless = try signedCandidate(fixture.content(
             parent: parentReference,
-            generation: 2,
             role: .member
         ))
         #expect(throws: V3ManifestError.semanticViolation("devices.activeOwner")) {
@@ -478,7 +496,6 @@ struct V3ManifestAuthenticationTests {
 
         let missingWrapper = try signedCandidate(fixture.content(
             parent: parentReference,
-            generation: 2,
             includeWrapper: false
         ))
         #expect(throws: V3ManifestError.semanticViolation("wrappedKeys.coverage")) {
@@ -491,7 +508,6 @@ struct V3ManifestAuthenticationTests {
 
         let staleWrapper = try signedCandidate(fixture.content(
             parent: parentReference,
-            generation: 2,
             wrapperKeyEpoch: 0
         ))
         #expect(throws: V3ManifestError.semanticViolation("wrappedKeys.keyEpoch")) {
@@ -504,7 +520,6 @@ struct V3ManifestAuthenticationTests {
 
         let unknownRecipient = try signedCandidate(fixture.content(
             parent: parentReference,
-            generation: 2,
             wrapperDeviceID: fixture.alternateDeviceID
         ))
         #expect(throws: V3ManifestError.semanticViolation("wrappedKeys.deviceID")) {
@@ -517,10 +532,8 @@ struct V3ManifestAuthenticationTests {
 
         let revokedWithWrapper = try signedCandidate(fixture.content(
             parent: parentReference,
-            generation: 2,
             role: .member,
             status: .revoked,
-            revokedAtGeneration: 2,
             additionalDeviceRole: .owner
         ))
         #expect(throws: V3ManifestError.semanticViolation("wrappedKeys.deviceID")) {
@@ -533,10 +546,8 @@ struct V3ManifestAuthenticationTests {
 
         let validRevokedMembership = try signedCandidate(fixture.content(
             parent: parentReference,
-            generation: 2,
             role: .member,
             status: .revoked,
-            revokedAtGeneration: 2,
             includeWrapper: false,
             additionalDeviceRole: .owner
         ))
@@ -572,8 +583,7 @@ struct V3ManifestAuthenticationTests {
             content: fixture.content(parent: .object([("kind", .string("genesis"))]))
         )
         let wrongDeviceIDContent = fixture.content(
-            parent: fixture.parentReference(to: parent, generation: 1),
-            generation: 2,
+            parent: fixture.parentReference(to: parent),
             deviceID: String(repeating: "A", count: 43)
         )
         let wrongDeviceID = try fixture.envelope(
@@ -634,11 +644,9 @@ private struct Fixture {
     func content(
         parent: CanonicalJSONValue,
         mode: V3VaultMode = .shared,
-        generation: UInt64 = 1,
         keyEpoch: UInt64 = 1,
         role: V3DeviceRole = .owner,
         status: V3DeviceStatus = .active,
-        revokedAtGeneration: UInt64? = nil,
         includeDevice: Bool = true,
         includeWrapper: Bool? = nil,
         wrapperKeyEpoch: UInt64? = nil,
@@ -652,11 +660,9 @@ private struct Fixture {
             ("parent", parent),
             ("manifest", manifest(
                 mode: mode,
-                generation: generation,
                 keyEpoch: keyEpoch,
                 role: role,
                 status: status,
-                revokedAtGeneration: revokedAtGeneration,
                 includeDevice: includeDevice,
                 includeWrapper: includeWrapper,
                 wrapperKeyEpoch: wrapperKeyEpoch,
@@ -671,11 +677,9 @@ private struct Fixture {
 
     func manifest(
         mode: V3VaultMode,
-        generation: UInt64,
         keyEpoch: UInt64,
         role: V3DeviceRole,
         status: V3DeviceStatus,
-        revokedAtGeneration: UInt64?,
         includeDevice: Bool,
         includeWrapper: Bool?,
         wrapperKeyEpoch: UInt64?,
@@ -688,7 +692,7 @@ private struct Fixture {
         let actualDeviceID = overriddenDeviceID ?? deviceID
         var deviceRecords: [(String, CanonicalJSONValue)] = []
         if includeDevice {
-            var members: [(String, CanonicalJSONValue)] = [
+            let members: [(String, CanonicalJSONValue)] = [
                 ("deviceID", .string(actualDeviceID)),
                 ("displayName", .string("Laptop")),
                 ("role", .string(role.rawValue)),
@@ -702,12 +706,8 @@ private struct Fixture {
                     ("algorithm", .string("P-256-ECDH")),
                     ("encoding", .string("x963")),
                     ("value", .string(wrappingPublicKeyValue))
-                ])),
-                ("enrolledAtGeneration", .integer(0))
+                ]))
             ]
-            if let revokedAtGeneration {
-                members.append(("revokedAtGeneration", .integer(revokedAtGeneration)))
-            }
             deviceRecords.append((actualDeviceID, .object(members)))
         }
         if let additionalDeviceRole {
@@ -725,8 +725,7 @@ private struct Fixture {
                     ("algorithm", .string("P-256-ECDH")),
                     ("encoding", .string("x963")),
                     ("value", .string(alternateWrappingPublicKeyValue))
-                ])),
-                ("enrolledAtGeneration", .integer(0))
+                ]))
             ])))
         }
         let devices = deviceRecords
@@ -762,7 +761,6 @@ private struct Fixture {
             ("version", .integer(3)),
             ("vaultID", .string(Self.vaultID)),
             ("mode", .string(mode.rawValue)),
-            ("generation", .integer(generation)),
             ("keyEpoch", .integer(keyEpoch)),
             ("devices", .array(devices)),
             ("wrappedKeys", .array(wrappedKeys)),
@@ -779,10 +777,9 @@ private struct Fixture {
         ])
     }
 
-    func parentReference(to envelope: Data, generation: UInt64) -> CanonicalJSONValue {
+    func parentReference(to envelope: Data) -> CanonicalJSONValue {
         .object([
             ("kind", .string("manifest")),
-            ("generation", .integer(generation)),
             ("digest", .string(encodeBase64URL(Data(SHA256.hash(data: envelope)))))
         ])
     }
