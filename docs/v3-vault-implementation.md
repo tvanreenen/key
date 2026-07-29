@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `89ee693` |
+| Production base | `main` at `80262fe` |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/admit-multi-parent-manifests` |
+| Current branch | `agent/discover-trusted-manifest-history` |
 | Current PR | Not opened |
-| Active increment | `HIST-404` implementation in progress |
-| Next work | Review and merge canonical multi-parent authentication, then begin `STORE-405` |
+| Active increment | `STORE-405` implementation in progress |
+| Next work | Review and merge read-only trusted history discovery, then begin `MERGE-406` |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -107,8 +107,8 @@ security or durability boundary and updates this tracker before it merges.
 | `TXN-401` | Complete; PR #29 | Serialize helper-owned mutations and assign local operation IDs |
 | `HIST-402` | Complete; PR #30 | Identify trusted vault state by an exact authenticated head digest |
 | `KEY-403` | Complete; PR #31 | Replace counter-only key epochs with exact vault-key identities |
-| `HIST-404` | Implemented; awaiting review | Admit canonical multi-parent manifests and authenticated merge history |
-| `STORE-405` | Planned | Read immutable digest-addressed objects and classify repository state |
+| `HIST-404` | Complete; PR #32 | Support canonical multi-parent manifests and authenticated merge history |
+| `STORE-405` | Implemented; awaiting review | Read immutable digest-addressed objects and classify repository state |
 | `MERGE-406` | Planned | Reconcile independent path changes and return typed conflicts |
 | `TXN-407` | Planned | Publish entries first and the expected-head manifest last |
 | `TXN-408` | Planned | Recover every interrupted transaction phase and resolve protected writes |
@@ -198,7 +198,7 @@ Acceptance gate:
 
 #### `HIST-404` — Merge-Capable Manifest History
 
-Status: implemented on `agent/admit-multi-parent-manifests`; awaiting review.
+Status: complete; squash-merged as `80262fe` in PR #32.
 
 Replace the singular parent with a canonical, sorted, duplicate-free parent
 digest array. Genesis has zero parents, ordinary commits have one, and merge
@@ -228,11 +228,13 @@ Acceptance gate:
 
 #### `STORE-405` — Immutable Object Repository
 
-Introduce a read-only repository over immutable digest-derived paths such as:
+Status: implemented on `agent/discover-trusted-manifest-history`; awaiting review.
+
+Introduce a read-only repository over immutable lowercase-hex digest paths:
 
 ```text
-manifests/<manifest-digest>.json
-entries/<entry-id>/<ciphertext-digest>.json
+manifests/<64-lowercase-hex-manifest-digest>.json
+entries/<entry-id>/<64-lowercase-hex-ciphertext-digest>.json
 ```
 
 Enumerate authenticated manifests, build their parent relationships, find leaf
@@ -240,13 +242,56 @@ heads, and classify the observed repository as ready, incomplete, content
 conflicted, security conflicted, or recovery required. Provider placeholders
 and missing referenced files are incomplete transport, not corruption.
 
+Implementation:
+
+- Resolve the `manifests` directory and every referenced object from the
+  retained vault-root descriptor with the existing no-follow containment
+  checks.
+- Use lowercase hexadecimal names even though authenticated manifest records
+  use canonical base64url digests. Hex avoids case-only filename collisions on
+  case-insensitive providers.
+- Require the exact checkpoint manifest to exist at its digest path, then walk
+  its digest-linked ancestors backward to recover the authenticated common
+  history without requiring every historical vault key to remain available.
+- Fully authenticate forward descendants against their complete verified
+  parent sets and every locally available exact vault key.
+- Recursively inspect the unresolved ancestry of a cryptographically
+  authenticated candidate before calling the graph complete. Treat a missing
+  object on a still-plausible branch as incomplete transport, but do not let a
+  candidate that already violates merge authority or authorization rules block
+  repository readiness.
+- Read each distinct encrypted entry object once, then validate its digest,
+  canonical structure, and every manifest-derived context that references
+  those bytes. Reusing ciphertext after changing authenticated entry metadata
+  is recovery-required state.
+- Return a typed ancestry proof only for complete ready or conflicted graphs.
+  The proof is read-only and does not advance the device-local checkpoint.
+- Bound one scan to 4,096 manifest-directory objects, history depth 1,024,
+  16,384 distinct referenced entry objects, 2 MiB per manifest, and 16 MiB per
+  encrypted entry, with 64 MiB cumulative manifest input and 256 MiB cumulative
+  entry input.
+
+Classification:
+
+- `ready`: exactly one complete authenticated reachable head;
+- `incomplete`: a checkpoint-linked manifest, authenticated branch parent, or
+  referenced entry is missing or still a provider placeholder;
+- `contentConflicted`: multiple complete authenticated heads have identical
+  vault authority state;
+- `securityConflicted`: multiple complete authenticated heads disagree on
+  mode, active key identity, membership, roles, public keys, statuses, or
+  wrapped-key state; and
+- `recoveryRequired`: a referenced immutable path contains the wrong bytes,
+  fails structural validation, violates containment, or exceeds a resource
+  bound.
+
 Acceptance gate:
 
-- No synchronized mutable `current` pointer is authoritative.
-- Concurrent writers use unique names and cannot overwrite one another.
-- Invalid unreferenced objects cannot replace trusted history.
-- Graph traversal has explicit object-count and depth bounds.
-- This increment remains read-only.
+- [x] No synchronized mutable `current` pointer is authoritative.
+- [x] Concurrent writers use unique names and cannot overwrite one another.
+- [x] Invalid unreferenced objects cannot replace trusted history.
+- [x] Graph traversal has explicit object-count and depth bounds.
+- [x] This increment remains read-only.
 
 #### `MERGE-406` — Deterministic Reconciliation
 
@@ -416,6 +461,7 @@ formats or transport stacks:
 | `DEC-021` | Accepted | Keep graph mechanics out of the ordinary CLI. Automatically merge non-overlapping changes, continue unaffected reads during content conflicts, pause mutations for genuine ambiguity, and provide explicit status and conflict commands with stable machine-readable outcomes. |
 | `DEC-022` | Accepted | Reserve `--force` for confirmation and overwrite policy; it never bypasses trust, expected-head, completeness, rollback, or conflict checks. Permit stale reads only through an explicit `--allow-stale` request and never permit stale writes. |
 | `DEC-023` | Accepted | Define `keyID` as canonical base64url of HKDF-SHA256 over the exact 32-byte vault key, salted by canonical vault UUID bytes with `work.tvr.key/v3/vault-key-id` as the domain-separated info label. Require supplied keys to match this authenticated ID before manifest authentication or entry encryption/decryption. |
+| `DEC-024` | Accepted | Store immutable manifest and entry objects under lowercase hexadecimal SHA-256 filenames so content addressing remains collision-safe on case-insensitive providers. Discover history read-only from the exact device-local checkpoint, reopen its digest-linked ancestors, fully authenticate forward descendants, and expose a typed ancestry proof only when every referenced object is complete and valid. Treat missing or dataless provider objects as incomplete transport, referenced invalid objects or exhausted bounds as recovery-required state, and unrelated invalid objects as non-authoritative noise. |
 
 ## Validation Matrix
 
@@ -457,6 +503,6 @@ formats or transport stacks:
 
 ## Immediate Next Action
 
-Review and merge `HIST-404`. After it merges, begin the read-only `STORE-405`
-repository classifier; do not introduce entry reconciliation or publication
-until authenticated object discovery is implemented.
+Review and merge `STORE-405`. After it merges, begin the pure `MERGE-406`
+common-ancestor and three-way reconciliation engine; do not introduce
+transaction publication until deterministic conflict handling is implemented.
