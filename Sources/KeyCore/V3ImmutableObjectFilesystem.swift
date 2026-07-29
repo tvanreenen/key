@@ -34,6 +34,10 @@ protocol V3ImmutableObjectReading: Sendable {
 struct V3FilesystemImmutableObjectSource: V3ImmutableObjectReading {
     let rootHandle: VaultRootDirectoryHandle
 
+    init(rootHandle: VaultRootDirectoryHandle) {
+        self.rootHandle = rootHandle
+    }
+
     func manifestDigests(maximumCount: Int) throws -> V3RepositoryDirectoryListing {
         do {
             return try rootHandle.withResolvedDescriptor(

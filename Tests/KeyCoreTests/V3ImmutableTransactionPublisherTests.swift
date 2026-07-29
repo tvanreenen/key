@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 import JSONCanonicalization
 import Testing
@@ -59,6 +60,7 @@ struct V3ImmutableTransactionPublisherTests {
 
         #expect(observer.observationCount == 2)
         #expect(objectStore.events == [
+            "persist-intent",
             "stage-entry:\(Self.entryA)",
             "stage-manifest",
             "publish-entry:\(Self.entryA)",
@@ -73,6 +75,416 @@ struct V3ImmutableTransactionPublisherTests {
         #expect(
             trusted.verifiedManifest.envelopeDigest
                 == candidate.verified.envelopeDigest
+        )
+    }
+
+    @Test
+    func recoveryIntentRoundTripsCanonicalState() throws {
+        let fixture = Fixture()
+        let base = try fixture.genesis()
+        let candidate = try fixture.child(
+            parents: [base.verified],
+            entries: []
+        )
+        let intent = try V3ImmutableTransactionRecoveryIntent(
+            operationID: Self.operationID,
+            kind: .editEntry,
+            vaultID: Self.vaultID,
+            expectedCheckpoint: V3ManifestCheckpoint(
+                verifiedManifest: base.verified
+            ),
+            expectedHeads: [base.verified.envelopeDigest],
+            candidateManifestDigest: candidate.verified.envelopeDigest,
+            stagedEntries: []
+        )
+
+        let decoded = try V3ImmutableTransactionRecoveryIntent(
+            canonicalBytes: intent.canonicalBytes
+        )
+
+        #expect(decoded == intent)
+        #expect(decoded.canonicalBytes == intent.canonicalBytes)
+    }
+
+    @Test
+    func recoveryAnchorRoundTripsDeviceLocalOwnershipState() throws {
+        for phase in [
+            V3ImmutableTransactionRecoveryAnchorPhase.prepared,
+            .recoverable
+        ] {
+            let anchor = try V3ImmutableTransactionRecoveryAnchor(
+                operationID: Self.operationID,
+                vaultID: Self.vaultID,
+                intentDigest: Data(repeating: 3, count: 32),
+                phase: phase
+            )
+
+            let decoded = try V3ImmutableTransactionRecoveryAnchor(
+                canonicalBytes: anchor.canonicalBytes
+            )
+
+            #expect(decoded == anchor)
+            #expect(decoded.canonicalBytes == anchor.canonicalBytes)
+        }
+    }
+
+    @Test
+    func everyPublicationInterruptionRecoversToOldOrNewCheckpoint() throws {
+        let cases: [(
+            phase: V3ImmutableTransactionPhase,
+            expectsNewCheckpoint: Bool
+        )] = [
+            (.recoveryAnchorPrepared, false),
+            (.recoveryIntentPersisted, false),
+            (.recoveryArmed, false),
+            (.entryStaged(index: 0), false),
+            (.manifestStaged, true),
+            (.repositoryStateRechecked, true),
+            (.entryPublished(index: 0), true),
+            (.publishedEntriesValidated, true),
+            (.manifestPublished, true),
+            (.publishedManifestValidated, true),
+            (.checkpointAdvanced, true),
+            (.cleanupCompleted, true)
+        ]
+
+        for testCase in cases {
+            let fixture = Fixture()
+            let base = try fixture.genesis()
+            let sealed = try fixture.sealedEntry(
+                id: Self.entryA,
+                name: "recovery/entry",
+                revision: 1,
+                plaintext: "secret"
+            )
+            let candidate = try fixture.child(
+                parents: [base.verified],
+                entries: [fixture.record(for: sealed)]
+            )
+            let proof = try fixture.proof(
+                checkpoint: base.verified,
+                manifests: [base.verified],
+                heads: [base.verified]
+            )
+            let objectStore = RecordingObjectStore()
+            let checkpointStore = MemoryCheckpointStore(
+                checkpoint: proof.checkpoint
+            )
+            let recoveryAnchorStore = MemoryRecoveryAnchorStore()
+            let publisher = fixture.publisher(
+                observer: ProofObserver([proof, proof, proof]),
+                objectStore: objectStore,
+                checkpointStore: checkpointStore,
+                recoveryAnchorStore: recoveryAnchorStore,
+                phaseObserver: InterruptingPhaseObserver(
+                    target: testCase.phase
+                )
+            )
+
+            #expect(throws: PublicationTestError.interrupted) {
+                _ = try publisher.publish(
+                    V3ImmutableTransactionRequest(
+                        kind: .addEntry,
+                        candidateManifestData: candidate.data,
+                        stagedEntries: [sealed],
+                        candidateVaultKey: Self.vaultKey
+                    )
+                )
+            }
+
+            _ = try publisher.recoverInterruptedTransaction(
+                vaultID: Self.vaultID,
+                availableVaultKeys: [Self.vaultKey]
+            )
+
+            let expectedCheckpoint = testCase.expectsNewCheckpoint
+                ? try V3ManifestCheckpoint(
+                    verifiedManifest: candidate.verified
+                ).canonicalBytes
+                : proof.checkpoint.canonicalBytes
+            #expect(checkpointStore.checkpoint == expectedCheckpoint)
+            #expect(objectStore.recoveryIntentCount == 0)
+            #expect(objectStore.stagedObjectCount == 0)
+            #expect(
+                recoveryAnchorStore.anchor(vaultID: Self.vaultID) == nil
+            )
+            #expect(
+                objectStore.publishedManifestCount
+                    == (testCase.expectsNewCheckpoint ? 1 : 0)
+            )
+        }
+    }
+
+    @Test
+    func sharedIntentsWithoutThisDevicesAnchorAreIgnored() throws {
+        let fixture = Fixture()
+        let base = try fixture.genesis()
+        let first = try fixture.child(
+            parents: [base.verified],
+            entries: []
+        )
+        let secondOperationID = try VaultTransactionOperationID(
+            validating: "018f4d3a-a844-72ad-983e-b09a8fc0e924"
+        )
+        let second = try V3ImmutableTransactionRecoveryIntent(
+            operationID: secondOperationID,
+            kind: .editEntry,
+            vaultID: Self.vaultID,
+            expectedCheckpoint: V3ManifestCheckpoint(
+                verifiedManifest: base.verified
+            ),
+            expectedHeads: [base.verified.envelopeDigest],
+            candidateManifestDigest: Data(repeating: 7, count: 32),
+            stagedEntries: []
+        )
+        let firstIntent = try V3ImmutableTransactionRecoveryIntent(
+            operationID: Self.operationID,
+            kind: .editEntry,
+            vaultID: Self.vaultID,
+            expectedCheckpoint: V3ManifestCheckpoint(
+                verifiedManifest: base.verified
+            ),
+            expectedHeads: [base.verified.envelopeDigest],
+            candidateManifestDigest: first.verified.envelopeDigest,
+            stagedEntries: []
+        )
+        let proof = try fixture.proof(
+            checkpoint: base.verified,
+            manifests: [base.verified],
+            heads: [base.verified]
+        )
+        let objectStore = RecordingObjectStore()
+        try objectStore.persistRecoveryIntent(
+            firstIntent.canonicalBytes,
+            operationID: firstIntent.operationID
+        )
+        try objectStore.persistRecoveryIntent(
+            second.canonicalBytes,
+            operationID: second.operationID
+        )
+        let checkpointStore = MemoryCheckpointStore(
+            checkpoint: proof.checkpoint
+        )
+        let publisher = fixture.publisher(
+            observer: ProofObserver([proof]),
+            objectStore: objectStore,
+            checkpointStore: checkpointStore
+        )
+
+        let outcome = try publisher.recoverInterruptedTransaction(
+            vaultID: Self.vaultID,
+            availableVaultKeys: [Self.vaultKey]
+        )
+        #expect(outcome == .nothingToRecover)
+        #expect(checkpointStore.checkpoint == proof.checkpoint.canonicalBytes)
+        #expect(objectStore.recoveryIntentCount == 2)
+    }
+
+    @Test
+    func changedCheckpointAbandonsStagingWithoutPublishingCandidate() throws {
+        let fixture = Fixture()
+        let base = try fixture.genesis()
+        let candidate = try fixture.child(
+            parents: [base.verified],
+            entries: []
+        )
+        let concurrentEntry = try fixture.sealedEntry(
+            id: Self.entryB,
+            name: "concurrent/entry",
+            revision: 1,
+            plaintext: "other"
+        )
+        let concurrent = try fixture.child(
+            parents: [base.verified],
+            entries: [fixture.record(for: concurrentEntry)]
+        )
+        let proof = try fixture.proof(
+            checkpoint: base.verified,
+            manifests: [base.verified],
+            heads: [base.verified]
+        )
+        let objectStore = RecordingObjectStore()
+        let checkpointStore = MemoryCheckpointStore(
+            checkpoint: proof.checkpoint
+        )
+        let recoveryAnchorStore = MemoryRecoveryAnchorStore()
+        let publisher = fixture.publisher(
+            observer: ProofObserver([proof, proof]),
+            objectStore: objectStore,
+            checkpointStore: checkpointStore,
+            recoveryAnchorStore: recoveryAnchorStore,
+            phaseObserver: InterruptingPhaseObserver(
+                target: .manifestStaged
+            )
+        )
+        #expect(throws: PublicationTestError.interrupted) {
+            _ = try publisher.publish(
+                V3ImmutableTransactionRequest(
+                    kind: .editEntry,
+                    candidateManifestData: candidate.data,
+                    stagedEntries: [],
+                    candidateVaultKey: Self.vaultKey
+                )
+            )
+        }
+        let concurrentCheckpoint = try V3ManifestCheckpoint(
+            verifiedManifest: concurrent.verified
+        )
+        try checkpointStore.replaceCheckpoint(
+            concurrentCheckpoint.canonicalBytes,
+            expectedCheckpoint: proof.checkpoint.canonicalBytes,
+            vaultID: Self.vaultID
+        )
+
+        let outcome = try publisher.recoverInterruptedTransaction(
+            vaultID: Self.vaultID,
+            availableVaultKeys: [Self.vaultKey]
+        )
+
+        #expect(outcome == .abandoned(operationID: Self.operationID))
+        #expect(checkpointStore.checkpoint == concurrentCheckpoint.canonicalBytes)
+        #expect(objectStore.publishedManifestCount == 0)
+        #expect(objectStore.recoveryIntentCount == 0)
+        #expect(objectStore.stagedObjectCount == 0)
+    }
+
+    @Test
+    func missingCandidateKeyRetainsRecoverableTransaction() throws {
+        let fixture = Fixture()
+        let base = try fixture.genesis()
+        let candidate = try fixture.child(
+            parents: [base.verified],
+            entries: []
+        )
+        let proof = try fixture.proof(
+            checkpoint: base.verified,
+            manifests: [base.verified],
+            heads: [base.verified]
+        )
+        let objectStore = RecordingObjectStore()
+        let checkpointStore = MemoryCheckpointStore(
+            checkpoint: proof.checkpoint
+        )
+        let recoveryAnchorStore = MemoryRecoveryAnchorStore()
+        let publisher = fixture.publisher(
+            observer: ProofObserver([proof, proof, proof]),
+            objectStore: objectStore,
+            checkpointStore: checkpointStore,
+            recoveryAnchorStore: recoveryAnchorStore,
+            phaseObserver: InterruptingPhaseObserver(
+                target: .manifestStaged
+            )
+        )
+        #expect(throws: PublicationTestError.interrupted) {
+            _ = try publisher.publish(
+                V3ImmutableTransactionRequest(
+                    kind: .editEntry,
+                    candidateManifestData: candidate.data,
+                    stagedEntries: [],
+                    candidateVaultKey: Self.vaultKey
+                )
+            )
+        }
+
+        #expect(throws: V3ImmutableTransactionRecoveryError
+            .vaultKeyUnavailable(keyID: Self.keyID.rawValue)) {
+            _ = try publisher.recoverInterruptedTransaction(
+                vaultID: Self.vaultID,
+                availableVaultKeys: []
+            )
+        }
+        #expect(checkpointStore.checkpoint == proof.checkpoint.canonicalBytes)
+        #expect(objectStore.recoveryIntentCount == 1)
+        #expect(objectStore.stagedObjectCount == 1)
+        #expect(
+            recoveryAnchorStore.anchor(vaultID: Self.vaultID) != nil
+        )
+    }
+
+    @Test
+    func pendingIntentBlocksAnotherPublicationUntilRecovery() throws {
+        let fixture = Fixture()
+        let base = try fixture.genesis()
+        let candidate = try fixture.child(
+            parents: [base.verified],
+            entries: []
+        )
+        let proof = try fixture.proof(
+            checkpoint: base.verified,
+            manifests: [base.verified],
+            heads: [base.verified]
+        )
+        let objectStore = RecordingObjectStore()
+        let publisher = fixture.publisher(
+            observer: ProofObserver([proof, proof, proof]),
+            objectStore: objectStore,
+            checkpointStore: MemoryCheckpointStore(
+                checkpoint: proof.checkpoint
+            ),
+            phaseObserver: InterruptingPhaseObserver(
+                target: .manifestStaged
+            )
+        )
+        let request = V3ImmutableTransactionRequest(
+            kind: .editEntry,
+            candidateManifestData: candidate.data,
+            stagedEntries: [],
+            candidateVaultKey: Self.vaultKey
+        )
+        #expect(throws: PublicationTestError.interrupted) {
+            _ = try publisher.publish(request)
+        }
+
+        #expect(throws: V3ImmutableTransactionRecoveryError
+            .interruptedTransactionPending(
+                operationID: Self.operationID.rawValue
+            )) {
+            _ = try publisher.publish(request)
+        }
+        #expect(objectStore.publishedManifestCount == 0)
+        #expect(objectStore.recoveryIntentCount == 1)
+    }
+
+    @Test
+    func armedRecoveryRetainsAnchorWhileSharedIntentIsUnavailable() throws {
+        let fixture = Fixture()
+        let base = try fixture.genesis()
+        let proof = try fixture.proof(
+            checkpoint: base.verified,
+            manifests: [base.verified],
+            heads: [base.verified]
+        )
+        let anchor = try V3ImmutableTransactionRecoveryAnchor(
+            operationID: Self.operationID,
+            vaultID: Self.vaultID,
+            intentDigest: Data(repeating: 9, count: 32),
+            phase: .recoverable
+        )
+        let recoveryAnchorStore = MemoryRecoveryAnchorStore()
+        try recoveryAnchorStore.replaceRecoveryAnchor(
+            anchor.canonicalBytes,
+            expectedAnchor: nil,
+            vaultID: Self.vaultID
+        )
+        let publisher = fixture.publisher(
+            observer: ProofObserver([proof]),
+            objectStore: RecordingObjectStore(),
+            checkpointStore: MemoryCheckpointStore(
+                checkpoint: proof.checkpoint
+            ),
+            recoveryAnchorStore: recoveryAnchorStore
+        )
+
+        #expect(throws: V3ImmutableTransactionRecoveryError
+            .transactionDirectoryUnavailable) {
+            _ = try publisher.recoverInterruptedTransaction(
+                vaultID: Self.vaultID,
+                availableVaultKeys: [Self.vaultKey]
+            )
+        }
+        #expect(
+            recoveryAnchorStore.anchor(vaultID: Self.vaultID)
+                == anchor.canonicalBytes
         )
     }
 
@@ -257,7 +669,10 @@ struct V3ImmutableTransactionPublisherTests {
                 )
             )
         }
-        #expect(objectStore.events == ["stage-manifest"])
+        #expect(objectStore.events == [
+            "persist-intent",
+            "stage-manifest"
+        ])
         #expect(objectStore.publishedManifestCount == 0)
         #expect(
             checkpointStore.checkpoint
@@ -316,6 +731,7 @@ struct V3ImmutableTransactionPublisherTests {
         }
 
         #expect(objectStore.events == [
+            "persist-intent",
             "stage-entry:\(Self.entryA)",
             "stage-manifest"
         ])
@@ -747,6 +1163,368 @@ struct V3ImmutableTransactionPublisherTests {
 
 struct V3FilesystemImmutableObjectPublicationTests {
     @Test
+    func filesystemRecoveryCoversEveryPublicationPhase() throws {
+        let phases: [(
+            phase: V3ImmutableTransactionPhase,
+            expectsNewCheckpoint: Bool
+        )] = [
+            (.recoveryAnchorPrepared, false),
+            (.recoveryIntentPersisted, false),
+            (.recoveryArmed, false),
+            (.entryStaged(index: 0), false),
+            (.manifestStaged, true),
+            (.repositoryStateRechecked, true),
+            (.entryPublished(index: 0), true),
+            (.publishedEntriesValidated, true),
+            (.manifestPublished, true),
+            (.publishedManifestValidated, true),
+            (.checkpointAdvanced, true),
+            (.cleanupCompleted, true)
+        ]
+
+        for testCase in phases {
+            let rootURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(
+                    UUID().uuidString,
+                    isDirectory: true
+                )
+            try FileManager.default.createDirectory(
+                at: rootURL,
+                withIntermediateDirectories: true
+            )
+            defer { try? FileManager.default.removeItem(at: rootURL) }
+
+            let fixture = Fixture()
+            let base = try fixture.genesis()
+            let sealed = try fixture.sealedEntry(
+                id: V3ImmutableTransactionPublisherTests.entryA,
+                name: "filesystem/recovery",
+                revision: 1,
+                plaintext: "secret"
+            )
+            let candidate = try fixture.child(
+                parents: [base.verified],
+                entries: [fixture.record(for: sealed)]
+            )
+            let proof = try fixture.proof(
+                checkpoint: base.verified,
+                manifests: [base.verified],
+                heads: [base.verified]
+            )
+            let store = V3FilesystemTransactionArtifactStore(
+                rootHandle: try VaultRootDirectoryHandle(opening: rootURL)
+            )
+            let checkpointStore = MemoryCheckpointStore(
+                checkpoint: proof.checkpoint
+            )
+            let recoveryAnchorStore = MemoryRecoveryAnchorStore()
+            let publisher = fixture.publisher(
+                observer: ProofObserver([proof, proof, proof]),
+                objectStore: store,
+                checkpointStore: checkpointStore,
+                recoveryAnchorStore: recoveryAnchorStore,
+                phaseObserver: InterruptingPhaseObserver(
+                    target: testCase.phase
+                )
+            )
+
+            #expect(throws: PublicationTestError.interrupted) {
+                _ = try publisher.publish(
+                    V3ImmutableTransactionRequest(
+                        kind: .addEntry,
+                        candidateManifestData: candidate.data,
+                        stagedEntries: [sealed],
+                        candidateVaultKey:
+                            V3ImmutableTransactionPublisherTests.vaultKey
+                    )
+                )
+            }
+            _ = try publisher.recoverInterruptedTransaction(
+                vaultID: V3ImmutableTransactionPublisherTests.vaultID,
+                availableVaultKeys: [
+                    V3ImmutableTransactionPublisherTests.vaultKey
+                ]
+            )
+
+            let expectedCheckpoint = testCase.expectsNewCheckpoint
+                ? try V3ManifestCheckpoint(
+                    verifiedManifest: candidate.verified
+                ).canonicalBytes
+                : proof.checkpoint.canonicalBytes
+            #expect(checkpointStore.checkpoint == expectedCheckpoint)
+            #expect(
+                recoveryAnchorStore.anchor(
+                    vaultID: V3ImmutableTransactionPublisherTests.vaultID
+                ) == nil
+            )
+            guard case .unavailable = try store.readRecoveryIntent(
+                operationID:
+                    V3ImmutableTransactionPublisherTests.operationID,
+                maximumBytes:
+                    V3ImmutableTransactionRecoveryIntent.maximumBytes
+            ) else {
+                Issue.record("Recovery intent remained after recovery.")
+                continue
+            }
+
+            let manifest = try store.readManifest(
+                digest: candidate.verified.envelopeDigest,
+                maximumBytes:
+                    V3ManifestRepositoryLimits.standard.maximumManifestBytes
+            )
+            switch manifest {
+            case .available:
+                #expect(testCase.expectsNewCheckpoint)
+            case .unavailable:
+                #expect(!testCase.expectsNewCheckpoint)
+            case .invalid, .tooLarge:
+                Issue.record("Recovered manifest was invalid.")
+            }
+        }
+    }
+
+    @Test
+    func persistsAndConservativelyRemovesRecoveryIntent() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: rootURL,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let fixture = Fixture()
+        let base = try fixture.genesis()
+        let candidate = try fixture.child(
+            parents: [base.verified],
+            entries: []
+        )
+        let operationID = V3ImmutableTransactionPublisherTests.operationID
+        let intent = try V3ImmutableTransactionRecoveryIntent(
+            operationID: operationID,
+            kind: .editEntry,
+            vaultID: V3ImmutableTransactionPublisherTests.vaultID,
+            expectedCheckpoint: V3ManifestCheckpoint(
+                verifiedManifest: base.verified
+            ),
+            expectedHeads: [base.verified.envelopeDigest],
+            candidateManifestDigest: candidate.verified.envelopeDigest,
+            stagedEntries: []
+        )
+        let store = V3FilesystemTransactionArtifactStore(
+            rootHandle: try VaultRootDirectoryHandle(opening: rootURL)
+        )
+
+        try store.persistRecoveryIntent(
+            intent.canonicalBytes,
+            operationID: operationID
+        )
+        guard case let .available(data) = try store.readRecoveryIntent(
+                operationID: operationID,
+                maximumBytes:
+                    V3ImmutableTransactionRecoveryIntent.maximumBytes
+            )
+        else {
+            Issue.record("Recovery intent was not durably discoverable.")
+            return
+        }
+        #expect(data == intent.canonicalBytes)
+
+        try store.removeRecoveryIntent(
+            intent.canonicalBytes,
+            operationID: operationID
+        )
+        try store.removeEmptyTransactionDirectories(
+            operationID: operationID,
+            entryIDs: []
+        )
+
+        guard case .unavailable = try store.readRecoveryIntent(
+            operationID: operationID,
+            maximumBytes:
+                V3ImmutableTransactionRecoveryIntent.maximumBytes
+        ) else {
+            Issue.record("Cleaned recovery intent remained readable.")
+            return
+        }
+    }
+
+    @Test
+    func processExitDuringAtomicWriteNeverExposesPartialRecoveryIntent()
+        async throws
+    {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: rootURL,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let fixture = Fixture()
+        let base = try fixture.genesis()
+        let candidate = try fixture.child(
+            parents: [base.verified],
+            entries: []
+        )
+        let operationID = V3ImmutableTransactionPublisherTests.operationID
+        let intent = try V3ImmutableTransactionRecoveryIntent(
+            operationID: operationID,
+            kind: .editEntry,
+            vaultID: V3ImmutableTransactionPublisherTests.vaultID,
+            expectedCheckpoint: V3ManifestCheckpoint(
+                verifiedManifest: base.verified
+            ),
+            expectedHeads: [base.verified.envelopeDigest],
+            candidateManifestDigest: candidate.verified.envelopeDigest,
+            stagedEntries: []
+        )
+        let rootPath = rootURL.path
+        let operationIDRawValue = operationID.rawValue
+        let intentData = intent.canonicalBytes
+
+        await #expect(processExitsWith: .exitCode(23)) {
+            [
+                rootPath = rootPath as String,
+                operationIDRawValue = operationIDRawValue as String,
+                intentData = intentData as Data
+            ] in
+            let operationID = try VaultTransactionOperationID(
+                validating: operationIDRawValue
+            )
+            let interruptedStore = V3FilesystemTransactionArtifactStore(
+                rootHandle: try VaultRootDirectoryHandle(
+                    opening: URL(fileURLWithPath: rootPath)
+                ),
+                writeObserver: ExitingAtomicWriteObserver()
+            )
+            try interruptedStore.persistRecoveryIntent(
+                intentData,
+                operationID: operationID
+            )
+        }
+
+        let resumedStore = V3FilesystemTransactionArtifactStore(
+            rootHandle: try VaultRootDirectoryHandle(opening: rootURL)
+        )
+        guard case .unavailable = try resumedStore.readRecoveryIntent(
+            operationID: operationID,
+            maximumBytes: V3ImmutableTransactionRecoveryIntent.maximumBytes
+        ) else {
+            Issue.record("A partial recovery intent became visible.")
+            return
+        }
+
+        let operationDirectory = rootURL
+            .appendingPathComponent(".transactions", isDirectory: true)
+            .appendingPathComponent(
+                operationID.rawValue,
+                isDirectory: true
+            )
+        let interruptedTemporaryNames = try FileManager.default
+            .contentsOfDirectory(atPath: operationDirectory.path)
+            .filter {
+                $0.hasPrefix(".intent.json.")
+                    && $0.hasSuffix(".partial")
+            }
+        try #require(interruptedTemporaryNames.count == 1)
+        let interruptedTemporaryName = try #require(
+            interruptedTemporaryNames.first
+        )
+        let interruptedTemporaryURL = operationDirectory
+            .appendingPathComponent(interruptedTemporaryName)
+
+        try resumedStore.persistRecoveryIntent(
+            intent.canonicalBytes,
+            operationID: operationID
+        )
+        guard case let .available(observed) =
+            try resumedStore.readRecoveryIntent(
+                operationID: operationID,
+                maximumBytes:
+                    V3ImmutableTransactionRecoveryIntent.maximumBytes
+            )
+        else {
+            Issue.record("The atomic recovery-intent retry did not complete.")
+            return
+        }
+        #expect(observed == intent.canonicalBytes)
+        #expect(
+            FileManager.default.fileExists(
+                atPath: interruptedTemporaryURL.path
+            )
+        )
+    }
+
+    @Test
+    func atomicWriteNeverOpensAPreexistingHardLinkedTemporaryPath() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: rootURL,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let fixture = Fixture()
+        let base = try fixture.genesis()
+        let candidate = try fixture.child(
+            parents: [base.verified],
+            entries: []
+        )
+        let operationID = V3ImmutableTransactionPublisherTests.operationID
+        let intent = try V3ImmutableTransactionRecoveryIntent(
+            operationID: operationID,
+            kind: .editEntry,
+            vaultID: V3ImmutableTransactionPublisherTests.vaultID,
+            expectedCheckpoint: V3ManifestCheckpoint(
+                verifiedManifest: base.verified
+            ),
+            expectedHeads: [base.verified.envelopeDigest],
+            candidateManifestDigest: candidate.verified.envelopeDigest,
+            stagedEntries: []
+        )
+        let operationDirectory = rootURL
+            .appendingPathComponent(".transactions", isDirectory: true)
+            .appendingPathComponent(
+                operationID.rawValue,
+                isDirectory: true
+            )
+        try FileManager.default.createDirectory(
+            at: operationDirectory,
+            withIntermediateDirectories: true
+        )
+        let victimURL = rootURL.appendingPathComponent("victim")
+        let victimData = Data("must remain unchanged".utf8)
+        try victimData.write(to: victimURL)
+        let hostileTemporaryURL = operationDirectory
+            .appendingPathComponent(".intent.json.partial")
+        try FileManager.default.linkItem(
+            at: victimURL,
+            to: hostileTemporaryURL
+        )
+
+        let store = V3FilesystemTransactionArtifactStore(
+            rootHandle: try VaultRootDirectoryHandle(opening: rootURL)
+        )
+        try store.persistRecoveryIntent(
+            intent.canonicalBytes,
+            operationID: operationID
+        )
+
+        #expect(try Data(contentsOf: victimURL) == victimData)
+        #expect(try Data(contentsOf: hostileTemporaryURL) == victimData)
+        guard case let .available(observed) = try store.readRecoveryIntent(
+            operationID: operationID,
+            maximumBytes: V3ImmutableTransactionRecoveryIntent.maximumBytes
+        ) else {
+            Issue.record("The recovery intent was not published.")
+            return
+        }
+        #expect(observed == intent.canonicalBytes)
+    }
+
+    @Test
     func stagesAndAtomicallyPublishesContentAddressedObjects() throws {
         let rootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -756,7 +1534,7 @@ struct V3FilesystemImmutableObjectPublicationTests {
         )
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
-        let store = V3FilesystemImmutableObjectSource(
+        let store = V3FilesystemTransactionArtifactStore(
             rootHandle: try VaultRootDirectoryHandle(opening: rootURL)
         )
         let operationID = try VaultTransactionOperationID(
@@ -823,7 +1601,7 @@ struct V3FilesystemImmutableObjectPublicationTests {
         )
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
-        let store = V3FilesystemImmutableObjectSource(
+        let store = V3FilesystemTransactionArtifactStore(
             rootHandle: try VaultRootDirectoryHandle(opening: rootURL)
         )
         let operationID = try VaultTransactionOperationID(
@@ -885,7 +1663,7 @@ struct V3FilesystemImmutableObjectPublicationTests {
             withDestinationURL: outsideURL
         )
 
-        let store = V3FilesystemImmutableObjectSource(
+        let store = V3FilesystemTransactionArtifactStore(
             rootHandle: try VaultRootDirectoryHandle(opening: rootURL)
         )
         let operationID = try VaultTransactionOperationID(
@@ -1018,8 +1796,12 @@ private struct Fixture {
 
     func publisher(
         observer: ProofObserver,
-        objectStore: RecordingObjectStore,
-        checkpointStore: MemoryCheckpointStore
+        objectStore: any V3TransactionArtifactStore,
+        checkpointStore: MemoryCheckpointStore,
+        recoveryAnchorStore: MemoryRecoveryAnchorStore =
+            MemoryRecoveryAnchorStore(),
+        phaseObserver: any V3ImmutableTransactionPhaseObserving =
+            TestNoopPhaseObserver()
     ) -> V3ImmutableTransactionPublisher {
         V3ImmutableTransactionPublisher(
             mutationOwner: VaultTransactionMutationOwner(
@@ -1029,7 +1811,9 @@ private struct Fixture {
             ),
             ancestryObserver: observer,
             objectStore: objectStore,
-            checkpointStore: checkpointStore
+            checkpointStore: checkpointStore,
+            recoveryAnchorStore: recoveryAnchorStore,
+            phaseObserver: phaseObserver
         )
     }
 
@@ -1124,6 +1908,14 @@ private struct Fixture {
                 && Data(lhs.entryID.utf8).lexicographicallyPrecedes(
                     Data(rhs.entryID.utf8)
                 ))
+    }
+}
+
+private struct ExitingAtomicWriteObserver:
+    V3AtomicStagedObjectWriteObserving
+{
+    func didReach(_: V3AtomicStagedObjectWritePhase) throws {
+        Darwin._exit(23)
     }
 }
 
@@ -1223,6 +2015,41 @@ private struct TestEntryKey: Hashable {
 
 private enum PublicationTestError: Error {
     case expected
+    case interrupted
+}
+
+private struct TestNoopPhaseObserver:
+    V3ImmutableTransactionPhaseObserving
+{
+    func didReach(
+        _: V3ImmutableTransactionPhase,
+        operationID _: VaultTransactionOperationID
+    ) throws {}
+}
+
+private final class InterruptingPhaseObserver:
+    V3ImmutableTransactionPhaseObserving,
+    @unchecked Sendable
+{
+    private let target: V3ImmutableTransactionPhase
+    private let lock = NSLock()
+    private var interrupted = false
+
+    init(target: V3ImmutableTransactionPhase) {
+        self.target = target
+    }
+
+    func didReach(
+        _ phase: V3ImmutableTransactionPhase,
+        operationID _: VaultTransactionOperationID
+    ) throws {
+        try lock.withLock {
+            if !interrupted, phase == target {
+                interrupted = true
+                throw PublicationTestError.interrupted
+            }
+        }
+    }
 }
 
 private enum PublicationFailure: Equatable {
@@ -1231,7 +2058,7 @@ private enum PublicationFailure: Equatable {
 }
 
 private final class RecordingObjectStore:
-    V3ImmutableObjectPublishing,
+    V3TransactionArtifactStore,
     @unchecked Sendable
 {
     private let lock = NSLock()
@@ -1240,6 +2067,7 @@ private final class RecordingObjectStore:
     private var manifests: [Data: Data]
     private var stagedEntries: [TestEntryKey: Data] = [:]
     private var stagedManifests: [Data: Data] = [:]
+    private var recoveryIntents: [VaultTransactionOperationID: Data] = [:]
     private var recordedEvents: [String] = []
 
     init(
@@ -1262,6 +2090,16 @@ private final class RecordingObjectStore:
 
     var publishedManifestCount: Int {
         lock.withLock { manifests.count }
+    }
+
+    var recoveryIntentCount: Int {
+        lock.withLock { recoveryIntents.count }
+    }
+
+    var stagedObjectCount: Int {
+        lock.withLock {
+            stagedEntries.count + stagedManifests.count
+        }
     }
 
     func manifestDigests(
@@ -1304,6 +2142,68 @@ private final class RecordingObjectStore:
                 entryID: entryID,
                 digest: digest
             )] else {
+                return .unavailable
+            }
+            return data.count <= maximumBytes
+                ? .available(data)
+                : .tooLarge
+        }
+    }
+
+    func persistRecoveryIntent(
+        _ data: Data,
+        operationID: VaultTransactionOperationID
+    ) throws {
+        try lock.withLock {
+            if let existing = recoveryIntents[operationID],
+               existing != data {
+                throw PublicationTestError.expected
+            }
+            recordedEvents.append("persist-intent")
+            recoveryIntents[operationID] = data
+        }
+    }
+
+    func readRecoveryIntent(
+        operationID: VaultTransactionOperationID,
+        maximumBytes: Int
+    ) throws -> V3RepositoryObjectRead {
+        lock.withLock {
+            guard let data = recoveryIntents[operationID] else {
+                return .unavailable
+            }
+            return data.count <= maximumBytes
+                ? .available(data)
+                : .tooLarge
+        }
+    }
+
+    func readStagedEntry(
+        entryID: String,
+        digest: Data,
+        operationID _: VaultTransactionOperationID,
+        maximumBytes: Int
+    ) throws -> V3RepositoryObjectRead {
+        lock.withLock {
+            guard let data = stagedEntries[TestEntryKey(
+                entryID: entryID,
+                digest: digest
+            )] else {
+                return .unavailable
+            }
+            return data.count <= maximumBytes
+                ? .available(data)
+                : .tooLarge
+        }
+    }
+
+    func readStagedManifest(
+        digest: Data,
+        operationID _: VaultTransactionOperationID,
+        maximumBytes: Int
+    ) throws -> V3RepositoryObjectRead {
+        lock.withLock {
+            guard let data = stagedManifests[digest] else {
                 return .unavailable
             }
             return data.count <= maximumBytes
@@ -1367,6 +2267,52 @@ private final class RecordingObjectStore:
             manifests[digest] = stagedManifests[digest]
         }
     }
+
+    func removeStagedEntry(
+        _ data: Data,
+        entryID: String,
+        digest: Data,
+        operationID _: VaultTransactionOperationID
+    ) throws {
+        try lock.withLock {
+            let key = TestEntryKey(entryID: entryID, digest: digest)
+            if let existing = stagedEntries[key], existing != data {
+                throw PublicationTestError.expected
+            }
+            stagedEntries.removeValue(forKey: key)
+        }
+    }
+
+    func removeStagedManifest(
+        _ data: Data,
+        digest: Data,
+        operationID _: VaultTransactionOperationID
+    ) throws {
+        try lock.withLock {
+            if let existing = stagedManifests[digest], existing != data {
+                throw PublicationTestError.expected
+            }
+            stagedManifests.removeValue(forKey: digest)
+        }
+    }
+
+    func removeRecoveryIntent(
+        _ data: Data,
+        operationID: VaultTransactionOperationID
+    ) throws {
+        try lock.withLock {
+            if let existing = recoveryIntents[operationID],
+               existing != data {
+                throw PublicationTestError.expected
+            }
+            recoveryIntents.removeValue(forKey: operationID)
+        }
+    }
+
+    func removeEmptyTransactionDirectories(
+        operationID _: VaultTransactionOperationID,
+        entryIDs _: [String]
+    ) throws {}
 }
 
 private final class MemoryCheckpointStore:
@@ -1407,5 +2353,34 @@ private final class MemoryCheckpointStore:
             }
             stored = checkpoint
         }
+    }
+}
+
+private final class MemoryRecoveryAnchorStore:
+    V3ImmutableTransactionRecoveryAnchorStoring,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var anchors: [String: Data] = [:]
+
+    func loadRecoveryAnchor(vaultID: String) throws -> Data? {
+        lock.withLock { anchors[vaultID] }
+    }
+
+    func replaceRecoveryAnchor(
+        _ anchor: Data?,
+        expectedAnchor: Data?,
+        vaultID: String
+    ) throws {
+        try lock.withLock {
+            guard anchors[vaultID] == expectedAnchor else {
+                throw V3ImmutableTransactionRecoveryAnchorError.conflict
+            }
+            anchors[vaultID] = anchor
+        }
+    }
+
+    func anchor(vaultID: String) -> Data? {
+        lock.withLock { anchors[vaultID] }
     }
 }
