@@ -10,7 +10,7 @@
     "version",
     "vaultID",
     "mode",
-    "keyEpoch",
+    "keyID",
     "devices",
     "wrappedKeys",
     "entries"
@@ -32,8 +32,8 @@
         "shared"
       ]
     },
-    "keyEpoch": {
-      "$ref": "v3-common.schema.json#/$defs/safeInteger"
+    "keyID": {
+      "$ref": "v3-common.schema.json#/$defs/vaultKeyID"
     },
     "devices": {
       "type": "array",
@@ -142,7 +142,7 @@
       "additionalProperties": false,
       "required": [
         "deviceID",
-        "keyEpoch",
+        "keyID",
         "algorithm",
         "ciphertext"
       ],
@@ -150,8 +150,8 @@
         "deviceID": {
           "$ref": "v3-common.schema.json#/$defs/deviceID"
         },
-        "keyEpoch": {
-          "$ref": "v3-common.schema.json#/$defs/safeInteger"
+        "keyID": {
+          "$ref": "v3-common.schema.json#/$defs/vaultKeyID"
         },
         "algorithm": {
           "const": "p256-ecies-x963-sha256-aes-gcm"
@@ -169,7 +169,7 @@
         "name",
         "type",
         "revision",
-        "keyEpoch",
+        "keyID",
         "ciphertextDigest"
       ],
       "properties": {
@@ -185,8 +185,8 @@
         "revision": {
           "$ref": "v3-common.schema.json#/$defs/positiveSafeInteger"
         },
-        "keyEpoch": {
-          "$ref": "v3-common.schema.json#/$defs/safeInteger"
+        "keyID": {
+          "$ref": "v3-common.schema.json#/$defs/vaultKeyID"
         },
         "ciphertextDigest": {
           "$ref": "v3-common.schema.json#/$defs/sha256"

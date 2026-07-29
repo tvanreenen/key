@@ -218,6 +218,10 @@ struct V3ManifestReplayProtectionTests {
         entryName: String? = nil,
         signingKey: Data = V3ManifestReplayProtectionTests.key
     ) throws -> Data {
+        let keyID = try V3VaultKeyID.derive(
+            vaultKey: signingKey,
+            vaultID: vaultID
+        )
         let entries: [CanonicalJSONValue]
         if let entryName {
             entries = [.object([
@@ -225,7 +229,7 @@ struct V3ManifestReplayProtectionTests {
                 ("name", .string(entryName)),
                 ("type", .string("secret")),
                 ("revision", .integer(1)),
-                ("keyEpoch", .integer(1)),
+                ("keyID", .string(keyID.rawValue)),
                 ("ciphertextDigest", .string(String(repeating: "A", count: 43)))
             ])]
         } else {
@@ -239,7 +243,7 @@ struct V3ManifestReplayProtectionTests {
                 ("version", .integer(3)),
                 ("vaultID", .string(vaultID)),
                 ("mode", .string("local")),
-                ("keyEpoch", .integer(1)),
+                ("keyID", .string(keyID.rawValue)),
                 ("devices", .array([])),
                 ("wrappedKeys", .array([])),
                 ("entries", .array(entries))
@@ -257,7 +261,7 @@ struct V3ManifestReplayProtectionTests {
             ("content", content),
             ("authentication", .object([
                 ("algorithm", .string("HKDF-SHA256+HMAC-SHA256")),
-                ("keyEpoch", .integer(1)),
+                ("keyID", .string(keyID.rawValue)),
                 ("tag", .string(Base64URL.encode(tag)))
             ])),
             ("authorizations", .array([]))

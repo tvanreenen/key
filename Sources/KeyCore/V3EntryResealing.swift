@@ -38,7 +38,7 @@ public struct V3ResealedEntry: Equatable, Sendable {
             name: encryptedEntry.context.name,
             type: encryptedEntry.context.type,
             revision: encryptedEntry.context.revision,
-            keyEpoch: encryptedEntry.context.keyEpoch,
+            keyID: encryptedEntry.context.keyID,
             ciphertextDigest: encryptedEntry.ciphertextDigest
         )
     }
@@ -128,7 +128,7 @@ extension V3EntryCipher {
             entryID: destinationEntryID,
             name: destinationName,
             type: source.type,
-            keyEpoch: source.keyEpoch,
+            keyID: source.keyID,
             revision: 1
         )
         return try reseal(
@@ -172,7 +172,7 @@ extension V3EntryCipher {
             entryID: source.entryID,
             name: destinationName,
             type: source.type,
-            keyEpoch: source.keyEpoch,
+            keyID: source.keyID,
             revision: source.revision + 1
         )
         return try reseal(

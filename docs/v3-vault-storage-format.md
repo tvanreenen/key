@@ -1,7 +1,8 @@
 # Key Vault Version 3 Storage Format
 
 Status: normative schema, authority, replay, membership, migration,
-prototype-refusal, and exact-head specification through `HIST-402`.
+prototype-refusal, exact-head, and exact-key-identity specification through
+`KEY-403`.
 
 This document defines the current unreleased data model and canonical encoding
 for the version 3 vault manifest body, authenticated manifest envelope, and
@@ -33,19 +34,20 @@ Version 3 has one manifest body that names a complete logical vault state.
 That body commits:
 
 - the vault identity and security mode;
-- the active key epoch;
+- the exact active vault-key identity;
 - device membership and roles;
-- wrapped keys eligible for the active epoch; and
+- wrappers for the exact active vault key; and
 - every committed entry identity, logical name, semantic type, revision,
-  key epoch, and ciphertext digest.
+  vault-key identity, and ciphertext digest.
 
 An entry file repeats its authenticated identity context beside its AES-GCM
 payload. Those fields are untrusted until authenticated as associated data by
 `FMT-204` and `FMT-205`.
 
 Unchanged entries can be referenced by successive manifests without being
-re-encrypted. Therefore an entry contains its own revision and key epoch, while
-the exact authenticated envelope digest identifies each complete vault state.
+re-encrypted. Therefore an entry contains its own revision and exact vault-key
+identity, while the exact authenticated envelope digest identifies each
+complete vault state.
 
 ## Canonical JSON
 
@@ -106,13 +108,36 @@ protocol identities differ.
 | `vaultID` | lowercase UUID | Random, permanent identity of one vault |
 | `entryID` | lowercase UUID | Random, permanent identity of one logical entry |
 | `deviceID` | 43-character base64url | SHA-256 fingerprint of the canonical signing/wrapping public-key pair |
-| `keyEpoch` | nonnegative safe integer | Monotonic vault encryption-key epoch |
+| `keyID` | 43-character base64url | Vault-scoped identity of one exact 32-byte vault key |
 | `revision` | positive safe integer | Monotonic revision of one `entryID` |
 
-IDs MUST NOT be reused after deletion or revocation. Counters MUST NOT wrap.
-The transaction and enrollment specifications will define exactly when each
-remaining counter advances. Manifest freshness, ancestry, and concurrency MUST
-NOT be inferred from either counter.
+IDs MUST NOT be reused after deletion or revocation. Revisions MUST NOT wrap.
+Manifest freshness, ancestry, key identity, and concurrency MUST NOT be inferred
+from a counter.
+
+### Vault-Key Identity
+
+`keyID` is the unpadded canonical base64url encoding of this 32-byte output:
+
+```text
+HKDF-SHA256(
+  IKM = exact 32-byte vault encryption key,
+  salt = 16 vaultID UUID bytes in displayed network order,
+  info = UTF8("work.tvr.key/v3/vault-key-id"),
+  L = 32
+)
+```
+
+The identifier is public authenticated metadata, not key material. The
+vault-ID salt prevents correlation if the same vault-key bytes are accidentally
+reused across vaults, and the distinct `info` label separates this output from
+encryption and manifest-authentication keys.
+
+A producer or reader that possesses vault-key bytes MUST derive `keyID` and
+require an exact match before using those bytes for manifest authentication,
+entry sealing or opening, or a wrapped-key result. A different key MUST NOT be
+accepted merely because it was produced on a branch that would previously have
+used the same next numeric epoch.
 
 ## Manifest Body
 
@@ -124,7 +149,7 @@ The canonical manifest body has these fields and no others:
 | `version` | integer | Exactly `3` |
 | `vaultID` | UUID | Permanent vault identity |
 | `mode` | enum | `local` or `shared` |
-| `keyEpoch` | integer | Current vault-key epoch |
+| `keyID` | 43-character base64url | Exact current vault-key identity |
 | `devices` | array | Device membership records |
 | `wrappedKeys` | array | Per-device wrappers for vault keys |
 | `entries` | array | Complete set of committed entry records |
@@ -185,15 +210,16 @@ transitions. Role semantics and enrollment authorization are finalized by
 | Field | Type | Requirement |
 |---|---|---|
 | `deviceID` | device ID | Recipient device |
-| `keyEpoch` | integer | Epoch of the wrapped vault key |
+| `keyID` | 43-character base64url | Identity of the wrapped vault key |
 | `algorithm` | enum | `p256-ecies-x963-sha256-aes-gcm` |
 | `ciphertext` | base64url | Complete algorithm output |
 
 Local manifests MUST have empty `devices` and `wrappedKeys` arrays. Shared
 manifests MUST contain at least one active owner and exactly one wrapper at the
-manifest's current `keyEpoch` for every active device. A wrapper MUST NOT name a
-revoked or unknown device. Older wrapped keys do not belong in the current
-manifest.
+manifest's current `keyID` for every active device. After unwrapping, a reader
+MUST derive the resulting key's ID and require that exact value. A wrapper MUST
+NOT name a revoked or unknown device. Older wrapped keys do not belong in the
+current manifest.
 
 ### Manifest Entry Record
 
@@ -203,7 +229,7 @@ manifest.
 | `name` | normalized name | CLI-visible logical name |
 | `type` | enum | `secret` or `totp` |
 | `revision` | integer | Positive per-entry revision |
-| `keyEpoch` | integer | Epoch used to encrypt this revision |
+| `keyID` | 43-character base64url | Identity of the key used to encrypt this revision |
 | `ciphertextDigest` | 43-character base64url | SHA-256 of the exact canonical entry-file bytes |
 
 The manifest supplies logical entry identity, not a trusted physical path. The
@@ -214,7 +240,7 @@ immutable digest-addressed object layout is finalized by `STORE-405`.
 JCS does not reorder arrays. Producers MUST sort:
 
 - `devices` by the UTF-8 bytes of `deviceID`;
-- `wrappedKeys` by `keyEpoch`, then `deviceID`; and
+- `wrappedKeys` by the UTF-8 bytes of `keyID`, then `deviceID`; and
 - `entries` by normalized `name`, then `entryID`, comparing UTF-8 bytes.
 
 Readers MUST reject unsorted arrays. Readers MUST also reject:
@@ -222,10 +248,9 @@ Readers MUST reject unsorted arrays. Readers MUST also reject:
 - duplicate device IDs, entry IDs, or normalized entry names;
 - a device ID that does not equal the fingerprint of its canonical signing and
   wrapping public-key pair;
-- an entry or wrapped key whose `keyEpoch` exceeds the manifest `keyEpoch`;
 - a local manifest with any device or wrapped-key record;
 - a shared manifest without an active owner;
-- a shared manifest without exactly one current-epoch wrapper for every active
+- a shared manifest without exactly one current-key wrapper for every active
   device; and
 - a shared manifest with a wrapper for a revoked or unknown device.
 
@@ -236,7 +261,7 @@ Version 3 uses a layered authority model:
 - Every manifest has an HMAC-SHA-256 tag under a key derived from the current
   vault encryption key. This proves current vault-key possession and keeps
   ordinary CLI mutations fast and noninteractive.
-- A transition that changes mode, key epoch, devices, device roles, device
+- A transition that changes mode, active key ID, devices, device roles, device
   status, public keys, or wrapped keys additionally requires at least one
   P-256 ECDSA signature from a device that was an active `owner` in the parent
   manifest. This supplies device attribution and prevents an ordinary member
@@ -264,7 +289,7 @@ The persisted envelope has exactly:
 | `format` | Exactly `key-vault-manifest-envelope` |
 | `version` | Exactly `3` |
 | `content` | Parent reference plus the complete manifest body |
-| `authentication` | Current-epoch derived-key HMAC |
+| `authentication` | Exact-current-key derived HMAC |
 | `authorizations` | Sorted owner signatures; empty for ordinary entry-only transitions |
 
 `content.parent` is either `{"kind":"genesis"}` or an object containing
@@ -283,7 +308,7 @@ The 32-byte manifest authentication key is:
 
 ```text
 HKDF-SHA256(
-  IKM = vaultEncryptionKey[keyEpoch],
+  IKM = exact vaultEncryptionKey identified by content.manifest.keyID,
   salt = 16 UUID bytes in displayed network order,
   info = UTF8("work.tvr.key/v3/manifest-auth-key"),
   L = 32
@@ -291,8 +316,9 @@ HKDF-SHA256(
 ```
 
 `authentication.tag` is the complete 32-byte HMAC-SHA-256 output over the
-common authentication input. `authentication.keyEpoch` MUST equal
-`content.manifest.keyEpoch`.
+common authentication input. `authentication.keyID` MUST equal
+`content.manifest.keyID`, and both MUST equal the ID derived from the supplied
+vault key before the manifest can authenticate.
 
 Each authorization signs SHA-256 of the same common authentication input using
 the signer's dedicated Secure Enclave P-256 signing key. The stored signature
@@ -310,8 +336,10 @@ A reader MUST:
 1. validate canonical encoding and structural schemas without side effects;
 2. require the parent reference to match the locally trusted current envelope;
 3. load the addressed local key or select and unwrap only the candidate's
-   current-epoch vault-key wrapper, treating all candidate fields as untrusted;
-4. derive the manifest authentication key and verify the HMAC in constant time;
+   exact-current-key wrapper, treating all candidate fields as untrusted;
+4. derive the supplied key's ID, require it to match both authenticated key-ID
+   fields, then derive the manifest authentication key and verify the HMAC in
+   constant time;
 5. compare parent and candidate authority fields;
 6. require and verify an active-parent-owner signature for an authority change;
 7. apply all manifest semantic checks; and only then
@@ -366,7 +394,7 @@ bytes through the checkpoint, verifies that the child names that exact parent
 digest, performs the complete child verification order above, and only then
 replaces the checkpoint while requiring the expected prior checkpoint. The
 parent and child vault keys are separate inputs because a valid authority
-transition may advance the key epoch. Authentication, semantic, authorization,
+transition may replace the vault key. Authentication, semantic, authorization,
 or persistence failure leaves the prior checkpoint unchanged.
 
 Only this freshness gate produces a `V3TrustedManifest`. Public entry open,
@@ -396,7 +424,7 @@ The canonical encrypted entry file has these fields and no others:
 | `entryID` | UUID | Must match its manifest record |
 | `name` | normalized name | Must match its manifest record |
 | `type` | enum | Must match its manifest record |
-| `keyEpoch` | integer | Must match its manifest record |
+| `keyID` | 43-character base64url | Must match its manifest record |
 | `revision` | integer | Must match its manifest record |
 | `encryption` | object | AES-256-GCM payload |
 
@@ -424,7 +452,7 @@ The typed entry authentication context contains exactly:
   "entryID": "018f4d39-930c-735d-8d6f-588e9b0a3a48",
   "name": "email/personal",
   "type": "secret",
-  "keyEpoch": 3,
+  "keyID": "YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA",
   "revision": 4
 }
 ```
@@ -466,7 +494,8 @@ The `FMT-205` implementation treats a parsed entry as untrusted structured
 data. Sealing generates a fresh 12-byte AES-GCM nonce, encrypts the UTF-8
 plaintext with the typed entry context as associated data, emits the exact
 canonical entry object, and returns the SHA-256 digest of those canonical bytes
-for the manifest record.
+for the manifest record. Before sealing, it derives the supplied vault key's ID
+for the context vault ID and requires an exact match.
 
 The public opening API requires the verifier-produced manifest type and selects
 the entry by ID, rather than accepting a free-standing record that a caller
@@ -474,15 +503,17 @@ could accidentally treat as authenticated. Before returning plaintext, the
 reader MUST:
 
 1. require an exact 32-byte vault key;
-2. decode the manifest's canonical base64url `ciphertextDigest` and compare it
+2. derive its vault-scoped key ID and require it to equal the authenticated
+   manifest entry's `keyID`;
+3. decode the manifest's canonical base64url `ciphertextDigest` and compare it
    with SHA-256 over the exact entry-file bytes;
-3. derive the expected typed context from authenticated manifest values;
-4. parse the exact version 3 schema, reject noncanonical JSON, unknown fields,
+4. derive the expected typed context from authenticated manifest values;
+5. parse the exact version 3 schema, reject noncanonical JSON, unknown fields,
    unsupported algorithms, and malformed encryption components;
-5. require every duplicated entry identity field to equal the manifest-derived
+6. require every duplicated entry identity field to equal the manifest-derived
    context;
-6. open AES-256-GCM using that context's associated-data bytes; and
-7. require valid UTF-8 before releasing plaintext.
+7. open AES-256-GCM using that context's associated-data bytes; and
+8. require valid UTF-8 before releasing plaintext.
 
 Cryptographic opening failures are reported as authentication failures without
 returning candidate plaintext. Standalone parsing does not authenticate an
@@ -506,14 +537,14 @@ authenticated.
 
 Copy creates a new logical entry with:
 
-- the same vault ID, type, and key epoch as the source;
+- the same vault ID, type, and exact key ID as the source;
 - a fresh, noncolliding entry ID;
 - the requested normalized destination name; and
 - revision `1`.
 
 Rename creates a replacement revision with:
 
-- the same vault ID, entry ID, type, and key epoch as the source;
+- the same vault ID, entry ID, type, and exact key ID as the source;
 - the requested normalized destination name; and
 - the source revision incremented by one.
 
@@ -614,7 +645,7 @@ Manifest body:
   "version": 3,
   "vaultID": "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
   "mode": "shared",
-  "keyEpoch": 3,
+  "keyID": "YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA",
   "devices": [
     {
       "deviceID": "DzO1MpK36yEEcRSR1JUYExdqhU-2FMv_jYlp5gZ99xs",
@@ -636,7 +667,7 @@ Manifest body:
   "wrappedKeys": [
     {
       "deviceID": "DzO1MpK36yEEcRSR1JUYExdqhU-2FMv_jYlp5gZ99xs",
-      "keyEpoch": 3,
+      "keyID": "YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA",
       "algorithm": "p256-ecies-x963-sha256-aes-gcm",
       "ciphertext": "AQIDBA"
     }
@@ -647,7 +678,7 @@ Manifest body:
       "name": "email/personal",
       "type": "secret",
       "revision": 4,
-      "keyEpoch": 3,
+      "keyID": "YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA",
       "ciphertextDigest": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     }
   ]
@@ -670,7 +701,7 @@ Authenticated envelope:
       "version": 3,
       "vaultID": "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
       "mode": "shared",
-      "keyEpoch": 3,
+      "keyID": "YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA",
       "devices": [
         {
           "deviceID": "DzO1MpK36yEEcRSR1JUYExdqhU-2FMv_jYlp5gZ99xs",
@@ -692,7 +723,7 @@ Authenticated envelope:
       "wrappedKeys": [
         {
           "deviceID": "DzO1MpK36yEEcRSR1JUYExdqhU-2FMv_jYlp5gZ99xs",
-          "keyEpoch": 3,
+          "keyID": "YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA",
           "algorithm": "p256-ecies-x963-sha256-aes-gcm",
           "ciphertext": "AQIDBA"
         }
@@ -702,7 +733,7 @@ Authenticated envelope:
   },
   "authentication": {
     "algorithm": "HKDF-SHA256+HMAC-SHA256",
-    "keyEpoch": 3,
+    "keyID": "YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA",
     "tag": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
   },
   "authorizations": [
@@ -725,7 +756,7 @@ Encrypted entry:
   "entryID": "018f4d39-930c-735d-8d6f-588e9b0a3a48",
   "name": "email/personal",
   "type": "secret",
-  "keyEpoch": 3,
+  "keyID": "YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA",
   "revision": 4,
   "encryption": {
     "algorithm": "AES-256-GCM",
@@ -762,10 +793,9 @@ defined by a later specification.
 
 ## Deliberately Deferred
 
-`HIST-402` establishes exact digest-based identity for linear authenticated
-history. It deliberately does not define:
+`HIST-402` and `KEY-403` establish exact digest-based identities for linear
+authenticated history and vault keys. They deliberately do not define:
 
-- exact vault-key identity (`KEY-403`);
 - canonical multi-parent merge history (`HIST-404`);
 - immutable physical object layout and head discovery (`STORE-405`);
 - automatic reconciliation (`MERGE-406`);

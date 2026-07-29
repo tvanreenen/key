@@ -86,7 +86,7 @@ public struct V3ManifestDevice: Equatable, Sendable {
 
 public struct V3WrappedKey: Equatable, Sendable {
     public let deviceID: String
-    public let keyEpoch: UInt64
+    public let keyID: V3VaultKeyID
     public let ciphertext: String
 }
 
@@ -95,14 +95,14 @@ public struct V3ManifestEntry: Equatable, Sendable {
     public let name: String
     public let type: SecretEntryType
     public let revision: UInt64
-    public let keyEpoch: UInt64
+    public let keyID: V3VaultKeyID
     public let ciphertextDigest: String
 }
 
 public struct V3ManifestBody: Equatable, Sendable {
     public let vaultID: String
     public let mode: V3VaultMode
-    public let keyEpoch: UInt64
+    public let keyID: V3VaultKeyID
     public let devices: [V3ManifestDevice]
     public let wrappedKeys: [V3WrappedKey]
     public let entries: [V3ManifestEntry]
@@ -119,7 +119,7 @@ public struct V3ManifestContent: Equatable, Sendable {
 }
 
 public struct V3ManifestAuthentication: Equatable, Sendable {
-    public let keyEpoch: UInt64
+    public let keyID: V3VaultKeyID
     public let tag: String
 }
 
@@ -380,7 +380,18 @@ public struct V3ManifestAuthenticator: Sendable {
         _ candidate: V3ManifestEnvelope,
         vaultKey: Data
     ) throws -> Data {
-        guard candidate.authentication.keyEpoch == candidate.content.manifest.keyEpoch else {
+        let expectedKeyID: V3VaultKeyID
+        do {
+            expectedKeyID = try V3VaultKeyID.derive(
+                vaultKey: vaultKey,
+                vaultID: candidate.content.manifest.vaultID
+            )
+        } catch {
+            throw V3ManifestError.authenticationFailed
+        }
+        guard candidate.authentication.keyID == candidate.content.manifest.keyID,
+              candidate.content.manifest.keyID == expectedKeyID
+        else {
             throw V3ManifestError.authenticationFailed
         }
         let suppliedTag = try decodeBase64URL(
@@ -530,7 +541,7 @@ private enum ManifestDecoder {
         try requireFields(
             manifest,
             required: [
-                "format", "version", "vaultID", "mode", "keyEpoch",
+                "format", "version", "vaultID", "mode", "keyID",
                 "devices", "wrappedKeys", "entries"
             ],
             path: "$.content.manifest"
@@ -579,9 +590,9 @@ private enum ManifestDecoder {
                 path: "$.content.manifest.vaultID"
             ),
             mode: mode,
-            keyEpoch: try integer(
-                requiredMember("keyEpoch", in: manifest, path: "$.content.manifest"),
-                path: "$.content.manifest.keyEpoch"
+            keyID: try vaultKeyID(
+                requiredMember("keyID", in: manifest, path: "$.content.manifest"),
+                path: "$.content.manifest.keyID"
             ),
             devices: devices,
             wrappedKeys: wrappedKeys,
@@ -664,7 +675,7 @@ private enum ManifestDecoder {
         let wrappedKey = try object(value, path: path)
         try requireFields(
             wrappedKey,
-            required: ["deviceID", "keyEpoch", "algorithm", "ciphertext"],
+            required: ["deviceID", "keyID", "algorithm", "ciphertext"],
             path: path
         )
         try requireConstant(
@@ -678,9 +689,9 @@ private enum ManifestDecoder {
                 length: 43,
                 path: "\(path).deviceID"
             ),
-            keyEpoch: try integer(
-                requiredMember("keyEpoch", in: wrappedKey, path: path),
-                path: "\(path).keyEpoch"
+            keyID: try vaultKeyID(
+                requiredMember("keyID", in: wrappedKey, path: path),
+                path: "\(path).keyID"
             ),
             ciphertext: try base64URLString(
                 requiredMember("ciphertext", in: wrappedKey, path: path),
@@ -694,7 +705,7 @@ private enum ManifestDecoder {
         let entry = try object(value, path: path)
         try requireFields(
             entry,
-            required: ["entryID", "name", "type", "revision", "keyEpoch", "ciphertextDigest"],
+            required: ["entryID", "name", "type", "revision", "keyID", "ciphertextDigest"],
             path: path
         )
         let typeValue = try string(requiredMember("type", in: entry, path: path), path: "\(path).type")
@@ -716,9 +727,9 @@ private enum ManifestDecoder {
             name: try string(requiredMember("name", in: entry, path: path), path: "\(path).name"),
             type: type,
             revision: revision,
-            keyEpoch: try integer(
-                requiredMember("keyEpoch", in: entry, path: path),
-                path: "\(path).keyEpoch"
+            keyID: try vaultKeyID(
+                requiredMember("keyID", in: entry, path: path),
+                path: "\(path).keyID"
             ),
             ciphertextDigest: try base64URLString(
                 requiredMember("ciphertextDigest", in: entry, path: path),
@@ -731,16 +742,16 @@ private enum ManifestDecoder {
     private static func decodeAuthentication(_ value: CanonicalJSONValue) throws -> V3ManifestAuthentication {
         let path = "$.authentication"
         let authentication = try object(value, path: path)
-        try requireFields(authentication, required: ["algorithm", "keyEpoch", "tag"], path: path)
+        try requireFields(authentication, required: ["algorithm", "keyID", "tag"], path: path)
         try requireConstant(
             "HKDF-SHA256+HMAC-SHA256",
             value: requiredMember("algorithm", in: authentication, path: path),
             path: "\(path).algorithm"
         )
         return V3ManifestAuthentication(
-            keyEpoch: try integer(
-                requiredMember("keyEpoch", in: authentication, path: path),
-                path: "\(path).keyEpoch"
+            keyID: try vaultKeyID(
+                requiredMember("keyID", in: authentication, path: path),
+                path: "\(path).keyID"
             ),
             tag: try base64URLString(
                 requiredMember("tag", in: authentication, path: path),
@@ -784,8 +795,8 @@ private enum ManifestDecoder {
 private func validateSemantics(_ manifest: V3ManifestBody) throws {
     try validateDisplayNames(manifest.devices)
     try validateDeviceOrderingAndIdentity(manifest.devices)
-    try validateWrappedKeyOrdering(manifest.wrappedKeys, manifestKeyEpoch: manifest.keyEpoch)
-    try validateEntryOrdering(manifest.entries, manifestKeyEpoch: manifest.keyEpoch)
+    try validateWrappedKeyOrdering(manifest.wrappedKeys)
+    try validateEntryOrdering(manifest.entries)
     try validateModeSpecificMembership(manifest)
 }
 
@@ -843,27 +854,24 @@ private func validateDeviceOrderingAndIdentity(_ devices: [V3ManifestDevice]) th
     }
 }
 
-private func validateWrappedKeyOrdering(
-    _ wrappedKeys: [V3WrappedKey],
-    manifestKeyEpoch: UInt64
-) throws {
+private func validateWrappedKeyOrdering(_ wrappedKeys: [V3WrappedKey]) throws {
     var previous: V3WrappedKey?
     var seen = Set<String>()
     for wrappedKey in wrappedKeys {
-        guard wrappedKey.keyEpoch <= manifestKeyEpoch else {
-            throw V3ManifestError.semanticViolation("wrappedKeys.keyEpoch")
-        }
         _ = try decodeBase64URL(
             wrappedKey.ciphertext,
             error: .semanticViolation("wrappedKeys.ciphertext")
         )
-        let identity = "\(wrappedKey.keyEpoch):\(wrappedKey.deviceID)"
+        let identity = "\(wrappedKey.keyID.rawValue):\(wrappedKey.deviceID)"
         guard seen.insert(identity).inserted else {
             throw V3ManifestError.semanticViolation("wrappedKeys.duplicate")
         }
         if let previous {
-            let correctlyOrdered = previous.keyEpoch < wrappedKey.keyEpoch
-                || (previous.keyEpoch == wrappedKey.keyEpoch
+            let correctlyOrdered = utf8Precedes(
+                previous.keyID.rawValue,
+                wrappedKey.keyID.rawValue
+            )
+                || (previous.keyID == wrappedKey.keyID
                     && utf8Precedes(previous.deviceID, wrappedKey.deviceID))
             guard correctlyOrdered else {
                 throw V3ManifestError.semanticViolation("wrappedKeys.order")
@@ -890,8 +898,8 @@ private func validateModeSpecificMembership(_ manifest: V3ManifestBody) throws {
 
         let activeDeviceIDs = Set(activeDevices.map(\.deviceID))
         for wrappedKey in manifest.wrappedKeys {
-            guard wrappedKey.keyEpoch == manifest.keyEpoch else {
-                throw V3ManifestError.semanticViolation("wrappedKeys.keyEpoch")
+            guard wrappedKey.keyID == manifest.keyID else {
+                throw V3ManifestError.semanticViolation("wrappedKeys.keyID")
             }
             guard activeDeviceIDs.contains(wrappedKey.deviceID) else {
                 throw V3ManifestError.semanticViolation("wrappedKeys.deviceID")
@@ -907,18 +915,12 @@ private func validateModeSpecificMembership(_ manifest: V3ManifestBody) throws {
     }
 }
 
-private func validateEntryOrdering(
-    _ entries: [V3ManifestEntry],
-    manifestKeyEpoch: UInt64
-) throws {
+private func validateEntryOrdering(_ entries: [V3ManifestEntry]) throws {
     var previous: V3ManifestEntry?
     var entryIDs = Set<String>()
     var names = Set<Data>()
     for entry in entries {
         try validateEntryName(entry.name)
-        guard entry.keyEpoch <= manifestKeyEpoch else {
-            throw V3ManifestError.semanticViolation("entries.keyEpoch")
-        }
         _ = try decodeBase64URL(
             entry.ciphertextDigest,
             expectedByteCount: 32,
@@ -948,7 +950,7 @@ private func validateEntryName(_ name: String) throws {
 
 private func authorityChanged(from parent: V3ManifestBody, to candidate: V3ManifestBody) -> Bool {
     parent.mode != candidate.mode
-        || parent.keyEpoch != candidate.keyEpoch
+        || parent.keyID != candidate.keyID
         || parent.devices != candidate.devices
         || parent.wrappedKeys != candidate.wrappedKeys
 }
@@ -969,7 +971,7 @@ private func manifestAuthenticationKey(
     vaultKey: Data,
     vaultID: String
 ) throws -> SymmetricKey {
-    guard let salt = uuidBytes(vaultID) else {
+    guard let salt = v3UUIDBytes(vaultID) else {
         throw V3ManifestError.invalidStructure("$.content.manifest.vaultID")
     }
     return HKDF<SHA256>.deriveKey(
@@ -978,25 +980,6 @@ private func manifestAuthenticationKey(
         info: Data("work.tvr.key/v3/manifest-auth-key".utf8),
         outputByteCount: 32
     )
-}
-
-private func uuidBytes(_ value: String) -> Data? {
-    let compact = value.replacingOccurrences(of: "-", with: "")
-    guard compact.count == 32 else {
-        return nil
-    }
-    var bytes = Data()
-    bytes.reserveCapacity(16)
-    var index = compact.startIndex
-    for _ in 0..<16 {
-        let next = compact.index(index, offsetBy: 2)
-        guard let byte = UInt8(compact[index..<next], radix: 16) else {
-            return nil
-        }
-        bytes.append(byte)
-        index = next
-    }
-    return bytes
 }
 
 private func decodeBase64URL(
@@ -1145,6 +1128,18 @@ private func uuidString(
         throw V3ManifestError.invalidStructure(path)
     }
     return string
+}
+
+private func vaultKeyID(
+    _ value: CanonicalJSONValue,
+    path: String
+) throws -> V3VaultKeyID {
+    let rawValue = try base64URLString(value, length: 43, path: path)
+    do {
+        return try V3VaultKeyID(rawValue: rawValue)
+    } catch {
+        throw V3ManifestError.invalidStructure(path)
+    }
 }
 
 private func base64URLString(

@@ -88,15 +88,15 @@
       "additionalProperties": false,
       "required": [
         "algorithm",
-        "keyEpoch",
+        "keyID",
         "tag"
       ],
       "properties": {
         "algorithm": {
           "const": "HKDF-SHA256+HMAC-SHA256"
         },
-        "keyEpoch": {
-          "$ref": "v3-common.schema.json#/$defs/safeInteger"
+        "keyID": {
+          "$ref": "v3-common.schema.json#/$defs/vaultKeyID"
         },
         "tag": {
           "$ref": "v3-common.schema.json#/$defs/sha256"

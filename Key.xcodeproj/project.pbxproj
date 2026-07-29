@@ -34,6 +34,7 @@
 		A3030001A3030001A3030001 /* VaultProviderNamePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3030002A3030002A3030002 /* VaultProviderNamePolicy.swift */; };
 		A3040001A3040001A3040001 /* VaultContainedMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3040002A3040002A3040002 /* VaultContainedMutation.swift */; };
 		A4010001A4010001A4010001 /* VaultTransactionMutationOwner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4010002A4010002A4010002 /* VaultTransactionMutationOwner.swift */; };
+		A4030001A4030001A4030001 /* Base64URL.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4030002A4030002A4030002 /* Base64URL.swift */; };
 		A15F350B2230881FFC292742 /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
 		AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA3251E5B71729E191F7889A /* Command.swift */; };
 		B4BE69F25B811392D2FBBE3C /* KeyCLIApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */; };
@@ -113,6 +114,7 @@
 		A3030002A3030002A3030002 /* VaultProviderNamePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultProviderNamePolicy.swift; sourceTree = "<group>"; };
 		A3040002A3040002A3040002 /* VaultContainedMutation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultContainedMutation.swift; sourceTree = "<group>"; };
 		A4010002A4010002A4010002 /* VaultTransactionMutationOwner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultTransactionMutationOwner.swift; sourceTree = "<group>"; };
+		A4030002A4030002A4030002 /* Base64URL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Base64URL.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -147,6 +149,7 @@
 			isa = PBXGroup;
 			children = (
 				DE09A18FF4CC11995E958F80 /* AppError.swift */,
+				A4030002A4030002A4030002 /* Base64URL.swift */,
 				FF28C31FF780A4FCCB3294D7 /* CLIParser.swift */,
 				E1EE5012D730E62376078026 /* ClipboardWriting.swift */,
 				BA3251E5B71729E191F7889A /* Command.swift */,
@@ -443,6 +446,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3E06CBB9790C0F544B940F1B /* AppError.swift in Sources */,
+				A4030001A4030001A4030001 /* Base64URL.swift in Sources */,
 				B611695A8D40D95DE0EF69BD /* CLIParser.swift in Sources */,
 				70A1989598F246AF88CA0C88 /* ClipboardWriting.swift in Sources */,
 				AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */,

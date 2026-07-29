@@ -239,10 +239,10 @@ public struct V3ManifestReplayProtector: Sendable {
     /// current manifest and advances the checkpoint only after every
     /// authentication and semantic check succeeds.
     ///
-    /// The transaction layer must retain the parent for recovery and commit
-    /// the candidate root pointer before calling this method. Parent and
-    /// candidate keys are separate because an authorized transition may
-    /// advance the vault key epoch.
+    /// The transaction layer must retain the parent for recovery and durably
+    /// publish the candidate before calling this method. Parent and candidate
+    /// keys are separate because an authorized transition may replace the
+    /// vault key.
     public func acceptCommittedChild(
         to candidateData: Data,
         from trustedParentData: Data,
