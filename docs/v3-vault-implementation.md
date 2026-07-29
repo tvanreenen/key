@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `205ac4f` |
+| Production base | `main` at `89ee693` |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/replace-key-epochs-with-key-identities` |
+| Current branch | `agent/admit-multi-parent-manifests` |
 | Current PR | Not opened |
-| Active increment | `KEY-403` implemented on branch; awaiting review |
-| Next work | Review and merge exact vault-key identity, then begin `HIST-404` |
+| Active increment | `HIST-404` implementation in progress |
+| Next work | Review and merge canonical multi-parent authentication, then begin `STORE-405` |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -106,8 +106,8 @@ security or durability boundary and updates this tracker before it merges.
 |---|---|---|
 | `TXN-401` | Complete; PR #29 | Serialize helper-owned mutations and assign local operation IDs |
 | `HIST-402` | Complete; PR #30 | Identify trusted vault state by an exact authenticated head digest |
-| `KEY-403` | Implemented; awaiting review | Replace counter-only key epochs with exact vault-key identities |
-| `HIST-404` | Planned | Admit canonical multi-parent manifests and authenticated merge history |
+| `KEY-403` | Complete; PR #31 | Replace counter-only key epochs with exact vault-key identities |
+| `HIST-404` | Implemented; awaiting review | Admit canonical multi-parent manifests and authenticated merge history |
 | `STORE-405` | Planned | Read immutable digest-addressed objects and classify repository state |
 | `MERGE-406` | Planned | Reconcile independent path changes and return typed conflicts |
 | `TXN-407` | Planned | Publish entries first and the expected-head manifest last |
@@ -158,7 +158,7 @@ Acceptance gate:
 
 #### `KEY-403` — Exact Vault-Key Identity
 
-Current branch: `agent/replace-key-epochs-with-key-identities`.
+Status: complete; squash-merged as `89ee693` in PR #31.
 
 Scope:
 
@@ -198,11 +198,25 @@ Acceptance gate:
 
 #### `HIST-404` — Merge-Capable Manifest History
 
+Status: implemented on `agent/admit-multi-parent-manifests`; awaiting review.
+
 Replace the singular parent with a canonical, sorted, duplicate-free parent
 digest array. Genesis has zero parents, ordinary commits have one, and merge
 commits have two or more. Verify every parent and admit an automatic merge only
 when the parents agree on vault identity, active key identity, membership,
 roles, and wrapped-key state.
+
+Implementation:
+
+- Persist the complete direct-parent set as `content.parents`, ordered by the
+  decoded 32-byte SHA-256 digests.
+- Accept parent authority only through `V3VerifiedManifest` values so raw
+  synchronized files cannot self-assert authenticated ancestry.
+- Preserve owner-authorized authority changes for single-parent transitions.
+- Require every parent and the merge candidate to carry exactly the same
+  authority state; merge commits cannot carry an authority authorization.
+- Leave branch discovery and entry reconciliation to `STORE-405` and
+  `MERGE-406`.
 
 Acceptance gate:
 
@@ -409,6 +423,8 @@ formats or transport stacks:
 - [x] Negative authentication tests for every bound field.
 - [x] Copy/rename identity, revision, collision, and exact-byte resealing tests.
 - [x] Exact-head and single-parent replay tests without manifest generations.
+- [x] Canonical multi-parent ordering, complete-parent-set, foreign-parent,
+  and authority-conflict tests.
 - [x] Local/shared membership and exact-current-key wrapped-key consistency tests.
 - [x] V2 migration-preflight compatibility, decryptability, and no-write tests.
 - [x] Prototype migration-marker and v3 parser rejection tests.
@@ -441,6 +457,6 @@ formats or transport stacks:
 
 ## Immediate Next Action
 
-Review and merge `KEY-403`. After it merges, begin `HIST-404`; do not introduce
-immutable repository discovery or reconciliation until canonical multi-parent
-history is specified and implemented.
+Review and merge `HIST-404`. After it merges, begin the read-only `STORE-405`
+repository classifier; do not introduce entry reconciliation or publication
+until authenticated object discovery is implemented.

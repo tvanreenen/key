@@ -12,6 +12,7 @@ public enum V3ManifestError: Error, Equatable, LocalizedError {
     case notVersion3(UInt64)
     case invalidVaultKey
     case parentMismatch
+    case parentAuthorityConflict
     case authenticationFailed
     case authorizationRequired
     case unexpectedAuthorization
@@ -37,7 +38,9 @@ public enum V3ManifestError: Error, Equatable, LocalizedError {
         case .invalidVaultKey:
             "The version 3 vault key must contain exactly 32 bytes."
         case .parentMismatch:
-            "Manifest envelope does not extend the trusted parent."
+            "Manifest envelope does not extend the exact verified parent set."
+        case .parentAuthorityConflict:
+            "Manifest parents disagree on vault authority and cannot be merged automatically."
         case .authenticationFailed:
             "Manifest envelope authentication failed."
         case .authorizationRequired:
@@ -107,13 +110,12 @@ public struct V3ManifestBody: Equatable, Sendable {
     public let entries: [V3ManifestEntry]
 }
 
-public enum V3ManifestParent: Equatable, Sendable {
-    case genesis
-    case manifest(digest: String)
-}
-
 public struct V3ManifestContent: Equatable, Sendable {
-    public let parent: V3ManifestParent
+    /// Canonical SHA-256 digests of every direct parent envelope.
+    ///
+    /// Empty identifies genesis, one digest identifies an ordinary commit,
+    /// and two or more identify a merge commit.
+    public let parents: [String]
     public let manifest: V3ManifestBody
 }
 
@@ -183,8 +185,8 @@ public struct V3VaultHead: Equatable, Sendable {
 public enum V3ManifestTrustAnchor: Equatable, Sendable {
     /// The caller independently trusts local creation of this vault identity.
     case localGenesis(vaultID: String)
-    /// The exact, already-trusted current envelope bytes.
-    case parent(Data)
+    /// Every exact direct parent, already authenticated by the caller.
+    case verifiedParents([V3VerifiedManifest])
 }
 
 public struct V3ManifestAuthenticator: Sendable {
@@ -231,11 +233,28 @@ public struct V3ManifestAuthenticator: Sendable {
         }
 
         let candidate = try parse(candidateData)
-        let parent: V3ManifestEnvelope?
+        let parents = try validateParentSet(
+            of: candidate,
+            against: trustAnchor
+        )
+        let input = try authenticate(candidate, vaultKey: vaultKey)
+        try validateTransition(to: candidate, from: parents, input: input)
+        try validateSemantics(candidate.content.manifest)
+        try validateAuthorizationOrdering(candidate.authorizations)
 
+        return V3VerifiedManifest(
+            envelope: candidate,
+            envelopeDigest: Data(SHA256.hash(data: candidateData))
+        )
+    }
+
+    private func validateParentSet(
+        of candidate: V3ManifestEnvelope,
+        against trustAnchor: V3ManifestTrustAnchor
+    ) throws -> [V3VerifiedManifest] {
         switch trustAnchor {
         case let .localGenesis(expectedVaultID):
-            guard candidate.content.parent == .genesis,
+            guard candidate.content.parents.isEmpty,
                   candidate.content.manifest.mode == .local,
                   candidate.content.manifest.vaultID == expectedVaultID
             else {
@@ -244,37 +263,70 @@ public struct V3ManifestAuthenticator: Sendable {
             guard candidate.authorizations.isEmpty else {
                 throw V3ManifestError.unexpectedAuthorization
             }
-            parent = nil
-        case let .parent(parentData):
-            let parsedParent = try parse(parentData)
-            try validateSemantics(parsedParent.content.manifest)
-            guard case let .manifest(digest) = candidate.content.parent,
-                  candidate.content.manifest.vaultID == parsedParent.content.manifest.vaultID,
-                  try decodeBase64URL(digest, expectedByteCount: 32)
-                    == Data(SHA256.hash(data: parentData))
+            return []
+
+        case let .verifiedParents(verifiedParents):
+            let expectedParentDigests = verifiedParents
+                .map(\.envelopeDigest)
+                .sorted(by: { $0.lexicographicallyPrecedes($1) })
+            let candidateParentDigests = try candidate.content.parents.map {
+                try decodeBase64URL($0, expectedByteCount: 32)
+            }
+            guard !verifiedParents.isEmpty,
+                  Set(expectedParentDigests).count == verifiedParents.count,
+                  candidateParentDigests == expectedParentDigests,
+                  verifiedParents.allSatisfy({
+                      $0.envelope.content.manifest.vaultID
+                          == candidate.content.manifest.vaultID
+                  })
             else {
                 throw V3ManifestError.parentMismatch
             }
-            parent = parsedParent
+            return verifiedParents
         }
+    }
 
-        let input = try authenticate(candidate, vaultKey: vaultKey)
-
-        if let parent {
-            if authorityChanged(from: parent.content.manifest, to: candidate.content.manifest) {
-                try verifyAuthorizations(candidate.authorizations, input: input, parent: parent)
+    private func validateTransition(
+        to candidate: V3ManifestEnvelope,
+        from parents: [V3VerifiedManifest],
+        input: Data
+    ) throws {
+        if parents.count == 1, let parent = parents.first {
+            if authorityChanged(
+                from: parent.envelope.content.manifest,
+                to: candidate.content.manifest
+            ) {
+                try verifyAuthorizations(
+                    candidate.authorizations,
+                    input: input,
+                    parent: parent.envelope
+                )
             } else if !candidate.authorizations.isEmpty {
                 throw V3ManifestError.unexpectedAuthorization
             }
+            return
         }
 
-        try validateSemantics(candidate.content.manifest)
-        try validateAuthorizationOrdering(candidate.authorizations)
-
-        return V3VerifiedManifest(
-            envelope: candidate,
-            envelopeDigest: Data(SHA256.hash(data: candidateData))
-        )
+        guard parents.count > 1 else {
+            return
+        }
+        guard let firstParent = parents.first,
+              parents.dropFirst().allSatisfy({
+                  hasSameAuthority(
+                      firstParent.envelope.content.manifest,
+                      $0.envelope.content.manifest
+                  )
+              }),
+              hasSameAuthority(
+                  firstParent.envelope.content.manifest,
+                  candidate.content.manifest
+              )
+        else {
+            throw V3ManifestError.parentAuthorityConflict
+        }
+        guard candidate.authorizations.isEmpty else {
+            throw V3ManifestError.unexpectedAuthorization
+        }
     }
 
     func verifyCheckpointedCurrent(
@@ -480,9 +532,11 @@ private enum ManifestDecoder {
         )
         let contentValue = try requiredMember("content", in: root, path: "$")
         let contentObject = try object(contentValue, path: "$.content")
-        try requireFields(contentObject, required: ["parent", "manifest"], path: "$.content")
+        try requireFields(contentObject, required: ["parents", "manifest"], path: "$.content")
 
-        let parent = try decodeParent(try requiredMember("parent", in: contentObject, path: "$.content"))
+        let parents = try decodeParents(
+            try requiredMember("parents", in: contentObject, path: "$.content")
+        )
         let manifest = try decodeManifest(try requiredMember("manifest", in: contentObject, path: "$.content"))
         let authentication = try decodeAuthentication(
             try requiredMember("authentication", in: root, path: "$")
@@ -496,7 +550,7 @@ private enum ManifestDecoder {
         }
 
         return V3ManifestEnvelope(
-            content: V3ManifestContent(parent: parent, manifest: manifest),
+            content: V3ManifestContent(parents: parents, manifest: manifest),
             authentication: authentication,
             authorizations: authorizations,
             canonicalBytes: canonicalBytes,
@@ -504,32 +558,27 @@ private enum ManifestDecoder {
         )
     }
 
-    private static func decodeParent(_ value: CanonicalJSONValue) throws -> V3ManifestParent {
-        let parent = try object(value, path: "$.content.parent")
-        let kind = try string(
-            try requiredMember("kind", in: parent, path: "$.content.parent"),
-            path: "$.content.parent.kind"
-        )
-        switch kind {
-        case "genesis":
-            try requireFields(parent, required: ["kind"], path: "$.content.parent")
-            return .genesis
-        case "manifest":
-            try requireFields(
+    private static func decodeParents(_ value: CanonicalJSONValue) throws -> [String] {
+        let values = try array(value, path: "$.content.parents")
+        var parents: [String] = []
+        var previousDigest: Data?
+
+        for (index, value) in values.enumerated() {
+            let path = "$.content.parents[\(index)]"
+            let parent = try base64URLString(value, length: 43, path: path)
+            let digest = try decodeBase64URL(
                 parent,
-                required: ["kind", "digest"],
-                path: "$.content.parent"
+                expectedByteCount: 32,
+                error: .invalidStructure(path)
             )
-            return .manifest(
-                digest: try base64URLString(
-                    try requiredMember("digest", in: parent, path: "$.content.parent"),
-                    length: 43,
-                    path: "$.content.parent.digest"
-                )
-            )
-        default:
-            throw V3ManifestError.invalidStructure("$.content.parent.kind")
+            if let previousDigest,
+               !previousDigest.lexicographicallyPrecedes(digest) {
+                throw V3ManifestError.invalidStructure("$.content.parents")
+            }
+            parents.append(parent)
+            previousDigest = digest
         }
+        return parents
     }
 
     private static func decodeManifest(_ value: CanonicalJSONValue) throws -> V3ManifestBody {
@@ -926,6 +975,11 @@ private func authorityChanged(from parent: V3ManifestBody, to candidate: V3Manif
         || parent.keyID != candidate.keyID
         || parent.devices != candidate.devices
         || parent.wrappedKeys != candidate.wrappedKeys
+}
+
+private func hasSameAuthority(_ lhs: V3ManifestBody, _ rhs: V3ManifestBody) -> Bool {
+    lhs.vaultID == rhs.vaultID
+        && !authorityChanged(from: lhs, to: rhs)
 }
 
 private func validateAuthorizationOrdering(

@@ -490,7 +490,7 @@ struct V3EntryCipherTests {
             entries: [manifestEntry(context: context, digest: digest)]
         )
         let envelope = V3ManifestEnvelope(
-            content: V3ManifestContent(parent: .genesis, manifest: body),
+            content: V3ManifestContent(parents: [], manifest: body),
             authentication: V3ManifestAuthentication(
                 tag: String(repeating: "A", count: 43)
             ),
