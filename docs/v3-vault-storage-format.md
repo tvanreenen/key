@@ -232,8 +232,8 @@ belong in the current manifest.
 | `keyID` | 43-character base64url | Identity of the key used to encrypt this revision |
 | `ciphertextDigest` | 43-character base64url | SHA-256 of the exact canonical entry-file bytes |
 
-The manifest supplies logical entry identity, not a trusted physical path. The
-immutable digest-addressed object layout is finalized by `STORE-405`.
+The manifest supplies logical entry identity, not a trusted physical path.
+Immutable entry objects use the digest-derived repository path defined below.
 
 ### Manifest Ordering And Invariants
 
@@ -414,10 +414,11 @@ prior checkpoint unchanged.
 
 This increment can authenticate the direct parent set of a merge but MUST NOT
 promote that merge to the device-local checkpoint from
-`V3VerifiedManifest` values alone. `STORE-405` must first prove that every
-branch reaches established trusted history. A later freshness API will accept
-that ancestry proof rather than treating cryptographic validity as freshness.
-Calculating the merged entry set remains `MERGE-406`.
+`V3VerifiedManifest` values alone. Read-only repository discovery produces a
+`V3ManifestAncestryProof` only after every branch reaches established trusted
+history. A later freshness API will accept that proof rather than treating
+cryptographic validity as freshness. Calculating the merged entry set remains
+`MERGE-406`.
 
 Only this freshness gate produces a `V3TrustedManifest`. Public entry open,
 copy, and rename operations require that type rather than a merely
@@ -433,6 +434,99 @@ This design does not protect against a compromised active owner while its
 signing key and current vault key are both usable. It limits ordinary
 vault-key-only compromise from silently changing authority and makes authorized
 authority changes attributable.
+
+## Immutable Object Repository
+
+Version 3 synchronized state contains immutable objects at these exact relative
+paths:
+
+```text
+manifests/<64-lowercase-hex-manifest-digest>.json
+entries/<entry-id>/<64-lowercase-hex-ciphertext-digest>.json
+```
+
+The manifest filename digest is SHA-256 of the exact canonical manifest
+envelope bytes. The entry filename digest is the same SHA-256 value encoded as
+`ciphertextDigest` in its authenticated manifest entry record. Authenticated
+records retain canonical unpadded base64url; physical filenames use lowercase
+hexadecimal so two object names cannot differ only by case on a
+case-insensitive filesystem or sync provider.
+
+Writers MUST publish a new object only at its derived path and MUST NOT replace
+an existing object. Identical bytes converge on the same filename. Different
+bytes use different filenames. A file such as `current`, `HEAD`, or
+`latest.json` has no authority even if a sync provider or older client creates
+one.
+
+Readers MUST resolve the repository and each referenced object relative to the
+retained vault-root descriptor using the containment rules in this
+specification. A manifest object is eligible for graph authentication only
+when its canonical bytes hash to the digest in its exact lowercase filename.
+An entry object is usable only when its exact bytes hash to the filename and
+authenticated manifest digest and its canonical entry context matches the
+manifest-derived context.
+
+### Authenticated History Discovery
+
+Discovery begins from the exact manifest named by the device-local checkpoint,
+not from a synchronized mutable pointer or the lexically greatest filename.
+The reader:
+
+1. requires the checkpoint manifest at its derived immutable path;
+2. follows its exact parent digests backward, reopening those exact historical
+   bytes as checkpoint-anchored ancestry;
+3. enumerates candidate manifest objects under the canonical object layout;
+4. fully authenticates forward descendants against their complete verified
+   parent sets and an exact locally available vault key;
+5. derives leaf heads as authenticated manifests that are not the parent of
+   another authenticated reachable manifest;
+6. recursively follows unresolved, authenticated candidate ancestry before
+   treating a missing referenced manifest as incomplete transport; and
+7. validates every immutable entry object against every manifest context that
+   references it without decrypting entry plaintext.
+
+Walking backward through digest links does not require retaining every
+historical vault key. The trusted checkpoint envelope cryptographically commits
+to its exact parents, which commit to their parents transitively. A new forward
+candidate still requires normal HMAC, authorization, semantic, and complete
+parent-set verification before it can join authenticated reachable history.
+
+Discovery returns one of these states:
+
+| State | Meaning |
+|---|---|
+| `ready` | Exactly one complete authenticated reachable head |
+| `incomplete` | A checkpoint-linked manifest, authenticated candidate parent, or referenced entry is missing or is an unmaterialized provider placeholder |
+| `contentConflicted` | Multiple complete authenticated heads have identical authority state |
+| `securityConflicted` | Multiple complete authenticated heads disagree on mode, active key identity, membership, roles, public keys, statuses, or wrapped-key state |
+| `recoveryRequired` | A referenced immutable object has the wrong bytes or structure, violates safe path resolution, or exceeds a traversal/resource bound |
+
+Recovery-required state takes precedence over incomplete state, which takes
+precedence over a conflict classification. Invalid unreferenced objects and
+noncanonical filenames do not become trusted history and cannot replace the
+checkpoint head. An authenticated candidate that names an unavailable parent
+is incomplete transport only while the candidate remains structurally capable
+of joining the trusted graph. The reader MUST recursively inspect available
+unresolved parents, MUST reject merge candidates that already violate the
+authority or authorization rules, and MUST NOT let such impossible candidates
+block readiness. It MUST NOT guess a genuinely unavailable parent or discard
+the other branch.
+
+A physical entry object MAY be read once when several reachable manifests
+reference the same entry ID and ciphertext digest, but the reader MUST compare
+the parsed entry context with every referencing manifest context. Matching one
+of those contexts is not sufficient.
+
+A complete classification may return a typed ancestry proof containing the
+checkpoint, authenticated reachable manifests, and derived heads. The proof is
+read-only. Discovery MUST NOT modify synchronized files or advance the
+device-local checkpoint.
+
+Readers MUST bound repository work. This implementation accepts at most 4,096
+manifest-directory objects, history depth 1,024, 16,384 distinct referenced
+entry objects, 2 MiB per manifest object, and 16 MiB per encrypted entry
+object. One scan also accepts at most 64 MiB of manifest bytes and 256 MiB of
+encrypted-entry bytes in total. Writers MUST remain within these limits.
 
 ## Encrypted Entry File
 
@@ -811,11 +905,10 @@ defined by a later specification.
 
 ## Deliberately Deferred
 
-`HIST-402`, `KEY-403`, and `HIST-404` establish exact digest-based identities
-for authenticated history and vault keys, including safe multi-parent
-admission. They deliberately do not define:
+`HIST-402`, `KEY-403`, `HIST-404`, and `STORE-405` establish exact
+digest-based identities, safe multi-parent authentication, and bounded
+read-only discovery over immutable objects. They deliberately do not define:
 
-- immutable physical object layout and head discovery (`STORE-405`);
 - automatic reconciliation (`MERGE-406`);
 - transaction publication and recovery (`TXN-407` and `TXN-408`); or
 - physical migration execution beyond preflight.

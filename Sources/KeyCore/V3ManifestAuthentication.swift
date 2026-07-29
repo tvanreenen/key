@@ -141,6 +141,16 @@ public struct V3VerifiedManifest: Equatable, Sendable {
     public let envelopeDigest: Data
 }
 
+/// A structurally and cryptographically authenticated manifest object whose
+/// history relationship has not yet been established.
+///
+/// Repository discovery uses this intermediate state only to distinguish a
+/// genuinely incomplete synchronized branch from unrelated invalid files.
+struct V3AuthenticatedManifestObject: Equatable, Sendable {
+    let envelope: V3ManifestEnvelope
+    let envelopeDigest: Data
+}
+
 public enum V3VaultHeadError: Error, Equatable, LocalizedError {
     case invalidVaultID
     case invalidDigest
@@ -312,12 +322,12 @@ public struct V3ManifestAuthenticator: Sendable {
         }
         guard let firstParent = parents.first,
               parents.dropFirst().allSatisfy({
-                  hasSameAuthority(
+                  hasSameV3ManifestAuthority(
                       firstParent.envelope.content.manifest,
                       $0.envelope.content.manifest
                   )
               }),
-              hasSameAuthority(
+              hasSameV3ManifestAuthority(
                   firstParent.envelope.content.manifest,
                   candidate.content.manifest
               )
@@ -350,6 +360,56 @@ public struct V3ManifestAuthenticator: Sendable {
         return V3VerifiedManifest(
             envelope: candidate,
             envelopeDigest: checkpoint.envelopeDigest
+        )
+    }
+
+    /// Reopens an exact historical object named by authenticated checkpoint
+    /// ancestry.
+    ///
+    /// The expected digest must come from a manifest that is already anchored
+    /// by the device-local checkpoint. The digest link authenticates the exact
+    /// bytes without requiring retention of every historical vault key.
+    func reopenCheckpointAncestor(
+        _ data: Data,
+        expectedVaultID: String,
+        expectedDigest: Data
+    ) throws -> V3VerifiedManifest {
+        guard expectedDigest.count == 32,
+              Data(SHA256.hash(data: data)) == expectedDigest
+        else {
+            throw V3ManifestError.parentMismatch
+        }
+        let manifest = try parse(data)
+        guard manifest.content.manifest.vaultID == expectedVaultID else {
+            throw V3ManifestError.parentMismatch
+        }
+        try validateSemantics(manifest.content.manifest)
+        try validateAuthorizationOrdering(manifest.authorizations)
+        return V3VerifiedManifest(
+            envelope: manifest,
+            envelopeDigest: expectedDigest
+        )
+    }
+
+    /// Authenticates synchronized bytes without granting them ancestry.
+    ///
+    /// A repository candidate returned here still cannot become a parent
+    /// authority or trusted head until graph traversal verifies its complete
+    /// direct-parent set.
+    func authenticateForRepositoryDiscovery(
+        _ data: Data,
+        vaultKey: Data
+    ) throws -> V3AuthenticatedManifestObject {
+        guard vaultKey.count == 32 else {
+            throw V3ManifestError.invalidVaultKey
+        }
+        let manifest = try parse(data)
+        _ = try authenticate(manifest, vaultKey: vaultKey)
+        try validateSemantics(manifest.content.manifest)
+        try validateAuthorizationOrdering(manifest.authorizations)
+        return V3AuthenticatedManifestObject(
+            envelope: manifest,
+            envelopeDigest: Data(SHA256.hash(data: data))
         )
     }
 
@@ -977,7 +1037,7 @@ private func authorityChanged(from parent: V3ManifestBody, to candidate: V3Manif
         || parent.wrappedKeys != candidate.wrappedKeys
 }
 
-private func hasSameAuthority(_ lhs: V3ManifestBody, _ rhs: V3ManifestBody) -> Bool {
+func hasSameV3ManifestAuthority(_ lhs: V3ManifestBody, _ rhs: V3ManifestBody) -> Bool {
     lhs.vaultID == rhs.vaultID
         && !authorityChanged(from: lhs, to: rhs)
 }
