@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `80262fe` |
+| Production base | `main` at `885587a` |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/discover-trusted-manifest-history` |
+| Current branch | `agent/reconcile-vault-history` |
 | Current PR | Not opened |
-| Active increment | `STORE-405` implementation in progress |
-| Next work | Review and merge read-only trusted history discovery, then begin `MERGE-406` |
+| Active increment | `MERGE-406` implementation in progress |
+| Next work | Review and merge deterministic reconciliation, then begin `TXN-407` |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -108,8 +108,8 @@ security or durability boundary and updates this tracker before it merges.
 | `HIST-402` | Complete; PR #30 | Identify trusted vault state by an exact authenticated head digest |
 | `KEY-403` | Complete; PR #31 | Replace counter-only key epochs with exact vault-key identities |
 | `HIST-404` | Complete; PR #32 | Support canonical multi-parent manifests and authenticated merge history |
-| `STORE-405` | Implemented; awaiting review | Read immutable digest-addressed objects and classify repository state |
-| `MERGE-406` | Planned | Reconcile independent path changes and return typed conflicts |
+| `STORE-405` | Complete; PR #33 | Read immutable digest-addressed objects and classify repository state |
+| `MERGE-406` | Implemented; awaiting review | Reconcile independent path changes and return typed conflicts |
 | `TXN-407` | Planned | Publish entries first and the expected-head manifest last |
 | `TXN-408` | Planned | Recover every interrupted transaction phase and resolve protected writes |
 | `UX-409` | Planned | Add typed service failures, status, and conflict-resolution CLI commands |
@@ -295,24 +295,44 @@ Acceptance gate:
 
 #### `MERGE-406` — Deterministic Reconciliation
 
+Status: implemented on `agent/reconcile-vault-history`; awaiting review.
+
 Implement a pure common-ancestor and three-way comparison engine over logical
 paths, stable entry IDs, and exact ciphertext digests. Independently changed
-paths merge automatically. Rename-plus-edit of the same stable entry merges
-when the destination is unambiguous. Edit/edit, delete/edit, conflicting
-renames, destination collisions, and security-state divergence return typed
-conflicts without selecting a winner.
+entries merge automatically across two or more heads. Edit/edit, delete/edit,
+rename-plus-edit, conflicting renames, destination collisions, and
+security-state divergence return typed conflicts without selecting a winner.
+Lower revisions and different records that reuse an ancestor revision are also
+preserved as typed conflicts rather than being selected as automatic changes.
 
-Automatic merge output depends only on authenticated history. It contains no
-clock time, device display name, random merge ID, filesystem metadata, or
-transport metadata, allowing independent devices to produce the same canonical
-merge manifest and digest.
+Manifest authentication enforces the same rule at the transition boundary. A
+changed existing record must advance beyond its direct parents, and a new
+stable entry ID starts at revision 1. A multi-parent manifest may reuse an
+exact parent record only when it is the unique highest-revision value; equal
+highest revisions with different records remain ambiguous.
+
+Rename-plus-edit is deliberately conservative. A v3 rename must reseal the
+entry because its name is authenticated AES-GCM associated data. Manifest
+metadata alone therefore cannot prove that a renamed ciphertext preserved the
+ancestor plaintext. Automatically selecting the other branch's edit could
+silently discard a value, so both exact versions remain addressable for manual
+resolution.
+
+The reconciler returns a deterministic logical merge plan containing the
+unique nearest common ancestor, canonically ordered parent heads, and canonical
+manifest content. It performs no file access, decryption, random generation,
+publication, or checkpoint mutation. A criss-cross graph with several nearest
+common ancestors returns a typed history conflict instead of choosing a base
+arbitrarily.
 
 Acceptance gate:
 
-- Identical authenticated inputs always produce identical merge output.
-- Both values in a genuine conflict remain addressable.
-- Graph and merge tests run without a filesystem or sync provider.
-- Security-state divergence cannot enter the content auto-merge path.
+- [x] Identical authenticated inputs always produce identical merge output.
+- [x] Both values in a genuine conflict remain addressable.
+- [x] Graph and merge tests run without a filesystem or sync provider.
+- [x] Security-state divergence cannot enter the content auto-merge path.
+- [x] Rollbacks and same-revision substitutions cannot enter an automatic
+  merge.
 
 #### `TXN-407` — Immutable Transaction Publisher
 
@@ -462,6 +482,7 @@ formats or transport stacks:
 | `DEC-022` | Accepted | Reserve `--force` for confirmation and overwrite policy; it never bypasses trust, expected-head, completeness, rollback, or conflict checks. Permit stale reads only through an explicit `--allow-stale` request and never permit stale writes. |
 | `DEC-023` | Accepted | Define `keyID` as canonical base64url of HKDF-SHA256 over the exact 32-byte vault key, salted by canonical vault UUID bytes with `work.tvr.key/v3/vault-key-id` as the domain-separated info label. Require supplied keys to match this authenticated ID before manifest authentication or entry encryption/decryption. |
 | `DEC-024` | Accepted | Store immutable manifest and entry objects under lowercase hexadecimal SHA-256 filenames so content addressing remains collision-safe on case-insensitive providers. Discover history read-only from the exact device-local checkpoint, reopen its digest-linked ancestors, fully authenticate forward descendants, and expose a typed ancestry proof only when every referenced object is complete and valid. Treat missing or dataless provider objects as incomplete transport, referenced invalid objects or exhausted bounds as recovery-required state, and unrelated invalid objects as non-authoritative noise. |
+| `DEC-025` | Accepted | Reconcile complete authenticated history by stable entry ID against one unique nearest common ancestor. Automatically combine zero or one valid advancing change per entry across any number of heads, but preserve revision rollback, same-revision substitution, edit/edit, delete/edit, rename-plus-edit, conflicting rename, destination, security-state, and criss-cross-base ambiguity as typed conflicts. Enforce revision monotonicity again when authenticating a parent-to-child transition; a merge may reuse only an exact, unambiguous highest parent revision. Treat rename-plus-edit conservatively because opaque ciphertext resealed under name-bound AAD cannot prove that the rename branch preserved the ancestor value. |
 
 ## Validation Matrix
 
@@ -472,6 +493,7 @@ formats or transport stacks:
 - [x] Canonical multi-parent ordering, complete-parent-set, foreign-parent,
   and authority-conflict tests.
 - [x] Local/shared membership and exact-current-key wrapped-key consistency tests.
+- [x] Parent-to-child revision advancement and reconciliation rollback tests.
 - [x] V2 migration-preflight compatibility, decryptability, and no-write tests.
 - [x] Prototype migration-marker and v3 parser rejection tests.
 - [x] Trusted vault-root type, no-follow open, retained-identity, and close-on-exec tests.
@@ -485,6 +507,8 @@ formats or transport stacks:
 - [x] Descriptor-relative replace, exclusive move, and non-recursive cleanup tests.
 - [x] Helper-owned vault-root change, stale-session refusal, and out-of-band configuration tests.
 - [x] Serialized mutation ownership, canonical operation-ID, and mutation-routing tests.
+- [x] Deterministic multi-head reconciliation, exact conflict-version,
+  destination-collision, authority-divergence, and criss-cross-history tests.
 - [ ] Local-v2 migration and rollback tests.
 - [ ] Revocation tests with retained old keys.
 - [ ] Recovery tests for missing devices and corrupt or conflicting state.
@@ -503,6 +527,7 @@ formats or transport stacks:
 
 ## Immediate Next Action
 
-Review and merge `STORE-405`. After it merges, begin the pure `MERGE-406`
-common-ancestor and three-way reconciliation engine; do not introduce
-transaction publication until deterministic conflict handling is implemented.
+Review and merge `MERGE-406`. After it merges, begin `TXN-407` immutable
+transaction publication; do not advance a checkpoint or expose a merge
+manifest until expected-head revalidation and entry-first durability are
+implemented.

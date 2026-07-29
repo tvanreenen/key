@@ -235,6 +235,24 @@ belong in the current manifest.
 The manifest supplies logical entry identity, not a trusted physical path.
 Immutable entry objects use the digest-derived repository path defined below.
 
+For every non-genesis parent-to-child transition, revisions are checked per
+stable `entryID`:
+
+- a record that is byte-for-byte unchanged from its parent may retain its
+  revision;
+- a changed record MUST have a revision greater than every direct parent
+  record for that entry;
+- a newly introduced entry ID MUST start at revision `1`; and
+- a multi-parent manifest may reuse an exact parent record only when it is the
+  unambiguous highest-revision record across the direct parents.
+
+Consequently, a lower revision is a rollback and a different record at the
+same highest revision is a conflict. When two parents contain different
+records at the same highest revision, a merge cannot silently select either
+one. It must preserve the conflict or publish an explicitly resolved,
+newly sealed record at a higher revision. Deletion removes the record and does
+not create a synthetic tombstone revision.
+
 ### Manifest Ordering And Invariants
 
 JCS does not reorder arrays. Producers MUST sort:
@@ -527,6 +545,51 @@ manifest-directory objects, history depth 1,024, 16,384 distinct referenced
 entry objects, 2 MiB per manifest object, and 16 MiB per encrypted entry
 object. One scan also accepts at most 64 MiB of manifest bytes and 256 MiB of
 encrypted-entry bytes in total. Writers MUST remain within these limits.
+
+### Deterministic Reconciliation
+
+Reconciliation accepts only a complete `V3ManifestAncestryProof`. It is a pure
+logical operation: it performs no filesystem access, entry decryption, random
+generation, publication, or device-local checkpoint mutation.
+
+For one authenticated head, no merge is required. For two or more heads, the
+reader:
+
+1. orders heads by their decoded envelope digests;
+2. rejects authority divergence before comparing content;
+3. finds the nearest common authenticated ancestor of every head;
+4. indexes ancestor and head entries by stable entry ID;
+5. preserves a lower-revision rollback or same-revision substitution as a
+   typed conflict;
+6. selects the ancestor value when no head changed that entry;
+7. selects one distinct changed value when every other head retained the
+   ancestor value or made the identical change;
+8. returns a typed entry conflict when two or more distinct changes remain;
+9. rejects duplicate logical destination names in the proposed result; and
+10. emits canonical manifest content whose parents are the exact ordered heads.
+
+Entry conflicts preserve the common-ancestor record and every changed head's
+exact record. A nil head record represents deletion. Conflict kinds distinguish
+concurrent creation, edit/edit, delete/edit, rename-plus-edit, and conflicting
+renames, revision rollback, and same-revision substitution. Destination
+collisions retain every selected entry record. Authority divergence is a
+security conflict and MUST NOT enter content reconciliation.
+
+Rename-plus-edit is not automatically combined in version 3. Renaming changes
+the entry AAD and therefore requires new ciphertext even when plaintext is
+unchanged. Authenticated manifest records alone cannot prove whether a branch
+only renamed the ancestor value or renamed and edited it. A reader MUST retain
+both versions rather than risk silently discarding a value.
+
+If a criss-cross graph has more than one nearest common ancestor, the reader
+MUST return those exact ancestor heads as a history conflict. It MUST NOT choose
+one based on array order, filename order, timestamps, device labels, or
+transport metadata.
+
+An automatic merge plan contains the unique common ancestor, every exact
+parent head, and deterministic manifest content. It is not an authenticated or
+published manifest. The transaction publisher defined later MUST authenticate
+and durably commit it under the expected-head rules.
 
 ## Encrypted Entry File
 
@@ -905,11 +968,11 @@ defined by a later specification.
 
 ## Deliberately Deferred
 
-`HIST-402`, `KEY-403`, `HIST-404`, and `STORE-405` establish exact
-digest-based identities, safe multi-parent authentication, and bounded
-read-only discovery over immutable objects. They deliberately do not define:
+`HIST-402`, `KEY-403`, `HIST-404`, `STORE-405`, and `MERGE-406` establish exact
+digest-based identities, safe multi-parent authentication, bounded read-only
+discovery, and deterministic logical reconciliation over immutable objects.
+They deliberately do not define:
 
-- automatic reconciliation (`MERGE-406`);
 - transaction publication and recovery (`TXN-407` and `TXN-408`); or
 - physical migration execution beyond preflight.
 

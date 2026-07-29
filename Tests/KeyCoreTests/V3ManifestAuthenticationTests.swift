@@ -693,15 +693,15 @@ struct V3ManifestAuthenticationTests {
                 parents: fixture.parentReferences(to: [genesis]),
                 mode: .local,
                 includeDevice: false,
-                entryName: "email/left"
+                entryName: "email/left",
+                entryRevision: 5
             )
         )
         let right = try fixture.envelope(
             content: fixture.content(
                 parents: fixture.parentReferences(to: [genesis]),
                 mode: .local,
-                includeDevice: false,
-                entryName: "email/right"
+                includeDevice: false
             )
         )
         let verifiedLeft = try authenticator.verify(
@@ -719,7 +719,8 @@ struct V3ManifestAuthenticationTests {
                 parents: fixture.parentReferences(to: [left, right]),
                 mode: .local,
                 includeDevice: false,
-                entryName: "email/merged"
+                entryName: "email/left",
+                entryRevision: 5
             )
         )
 
@@ -732,6 +733,121 @@ struct V3ManifestAuthenticationTests {
         #expect(verifiedMerge.envelope.content.parents == fixture.parentDigestStrings(
             for: [left, right]
         ))
+    }
+
+    @Test
+    func entryChangesMustAdvanceTheirParentRevision() throws {
+        let fixture = Fixture()
+        let authenticator = V3ManifestAuthenticator()
+        let genesis = try fixture.envelope(
+            content: fixture.content(
+                parents: .array([]),
+                mode: .local,
+                includeDevice: false
+            )
+        )
+        let verifiedGenesis = try authenticator.verify(
+            genesis,
+            vaultKey: Fixture.vaultKey,
+            trustAnchor: .localGenesis(vaultID: Fixture.vaultID)
+        )
+
+        for invalidRevision: UInt64 in [3, 4] {
+            let invalid = try fixture.envelope(
+                content: fixture.content(
+                    parents: fixture.parentReferences(to: [genesis]),
+                    mode: .local,
+                    includeDevice: false,
+                    entryName: "email/changed",
+                    entryRevision: invalidRevision
+                )
+            )
+            #expect(throws: V3ManifestError.semanticViolation("entries.revision")) {
+                _ = try authenticator.verify(
+                    invalid,
+                    vaultKey: Fixture.vaultKey,
+                    trustAnchor: .verifiedParents([verifiedGenesis])
+                )
+            }
+        }
+
+        let advancing = try fixture.envelope(
+            content: fixture.content(
+                parents: fixture.parentReferences(to: [genesis]),
+                mode: .local,
+                includeDevice: false,
+                entryName: "email/changed",
+                entryRevision: 5
+            )
+        )
+        _ = try authenticator.verify(
+            advancing,
+            vaultKey: Fixture.vaultKey,
+            trustAnchor: .verifiedParents([verifiedGenesis])
+        )
+    }
+
+    @Test
+    func mergeRejectsAmbiguousHighestRevisionReuse() throws {
+        let fixture = Fixture()
+        let authenticator = V3ManifestAuthenticator()
+        let genesis = try fixture.envelope(
+            content: fixture.content(
+                parents: .array([]),
+                mode: .local,
+                includeDevice: false
+            )
+        )
+        let verifiedGenesis = try authenticator.verify(
+            genesis,
+            vaultKey: Fixture.vaultKey,
+            trustAnchor: .localGenesis(vaultID: Fixture.vaultID)
+        )
+        let left = try fixture.envelope(
+            content: fixture.content(
+                parents: fixture.parentReferences(to: [genesis]),
+                mode: .local,
+                includeDevice: false,
+                entryName: "email/left",
+                entryRevision: 5
+            )
+        )
+        let right = try fixture.envelope(
+            content: fixture.content(
+                parents: fixture.parentReferences(to: [genesis]),
+                mode: .local,
+                includeDevice: false,
+                entryName: "email/right",
+                entryRevision: 5
+            )
+        )
+        let verifiedLeft = try authenticator.verify(
+            left,
+            vaultKey: Fixture.vaultKey,
+            trustAnchor: .verifiedParents([verifiedGenesis])
+        )
+        let verifiedRight = try authenticator.verify(
+            right,
+            vaultKey: Fixture.vaultKey,
+            trustAnchor: .verifiedParents([verifiedGenesis])
+        )
+        let merge = try fixture.envelope(
+            content: fixture.content(
+                parents: fixture.parentReferences(to: [left, right]),
+                mode: .local,
+                includeDevice: false,
+                entryName: "email/left",
+                entryRevision: 5
+            )
+        )
+
+        #expect(throws: V3ManifestError.semanticViolation("entries.revision")) {
+            _ = try authenticator.verify(
+                merge,
+                vaultKey: Fixture.vaultKey,
+                trustAnchor: .verifiedParents([verifiedLeft, verifiedRight])
+            )
+        }
     }
 
     @Test
@@ -755,7 +871,8 @@ struct V3ManifestAuthenticationTests {
                 parents: fixture.parentReferences(to: [genesis]),
                 mode: .local,
                 includeDevice: false,
-                entryName: "email/left"
+                entryName: "email/left",
+                entryRevision: 5
             )
         )
         let right = try fixture.envelope(
@@ -763,7 +880,8 @@ struct V3ManifestAuthenticationTests {
                 parents: fixture.parentReferences(to: [genesis]),
                 mode: .local,
                 includeDevice: false,
-                entryName: "email/right"
+                entryName: "email/right",
+                entryRevision: 5
             )
         )
         let verifiedLeft = try authenticator.verify(
@@ -845,7 +963,8 @@ struct V3ManifestAuthenticationTests {
         let left = try fixture.envelope(
             content: fixture.content(
                 parents: fixture.parentReferences(to: [sharedBase]),
-                entryName: "email/left"
+                entryName: "email/left",
+                entryRevision: 5
             )
         )
         let verifiedLeft = try authenticator.verify(
@@ -856,7 +975,8 @@ struct V3ManifestAuthenticationTests {
         let rightContent = fixture.content(
             parents: fixture.parentReferences(to: [sharedBase]),
             keyID: Fixture.alternateKeyID,
-            entryName: "email/right"
+            entryName: "email/right",
+            entryRevision: 5
         )
         let right = try fixture.envelope(
             content: rightContent,
