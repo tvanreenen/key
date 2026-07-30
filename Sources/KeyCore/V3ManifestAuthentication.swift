@@ -92,7 +92,7 @@ public struct V3WrappedKey: Equatable, Sendable {
     public let ciphertext: String
 }
 
-public struct V3ManifestEntry: Equatable, Sendable {
+public struct V3ManifestEntry: Equatable, Hashable, Sendable {
     public let entryID: String
     public let name: String
     public let type: SecretEntryType
@@ -169,7 +169,7 @@ public enum V3VaultHeadError: Error, Equatable, LocalizedError {
 ///
 /// The digest is SHA-256 over the canonical envelope bytes. It establishes
 /// identity; it does not imply that the manifest is current on this device.
-public struct V3VaultHead: Equatable, Sendable {
+public struct V3VaultHead: Equatable, Hashable, Sendable {
     public let vaultID: String
     public let envelopeDigest: Data
 

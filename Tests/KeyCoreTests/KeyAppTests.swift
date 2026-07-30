@@ -501,6 +501,46 @@ struct KeyCLIApplicationTests {
 
 struct KeyServiceHandlerTests {
     @Test
+    func vaultStatusReportsCurrentVersion2StateWithoutLoadingTheKey() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let keyStore = MemoryVaultKeyStore()
+        let entryStore = EntryStore(rootURL: root)
+        try entryStore.save(
+            SecretFile(
+                version: 2,
+                type: .secret,
+                alg: "AES.GCM",
+                nonce: "AA==",
+                ciphertext: "AA=="
+            ),
+            as: "one",
+            overwrite: false
+        )
+        let handler = KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: entryStore
+        )
+
+        let response = handler.handle(.vaultStatus)
+
+        #expect(
+            response.vaultStatus == VaultStatus(
+                format: .version2,
+                health: .ready,
+                entries: .effective(1)
+            )
+        )
+        #expect(response.exitCode == EXIT_SUCCESS)
+        #expect(keyStore.loadCount == 0)
+    }
+
+    @Test
     func unlockAuthenticatesWithoutReturningOutput() throws {
         let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -595,7 +635,7 @@ struct KeyServiceHandlerTests {
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: store)
 
         let response = handler.handle(.unlock)
-        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(response.exitCode == KeyExitCode.securityFailure.rawValue)
         #expect(response.errorMessage?.contains("Refusing to create a new vault key") == true)
         #expect(keyStore.loadCount == 0)
     }
@@ -618,7 +658,7 @@ struct KeyServiceHandlerTests {
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: store)
 
         let response = handler.handle(.get(name: "mail/personal"))
-        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(response.exitCode == KeyExitCode.securityFailure.rawValue)
         #expect(response.errorMessage?.contains("cannot decrypt 'mail/personal'") == true)
     }
 
@@ -675,7 +715,7 @@ struct KeyServiceHandlerTests {
         )
 
         let response = handler.handle(.setKeychainMode(.icloud))
-        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(response.exitCode == KeyExitCode.securityFailure.rawValue)
         #expect(response.errorMessage?.contains("wait for iCloud Keychain sync") == true)
         #expect(keyStore.iCloudKeyData == nil)
         #expect(try configStore.getValue(for: .keychainMode) == "local")
@@ -792,7 +832,7 @@ struct KeyServiceHandlerTests {
         #expect(handler.handle(.addManual(name: "dup", secret: "one", type: .secret)) == .success())
 
         let secondResponse = handler.handle(.addManual(name: "dup", secret: "two", type: .secret))
-        #expect(secondResponse.exitCode == EXIT_FAILURE)
+        #expect(secondResponse.exitCode == KeyExitCode.conflict.rawValue)
         #expect(secondResponse.errorMessage?.contains("already exists") == true)
     }
 
@@ -811,7 +851,7 @@ struct KeyServiceHandlerTests {
         #expect(handler.handle(.get(name: "mail/personal")) == .success("two"))
 
         let missingResponse = handler.handle(.editManual(name: "missing", secret: "value", type: .secret))
-        #expect(missingResponse.exitCode == EXIT_FAILURE)
+        #expect(missingResponse.exitCode == KeyExitCode.notFound.rawValue)
         #expect(missingResponse.errorMessage?.contains("was not found") == true)
     }
 
@@ -833,7 +873,7 @@ struct KeyServiceHandlerTests {
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: store)
 
         let response = handler.handle(.editManual(name: "mail/personal", secret: "two", type: .secret))
-        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(response.exitCode == KeyExitCode.securityFailure.rawValue)
         #expect(response.errorMessage?.contains("cannot decrypt 'mail/personal'") == true)
 
         let persisted = try store.load("mail/personal")
@@ -905,7 +945,7 @@ struct KeyServiceHandlerTests {
         #expect(handler.handle(.get(name: "mail/work")) == .success("one"))
 
         let conflictResponse = handler.handle(.copyEntry(source: "mail/personal", destination: "mail/work", force: false))
-        #expect(conflictResponse.exitCode == EXIT_FAILURE)
+        #expect(conflictResponse.exitCode == KeyExitCode.conflict.rawValue)
         #expect(conflictResponse.errorMessage?.contains("already exists") == true)
     }
 
@@ -927,12 +967,12 @@ struct KeyServiceHandlerTests {
         #expect(handler.handle(.get(name: "mail/work")) == .success("one"))
 
         let oldResponse = handler.handle(.get(name: "mail/personal"))
-        #expect(oldResponse.exitCode == EXIT_FAILURE)
+        #expect(oldResponse.exitCode == KeyExitCode.notFound.rawValue)
         #expect(oldResponse.errorMessage?.contains("was not found") == true)
 
         #expect(handler.handle(.addManual(name: "mail/personal", secret: "two", type: .secret)) == .success())
         let conflictResponse = handler.handle(.moveEntry(source: "mail/personal", destination: "mail/work", force: false))
-        #expect(conflictResponse.exitCode == EXIT_FAILURE)
+        #expect(conflictResponse.exitCode == KeyExitCode.conflict.rawValue)
         #expect(conflictResponse.errorMessage?.contains("already exists") == true)
     }
 
@@ -978,7 +1018,7 @@ struct KeyServiceHandlerTests {
         #expect(keyStore.loadCount == loadCountBeforeRemove)
 
         let missingResponse = handler.handle(.get(name: "mail/personal"))
-        #expect(missingResponse.exitCode == EXIT_FAILURE)
+        #expect(missingResponse.exitCode == KeyExitCode.notFound.rawValue)
         #expect(missingResponse.errorMessage?.contains("was not found") == true)
 
         let parentDirectory = tempDirectory.appendingPathComponent("mail", isDirectory: true)
@@ -996,7 +1036,8 @@ struct KeyServiceHandlerTests {
         let handler = KeyServiceHandler(keyStore: MemoryVaultKeyStore(), entryStore: store)
 
         let missingResponse = handler.handle(.get(name: "missing"))
-        #expect(missingResponse.exitCode == EXIT_FAILURE)
+        #expect(missingResponse.exitCode == KeyExitCode.notFound.rawValue)
+        #expect(missingResponse.errorCode == .entryNotFound)
         #expect(missingResponse.errorMessage?.contains("was not found") == true)
 
         let brokenURL = try store.url(for: "broken")
@@ -1004,7 +1045,8 @@ struct KeyServiceHandlerTests {
         try Data("not-json".utf8).write(to: brokenURL)
 
         let corruptResponse = handler.handle(.get(name: "broken"))
-        #expect(corruptResponse.exitCode == EXIT_FAILURE)
+        #expect(corruptResponse.exitCode == KeyExitCode.securityFailure.rawValue)
+        #expect(corruptResponse.errorCode == .invalidSecretFile)
         #expect(corruptResponse.errorMessage?.contains("unreadable") == true)
     }
 

@@ -10,6 +10,7 @@ public final class KeyServiceHandler {
     private let cipher: VaultCipher
     private let now: () -> Date
     private let mutationOwner: any VaultTransactionMutationOwning
+    private let vaultUXService: any VaultUXServicing
     private let requestQueue = DispatchQueue(
         label: "work.tvr.key.service-handler.requests",
         attributes: .concurrent
@@ -33,7 +34,8 @@ public final class KeyServiceHandler {
             configStore: configStore,
             cipher: cipher,
             now: now,
-            mutationOwner: VaultTransactionMutationOwner()
+            mutationOwner: VaultTransactionMutationOwner(),
+            vaultUXService: V2VaultUXService(entryStore: entryStore)
         )
     }
 
@@ -44,7 +46,8 @@ public final class KeyServiceHandler {
         configStore: KeyConfigStore? = nil,
         cipher: VaultCipher = VaultCipher(),
         now: @escaping () -> Date = Date.init,
-        mutationOwner: any VaultTransactionMutationOwning
+        mutationOwner: any VaultTransactionMutationOwning,
+        vaultUXService: (any VaultUXServicing)? = nil
     ) {
         self.keyStore = keyStore
         self.entryStore = entryStore
@@ -52,6 +55,8 @@ public final class KeyServiceHandler {
         self.cipher = cipher
         self.now = now
         self.mutationOwner = mutationOwner
+        self.vaultUXService = vaultUXService
+            ?? V2VaultUXService(entryStore: entryStore)
         self.currentKeychainMode = keychainMode
     }
 
@@ -93,8 +98,15 @@ public final class KeyServiceHandler {
             if let mutationKind = request.transactionMutationKind {
                 do {
                     return try mutationOwner.perform(mutationKind) { _ in
-                        handleRequest(request)
+                        if !request.isConflictResolution {
+                            try vaultUXService.authorizeMutation()
+                        }
+                        return handleRequest(request)
                     }
+                } catch let error as AppError {
+                    return .failure(error)
+                } catch let error as VaultUXServiceError {
+                    return .failure(error)
                 } catch {
                     return .failure(error.localizedDescription)
                 }
@@ -121,6 +133,22 @@ public final class KeyServiceHandler {
                 let helperStatus = (keyStore as? KeySessionStatusReporting)?
                     .sessionStatus(at: nil) ?? .locked(inactivityTimeoutSeconds: Self.defaultSessionTimeout)
                 return .success(helperStatus: helperStatus)
+            case .vaultStatus:
+                return .vaultStatus(try vaultUXService.status())
+            case .listConflicts:
+                return .conflicts(try vaultUXService.conflicts())
+            case let .showConflict(id):
+                return .conflict(try vaultUXService.conflict(id: id))
+            case let .getConflictValue(id, versionID):
+                return .success(
+                    try vaultUXService.conflictValue(
+                        id: id,
+                        versionID: versionID
+                    )
+                )
+            case let .resolveConflicts(resolutions):
+                try vaultUXService.resolve(resolutions)
+                return .success()
             case .list:
                 let entries = try entryStore.listEntries()
                 guard !entries.isEmpty else {
@@ -135,7 +163,11 @@ public final class KeyServiceHandler {
             case let .setKeychainMode(mode):
                 try setKeychainMode(mode)
                 return .success()
-            case let .get(name):
+            case let .get(name, allowStale):
+                try vaultUXService.authorizeRead(
+                    name: name,
+                    allowStale: allowStale
+                )
                 let encrypted = try entryStore.load(name)
                 let keyData = try loadVaultKey(
                     reason: "Unlock key vault to read '\(name)'.",
@@ -160,7 +192,9 @@ public final class KeyServiceHandler {
                 return .success()
             }
         } catch let error as AppError {
-            return .failure(error.localizedDescription)
+            return .failure(error)
+        } catch let error as VaultUXServiceError {
+            return .failure(error)
         } catch {
             return .failure(error.localizedDescription)
         }
@@ -519,8 +553,18 @@ private extension KeyServiceRequest {
             .moveEntry
         case .removeEntry:
             .removeEntry
+        case .resolveConflicts:
+            .resolveConflict
         default:
             nil
+        }
+    }
+
+    var isConflictResolution: Bool {
+        if case .resolveConflicts = self {
+            true
+        } else {
+            false
         }
     }
 }

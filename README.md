@@ -38,8 +38,15 @@ The CLI is intentionally small:
 ```bash
 key unlock                              # authenticate and warm the helper session
 key lock                                # clear the helper session and stop the helper
-key get <name>                          # print a secret or current TOTP code
-key copy <name>                         # copy a secret or current TOTP code
+key status                              # explain vault health and the next safe action
+key status --json                       # print stable machine-readable vault status
+key conflict list                       # list authenticated content conflicts
+key conflict show <id>                  # show the available authenticated versions
+key conflict get <id> <version>         # print one selected conflicted value
+key conflict copy <id> <version>        # copy one selected conflicted value
+key conflict resolve <id>=<version> ... # resolve every current conflict together
+key get <name> [--allow-stale]          # print a secret or current TOTP code
+key copy <name> [--allow-stale]         # copy a secret or current TOTP code
 key add <name> [--totp]                 # add a new secret or TOTP seed from stdin or prompt
 key edit <name> [--totp]                # update a secret or TOTP seed from stdin or prompt
 key list                                # list stored secrets
@@ -52,6 +59,10 @@ key config list                         # list known config values
 key migrate --check                     # check v2 migration readiness without changing the vault
 key version [--json]                    # print the CLI version
 ```
+
+When a file provider has not finished delivering a newer version 3 vault
+state, `--allow-stale` explicitly permits `get` and `copy` to read the last
+complete version trusted by this Mac. Stale writes are never allowed.
 
 ## Generating passwords
 

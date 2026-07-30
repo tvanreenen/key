@@ -4,11 +4,16 @@ public enum KeyServiceRequest: Codable, Equatable {
     case unlock
     case lock
     case status
+    case vaultStatus
+    case listConflicts
+    case showConflict(id: String)
+    case getConflictValue(id: String, versionID: String)
+    case resolveConflicts([VaultConflictResolution])
     case list
     case migrationPreflight
     case setVaultDirectory(path: String)
     case setKeychainMode(KeychainMode)
-    case get(name: String)
+    case get(name: String, allowStale: Bool)
     case addManual(name: String, secret: String, type: SecretEntryType)
     case editManual(name: String, secret: String, type: SecretEntryType)
     case copyEntry(source: String, destination: String, force: Bool)
@@ -19,11 +24,14 @@ public enum KeyServiceRequest: Codable, Equatable {
         switch self {
         case .status, .lock:
             5
-        case .unlock, .get, .migrationPreflight:
+        case .vaultStatus, .listConflicts, .showConflict:
+            30
+        case .unlock, .get, .getConflictValue, .migrationPreflight:
             120
         case .list:
             30
-        case .setVaultDirectory, .setKeychainMode, .addManual, .editManual, .copyEntry, .moveEntry, .removeEntry:
+        case .setVaultDirectory, .setKeychainMode, .addManual, .editManual,
+            .copyEntry, .moveEntry, .removeEntry, .resolveConflicts:
             nil
         }
     }
@@ -48,12 +56,21 @@ public enum KeyServiceRequest: Codable, Equatable {
         case force
         case vaultDirectory
         case keychainMode
+        case allowStale
+        case conflictID
+        case versionID
+        case resolutions
     }
 
     private enum Kind: String, Codable {
         case unlock
         case lock
         case status
+        case vaultStatus
+        case listConflicts
+        case showConflict
+        case getConflictValue
+        case resolveConflicts
         case list
         case migrationPreflight
         case setVaultDirectory
@@ -75,6 +92,29 @@ public enum KeyServiceRequest: Codable, Equatable {
             self = .lock
         case .status:
             self = .status
+        case .vaultStatus:
+            self = .vaultStatus
+        case .listConflicts:
+            self = .listConflicts
+        case .showConflict:
+            self = .showConflict(
+                id: try container.decode(String.self, forKey: .conflictID)
+            )
+        case .getConflictValue:
+            self = .getConflictValue(
+                id: try container.decode(String.self, forKey: .conflictID),
+                versionID: try container.decode(
+                    String.self,
+                    forKey: .versionID
+                )
+            )
+        case .resolveConflicts:
+            self = .resolveConflicts(
+                try container.decode(
+                    [VaultConflictResolution].self,
+                    forKey: .resolutions
+                )
+            )
         case .list:
             self = .list
         case .migrationPreflight:
@@ -89,7 +129,13 @@ public enum KeyServiceRequest: Codable, Equatable {
         case .setKeychainMode:
             self = .setKeychainMode(try container.decode(KeychainMode.self, forKey: .keychainMode))
         case .get:
-            self = .get(name: try container.decode(String.self, forKey: .name))
+            self = .get(
+                name: try container.decode(String.self, forKey: .name),
+                allowStale: try container.decodeIfPresent(
+                    Bool.self,
+                    forKey: .allowStale
+                ) ?? false
+            )
         case .addManual:
             self = .addManual(
                 name: try container.decode(String.self, forKey: .name),
@@ -128,6 +174,20 @@ public enum KeyServiceRequest: Codable, Equatable {
             try container.encode(Kind.lock, forKey: .kind)
         case .status:
             try container.encode(Kind.status, forKey: .kind)
+        case .vaultStatus:
+            try container.encode(Kind.vaultStatus, forKey: .kind)
+        case .listConflicts:
+            try container.encode(Kind.listConflicts, forKey: .kind)
+        case let .showConflict(id):
+            try container.encode(Kind.showConflict, forKey: .kind)
+            try container.encode(id, forKey: .conflictID)
+        case let .getConflictValue(id, versionID):
+            try container.encode(Kind.getConflictValue, forKey: .kind)
+            try container.encode(id, forKey: .conflictID)
+            try container.encode(versionID, forKey: .versionID)
+        case let .resolveConflicts(resolutions):
+            try container.encode(Kind.resolveConflicts, forKey: .kind)
+            try container.encode(resolutions, forKey: .resolutions)
         case .list:
             try container.encode(Kind.list, forKey: .kind)
         case .migrationPreflight:
@@ -138,9 +198,12 @@ public enum KeyServiceRequest: Codable, Equatable {
         case let .setKeychainMode(mode):
             try container.encode(Kind.setKeychainMode, forKey: .kind)
             try container.encode(mode, forKey: .keychainMode)
-        case let .get(name):
+        case let .get(name, allowStale):
             try container.encode(Kind.get, forKey: .kind)
             try container.encode(name, forKey: .name)
+            if allowStale {
+                try container.encode(true, forKey: .allowStale)
+            }
         case let .addManual(name, secret, type):
             try container.encode(Kind.addManual, forKey: .kind)
             try container.encode(name, forKey: .name)
@@ -165,6 +228,12 @@ public enum KeyServiceRequest: Codable, Equatable {
             try container.encode(Kind.removeEntry, forKey: .kind)
             try container.encode(name, forKey: .name)
         }
+    }
+}
+
+public extension KeyServiceRequest {
+    static func get(name: String) -> KeyServiceRequest {
+        .get(name: name, allowStale: false)
     }
 }
 
@@ -237,18 +306,30 @@ public struct KeyServiceResponse: Codable, Equatable {
     public let exitCode: Int32
     public let value: String?
     public let errorMessage: String?
+    public let errorCode: KeyServiceErrorCode?
     public let helperStatus: KeyHelperStatus?
+    public let vaultStatus: VaultStatus?
+    public let conflicts: [VaultConflictSummary]?
+    public let conflict: VaultConflictDetail?
 
     public init(
         exitCode: Int32,
         value: String?,
         errorMessage: String?,
-        helperStatus: KeyHelperStatus? = nil
+        errorCode: KeyServiceErrorCode? = nil,
+        helperStatus: KeyHelperStatus? = nil,
+        vaultStatus: VaultStatus? = nil,
+        conflicts: [VaultConflictSummary]? = nil,
+        conflict: VaultConflictDetail? = nil
     ) {
         self.exitCode = exitCode
         self.value = value
         self.errorMessage = errorMessage
+        self.errorCode = errorCode
         self.helperStatus = helperStatus
+        self.vaultStatus = vaultStatus
+        self.conflicts = conflicts
+        self.conflict = conflict
     }
 
     public static func success(
@@ -259,12 +340,86 @@ public struct KeyServiceResponse: Codable, Equatable {
             exitCode: EXIT_SUCCESS,
             value: value,
             errorMessage: nil,
+            errorCode: nil,
             helperStatus: helperStatus
         )
     }
 
-    public static func failure(_ message: String) -> KeyServiceResponse {
-        KeyServiceResponse(exitCode: EXIT_FAILURE, value: nil, errorMessage: message, helperStatus: nil)
+    public static func vaultStatus(
+        _ status: VaultStatus
+    ) -> KeyServiceResponse {
+        KeyServiceResponse(
+            exitCode: status.health.exitCode.rawValue,
+            value: nil,
+            errorMessage: nil,
+            vaultStatus: status
+        )
+    }
+
+    public static func conflicts(
+        _ conflicts: [VaultConflictSummary]
+    ) -> KeyServiceResponse {
+        KeyServiceResponse(
+            exitCode: EXIT_SUCCESS,
+            value: nil,
+            errorMessage: nil,
+            conflicts: conflicts
+        )
+    }
+
+    public static func conflict(
+        _ conflict: VaultConflictDetail
+    ) -> KeyServiceResponse {
+        KeyServiceResponse(
+            exitCode: EXIT_SUCCESS,
+            value: nil,
+            errorMessage: nil,
+            conflict: conflict
+        )
+    }
+
+    public static func failure(
+        _ message: String,
+        code: KeyServiceErrorCode = .serviceFailure
+    ) -> KeyServiceResponse {
+        KeyServiceResponse(
+            exitCode: code.exitCode.rawValue,
+            value: nil,
+            errorMessage: message,
+            errorCode: code
+        )
+    }
+
+    static func failure(_ error: AppError) -> KeyServiceResponse {
+        failure(
+            error.localizedDescription,
+            code: error.serviceErrorCode
+        )
+    }
+
+    static func failure(_ error: VaultUXServiceError) -> KeyServiceResponse {
+        let code: KeyServiceErrorCode
+        switch error {
+        case .vaultIncomplete:
+            code = .vaultIncomplete
+        case .contentConflict:
+            code = .contentConflict
+        case .securityConflict:
+            code = .securityConflict
+        case .rollbackDetected:
+            code = .rollbackDetected
+        case .recoveryRequired:
+            code = .recoveryRequired
+        case .conflictNotFound:
+            code = .conflictNotFound
+        case .conflictVersionNotFound:
+            code = .conflictVersionNotFound
+        case .expectedHeadsChanged:
+            code = .expectedHeadsChanged
+        case .unavailableForCurrentFormat:
+            code = .operationRefused
+        }
+        return failure(error.localizedDescription, code: code)
     }
 }
 

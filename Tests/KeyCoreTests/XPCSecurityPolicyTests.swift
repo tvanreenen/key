@@ -8,6 +8,16 @@ struct XPCSecurityPolicyTests {
         .unlock,
         .lock,
         .status,
+        .vaultStatus,
+        .listConflicts,
+        .showConflict(id: "c-123"),
+        .getConflictValue(id: "c-123", versionID: "abc123"),
+        .resolveConflicts([
+            VaultConflictResolution(
+                conflictID: "c-123",
+                versionID: "abc123"
+            )
+        ]),
         .list,
         .migrationPreflight,
         .setVaultDirectory(path: "/tmp/vault"),
@@ -107,6 +117,11 @@ struct XPCSecurityPolicyTests {
         #expect(KeyServiceRequest.get(name: "entry").responseTimeoutSeconds == 120)
         #expect(KeyServiceRequest.migrationPreflight.responseTimeoutSeconds == 120)
         #expect(KeyServiceRequest.list.responseTimeoutSeconds == 30)
+        #expect(KeyServiceRequest.vaultStatus.responseTimeoutSeconds == 30)
+        #expect(
+            KeyServiceRequest.resolveConflicts([])
+                .responseTimeoutSeconds == nil
+        )
         #expect(
             KeyServiceRequest.setVaultDirectory(path: "/tmp/vault")
                 .responseTimeoutSeconds == nil
@@ -151,6 +166,36 @@ struct XPCSecurityPolicyTests {
         #expect(KeyServiceRequest.copyEntry(source: "a", destination: "b", force: false).responseTimeoutSeconds == nil)
         #expect(KeyServiceRequest.moveEntry(source: "a", destination: "b", force: false).responseTimeoutSeconds == nil)
         #expect(KeyServiceRequest.removeEntry(name: "entry").responseTimeoutSeconds == nil)
+        #expect(
+            KeyServiceRequest.resolveConflicts([])
+                .responseTimeoutSeconds == nil
+        )
+    }
+
+    @Test
+    func vaultUXRequestsRoundTripAcrossXPCEncoding() throws {
+        let requests: [KeyServiceRequest] = [
+            .vaultStatus,
+            .listConflicts,
+            .showConflict(id: "c-123"),
+            .getConflictValue(id: "c-123", versionID: "abc123"),
+            .resolveConflicts([
+                VaultConflictResolution(
+                    conflictID: "c-123",
+                    versionID: "abc123"
+                )
+            ]),
+            .get(name: "entry", allowStale: true)
+        ]
+
+        for request in requests {
+            let encoded = try JSONEncoder().encode(request)
+            let decoded = try JSONDecoder().decode(
+                KeyServiceRequest.self,
+                from: encoded
+            )
+            #expect(decoded == request)
+        }
     }
 
     @Test

@@ -16,19 +16,39 @@ public enum ConfigCommand: Equatable, Sendable {
     case list
 }
 
+public enum ConflictCommand: Equatable, Sendable {
+    case list(json: Bool)
+    case show(id: String, json: Bool)
+    case get(id: String, versionID: String)
+    case copy(id: String, versionID: String)
+    case resolve([VaultConflictResolution])
+}
+
 public enum Command: Equatable {
     case help
     case version(json: Bool)
     case config(ConfigCommand)
     case migrationPreflight
+    case status(json: Bool, verbose: Bool)
+    case conflict(ConflictCommand)
     case unlock
     case lock
-    case get(name: String)
-    case copy(name: String)
+    case get(name: String, allowStale: Bool)
+    case copy(name: String, allowStale: Bool)
     case add(name: String, type: SecretEntryType)
     case edit(name: String, type: SecretEntryType)
     case duplicate(source: String, destination: String, force: Bool)
     case rename(source: String, destination: String, force: Bool)
     case remove(name: String, force: Bool)
     case list
+}
+
+public extension Command {
+    static func get(name: String) -> Command {
+        .get(name: name, allowStale: false)
+    }
+
+    static func copy(name: String) -> Command {
+        .copy(name: name, allowStale: false)
+    }
 }

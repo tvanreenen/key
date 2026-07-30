@@ -35,4 +35,41 @@ public enum AppError: Error, LocalizedError, Equatable {
             return message
         }
     }
+
+    public var serviceErrorCode: KeyServiceErrorCode {
+        switch self {
+        case .usage:
+            .invalidUsage
+        case .invalidEntryName:
+            .invalidEntryName
+        case .invalidSecret:
+            .invalidSecret
+        case .entryExists:
+            .entryExists
+        case .entryNotFound:
+            .entryNotFound
+        case .invalidSecretFile:
+            .invalidSecretFile
+        case .vaultKeyMismatch:
+            .vaultKeyMismatch
+        case .authUnavailable:
+            .authenticationUnavailable
+        case .authFailed:
+            .authenticationFailed
+        case .invalidConfiguration:
+            .invalidConfiguration
+        case .keychain:
+            .keychainFailure
+        case .io:
+            .ioFailure
+        case .service:
+            .serviceFailure
+        case .operationRefused:
+            .operationRefused
+        }
+    }
+
+    public var exitCode: KeyExitCode {
+        serviceErrorCode.exitCode
+    }
 }

@@ -69,6 +69,90 @@ struct CLIParserTests {
     }
 
     @Test
+    func parsesStatusOutputModes() throws {
+        #expect(
+            try CLIParser.parse(arguments: ["status"])
+                == .status(json: false, verbose: false)
+        )
+        #expect(
+            try CLIParser.parse(arguments: ["status", "--json"])
+                == .status(json: true, verbose: false)
+        )
+        #expect(
+            try CLIParser.parse(arguments: ["status", "--verbose"])
+                == .status(json: false, verbose: true)
+        )
+    }
+
+    @Test
+    func parsesConflictCommands() throws {
+        #expect(
+            try CLIParser.parse(arguments: ["conflict", "list", "--json"])
+                == .conflict(.list(json: true))
+        )
+        #expect(
+            try CLIParser.parse(
+                arguments: ["conflict", "show", "c-123", "--json"]
+            ) == .conflict(.show(id: "c-123", json: true))
+        )
+        #expect(
+            try CLIParser.parse(
+                arguments: ["conflict", "get", "c-123", "abc123"]
+            ) == .conflict(.get(id: "c-123", versionID: "abc123"))
+        )
+        #expect(
+            try CLIParser.parse(
+                arguments: ["conflict", "copy", "c-123", "abc123"]
+            ) == .conflict(.copy(id: "c-123", versionID: "abc123"))
+        )
+        #expect(
+            try CLIParser.parse(
+                arguments: [
+                    "conflict", "resolve",
+                    "c-123=abc123", "c-456=def456"
+                ]
+            ) == .conflict(.resolve([
+                VaultConflictResolution(
+                    conflictID: "c-123",
+                    versionID: "abc123"
+                ),
+                VaultConflictResolution(
+                    conflictID: "c-456",
+                    versionID: "def456"
+                )
+            ]))
+        )
+    }
+
+    @Test
+    func parsesExplicitStaleReads() throws {
+        #expect(
+            try CLIParser.parse(
+                arguments: ["get", "github/personal", "--allow-stale"]
+            ) == .get(name: "github/personal", allowStale: true)
+        )
+        #expect(
+            try CLIParser.parse(
+                arguments: ["copy", "--allow-stale", "github/personal"]
+            ) == .copy(name: "github/personal", allowStale: true)
+        )
+    }
+
+    @Test
+    func rejectsAmbiguousStatusAndMalformedConflictResolution() {
+        #expect(throws: AppError.self) {
+            try CLIParser.parse(
+                arguments: ["status", "--json", "--verbose"]
+            )
+        }
+        #expect(throws: AppError.self) {
+            try CLIParser.parse(
+                arguments: ["conflict", "resolve", "missing-version"]
+            )
+        }
+    }
+
+    @Test
     func parsesUnlock() throws {
         let command = try CLIParser.parse(arguments: ["unlock"])
         #expect(command == .unlock)
