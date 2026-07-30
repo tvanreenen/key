@@ -15,6 +15,10 @@ public enum CLIParser {
             return try parseConfig(arguments: Array(arguments.dropFirst()))
         case "migrate":
             return try parseMigrate(arguments: Array(arguments.dropFirst()))
+        case "status":
+            return try parseStatus(arguments: Array(arguments.dropFirst()))
+        case "conflict":
+            return try parseConflict(arguments: Array(arguments.dropFirst()))
         case "unlock":
             return try parseUnlock(arguments: Array(arguments.dropFirst()))
         case "lock":
@@ -49,8 +53,14 @@ public enum CLIParser {
       config set <config-name> <value>   Update a config value.
       config list                        List known config values.
       migrate --check                    Check v2 migration readiness without changing the vault.
-      get <name>                         Print a secret or current TOTP code.
-      copy <name>                        Copy a secret or current TOTP code.
+      status [--json] [--verbose]        Explain vault health without changing it.
+      conflict list [--json]             List unresolved content conflicts.
+      conflict show <id> [--json]        Show authenticated versions of a conflict.
+      conflict get <id> <version>        Print one conflicted secret version.
+      conflict copy <id> <version>       Copy one conflicted secret version.
+      conflict resolve <id>=<version>…   Resolve every listed conflict together.
+      get <name> [--allow-stale]         Print a secret or current TOTP code.
+      copy <name> [--allow-stale]        Copy a secret or current TOTP code.
       add [--totp] <name>                Add a new secret from stdin or prompt.
       edit [--totp] <name>               Update a secret from stdin or prompt.
       duplicate <src> <dst> [--force]    Duplicate an entry.
@@ -65,7 +75,9 @@ public enum CLIParser {
     Options:
       --force  Skip overwrite or removal confirmation.
       --check  Run the read-only v2 migration preflight.
-      --json   Print version info as JSON.
+      --json   Print supported diagnostics as stable JSON.
+      --verbose  Include authenticated version details in human-readable status.
+      --allow-stale  Read the last complete trusted version when newer transport is incomplete.
       --totp   Treat add/edit input as a Base32 TOTP seed.
 
     Config names:
@@ -169,6 +181,145 @@ public enum CLIParser {
         return .migrationPreflight
     }
 
+    private static func parseStatus(arguments: [String]) throws -> Command {
+        var json = false
+        var verbose = false
+        for argument in arguments {
+            switch argument {
+            case "--json":
+                json = true
+            case "--verbose":
+                verbose = true
+            default:
+                throw AppError.usage(
+                    "Unknown option '\(argument)' for status.\n\n\(usageText)"
+                )
+            }
+        }
+        guard !(json && verbose) else {
+            throw AppError.usage(
+                "Use either --json or --verbose with status, not both.\n\n\(usageText)"
+            )
+        }
+        return .status(json: json, verbose: verbose)
+    }
+
+    private static func parseConflict(arguments: [String]) throws -> Command {
+        guard let action = arguments.first else {
+            throw AppError.usage(
+                "Missing conflict subcommand.\n\n\(usageText)"
+            )
+        }
+        let remaining = Array(arguments.dropFirst())
+        switch action {
+        case "list":
+            let json = try parseOptionalJSON(
+                remaining,
+                commandName: "conflict list"
+            )
+            return .conflict(.list(json: json))
+        case "show":
+            guard let id = remaining.first else {
+                throw AppError.usage(
+                    "Missing conflict ID for conflict show.\n\n\(usageText)"
+                )
+            }
+            let json = try parseOptionalJSON(
+                Array(remaining.dropFirst()),
+                commandName: "conflict show"
+            )
+            return .conflict(.show(id: id, json: json))
+        case "get":
+            return .conflict(
+                try parseConflictValue(remaining, copy: false)
+            )
+        case "copy":
+            return .conflict(
+                try parseConflictValue(remaining, copy: true)
+            )
+        case "resolve":
+            guard !remaining.isEmpty else {
+                throw AppError.usage(
+                    "Provide every resolution as <conflict-id>=<version-id>.\n\n\(usageText)"
+                )
+            }
+            return .conflict(.resolve(
+                try remaining.map(parseConflictResolution)
+            ))
+        default:
+            throw AppError.usage(
+                "Unknown conflict subcommand '\(action)'.\n\n\(usageText)"
+            )
+        }
+    }
+
+    private static func parseOptionalJSON(
+        _ arguments: [String],
+        commandName: String
+    ) throws -> Bool {
+        guard arguments.count <= 1 else {
+            throw AppError.usage(
+                "Unknown option '\(arguments[1])' for \(commandName).\n\n\(usageText)"
+            )
+        }
+        guard let argument = arguments.first else {
+            return false
+        }
+        guard argument == "--json" else {
+            throw AppError.usage(
+                "Unknown option '\(argument)' for \(commandName).\n\n\(usageText)"
+            )
+        }
+        return true
+    }
+
+    private static func parseConflictValue(
+        _ arguments: [String],
+        copy: Bool
+    ) throws -> ConflictCommand {
+        let commandName = copy ? "conflict copy" : "conflict get"
+        guard let id = arguments.first else {
+            throw AppError.usage(
+                "Missing conflict ID for \(commandName).\n\n\(usageText)"
+            )
+        }
+        guard arguments.count >= 2 else {
+            throw AppError.usage(
+                "Missing version ID for \(commandName).\n\n\(usageText)"
+            )
+        }
+        guard arguments.count == 2 else {
+            throw AppError.usage(
+                "Unknown option '\(arguments[2])' for \(commandName).\n\n\(usageText)"
+            )
+        }
+        return copy
+            ? .copy(id: id, versionID: arguments[1])
+            : .get(id: id, versionID: arguments[1])
+    }
+
+    private static func parseConflictResolution(
+        _ argument: String
+    ) throws -> VaultConflictResolution {
+        let components = argument.split(
+            separator: "=",
+            maxSplits: 1,
+            omittingEmptySubsequences: false
+        )
+        guard components.count == 2,
+              !components[0].isEmpty,
+              !components[1].isEmpty
+        else {
+            throw AppError.usage(
+                "Invalid conflict resolution '\(argument)'. Expected <conflict-id>=<version-id>.\n\n\(usageText)"
+            )
+        }
+        return VaultConflictResolution(
+            conflictID: String(components[0]),
+            versionID: String(components[1])
+        )
+    }
+
     private static func parseUnlock(arguments: [String]) throws -> Command {
         guard arguments.isEmpty else {
             throw AppError.usage("Unknown option '\(arguments[0])' for unlock.\n\n\(usageText)")
@@ -186,25 +337,48 @@ public enum CLIParser {
     }
 
     private static func parseGet(arguments: [String]) throws -> Command {
-        guard let name = arguments.first else {
-            throw AppError.usage("Missing entry name for get.\n\n\(usageText)")
-        }
-        guard arguments.count == 1 else {
-            throw AppError.usage("Unknown option '\(arguments[1])' for get.\n\n\(usageText)")
-        }
-
-        return .get(name: name)
+        let (name, allowStale) = try parseRead(
+            arguments: arguments,
+            commandName: "get"
+        )
+        return .get(name: name, allowStale: allowStale)
     }
 
     private static func parseCopy(arguments: [String]) throws -> Command {
-        guard let name = arguments.first else {
-            throw AppError.usage("Missing entry name for copy.\n\n\(usageText)")
-        }
-        guard arguments.count == 1 else {
-            throw AppError.usage("Unknown option '\(arguments[1])' for copy.\n\n\(usageText)")
-        }
+        let (name, allowStale) = try parseRead(
+            arguments: arguments,
+            commandName: "copy"
+        )
+        return .copy(name: name, allowStale: allowStale)
+    }
 
-        return .copy(name: name)
+    private static func parseRead(
+        arguments: [String],
+        commandName: String
+    ) throws -> (name: String, allowStale: Bool) {
+        var name: String?
+        var allowStale = false
+        for argument in arguments {
+            if argument == "--allow-stale" {
+                allowStale = true
+            } else if argument.hasPrefix("-") {
+                throw AppError.usage(
+                    "Unknown option '\(argument)' for \(commandName).\n\n\(usageText)"
+                )
+            } else if name == nil {
+                name = argument
+            } else {
+                throw AppError.usage(
+                    "Unknown option '\(argument)' for \(commandName).\n\n\(usageText)"
+                )
+            }
+        }
+        guard let name else {
+            throw AppError.usage(
+                "Missing entry name for \(commandName).\n\n\(usageText)"
+            )
+        }
+        return (name, allowStale)
     }
 
     private static func parseAdd(arguments: [String]) throws -> Command {

@@ -28,7 +28,7 @@ public final class KeyCLIApplication {
             return try execute(command)
         } catch let error as AppError {
             io.writeStderr("\(error.localizedDescription)\n")
-            return EXIT_FAILURE
+            return error.exitCode.rawValue
         } catch {
             io.writeStderr("\(error.localizedDescription)\n")
             return EXIT_FAILURE
@@ -50,6 +50,15 @@ public final class KeyCLIApplication {
         case .migrationPreflight:
             response = try transport.send(.migrationPreflight)
             return try handle(response, for: command)
+        case let .status(json, verbose):
+            response = try transport.send(.vaultStatus)
+            guard let status = response.vaultStatus else {
+                return try handle(response, for: command)
+            }
+            try writeStatus(status, json: json, verbose: verbose)
+            return response.exitCode
+        case let .conflict(conflictCommand):
+            return try executeConflictCommand(conflictCommand)
         case .unlock:
             response = try transport.send(.unlock)
             return try handle(response, for: command)
@@ -59,11 +68,15 @@ public final class KeyCLIApplication {
         case .list:
             response = try transport.send(.list)
             return try handle(response, for: command)
-        case let .get(name):
-            response = try transport.send(.get(name: name))
+        case let .get(name, allowStale):
+            response = try transport.send(
+                .get(name: name, allowStale: allowStale)
+            )
             return try handle(response, for: command)
-        case let .copy(name):
-            response = try transport.send(.get(name: name))
+        case let .copy(name, allowStale):
+            response = try transport.send(
+                .get(name: name, allowStale: allowStale)
+            )
             let exitCode = try handle(response, for: command)
             guard exitCode == EXIT_SUCCESS, let value = response.value else {
                 return exitCode
@@ -110,11 +123,14 @@ public final class KeyCLIApplication {
             if let value = response.value, !value.isEmpty {
                 io.writeStdout(value)
             }
-        case .get(name: _):
+        case .get(name: _, allowStale: _):
             if let value = response.value {
                 io.writeStdout(formattedGetOutput(value))
             }
-        case .copy(name: _), .add, .edit, .duplicate, .rename, .remove:
+        case .status, .conflict:
+            break
+        case .copy(name: _, allowStale: _), .add, .edit, .duplicate,
+            .rename, .remove:
             break
         }
 
@@ -175,6 +191,184 @@ public final class KeyCLIApplication {
         }
 
         io.writeStdout(version.displayString + "\n")
+    }
+
+    private func executeConflictCommand(
+        _ command: ConflictCommand
+    ) throws -> Int32 {
+        switch command {
+        case let .list(json):
+            let response = try transport.send(.listConflicts)
+            guard response.exitCode == EXIT_SUCCESS,
+                  let conflicts = response.conflicts
+            else {
+                return try handle(response, for: .conflict(command))
+            }
+            if json {
+                try writeJSON(conflicts)
+            } else {
+                writeConflictList(conflicts)
+            }
+            return response.exitCode
+        case let .show(id, json):
+            let response = try transport.send(.showConflict(id: id))
+            guard response.exitCode == EXIT_SUCCESS,
+                  let conflict = response.conflict
+            else {
+                return try handle(response, for: .conflict(command))
+            }
+            if json {
+                try writeJSON(conflict)
+            } else {
+                writeConflict(conflict)
+            }
+            return response.exitCode
+        case let .get(id, versionID):
+            let response = try transport.send(
+                .getConflictValue(id: id, versionID: versionID)
+            )
+            guard response.exitCode == EXIT_SUCCESS else {
+                return try handle(response, for: .conflict(command))
+            }
+            if let value = response.value {
+                io.writeStdout(formattedGetOutput(value))
+            }
+            return response.exitCode
+        case let .copy(id, versionID):
+            let response = try transport.send(
+                .getConflictValue(id: id, versionID: versionID)
+            )
+            guard response.exitCode == EXIT_SUCCESS else {
+                return try handle(response, for: .conflict(command))
+            }
+            if let value = response.value {
+                try clipboard.copy(value)
+            }
+            return response.exitCode
+        case let .resolve(resolutions):
+            let response = try transport.send(
+                .resolveConflicts(resolutions)
+            )
+            return try handle(response, for: .conflict(command))
+        }
+    }
+
+    private func writeStatus(
+        _ status: VaultStatus,
+        json: Bool,
+        verbose: Bool
+    ) throws {
+        if json {
+            try writeJSON(status)
+            return
+        }
+
+        let headline = switch status.health {
+        case .ready:
+            "Vault is ready."
+        case .incomplete:
+            "Vault files are still arriving."
+        case .contentConflicted:
+            "Vault has content conflicts that need your choice."
+        case .securityConflicted:
+            "Vault authority differs between authenticated versions."
+        case .rollbackDetected:
+            "Vault contains an authenticated revision rollback."
+        case .recoveryRequired:
+            "Vault needs recovery before it can be changed safely."
+        }
+        var lines = [
+            headline,
+            "Format: \(status.format == .version2 ? "version 2" : "version 3")",
+            "Entries: \(status.entryCount)"
+        ]
+        if status.conflictCount > 0 {
+            lines.append("Conflicts: \(status.conflictCount)")
+            lines.append("Next: run `key conflict list`.")
+        }
+        if verbose, let trustedVersionID = status.trustedVersionID {
+            lines.append(
+                "Previously trusted on this Mac: \(trustedVersionID)"
+            )
+        }
+        lines.append(contentsOf: status.issues.map {
+            "Attention: \($0.message)"
+        })
+        io.writeStdout(lines.joined(separator: "\n") + "\n")
+    }
+
+    private func writeConflictList(
+        _ conflicts: [VaultConflictSummary]
+    ) {
+        guard !conflicts.isEmpty else {
+            io.writeStdout("No unresolved content conflicts.\n")
+            return
+        }
+
+        let lines = conflicts.map { conflict in
+            let name = conflict.entryName ?? "(deleted or renamed)"
+            return "\(conflict.id)  \(name)  \(humanConflictKind(conflict.kind))  \(conflict.versionCount) versions"
+        }
+        io.writeStdout(lines.joined(separator: "\n") + "\n")
+    }
+
+    private func writeConflict(_ conflict: VaultConflictDetail) {
+        var lines = [
+            "Conflict: \(conflict.summary.id)",
+            "Entry: \(conflict.summary.entryName ?? "(deleted or renamed)")",
+            "Reason: \(humanConflictKind(conflict.summary.kind))",
+            "Authenticated versions:"
+        ]
+        for version in conflict.versions {
+            var description = "  \(version.id)  "
+            if let name = version.entryName {
+                description += name
+                if let revision = version.revision {
+                    description += "  revision \(revision)"
+                }
+            } else {
+                description += "(deleted)"
+            }
+            if version.previouslyTrustedOnThisMac {
+                description += "  previously trusted on this Mac"
+            }
+            lines.append(description)
+        }
+        lines.append(
+            "Resolve only after reviewing every conflict shown by `key conflict list`."
+        )
+        io.writeStdout(lines.joined(separator: "\n") + "\n")
+    }
+
+    private func writeJSON<Value: Encodable>(_ value: Value) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(value)
+        guard let string = String(data: data, encoding: .utf8) else {
+            throw AppError.io("Failed to encode JSON output.")
+        }
+        io.writeStdout(string + "\n")
+    }
+
+    private func humanConflictKind(_ kind: VaultConflictKind) -> String {
+        switch kind {
+        case .concurrentCreation:
+            "created differently"
+        case .editEdit:
+            "edited differently"
+        case .deleteEdit:
+            "deleted on one version and edited on another"
+        case .renameEdit:
+            "renamed on one version and edited on another"
+        case .conflictingRename:
+            "renamed differently"
+        case .destinationCollision:
+            "multiple entries use the same name"
+        case .revisionRollback:
+            "an older entry revision reappeared"
+        case .conflictingRevision:
+            "same revision contains different content"
+        }
     }
 
     private func executeConfigCommand(_ command: ConfigCommand) throws -> Int32 {

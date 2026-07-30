@@ -97,7 +97,7 @@ struct VaultRootChangeCoordinationTests {
             )
         )
 
-        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(response.exitCode == KeyExitCode.configurationFailure.rawValue)
         #expect(keyStore.invalidateCount == 0)
         #expect(handler.handle(.list) == .success())
         #expect(
@@ -170,7 +170,7 @@ struct VaultRootChangeCoordinationTests {
 
         let response = handler.handle(.status)
 
-        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(response.exitCode == KeyExitCode.configurationFailure.rawValue)
         #expect(response.errorMessage?.contains("does not exist") == true)
         #expect(keyStore.invalidateCount == 1)
         #expect(

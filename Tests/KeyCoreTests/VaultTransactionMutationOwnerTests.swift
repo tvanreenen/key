@@ -135,10 +135,12 @@ struct VaultTransactionMutationOwnerTests {
         defer { try? FileManager.default.removeItem(at: root) }
 
         let owner = RecordingMutationOwner()
+        let vaultUXService = RecordingVaultUXService()
         let handler = KeyServiceHandler(
             keyStore: MemoryVaultKeyStore(),
             entryStore: EntryStore(rootURL: root),
-            mutationOwner: owner
+            mutationOwner: owner,
+            vaultUXService: vaultUXService
         )
 
         #expect(
@@ -178,6 +180,13 @@ struct VaultTransactionMutationOwnerTests {
             ) == .success()
         )
         #expect(handler.handle(.removeEntry(name: "moved")) == .success())
+        let resolution = VaultConflictResolution(
+            conflictID: "c-123",
+            versionID: "abc123"
+        )
+        #expect(
+            handler.handle(.resolveConflicts([resolution])) == .success()
+        )
 
         #expect(handler.handle(.get(name: "source")) == .success("two"))
         #expect(handler.handle(.list) == .success("source\n"))
@@ -187,9 +196,11 @@ struct VaultTransactionMutationOwnerTests {
                 .editEntry,
                 .copyEntry,
                 .moveEntry,
-                .removeEntry
+                .removeEntry,
+                .resolveConflict
             ]
         )
+        #expect(vaultUXService.resolutions == [[resolution]])
     }
 
     @Test
@@ -296,5 +307,36 @@ private struct FailingMutationOwner: VaultTransactionMutationOwning {
         _ mutation: (VaultTransactionMutationContext) throws -> Result
     ) throws -> Result {
         throw AppError.io("Failed to prepare the vault mutation.")
+    }
+}
+
+private final class RecordingVaultUXService: VaultUXServicing {
+    private(set) var resolutions: [[VaultConflictResolution]] = []
+
+    func status() throws -> VaultStatus {
+        VaultStatus(format: .version3, health: .ready, entryCount: 0)
+    }
+
+    func authorizeRead(name _: String, allowStale _: Bool) throws {}
+
+    func authorizeMutation() throws {}
+
+    func conflicts() throws -> [VaultConflictSummary] {
+        []
+    }
+
+    func conflict(id _: String) throws -> VaultConflictDetail {
+        throw VaultUXServiceError.conflictNotFound
+    }
+
+    func conflictValue(
+        id _: String,
+        versionID _: String
+    ) throws -> String {
+        throw VaultUXServiceError.conflictVersionNotFound
+    }
+
+    func resolve(_ resolutions: [VaultConflictResolution]) throws {
+        self.resolutions.append(resolutions)
     }
 }

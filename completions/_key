@@ -3,6 +3,8 @@
 typeset -ga _key_commands
 _key_commands=(
   'config:read or update config values'
+  'status:explain vault health'
+  'conflict:inspect or resolve authenticated content conflicts'
   'get:print a secret'
   'copy:copy a secret to the clipboard'
   'add:add a new secret from stdin or prompt'
@@ -110,11 +112,49 @@ case "${state}" in
         ;;
       get)
         _arguments \
+          '--allow-stale[read the last complete trusted version while newer files are unavailable]' \
           '1:entry:_key_complete_entries'
         ;;
       copy)
         _arguments \
+          '--allow-stale[read the last complete trusted version while newer files are unavailable]' \
           '1:entry:_key_complete_entries'
+        ;;
+      status)
+        _arguments \
+          '--json[print stable machine-readable status]' \
+          '--verbose[include the local trusted version identifier]'
+        ;;
+      conflict)
+        if (( CURRENT == 2 )); then
+          _describe -t conflict-commands 'conflict command' \
+            'list:list unresolved content conflicts' \
+            'show:show authenticated versions of a conflict' \
+            'get:print one conflicted secret version' \
+            'copy:copy one conflicted secret version' \
+            'resolve:resolve every current conflict together'
+        else
+          case "${words[2]}" in
+            list)
+              _arguments \
+                '--json[print stable machine-readable conflict summaries]'
+              ;;
+            show)
+              _arguments \
+                '--json[print stable machine-readable conflict detail]' \
+                '1:conflict ID:'
+              ;;
+            get|copy)
+              _arguments \
+                '1:conflict ID:' \
+                '2:version ID:'
+              ;;
+            resolve)
+              _arguments \
+                '*:resolution in conflict-id=version-id form:'
+              ;;
+          esac
+        fi
         ;;
       add)
         _arguments \
