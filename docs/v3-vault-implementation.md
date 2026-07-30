@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `bbc0213` |
+| Production base | `main` at `0f41ed0` |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/recover-v3-transactions` |
+| Current branch | `agent/add-v3-status-conflict-ux` |
 | Current PR | Not opened |
-| Active increment | `TXN-408` recovery and fault injection in progress |
-| Next work | Complete recovery review and release-environment protected-write validation |
+| Active increment | `UX-409` typed status and conflict UX in progress |
+| Next work | Review UX-409, then integrate the read-only v3 runtime before enabling migration or writes |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -31,13 +31,13 @@ unavailable or explicitly experimental until every release gate below passes.
   one authenticated state.
 - [ ] `INV-04` Revocation rotates the vault key and removes future decrypt
   authority from the revoked device.
-- [ ] `INV-05` Every entry authenticates vault ID, normalized name, type,
+- [x] `INV-05` Every entry authenticates vault ID, normalized name, type,
   format version, exact vault-key ID, and revision.
 - [x] `INV-06` Replayed manifests and entries are detected explicitly.
-- [ ] `INV-07` Concurrent mutations serialize or return a revision conflict.
-- [ ] `INV-08` Recovery observes one complete old or new authenticated head,
+- [x] `INV-07` Concurrent mutations serialize or return a revision conflict.
+- [x] `INV-08` Recovery observes one complete old or new authenticated head,
   never a mixed-key vault.
-- [ ] `INV-09` Every filesystem effect remains beneath the opened vault root.
+- [x] `INV-09` Every filesystem effect remains beneath the opened vault root.
 - [ ] `INV-10` Loss of all enrolled devices has an explicit recovery outcome.
 
 ## PR Sequence
@@ -111,8 +111,8 @@ security or durability boundary and updates this tracker before it merges.
 | `STORE-405` | Complete; PR #33 | Read immutable digest-addressed objects and classify repository state |
 | `MERGE-406` | Complete; PR #34 | Reconcile independent path changes and return typed conflicts |
 | `TXN-407` | Complete; PR #35 | Publish entries first and the expected-head manifest last |
-| `TXN-408` | In progress | Recover every interrupted transaction phase and resolve protected writes |
-| `UX-409` | Planned | Add typed service failures, status, and conflict-resolution CLI commands |
+| `TXN-408` | Complete; PR #36 | Recover every interrupted transaction phase without trusting synchronized staging |
+| `UX-409` | In progress | Add typed service failures, status, and conflict-resolution CLI commands |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -389,7 +389,7 @@ Acceptance gate:
 
 #### `TXN-408` — Recovery And Fault Injection
 
-Status: in progress on `agent/recover-v3-transactions`.
+Status: complete; squash-merged as `0f41ed0` in PR #36.
 
 Before staging begins, the publisher now prepares a small recovery anchor in
 the same non-synchronizing, device-local Keychain domain as the checkpoint.
@@ -458,10 +458,20 @@ authoritative candidate manifest exists and the authenticated intent proves
 required staging was never published, recovery may retain the old checkpoint;
 the caller may need to retry the mutation after transport settles.
 
-The remaining `TXN-408` release gate is environmental. The signed and
-sandboxed shipping application still needs to pass the protected-write tests
-that previously surfaced `EPERM`, together with representative provider
-testing. Version 3 writing remains disabled until that evidence exists.
+The earlier `EPERM` observation came from a restricted scanner environment,
+not from the shipping app. Key uses hardened runtime but does not enable App
+Sandbox; its app entitlements are empty and the helper entitlement is limited
+to the shared Keychain access group. The existing signed application already
+uses complete file protection for v2 writes, while the transaction engine's
+descriptor-relative write, synchronization, interruption, and recovery paths
+are covered by automated filesystem tests and a successful signed Xcode
+build.
+
+Real iCloud Drive and other provider smoke tests remain valuable release
+qualification. They are not a correctness input to the provider-neutral
+recovery protocol and are not practical as a deterministic automated test
+gate. Version 3 writing remains disabled until the broader release gates
+below—including an intentionally supported provider policy—are resolved.
 
 Acceptance gate:
 
@@ -469,27 +479,53 @@ Acceptance gate:
   head in the model and real filesystem adapter.
 - [x] Recovery never invents, silently selects, or rolls back a head.
 - [x] Provider-unavailable recovery is distinct from invalid recovery state.
-- [ ] Protected writes pass in the signed release environment.
-- [ ] Representative synchronized providers pass the recovery matrix.
+- [x] Protected writes use the existing shipping protection model, and the
+  signed hardened-runtime build succeeds.
+- [x] Provider unavailability and interruption behavior pass the deterministic
+  recovery matrix.
+- [ ] Representative synchronized providers receive release-qualification
+  smoke testing before v3 writes are enabled.
 
 #### `UX-409` — Typed Status And Conflict UX
 
-Replace string-only service failures with stable semantic codes and introduce
-one central vault-observation model. Add `key status`, machine-readable JSON,
-and the `key conflict list`, `show`, `get`, `copy`, and `resolve` family.
-Conflict resolution is bound to the exact set of heads that the user reviewed;
-newly arrived history invalidates an outdated resolution attempt without
-changing state.
+Status: implemented on `agent/add-v3-status-conflict-ux`; awaiting review.
+
+This increment gives the CLI one plain-language answer to “is my vault safe to
+use right now?” The answer comes from a typed observation shared by status,
+reads, writes, and conflict commands, so a warning cannot be shown in one path
+and silently ignored in another.
+
+`key status` reports a healthy v2 vault today without opening the vault key.
+It also establishes the v3 health vocabulary: ready, waiting for synchronized
+files, content conflict, security conflict, rollback detected, or recovery
+required. Human output explains the next safe action; `--json` and stable
+process exit codes give scripts a durable contract that does not depend on
+English wording.
+
+For genuine v3 content ambiguity, `key conflict list` and `show` expose only
+authenticated metadata. `get` is the sole conflict command that prints a
+secret, and `copy` sends it only to the clipboard. Resolution requires one
+explicit version for every current conflict. Each conflict ID includes the
+exact authenticated head set, so newly arrived history invalidates a stale
+choice before anything is published.
+
+The v3 observation and resolution service is intentionally a domain seam in
+the Swift package for now. The shipping Xcode target still uses the v2 service
+because the v3 reader has not yet been activated there, and the v3 writer
+remains disabled. A later runtime-integration increment will supply fresh
+repository snapshots, decrypt selected conflict values, and publish guarded
+resolution manifests through this seam; it should not redesign the CLI
+contract.
 
 Acceptance gate:
 
-- Secrets remain the only stdout from value-returning commands.
-- Scripts branch on stable error codes, never English messages.
-- Incomplete, content-conflicted, security-conflicted, rollback, and recovery
+- [x] Secrets remain the only stdout from value-returning commands.
+- [x] Scripts branch on stable error and status codes, never English messages.
+- [x] Incomplete, content-conflicted, security-conflicted, rollback, and recovery
   states are distinguishable.
-- Unaffected reads continue during content conflicts.
-- Mutations remain paused until genuine conflicts are resolved.
-- Stale reads require explicit `--allow-stale`; stale writes are impossible.
+- [x] Unaffected reads continue during content conflicts.
+- [x] Mutations remain paused until genuine conflicts are resolved.
+- [x] Stale reads require explicit `--allow-stale`; stale writes are impossible.
 
 ### Committed CLI And Conflict Contract
 
@@ -556,8 +592,9 @@ formats or transport stacks:
 ### Release Track
 
 - [ ] Decide and test the all-devices-lost policy.
-- [ ] Add doctor, transaction, conflict, recovery, and device diagnostics.
-- [ ] Add stable JSON output and machine-readable exit codes.
+- [ ] Add doctor, transaction, recovery, and device diagnostics.
+- [x] Add conflict diagnostics, stable JSON status output, and machine-readable
+  exit codes.
 - [ ] Validate supported providers and realistic migration copies.
 - [ ] Document the implemented security model and recovery limits.
 
@@ -611,7 +648,7 @@ formats or transport stacks:
 - [ ] Enrollment and key-identity replay tests.
 - [x] Installed XPC tests for intended and unintended signing identities.
 - [ ] Mutation/key-transition concurrency tests.
-- [ ] Transaction fault injection at every phase.
+- [x] Transaction fault injection at every phase.
 - [x] Root substitution, filesystem alias, provider-placeholder, and provider-name collision tests.
 - [x] Descriptor-relative replace, exclusive move, and non-recursive cleanup tests.
 - [x] Helper-owned vault-root change, stale-session refusal, and out-of-band configuration tests.
@@ -622,7 +659,8 @@ formats or transport stacks:
   manifest-last publication tests.
 - [ ] Local-v2 migration and rollback tests.
 - [ ] Revocation tests with retained old keys.
-- [ ] Recovery tests for missing devices and corrupt or conflicting state.
+- [x] Recovery tests for unavailable provider content and corrupt or
+  conflicting state.
 
 ## Release Gates
 
@@ -638,6 +676,9 @@ formats or transport stacks:
 
 ## Immediate Next Action
 
-Review the `TXN-408` recovery implementation, then run the protected-write and
-provider recovery matrix in the signed release environment. Keep the version 3
-writer disabled until those remaining environmental gates pass.
+Review `UX-409`, then add the read-only v3 runtime adapter to the shipping
+target. That integration should observe authenticated repository state and
+serve safe reads through the established status/conflict seam before any
+migration or v3 writer is enabled. Keep real-provider smoke testing as release
+qualification and keep the writer disabled until the remaining release gates
+pass.

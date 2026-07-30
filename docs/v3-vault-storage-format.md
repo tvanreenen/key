@@ -1126,19 +1126,20 @@ defined by a later specification.
 
 ## Deliberately Deferred
 
-`HIST-402`, `KEY-403`, `HIST-404`, `STORE-405`, `MERGE-406`, `TXN-407`, and
-the core `TXN-408` recovery protocol
+`HIST-402`, `KEY-403`, `HIST-404`, `STORE-405`, `MERGE-406`, `TXN-407`, the
+core `TXN-408` recovery protocol, and the `UX-409` status/conflict contract
 establish exact digest-based identities, safe multi-parent authentication,
 bounded read-only discovery, deterministic logical reconciliation, and
-restartable entry-first immutable publication. They deliberately do not
-define:
+restartable entry-first immutable publication with stable user-visible health
+states. They deliberately do not define:
 
 - release-environment protected-write and synchronized-provider validation;
-- typed status and conflict UX (`UX-409`); or
+- shipping-target activation of the v3 reader and conflict-resolution
+  publisher; or
 - physical migration execution beyond preflight.
 
-Until those work packages land, version 3 artifacts remain disabled as trusted
-production state.
+Until those runtime and migration work packages land, version 3 artifacts
+remain disabled as trusted production state.
 
 Implementation boundaries and future extraction work are tracked in the
 [canonical JSON module plan](json-canonicalization.md).
