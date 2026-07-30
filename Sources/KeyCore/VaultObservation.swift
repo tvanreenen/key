@@ -104,6 +104,30 @@ public enum VaultIssueCode: String, Codable, Equatable, Sendable {
     case interruptedTransaction = "interrupted_transaction"
 }
 
+public enum VaultEntryCountBasis: String, Codable, Equatable, Sendable {
+    case effective
+    case lastTrusted = "last_trusted"
+}
+
+public struct VaultEntrySummary: Codable, Equatable, Sendable {
+    public let count: Int
+    public let basis: VaultEntryCountBasis
+
+    public init(count: Int, basis: VaultEntryCountBasis) {
+        precondition(count >= 0)
+        self.count = count
+        self.basis = basis
+    }
+
+    public static func effective(_ count: Int) -> VaultEntrySummary {
+        VaultEntrySummary(count: count, basis: .effective)
+    }
+
+    public static func lastTrusted(_ count: Int) -> VaultEntrySummary {
+        VaultEntrySummary(count: count, basis: .lastTrusted)
+    }
+}
+
 public struct VaultIssue: Codable, Equatable, Sendable {
     public let code: VaultIssueCode
     public let message: String
@@ -121,24 +145,27 @@ public struct VaultIssue: Codable, Equatable, Sendable {
 public struct VaultStatus: Codable, Equatable, Sendable {
     public let format: VaultStorageFormat
     public let health: VaultHealth
-    public let entryCount: Int
+    public let entries: VaultEntrySummary
     public let conflictCount: Int
     public let trustedVersionID: String?
     public let issues: [VaultIssue]
 
+    public var entryCount: Int {
+        entries.count
+    }
+
     public init(
         format: VaultStorageFormat,
         health: VaultHealth,
-        entryCount: Int,
+        entries: VaultEntrySummary,
         conflictCount: Int = 0,
         trustedVersionID: String? = nil,
         issues: [VaultIssue] = []
     ) {
-        precondition(entryCount >= 0)
         precondition(conflictCount >= 0)
         self.format = format
         self.health = health
-        self.entryCount = entryCount
+        self.entries = entries
         self.conflictCount = conflictCount
         self.trustedVersionID = trustedVersionID
         self.issues = issues
@@ -154,6 +181,23 @@ public enum VaultConflictKind: String, Codable, Equatable, Sendable {
     case destinationCollision = "destination_collision"
     case revisionRollback = "revision_rollback"
     case conflictingRevision = "conflicting_revision"
+}
+
+enum VaultConflictResolutionPolicy: Equatable, Sendable {
+    case chooseVersion
+    case recoveryRequired
+}
+
+extension VaultConflictKind {
+    var resolutionPolicy: VaultConflictResolutionPolicy {
+        switch self {
+        case .revisionRollback:
+            .recoveryRequired
+        case .concurrentCreation, .editEdit, .deleteEdit, .renameEdit,
+            .conflictingRename, .destinationCollision, .conflictingRevision:
+            .chooseVersion
+        }
+    }
 }
 
 public struct VaultConflictSummary: Codable, Equatable, Sendable {
@@ -278,7 +322,7 @@ struct V2VaultUXService: VaultUXServicing {
         VaultStatus(
             format: .version2,
             health: .ready,
-            entryCount: try entryStore.listEntries().count
+            entries: .effective(try entryStore.listEntries().count)
         )
     }
 

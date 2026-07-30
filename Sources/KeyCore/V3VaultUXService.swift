@@ -125,12 +125,14 @@ struct V3VaultUXService: VaultUXServicing {
         _ resolutions: [VaultConflictResolution]
     ) throws {
         let snapshot = try snapshotProvider()
+        guard snapshot.conflicts.allSatisfy({
+            $0.summary.kind.resolutionPolicy == .chooseVersion
+        }) else {
+            throw AppError.operationRefused(
+                "A revision rollback cannot be accepted as an ordinary content resolution."
+            )
+        }
         guard snapshot.status.health == .contentConflicted else {
-            if snapshot.status.health == .rollbackDetected {
-                throw AppError.operationRefused(
-                    "A revision rollback cannot be accepted as an ordinary content resolution."
-                )
-            }
             throw VaultUXServiceError.expectedHeadsChanged
         }
 

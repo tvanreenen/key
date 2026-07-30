@@ -277,14 +277,30 @@ public final class KeyCLIApplication {
         case .recoveryRequired:
             "Vault needs recovery before it can be changed safely."
         }
+        let entryLabel = switch status.entries.basis {
+        case .effective:
+            "Entries"
+        case .lastTrusted:
+            "Last trusted entries"
+        }
         var lines = [
             headline,
             "Format: \(status.format == .version2 ? "version 2" : "version 3")",
-            "Entries: \(status.entryCount)"
+            "\(entryLabel): \(status.entries.count)"
         ]
         if status.conflictCount > 0 {
             lines.append("Conflicts: \(status.conflictCount)")
-            lines.append("Next: run `key conflict list`.")
+            switch status.health {
+            case .contentConflicted:
+                lines.append("Next: run `key conflict list`.")
+            case .rollbackDetected:
+                lines.append(
+                    "Next: inspect with `key conflict list`, then recover from a known-good state."
+                )
+            case .ready, .incomplete, .securityConflicted,
+                .recoveryRequired:
+                break
+            }
         }
         if verbose, let trustedVersionID = status.trustedVersionID {
             lines.append(
@@ -334,9 +350,16 @@ public final class KeyCLIApplication {
             }
             lines.append(description)
         }
-        lines.append(
-            "Resolve only after reviewing every conflict shown by `key conflict list`."
-        )
+        switch conflict.summary.kind.resolutionPolicy {
+        case .chooseVersion:
+            lines.append(
+                "Resolve only after reviewing every conflict shown by `key conflict list`."
+            )
+        case .recoveryRequired:
+            lines.append(
+                "This rollback cannot be resolved with `key conflict resolve`. Recover from a known-good state."
+            )
+        }
         io.writeStdout(lines.joined(separator: "\n") + "\n")
     }
 

@@ -500,7 +500,9 @@ It also establishes the v3 health vocabulary: ready, waiting for synchronized
 files, content conflict, security conflict, rollback detected, or recovery
 required. Human output explains the next safe action; `--json` and stable
 process exit codes give scripts a durable contract that does not depend on
-English wording.
+English wording. Entry totals explicitly identify whether they describe the
+effective ready state or the last state trusted by this Mac; incomplete or
+conflicted transport never turns a known checkpoint into a misleading zero.
 
 For genuine v3 content ambiguity, `key conflict list` and `show` expose only
 authenticated metadata. `get` is the sole conflict command that prints a
@@ -508,6 +510,8 @@ secret, and `copy` sends it only to the clipboard. Resolution requires one
 explicit version for every current conflict. Each conflict ID includes the
 exact authenticated head set, so newly arrived history invalidates a stale
 choice before anything is published.
+Revision rollback remains inspectable but is recovery-only: neither status nor
+conflict detail presents ordinary version selection as a valid next step.
 
 The v3 observation and resolution service is intentionally a domain seam in
 the Swift package for now. The shipping Xcode target still uses the v2 service

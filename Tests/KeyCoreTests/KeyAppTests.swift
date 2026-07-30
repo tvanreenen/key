@@ -329,7 +329,7 @@ struct KeyCLIApplicationTests {
         let status = VaultStatus(
             format: .version3,
             health: .contentConflicted,
-            entryCount: 7,
+            entries: .lastTrusted(7),
             conflictCount: 2,
             trustedVersionID: "0123456789abcdef"
         )
@@ -349,6 +349,7 @@ struct KeyCLIApplicationTests {
                 == KeyExitCode.conflict.rawValue
         )
         #expect(io.stdout.contains("Vault has content conflicts"))
+        #expect(io.stdout.contains("Last trusted entries: 7"))
         #expect(io.stdout.contains("Conflicts: 2"))
         #expect(io.stdout.contains("key conflict list"))
         #expect(!io.stdout.contains("0123456789abcdef"))
@@ -360,7 +361,7 @@ struct KeyCLIApplicationTests {
         let status = VaultStatus(
             format: .version3,
             health: .incomplete,
-            entryCount: 4,
+            entries: .lastTrusted(4),
             trustedVersionID: "0123456789abcdef",
             issues: [
                 VaultIssue(
@@ -386,6 +387,81 @@ struct KeyCLIApplicationTests {
         let data = try #require(io.stdout.data(using: .utf8))
         #expect(try JSONDecoder().decode(VaultStatus.self, from: data) == status)
         #expect(!io.stdout.contains("Vault files are"))
+    }
+
+    @Test
+    func rollbackStatusAndConflictShowRecommendRecoveryNotResolution()
+        throws
+    {
+        let summary = VaultConflictSummary(
+            id: "c-rollback",
+            entryName: "mail/personal",
+            kind: .revisionRollback,
+            versionCount: 1
+        )
+        let detail = VaultConflictDetail(
+            summary: summary,
+            versions: [
+                VaultConflictVersion(
+                    id: "0123456789abcdef",
+                    entryName: "mail/personal",
+                    entryType: .secret,
+                    revision: 1,
+                    previouslyTrustedOnThisMac: false
+                )
+            ]
+        )
+        let status = VaultStatus(
+            format: .version3,
+            health: .rollbackDetected,
+            entries: .lastTrusted(1),
+            conflictCount: 1
+        )
+        let transport = MemoryTransport { request in
+            switch request {
+            case .vaultStatus:
+                .vaultStatus(status)
+            case .showConflict(id: "c-rollback"):
+                .conflict(detail)
+            default:
+                .failure("Unexpected request.")
+            }
+        }
+
+        let statusIO = MemoryIO(stdinIsTTY: false)
+        let statusApp = KeyCLIApplication(
+            transport: transport,
+            io: statusIO,
+            clipboard: MemoryClipboard()
+        )
+        #expect(
+            statusApp.run(arguments: ["status"])
+                == KeyExitCode.securityFailure.rawValue
+        )
+        #expect(statusIO.stdout.contains("recover from a known-good state"))
+        #expect(!statusIO.stdout.contains("Next: run `key conflict list`."))
+
+        let conflictIO = MemoryIO(stdinIsTTY: false)
+        let conflictApp = KeyCLIApplication(
+            transport: transport,
+            io: conflictIO,
+            clipboard: MemoryClipboard()
+        )
+        #expect(
+            conflictApp.run(arguments: [
+                "conflict", "show", "c-rollback"
+            ]) == EXIT_SUCCESS
+        )
+        #expect(
+            conflictIO.stdout.contains(
+                "cannot be resolved with `key conflict resolve`"
+            )
+        )
+        #expect(
+            !conflictIO.stdout.contains(
+                "Resolve only after reviewing every conflict"
+            )
+        )
     }
 
     @Test
@@ -723,7 +799,7 @@ struct KeyServiceHandlerTests {
             response.vaultStatus == VaultStatus(
                 format: .version2,
                 health: .ready,
-                entryCount: 1
+                entries: .effective(1)
             )
         )
         #expect(response.exitCode == EXIT_SUCCESS)

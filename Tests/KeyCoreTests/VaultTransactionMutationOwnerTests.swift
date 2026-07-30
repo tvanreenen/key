@@ -314,7 +314,11 @@ private final class RecordingVaultUXService: VaultUXServicing {
     private(set) var resolutions: [[VaultConflictResolution]] = []
 
     func status() throws -> VaultStatus {
-        VaultStatus(format: .version3, health: .ready, entryCount: 0)
+        VaultStatus(
+            format: .version3,
+            health: .ready,
+            entries: .effective(0)
+        )
     }
 
     func authorizeRead(name _: String, allowStale _: Bool) throws {}

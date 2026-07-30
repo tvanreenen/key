@@ -26,22 +26,33 @@ struct V3VaultObservationBuilder: Sendable {
     }
 
     func build(
-        _ classification: V3VaultRepositoryClassification
+        _ classification: V3VaultRepositoryClassification,
+        trustedCurrent: V3TrustedManifest
     ) throws -> V3VaultUXSnapshot {
-        let trustedVersionID = classification.ancestryProof.map {
-            String(
-                v3LowercaseHex($0.checkpoint.envelopeDigest).prefix(16)
-            )
+        if let proof = classification.ancestryProof {
+            guard proof.checkpoint == trustedCurrent.checkpoint else {
+                throw V3ManifestReconciliationError.invalidAncestryProof
+            }
         }
-        let entryCount = checkpointEntryCount(
-            classification.ancestryProof
+        let trustedVersionID = String(
+            v3LowercaseHex(
+                trustedCurrent.checkpoint.envelopeDigest
+            ).prefix(16)
+        )
+        let trustedEntries = Set(
+            trustedCurrent.envelope.content.manifest.entries
+        )
+        let lastTrustedEntries = VaultEntrySummary.lastTrusted(
+            trustedEntries.count
         )
 
         switch classification.status {
         case .ready:
             return snapshot(
                 health: .ready,
-                entryCount: entryCount,
+                entries: .effective(
+                    try readyEntryCount(classification.ancestryProof)
+                ),
                 trustedVersionID: trustedVersionID,
                 issues: [],
                 heads: classification.heads
@@ -49,7 +60,7 @@ struct V3VaultObservationBuilder: Sendable {
         case .incomplete:
             return snapshot(
                 health: .incomplete,
-                entryCount: entryCount,
+                entries: lastTrustedEntries,
                 trustedVersionID: trustedVersionID,
                 issues: classification.issues.map(vaultIssue),
                 heads: classification.heads
@@ -57,7 +68,7 @@ struct V3VaultObservationBuilder: Sendable {
         case .securityConflicted:
             return snapshot(
                 health: .securityConflicted,
-                entryCount: entryCount,
+                entries: lastTrustedEntries,
                 trustedVersionID: trustedVersionID,
                 issues: [
                     VaultIssue(
@@ -70,7 +81,7 @@ struct V3VaultObservationBuilder: Sendable {
         case .recoveryRequired:
             return snapshot(
                 health: .recoveryRequired,
-                entryCount: entryCount,
+                entries: lastTrustedEntries,
                 trustedVersionID: trustedVersionID,
                 issues: classification.issues.map(vaultIssue),
                 heads: classification.heads
@@ -79,7 +90,7 @@ struct V3VaultObservationBuilder: Sendable {
             guard let proof = classification.ancestryProof else {
                 return snapshot(
                     health: .recoveryRequired,
-                    entryCount: entryCount,
+                    entries: lastTrustedEntries,
                     trustedVersionID: trustedVersionID,
                     issues: [
                         VaultIssue(
@@ -92,33 +103,37 @@ struct V3VaultObservationBuilder: Sendable {
             }
             return try buildReconciliationSnapshot(
                 proof: proof,
-                entryCount: entryCount,
+                lastTrustedEntries: lastTrustedEntries,
                 trustedVersionID: trustedVersionID,
-                trustedEntries: checkpointEntries(proof)
+                trustedEntries: trustedEntries
             )
         }
     }
 
     private func buildReconciliationSnapshot(
         proof: V3ManifestAncestryProof,
-        entryCount: Int,
+        lastTrustedEntries: VaultEntrySummary,
         trustedVersionID: String?,
         trustedEntries: Set<V3ManifestEntry>
     ) throws -> V3VaultUXSnapshot {
         let expectedHeads = try proof.heads.map(V3VaultHead.init)
         switch try reconciler.reconcile(proof) {
-        case .noMergeRequired:
+        case let .noMergeRequired(head):
             return snapshot(
                 health: .ready,
-                entryCount: entryCount,
+                entries: .effective(
+                    try entryCount(for: head, in: proof)
+                ),
                 trustedVersionID: trustedVersionID,
                 issues: [],
                 heads: expectedHeads
             )
-        case .automaticMerge:
+        case let .automaticMerge(plan):
             return snapshot(
                 health: .ready,
-                entryCount: entryCount,
+                entries: .effective(
+                    plan.content.manifest.entries.count
+                ),
                 trustedVersionID: trustedVersionID,
                 issues: [],
                 heads: expectedHeads
@@ -126,7 +141,7 @@ struct V3VaultObservationBuilder: Sendable {
         case let .securityConflict(heads):
             return snapshot(
                 health: .securityConflicted,
-                entryCount: entryCount,
+                entries: lastTrustedEntries,
                 trustedVersionID: trustedVersionID,
                 issues: [
                     VaultIssue(
@@ -139,7 +154,7 @@ struct V3VaultObservationBuilder: Sendable {
         case .historyConflict:
             return snapshot(
                 health: .recoveryRequired,
-                entryCount: entryCount,
+                entries: lastTrustedEntries,
                 trustedVersionID: trustedVersionID,
                 issues: [
                     VaultIssue(
@@ -152,7 +167,7 @@ struct V3VaultObservationBuilder: Sendable {
         case let .contentConflict(report):
             return contentConflictSnapshot(
                 report,
-                entryCount: entryCount,
+                entries: lastTrustedEntries,
                 trustedVersionID: trustedVersionID,
                 trustedHeadDigest: proof.checkpoint.envelopeDigest,
                 trustedEntries: trustedEntries
@@ -162,7 +177,7 @@ struct V3VaultObservationBuilder: Sendable {
 
     private func contentConflictSnapshot(
         _ report: V3ContentConflictReport,
-        entryCount: Int,
+        entries: VaultEntrySummary,
         trustedVersionID: String?,
         trustedHeadDigest: Data,
         trustedEntries: Set<V3ManifestEntry>
@@ -282,7 +297,7 @@ struct V3VaultObservationBuilder: Sendable {
             status: VaultStatus(
                 format: .version3,
                 health: health,
-                entryCount: entryCount,
+                entries: entries,
                 conflictCount: details.count,
                 trustedVersionID: trustedVersionID,
                 issues: issues
@@ -295,7 +310,7 @@ struct V3VaultObservationBuilder: Sendable {
 
     private func snapshot(
         health: VaultHealth,
-        entryCount: Int,
+        entries: VaultEntrySummary,
         trustedVersionID: String?,
         issues: [VaultIssue],
         heads: [V3VaultHead]
@@ -304,7 +319,7 @@ struct V3VaultObservationBuilder: Sendable {
             status: VaultStatus(
                 format: .version3,
                 health: health,
-                entryCount: entryCount,
+                entries: entries,
                 trustedVersionID: trustedVersionID,
                 issues: issues
             ),
@@ -315,23 +330,27 @@ struct V3VaultObservationBuilder: Sendable {
     }
 }
 
-private func checkpointEntryCount(
+private func readyEntryCount(
     _ proof: V3ManifestAncestryProof?
-) -> Int {
-    checkpointEntries(proof).count
+) throws -> Int {
+    guard let proof, proof.heads.count == 1,
+          let head = proof.heads.first
+    else {
+        throw V3ManifestReconciliationError.invalidAncestryProof
+    }
+    return head.envelope.content.manifest.entries.count
 }
 
-private func checkpointEntries(
-    _ proof: V3ManifestAncestryProof?
-) -> Set<V3ManifestEntry> {
-    guard let proof,
-          let manifest = proof.manifests.first(where: {
-              $0.envelopeDigest == proof.checkpoint.envelopeDigest
-          })
-    else {
-        return []
+private func entryCount(
+    for head: V3VaultHead,
+    in proof: V3ManifestAncestryProof
+) throws -> Int {
+    guard let manifest = proof.heads.first(where: {
+        $0.envelopeDigest == head.envelopeDigest
+    }) else {
+        throw V3ManifestReconciliationError.invalidAncestryProof
     }
-    return Set(manifest.envelope.content.manifest.entries)
+    return manifest.envelope.content.manifest.entries.count
 }
 
 private func vaultIssue(

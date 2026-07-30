@@ -36,12 +36,14 @@ struct V3VaultUXTests {
                 manifests: [base, left, right],
                 heads: [left, right],
                 status: .contentConflicted
-            )
+            ),
+            trustedCurrent: trusted(base)
         )
 
         #expect(snapshot.status.format == .version3)
         #expect(snapshot.status.health == .contentConflicted)
         #expect(snapshot.status.entryCount == 1)
+        #expect(snapshot.status.entries.basis == .lastTrusted)
         #expect(snapshot.status.conflictCount == 1)
         let conflict = try #require(snapshot.conflicts.first)
         #expect(conflict.summary.kind == .editEdit)
@@ -53,6 +55,80 @@ struct V3VaultUXTests {
             !$0.previouslyTrustedOnThisMac
         })
         #expect(snapshot.selections[conflict.summary.id] != nil)
+    }
+
+    @Test
+    func readyStateReportsTheEffectiveHeadEntryCount() throws {
+        let base = manifest(
+            digestByte: 16,
+            entries: [entry(revision: 1, digestByte: 1)]
+        )
+        let head = manifest(
+            digestByte: 17,
+            parents: [base],
+            entries: [
+                entry(revision: 2, digestByte: 2),
+                entry(
+                    revision: 1,
+                    digestByte: 3,
+                    entryID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b5",
+                    name: "mail/work"
+                )
+            ]
+        )
+
+        let snapshot = try V3VaultObservationBuilder().build(
+            classification(
+                checkpoint: base,
+                manifests: [base, head],
+                heads: [head],
+                status: .ready
+            ),
+            trustedCurrent: trusted(base)
+        )
+
+        #expect(snapshot.status.entries == .effective(2))
+        #expect(
+            snapshot.status.trustedVersionID
+                == String(v3LowercaseHex(base.envelopeDigest).prefix(16))
+        )
+    }
+
+    @Test
+    func automaticMergeReportsTheMergedEntryCount() throws {
+        let baseEntry = entry(revision: 1, digestByte: 1)
+        let base = manifest(digestByte: 18, entries: [baseEntry])
+        let left = manifest(
+            digestByte: 19,
+            parents: [base],
+            entries: [entry(revision: 2, digestByte: 2)]
+        )
+        let right = manifest(
+            digestByte: 20,
+            parents: [base],
+            entries: [
+                baseEntry,
+                entry(
+                    revision: 1,
+                    digestByte: 3,
+                    entryID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b5",
+                    name: "mail/work"
+                )
+            ]
+        )
+
+        let snapshot = try V3VaultObservationBuilder().build(
+            classification(
+                checkpoint: base,
+                manifests: [base, left, right],
+                heads: [left, right],
+                status: .contentConflicted
+            ),
+            trustedCurrent: trusted(base)
+        )
+
+        #expect(snapshot.status.health == .ready)
+        #expect(snapshot.status.entries == .effective(2))
     }
 
     @Test
@@ -77,7 +153,8 @@ struct V3VaultUXTests {
                 manifests: [base, trusted, synchronized],
                 heads: [trusted, synchronized],
                 status: .contentConflicted
-            )
+            ),
+            trustedCurrent: self.trusted(trusted)
         )
 
         let conflict = try #require(snapshot.conflicts.first)
@@ -112,7 +189,8 @@ struct V3VaultUXTests {
                 manifests: [base, left, right],
                 heads: [left, right],
                 status: .contentConflicted
-            )
+            ),
+            trustedCurrent: trusted(base)
         )
         let box = SnapshotBox(conflicted)
         let recorder = ResolutionRecorder()
@@ -153,7 +231,8 @@ struct V3VaultUXTests {
                 manifests: [base, left],
                 heads: [left],
                 status: .ready
-            )
+            ),
+            trustedCurrent: trusted(left)
         )
         #expect(throws: VaultUXServiceError.expectedHeadsChanged) {
             try service.resolve([resolution])
@@ -182,7 +261,8 @@ struct V3VaultUXTests {
                 manifests: [base, rollback, forward],
                 heads: [rollback, forward],
                 status: .contentConflicted
-            )
+            ),
+            trustedCurrent: trusted(base)
         )
 
         #expect(snapshot.status.health == .rollbackDetected)
@@ -193,11 +273,31 @@ struct V3VaultUXTests {
             snapshot.conflicts.map(\.summary.kind)
                 .contains(.revisionRollback)
         )
+        let conflict = try #require(snapshot.conflicts.first)
+        let version = try #require(conflict.versions.first)
+        let service = V3VaultUXService(
+            snapshotProvider: { snapshot },
+            valueReader: { _, _ in "" },
+            resolutionPublisher: { _, _ in
+                Issue.record("Rollback resolution reached publication.")
+            }
+        )
+        #expect(throws: AppError.self) {
+            try service.resolve([
+                VaultConflictResolution(
+                    conflictID: conflict.summary.id,
+                    versionID: version.id
+                )
+            ])
+        }
     }
 
     @Test
     func repositoryFailureClassesRemainDistinctInStatus() throws {
-        let head = manifest(digestByte: 40)
+        let head = manifest(
+            digestByte: 40,
+            entries: [entry(revision: 1, digestByte: 4)]
+        )
         let builder = V3VaultObservationBuilder()
         let incomplete = try builder.build(
             V3VaultRepositoryClassification(
@@ -205,7 +305,8 @@ struct V3VaultUXTests {
                 heads: [try V3VaultHead(verifiedManifest: head)],
                 issues: [.manifestDirectoryUnavailable],
                 ancestryProof: nil
-            )
+            ),
+            trustedCurrent: trusted(head)
         )
         let recovery = try builder.build(
             V3VaultRepositoryClassification(
@@ -215,15 +316,19 @@ struct V3VaultUXTests {
                     .invalidReferencedObject(path: "manifests/object.json")
                 ],
                 ancestryProof: nil
-            )
+            ),
+            trustedCurrent: trusted(head)
         )
 
         #expect(incomplete.status.health == .incomplete)
+        #expect(incomplete.status.entries == .lastTrusted(1))
+        #expect(incomplete.status.trustedVersionID != nil)
         #expect(
             incomplete.status.issues.map(\.code)
                 == [.transportUnavailable]
         )
         #expect(recovery.status.health == .recoveryRequired)
+        #expect(recovery.status.entries == .lastTrusted(1))
         #expect(
             recovery.status.issues.map(\.code)
                 == [.invalidReferencedObject]
@@ -238,7 +343,7 @@ struct V3VaultUXTests {
             status: VaultStatus(
                 format: .version3,
                 health: .incomplete,
-                entryCount: 1
+                entries: .lastTrusted(1)
             ),
             conflicts: [],
             expectedHeads: [],
@@ -275,7 +380,7 @@ struct V3VaultUXTests {
             status: VaultStatus(
                 format: .version3,
                 health: .contentConflicted,
-                entryCount: 2,
+                entries: .lastTrusted(2),
                 conflictCount: 1
             ),
             conflicts: [
@@ -330,6 +435,17 @@ struct V3VaultUXTests {
         )
     }
 
+    private func trusted(
+        _ manifest: V3VerifiedManifest
+    ) throws -> V3TrustedManifest {
+        V3TrustedManifest(
+            verifiedManifest: manifest,
+            checkpoint: try V3ManifestCheckpoint(
+                verifiedManifest: manifest
+            )
+        )
+    }
+
     private func manifest(
         digestByte: UInt8,
         parents: [V3VerifiedManifest] = [],
@@ -366,11 +482,13 @@ struct V3VaultUXTests {
 
     private func entry(
         revision: UInt64,
-        digestByte: UInt8
+        digestByte: UInt8,
+        entryID: String = Self.entryID,
+        name: String = "mail/personal"
     ) -> V3ManifestEntry {
         V3ManifestEntry(
-            entryID: Self.entryID,
-            name: "mail/personal",
+            entryID: entryID,
+            name: name,
             type: .secret,
             revision: revision,
             keyID: Self.keyID,
