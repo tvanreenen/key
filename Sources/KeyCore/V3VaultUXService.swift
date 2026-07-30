@@ -13,12 +13,12 @@ struct V3ResolvedConflictSelection: Equatable, Sendable {
 /// If synchronized history changes after review, the old IDs no longer match
 /// and resolution fails without publishing anything.
 struct V3VaultUXService: VaultUXServicing {
-    typealias SnapshotProvider = () throws -> V3VaultUXSnapshot
-    typealias ValueReader = (
+    typealias SnapshotProvider = @Sendable () throws -> V3VaultUXSnapshot
+    typealias ValueReader = @Sendable (
         _ entry: V3ManifestEntry,
         _ expectedHeads: [V3VaultHead]
     ) throws -> String
-    typealias ResolutionPublisher = (
+    typealias ResolutionPublisher = @Sendable (
         _ selections: [V3ResolvedConflictSelection],
         _ expectedHeads: [V3VaultHead]
     ) throws -> Void

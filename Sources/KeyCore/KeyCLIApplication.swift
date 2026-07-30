@@ -52,9 +52,14 @@ public final class KeyCLIApplication {
             return try handle(response, for: command)
         case let .status(json, verbose):
             response = try transport.send(.vaultStatus)
-            guard let status = response.vaultStatus else {
+            if response.vaultStatus == nil,
+               response.errorMessage != nil {
                 return try handle(response, for: command)
             }
+            let status = try requiredServicePayload(
+                response.vaultStatus,
+                operation: "vault status"
+            )
             try writeStatus(status, json: json, verbose: verbose)
             return response.exitCode
         case let .conflict(conflictCommand):
@@ -199,11 +204,13 @@ public final class KeyCLIApplication {
         switch command {
         case let .list(json):
             let response = try transport.send(.listConflicts)
-            guard response.exitCode == EXIT_SUCCESS,
-                  let conflicts = response.conflicts
-            else {
+            guard response.exitCode == EXIT_SUCCESS else {
                 return try handle(response, for: .conflict(command))
             }
+            let conflicts = try requiredServicePayload(
+                response.conflicts,
+                operation: "conflict list"
+            )
             if json {
                 try writeJSON(conflicts)
             } else {
@@ -212,11 +219,13 @@ public final class KeyCLIApplication {
             return response.exitCode
         case let .show(id, json):
             let response = try transport.send(.showConflict(id: id))
-            guard response.exitCode == EXIT_SUCCESS,
-                  let conflict = response.conflict
-            else {
+            guard response.exitCode == EXIT_SUCCESS else {
                 return try handle(response, for: .conflict(command))
             }
+            let conflict = try requiredServicePayload(
+                response.conflict,
+                operation: "conflict show"
+            )
             if json {
                 try writeJSON(conflict)
             } else {
@@ -230,9 +239,11 @@ public final class KeyCLIApplication {
             guard response.exitCode == EXIT_SUCCESS else {
                 return try handle(response, for: .conflict(command))
             }
-            if let value = response.value {
-                io.writeStdout(formattedGetOutput(value))
-            }
+            let value = try requiredServicePayload(
+                response.value,
+                operation: "conflict get"
+            )
+            io.writeStdout(formattedGetOutput(value))
             return response.exitCode
         case let .copy(id, versionID):
             let response = try transport.send(
@@ -241,9 +252,11 @@ public final class KeyCLIApplication {
             guard response.exitCode == EXIT_SUCCESS else {
                 return try handle(response, for: .conflict(command))
             }
-            if let value = response.value {
-                try clipboard.copy(value)
-            }
+            let value = try requiredServicePayload(
+                response.value,
+                operation: "conflict copy"
+            )
+            try clipboard.copy(value)
             return response.exitCode
         case let .resolve(resolutions):
             let response = try transport.send(
@@ -371,6 +384,18 @@ public final class KeyCLIApplication {
             throw AppError.io("Failed to encode JSON output.")
         }
         io.writeStdout(string + "\n")
+    }
+
+    private func requiredServicePayload<Value>(
+        _ value: Value?,
+        operation: String
+    ) throws -> Value {
+        guard let value else {
+            throw AppError.service(
+                "Key service returned an invalid \(operation) response."
+            )
+        }
+        return value
     }
 
     private func humanConflictKind(_ kind: VaultConflictKind) -> String {

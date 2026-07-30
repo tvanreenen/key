@@ -499,23 +499,46 @@ struct V3VaultUXTests {
     }
 }
 
-private final class SnapshotBox {
-    var snapshot: V3VaultUXSnapshot
+private final class SnapshotBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedSnapshot: V3VaultUXSnapshot
+
+    var snapshot: V3VaultUXSnapshot {
+        get {
+            lock.withLock { storedSnapshot }
+        }
+        set {
+            lock.withLock {
+                storedSnapshot = newValue
+            }
+        }
+    }
 
     init(_ snapshot: V3VaultUXSnapshot) {
-        self.snapshot = snapshot
+        storedSnapshot = snapshot
     }
 }
 
-private final class ResolutionRecorder {
-    private(set) var selections: [V3ResolvedConflictSelection] = []
-    private(set) var heads: [V3VaultHead] = []
+private final class ResolutionRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedSelections: [V3ResolvedConflictSelection] = []
+    private var storedHeads: [V3VaultHead] = []
+
+    var selections: [V3ResolvedConflictSelection] {
+        lock.withLock { storedSelections }
+    }
+
+    var heads: [V3VaultHead] {
+        lock.withLock { storedHeads }
+    }
 
     func record(
         selections: [V3ResolvedConflictSelection],
         heads: [V3VaultHead]
     ) {
-        self.selections = selections
-        self.heads = heads
+        lock.withLock {
+            storedSelections = selections
+            storedHeads = heads
+        }
     }
 }

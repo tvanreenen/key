@@ -513,6 +513,25 @@ choice before anything is published.
 Revision rollback remains inspectable but is recovery-only: neither status nor
 conflict detail presents ordinary version selection as a valid next step.
 
+The machine-readable CLI contract uses sorted-key JSON with the following
+stable fields:
+
+- Status: `format`, `health`, `entries`, `conflictCount`,
+  `trustedVersionID`, and `issues`.
+- Entry summary: `count` and `basis`; `basis` is `effective` or
+  `last_trusted`.
+- Issue: `code` and `message`. Scripts branch on `code`; `message` is for
+  people and may improve over time.
+- Conflict summary: `id`, `entryName`, `kind`, and `versionCount`.
+- Conflict detail: `summary` and `versions`. Each version contains `id`,
+  `entryName`, `entryType`, `revision`, and
+  `previouslyTrustedOnThisMac`.
+
+Optional values are omitted when absent. Enum values and service error codes
+use their documented lowercase snake-case representations. Exact JSON fixture
+tests protect these field names and values from accidental source-level
+renaming.
+
 The v3 observation and resolution service is intentionally a domain seam in
 the Swift package for now. The shipping Xcode target still uses the v2 service
 because the v3 reader has not yet been activated there, and the v3 writer
@@ -520,6 +539,13 @@ remains disabled. A later runtime-integration increment will supply fresh
 repository snapshots, decrypt selected conflict values, and publish guarded
 resolution manifests through this seam; it should not redesign the CLI
 contract.
+
+The current `authorizeRead` and `authorizeMutation` calls are policy gates, not
+v3 storage capabilities. Before activating the v3 runtime, integration must
+replace or augment them with a typed operation plan that identifies the exact
+trusted state for a stale read and carries expected authenticated heads into
+publication. A successful policy check alone must never authorize a later
+unbound filesystem operation.
 
 Acceptance gate:
 

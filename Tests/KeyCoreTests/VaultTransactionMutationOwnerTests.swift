@@ -310,8 +310,16 @@ private struct FailingMutationOwner: VaultTransactionMutationOwning {
     }
 }
 
-private final class RecordingVaultUXService: VaultUXServicing {
-    private(set) var resolutions: [[VaultConflictResolution]] = []
+private final class RecordingVaultUXService:
+    VaultUXServicing,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var storedResolutions: [[VaultConflictResolution]] = []
+
+    var resolutions: [[VaultConflictResolution]] {
+        lock.withLock { storedResolutions }
+    }
 
     func status() throws -> VaultStatus {
         VaultStatus(
@@ -341,6 +349,8 @@ private final class RecordingVaultUXService: VaultUXServicing {
     }
 
     func resolve(_ resolutions: [VaultConflictResolution]) throws {
-        self.resolutions.append(resolutions)
+        lock.withLock {
+            storedResolutions.append(resolutions)
+        }
     }
 }
