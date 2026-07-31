@@ -3,14 +3,14 @@ import Foundation
 import LocalAuthentication
 import Security
 
-public protocol VaultKeyStoring {
+public protocol VaultKeyStoring: Sendable {
     func loadKey(mode: KeychainMode, reason: String, createIfMissing: Bool) throws -> Data
     func keyExists(mode: KeychainMode) throws -> Bool
     func storeKey(_ keyData: Data, mode: KeychainMode, overwriteExisting: Bool) throws
     func invalidate()
 }
 
-public final class VaultKeyStore: VaultKeyStoring {
+public final class VaultKeyStore: VaultKeyStoring, Sendable {
     private let configuration: RuntimeConfiguration
 
     public init(configuration: RuntimeConfiguration) {

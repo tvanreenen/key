@@ -37,6 +37,25 @@
 		A4030001A4030001A4030001 /* Base64URL.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4030002A4030002A4030002 /* Base64URL.swift */; };
 		A4090001A4090001A4090001 /* VaultObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4090002A4090002A4090002 /* VaultObservation.swift */; };
 		A4090011A4090011A4090011 /* VaultUXService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4090012A4090012A4090012 /* VaultUXService.swift */; };
+		A5000001A5000001A5000001 /* CanonicalJSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5000002A5000002A5000002 /* CanonicalJSON.swift */; };
+		A5010001A5010001A5010001 /* V3EntryAuthenticationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5010002A5010002A5010002 /* V3EntryAuthenticationContext.swift */; };
+		A5020001A5020001A5020001 /* V3EntryCipher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5020002A5020002A5020002 /* V3EntryCipher.swift */; };
+		A5030001A5030001A5030001 /* V3ManifestAuthentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5030002A5030002A5030002 /* V3ManifestAuthentication.swift */; };
+		A5040001A5040001A5040001 /* V3ManifestReplayProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5040002A5040002A5040002 /* V3ManifestReplayProtection.swift */; };
+		A5050001A5050001A5050001 /* V3ManifestCheckpointKeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5050002A5050002A5050002 /* V3ManifestCheckpointKeychainStore.swift */; };
+		A5060001A5060001A5060001 /* V3ImmutableObjectFilesystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5060002A5060002A5060002 /* V3ImmutableObjectFilesystem.swift */; };
+		A5070001A5070001A5070001 /* V3ImmutableObjectRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5070002A5070002A5070002 /* V3ImmutableObjectRepository.swift */; };
+		A5080001A5080001A5080001 /* V3ManifestReconciliation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5080002A5080002A5080002 /* V3ManifestReconciliation.swift */; };
+		A5090001A5090001A5090001 /* V3ConflictObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5090002A5090002A5090002 /* V3ConflictObservation.swift */; };
+		A50A0001A50A0001A50A0001 /* V3VaultObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50A0002A50A0002A50A0002 /* V3VaultObservation.swift */; };
+		A50B0001A50B0001A50B0001 /* V3VaultUXService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50B0002A50B0002A50B0002 /* V3VaultUXService.swift */; };
+		A50C0001A50C0001A50C0001 /* V3ReadPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50C0002A50C0002A50C0002 /* V3ReadPlan.swift */; };
+		A50D0001A50D0001A50D0001 /* V3ReadExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50D0002A50D0002A50D0002 /* V3ReadExecutor.swift */; };
+		A50E0001A50E0001A50E0001 /* V3ReadOnlyVaultRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50E0002A50E0002A50E0002 /* V3ReadOnlyVaultRuntime.swift */; };
+		A50F0001A50F0001A50F0001 /* VaultReadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50F0002A50F0002A50F0002 /* VaultReadService.swift */; };
+		A5000011A5000011A5000011 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
+		A5000012A5000012A5000012 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
+		A5000013A5000013A5000013 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A15F350B2230881FFC292742 /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
 		AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA3251E5B71729E191F7889A /* Command.swift */; };
 		B4BE69F25B811392D2FBBE3C /* KeyCLIApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */; };
@@ -76,6 +95,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 1CF695AE4EB1034DF9A169D2;
 			remoteInfo = KeyCLI;
+		};
+		A50000E0A50000E0A50000E0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 986EA7B2F1EA72BF555E9C36 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A50000B0A50000B0A50000B0;
+			remoteInfo = JSONCanonicalization;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -119,6 +145,23 @@
 		A4030002A4030002A4030002 /* Base64URL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Base64URL.swift; sourceTree = "<group>"; };
 		A4090002A4090002A4090002 /* VaultObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultObservation.swift; sourceTree = "<group>"; };
 		A4090012A4090012A4090012 /* VaultUXService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultUXService.swift; sourceTree = "<group>"; };
+		A5000002A5000002A5000002 /* CanonicalJSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanonicalJSON.swift; sourceTree = "<group>"; };
+		A5010002A5010002A5010002 /* V3EntryAuthenticationContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3EntryAuthenticationContext.swift; sourceTree = "<group>"; };
+		A5020002A5020002A5020002 /* V3EntryCipher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3EntryCipher.swift; sourceTree = "<group>"; };
+		A5030002A5030002A5030002 /* V3ManifestAuthentication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ManifestAuthentication.swift; sourceTree = "<group>"; };
+		A5040002A5040002A5040002 /* V3ManifestReplayProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ManifestReplayProtection.swift; sourceTree = "<group>"; };
+		A5050002A5050002A5050002 /* V3ManifestCheckpointKeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ManifestCheckpointKeychainStore.swift; sourceTree = "<group>"; };
+		A5060002A5060002A5060002 /* V3ImmutableObjectFilesystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ImmutableObjectFilesystem.swift; sourceTree = "<group>"; };
+		A5070002A5070002A5070002 /* V3ImmutableObjectRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ImmutableObjectRepository.swift; sourceTree = "<group>"; };
+		A5080002A5080002A5080002 /* V3ManifestReconciliation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ManifestReconciliation.swift; sourceTree = "<group>"; };
+		A5090002A5090002A5090002 /* V3ConflictObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ConflictObservation.swift; sourceTree = "<group>"; };
+		A50A0002A50A0002A50A0002 /* V3VaultObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3VaultObservation.swift; sourceTree = "<group>"; };
+		A50B0002A50B0002A50B0002 /* V3VaultUXService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3VaultUXService.swift; sourceTree = "<group>"; };
+		A50C0002A50C0002A50C0002 /* V3ReadPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ReadPlan.swift; sourceTree = "<group>"; };
+		A50D0002A50D0002A50D0002 /* V3ReadExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ReadExecutor.swift; sourceTree = "<group>"; };
+		A50E0002A50E0002A50E0002 /* V3ReadOnlyVaultRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ReadOnlyVaultRuntime.swift; sourceTree = "<group>"; };
+		A50F0002A50F0002A50F0002 /* VaultReadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultReadService.swift; sourceTree = "<group>"; };
+		A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libJSONCanonicalization.a; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -127,6 +170,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				11A1C24BB4C342B4948D95FE /* libKeyCore.a in Frameworks */,
+				A5000011A5000011A5000011 /* libJSONCanonicalization.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -135,6 +179,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0E471F29FE657B084CEAD58B /* libKeyCore.a in Frameworks */,
+				A5000012A5000012A5000012 /* libJSONCanonicalization.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -143,6 +188,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A15F350B2230881FFC292742 /* libKeyCore.a in Frameworks */,
+				A5000013A5000013A5000013 /* libJSONCanonicalization.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -171,7 +217,21 @@
 				8794D82E2F27E7B9F3B9EE11 /* SecretEntryType.swift */,
 				A3A8B5F52B03F55CDB345501 /* TOTPGenerator.swift */,
 				A2090002A2090002A2090002 /* V2MigrationPreflight.swift */,
+				A5090002A5090002A5090002 /* V3ConflictObservation.swift */,
+				A5010002A5010002A5010002 /* V3EntryAuthenticationContext.swift */,
+				A5020002A5020002A5020002 /* V3EntryCipher.swift */,
 				A2090004A2090004A2090004 /* V3FormatValidation.swift */,
+				A5060002A5060002A5060002 /* V3ImmutableObjectFilesystem.swift */,
+				A5070002A5070002A5070002 /* V3ImmutableObjectRepository.swift */,
+				A5030002A5030002A5030002 /* V3ManifestAuthentication.swift */,
+				A5050002A5050002A5050002 /* V3ManifestCheckpointKeychainStore.swift */,
+				A5080002A5080002A5080002 /* V3ManifestReconciliation.swift */,
+				A5040002A5040002A5040002 /* V3ManifestReplayProtection.swift */,
+				A50D0002A50D0002A50D0002 /* V3ReadExecutor.swift */,
+				A50E0002A50E0002A50E0002 /* V3ReadOnlyVaultRuntime.swift */,
+				A50C0002A50C0002A50C0002 /* V3ReadPlan.swift */,
+				A50A0002A50A0002A50A0002 /* V3VaultObservation.swift */,
+				A50B0002A50B0002A50B0002 /* V3VaultUXService.swift */,
 				F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */,
 				31C5D8A7B28E4C5FA4E91D20 /* VaultLocationResolver.swift */,
 				A3010002A3010002A3010002 /* VaultRootDirectoryHandle.swift */,
@@ -179,6 +239,7 @@
 				A3030002A3030002A3030002 /* VaultProviderNamePolicy.swift */,
 				A3040002A3040002A3040002 /* VaultContainedMutation.swift */,
 				A4090002A4090002A4090002 /* VaultObservation.swift */,
+				A50F0002A50F0002A50F0002 /* VaultReadService.swift */,
 				A4090012A4090012A4090012 /* VaultUXService.swift */,
 				A4010002A4010002A4010002 /* VaultTransactionMutationOwner.swift */,
 				B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */,
@@ -192,6 +253,14 @@
 				E7E80100701CDE5C7C14F9AB /* main.swift */,
 			);
 			path = KeyLaunchAgentHelper;
+			sourceTree = "<group>";
+		};
+		A50000F0A50000F0A50000F0 /* JSONCanonicalization */ = {
+			isa = PBXGroup;
+			children = (
+				A5000002A5000002A5000002 /* CanonicalJSON.swift */,
+			);
+			path = JSONCanonicalization;
 			sourceTree = "<group>";
 		};
 		68E3A48CE4AE472480CEDDC2 = {
@@ -210,6 +279,7 @@
 				B4EE3B938E39AE66CAB3E79B /* Key.app */,
 				3BA14FD6F79F2CBF3291CEE5 /* Key Agent.app */,
 				395A88A800D635A7EF9FE33F /* libKeyCore.a */,
+				A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -235,6 +305,7 @@
 			isa = PBXGroup;
 			children = (
 				A6DD4F6C04D16AE950103C90 /* key */,
+				A50000F0A50000F0A50000F0 /* JSONCanonicalization */,
 				020AE8C28223A19B373FD085 /* KeyCore */,
 				F5F1F817A4860CC7EB2F9AF2 /* KeyUtilityApp */,
 				10D44FDB6A804BEA712BCF6F /* KeyLaunchAgentHelper */,
@@ -297,12 +368,30 @@
 			buildRules = (
 			);
 			dependencies = (
+				A50000E1A50000E1A50000E1 /* PBXTargetDependency */,
 			);
 			name = KeyCore;
 			packageProductDependencies = (
 			);
 			productName = KeyCore;
 			productReference = 395A88A800D635A7EF9FE33F /* libKeyCore.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		A50000B0A50000B0A50000B0 /* JSONCanonicalization */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A50000D0A50000D0A50000D0 /* Build configuration list for PBXNativeTarget "JSONCanonicalization" */;
+			buildPhases = (
+				A50000C0A50000C0A50000C0 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = JSONCanonicalization;
+			packageProductDependencies = (
+			);
+			productName = JSONCanonicalization;
+			productReference = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */;
 			productType = "com.apple.product-type.library.static";
 		};
 		A776B37E9AF0E71BC5A8C3F2 /* KeyLaunchAgentHelper */ = {
@@ -343,6 +432,9 @@
 					8ADEB08555D7682AFB0C97A3 = {
 						DevelopmentTeam = 9Q355KSV85;
 					};
+					A50000B0A50000B0A50000B0 = {
+						DevelopmentTeam = 9Q355KSV85;
+					};
 				};
 			};
 			buildConfigurationList = A9C7896D2EC46A7749553536 /* Build configuration list for PBXProject "Key" */;
@@ -362,6 +454,7 @@
 				32CD73D21740FC60396C1DA0 /* KeyApp */,
 				1CF695AE4EB1034DF9A169D2 /* KeyCLI */,
 				8ADEB08555D7682AFB0C97A3 /* KeyCore */,
+				A50000B0A50000B0A50000B0 /* JSONCanonicalization */,
 				A776B37E9AF0E71BC5A8C3F2 /* KeyLaunchAgentHelper */,
 			);
 		};
@@ -470,17 +563,40 @@
 				8794D82F2F27E7B9F3B9EE11 /* SecretEntryType.swift in Sources */,
 				A3A8B5F62B03F55CDB345501 /* TOTPGenerator.swift in Sources */,
 				A2090001A2090001A2090001 /* V2MigrationPreflight.swift in Sources */,
+				A5090001A5090001A5090001 /* V3ConflictObservation.swift in Sources */,
+				A5010001A5010001A5010001 /* V3EntryAuthenticationContext.swift in Sources */,
+				A5020001A5020001A5020001 /* V3EntryCipher.swift in Sources */,
 				A2090003A2090003A2090003 /* V3FormatValidation.swift in Sources */,
+				A5060001A5060001A5060001 /* V3ImmutableObjectFilesystem.swift in Sources */,
+				A5070001A5070001A5070001 /* V3ImmutableObjectRepository.swift in Sources */,
+				A5030001A5030001A5030001 /* V3ManifestAuthentication.swift in Sources */,
+				A5050001A5050001A5050001 /* V3ManifestCheckpointKeychainStore.swift in Sources */,
+				A5080001A5080001A5080001 /* V3ManifestReconciliation.swift in Sources */,
+				A5040001A5040001A5040001 /* V3ManifestReplayProtection.swift in Sources */,
+				A50D0001A50D0001A50D0001 /* V3ReadExecutor.swift in Sources */,
+				A50E0001A50E0001A50E0001 /* V3ReadOnlyVaultRuntime.swift in Sources */,
+				A50C0001A50C0001A50C0001 /* V3ReadPlan.swift in Sources */,
+				A50A0001A50A0001A50A0001 /* V3VaultObservation.swift in Sources */,
+				A50B0001A50B0001A50B0001 /* V3VaultUXService.swift in Sources */,
 				A3010001A3010001A3010001 /* VaultRootDirectoryHandle.swift in Sources */,
 				A3020001A3020001A3020001 /* VaultPathResolver.swift in Sources */,
 				A3030001A3030001A3030001 /* VaultProviderNamePolicy.swift in Sources */,
 				A3040001A3040001A3040001 /* VaultContainedMutation.swift in Sources */,
 				A4090001A4090001A4090001 /* VaultObservation.swift in Sources */,
+				A50F0001A50F0001A50F0001 /* VaultReadService.swift in Sources */,
 				A4090011A4090011A4090011 /* VaultUXService.swift in Sources */,
 				A4010001A4010001A4010001 /* VaultTransactionMutationOwner.swift in Sources */,
 				2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */,
 				9FAE42E9C3A14B0F8D7E6A11 /* VaultLocationResolver.swift in Sources */,
 				1B7D7F2E9AE24855D9046ED3 /* VaultKeyStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A50000C0A50000C0A50000C0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A5000001A5000001A5000001 /* CanonicalJSON.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -519,6 +635,11 @@
 			isa = PBXTargetDependency;
 			target = 8ADEB08555D7682AFB0C97A3 /* KeyCore */;
 			targetProxy = D38F777BCA0735089ACD3916 /* PBXContainerItemProxy */;
+		};
+		A50000E1A50000E1A50000E1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A50000B0A50000B0A50000B0 /* JSONCanonicalization */;
+			targetProxy = A50000E0A50000E0A50000E0 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -847,6 +968,32 @@
 			};
 			name = Debug;
 		};
+		A50000D1A50000D1A50000D1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				MACH_O_TYPE = staticlib;
+				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.jsoncanonicalization;
+				PRODUCT_NAME = JSONCanonicalization;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		A50000D2A50000D2A50000D2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				MACH_O_TYPE = staticlib;
+				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.jsoncanonicalization;
+				PRODUCT_NAME = JSONCanonicalization;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -882,6 +1029,15 @@
 			buildConfigurations = (
 				E4C3FDA4554E08704C0B0598 /* Debug */,
 				0F8AA84E0B96DC7202C20341 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A50000D0A50000D0A50000D0 /* Build configuration list for PBXNativeTarget "JSONCanonicalization" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A50000D1A50000D1A50000D1 /* Debug */,
+				A50000D2A50000D2A50000D2 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

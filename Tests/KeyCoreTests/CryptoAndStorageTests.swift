@@ -170,6 +170,96 @@ struct CryptoAndStorageTests {
     }
 
     @Test
+    func configVaultIDSelectsV3AndSurvivesOrdinaryConfigUpdates() throws {
+        let homeDirectory = URL(
+            fileURLWithPath: NSTemporaryDirectory(),
+            isDirectory: true
+        ).appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let vaultDirectory = homeDirectory.appendingPathComponent(
+            "Vault",
+            isDirectory: true
+        )
+        let configDirectory = homeDirectory
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Key", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: configDirectory,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: vaultDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
+        let config = """
+        # key configuration
+        vault_dir = "\(vaultDirectory.path(percentEncoded: false))"
+        keychain_mode = "local"
+        vault_id = "\(vaultID)"
+        """
+        let configURL = configDirectory.appendingPathComponent(
+            "config.toml",
+            isDirectory: false
+        )
+        try config.write(to: configURL, atomically: true, encoding: .utf8)
+
+        let store = KeyConfigStore(homeDirectoryURL: homeDirectory)
+        #expect(try store.load().vaultID == vaultID)
+        #expect(
+            try store.configuredVaultRuntimeSelection().vaultID == vaultID
+        )
+
+        _ = try store.setValue("icloud", for: .keychainMode)
+        #expect(try store.load().vaultID == vaultID)
+        #expect(
+            try String(contentsOf: configURL, encoding: .utf8)
+                .contains("vault_id = \"\(vaultID)\"")
+        )
+    }
+
+    @Test
+    func configRejectsNoncanonicalV3VaultID() throws {
+        let homeDirectory = URL(
+            fileURLWithPath: NSTemporaryDirectory(),
+            isDirectory: true
+        ).appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let vaultDirectory = homeDirectory.appendingPathComponent(
+            "Vault",
+            isDirectory: true
+        )
+        let configDirectory = homeDirectory
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Key", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: configDirectory,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: vaultDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let config = """
+        vault_dir = "\(vaultDirectory.path(percentEncoded: false))"
+        vault_id = "018F4D38-7D5A-7B20-B0F1-97D6E96C44B3"
+        """
+        try config.write(
+            to: configDirectory.appendingPathComponent("config.toml"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        #expect(throws: AppError.self) {
+            try KeyConfigStore(homeDirectoryURL: homeDirectory).load()
+        }
+    }
+
+    @Test
     func configStoreSetWritesResolvedAbsoluteVaultDirectoryAndCreatesIt() throws {
         let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

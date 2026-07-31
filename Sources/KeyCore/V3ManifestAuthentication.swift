@@ -1,6 +1,6 @@
 import CryptoKit
 import Foundation
-import JSONCanonicalization
+internal import JSONCanonicalization
 
 public enum V3ManifestError: Error, Equatable, LocalizedError {
     case invalidEncoding

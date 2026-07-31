@@ -11,6 +11,8 @@ public final class KeyServiceHandler {
     private let now: () -> Date
     private let mutationOwner: any VaultTransactionMutationOwning
     private let vaultUXService: any VaultUXServicing
+    private let vaultReader: (any VaultReadServicing)?
+    private let configuredVaultID: String?
     private let requestQueue = DispatchQueue(
         label: "work.tvr.key.service-handler.requests",
         attributes: .concurrent
@@ -35,7 +37,9 @@ public final class KeyServiceHandler {
             cipher: cipher,
             now: now,
             mutationOwner: VaultTransactionMutationOwner(),
-            vaultUXService: V2VaultUXService(entryStore: entryStore)
+            vaultUXService: V2VaultUXService(entryStore: entryStore),
+            vaultReader: nil,
+            configuredVaultID: nil
         )
     }
 
@@ -47,7 +51,9 @@ public final class KeyServiceHandler {
         cipher: VaultCipher = VaultCipher(),
         now: @escaping () -> Date = Date.init,
         mutationOwner: any VaultTransactionMutationOwning,
-        vaultUXService: (any VaultUXServicing)? = nil
+        vaultUXService: (any VaultUXServicing)? = nil,
+        vaultReader: (any VaultReadServicing)? = nil,
+        configuredVaultID: String? = nil
     ) {
         self.keyStore = keyStore
         self.entryStore = entryStore
@@ -57,19 +63,71 @@ public final class KeyServiceHandler {
         self.mutationOwner = mutationOwner
         self.vaultUXService = vaultUXService
             ?? V2VaultUXService(entryStore: entryStore)
+        self.vaultReader = vaultReader
+        self.configuredVaultID = configuredVaultID
         self.currentKeychainMode = keychainMode
     }
 
     public static func live(bundle: Bundle = .main) throws -> KeyServiceHandler {
         let configStore = KeyConfigStore()
         let keyConfiguration = try configStore.load()
-        let rootURL = keyConfiguration.vaultDirectoryURL
         let configuration = RuntimeConfiguration.live(bundle: bundle)
-        return KeyServiceHandler(
+        return try live(
             keyStore: VaultKeyStore(configuration: configuration),
-            entryStore: EntryStore(rootURL: rootURL),
+            keyConfiguration: keyConfiguration,
+            configStore: configStore,
+            runtimeConfiguration: configuration
+        )
+    }
+
+    /// Composes the helper runtime selected by device-local configuration.
+    ///
+    /// A missing vault ID retains v2. A configured vault ID enables only the
+    /// read-only v3 adapter and never creates a replacement key.
+    public static func live(
+        keyStore: VaultKeyStoring,
+        keyConfiguration: KeyConfiguration,
+        configStore: KeyConfigStore,
+        runtimeConfiguration: RuntimeConfiguration
+    ) throws -> KeyServiceHandler {
+        let entryStore = EntryStore(
+            rootURL: keyConfiguration.vaultDirectoryURL
+        )
+        guard let vaultID = keyConfiguration.vaultID else {
+            return KeyServiceHandler(
+                keyStore: keyStore,
+                entryStore: entryStore,
+                keychainMode: keyConfiguration.keychainMode,
+                configStore: configStore
+            )
+        }
+
+        let rootHandle = try VaultRootDirectoryHandle(
+            opening: keyConfiguration.vaultDirectoryURL
+        )
+        let runtime = V3ReadOnlyVaultRuntime(
+            rootHandle: rootHandle,
+            vaultID: vaultID,
+            checkpointStore: V3ManifestCheckpointKeychainStore(
+                configuration: runtimeConfiguration
+            ),
+            vaultKeyProvider: { reason in
+                try keyStore.loadKey(
+                    mode: keyConfiguration.keychainMode,
+                    reason: reason,
+                    createIfMissing: false
+                )
+            }
+        )
+        return KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: entryStore,
             keychainMode: keyConfiguration.keychainMode,
-            configStore: configStore
+            configStore: configStore,
+            mutationOwner: VaultTransactionMutationOwner(),
+            vaultUXService: runtime,
+            vaultReader: runtime,
+            configuredVaultID: vaultID
         )
     }
 
@@ -121,10 +179,14 @@ public final class KeyServiceHandler {
 
             switch request {
             case .unlock:
-                _ = try loadVaultKey(
-                    reason: "Unlock key vault.",
-                    createIfMissing: true
-                )
+                if let vaultReader {
+                    try vaultReader.unlock()
+                } else {
+                    _ = try loadVaultKey(
+                        reason: "Unlock key vault.",
+                        createIfMissing: true
+                    )
+                }
                 return .success()
             case .lock:
                 keyStore.invalidate()
@@ -150,20 +212,42 @@ public final class KeyServiceHandler {
                 try vaultUXService.resolve(resolutions)
                 return .success()
             case .list:
-                let entries = try entryStore.listEntries()
+                let entries = if let vaultReader {
+                    try vaultReader.list(allowStale: false)
+                } else {
+                    try entryStore.listEntries()
+                }
                 guard !entries.isEmpty else {
                     return .success()
                 }
                 return .success(entries.joined(separator: "\n") + "\n")
             case .migrationPreflight:
+                guard vaultReader == nil else {
+                    throw v3ReadOnlyOperationError()
+                }
                 return migrationPreflightResponse()
             case let .setVaultDirectory(path):
                 try setVaultDirectory(path)
                 return .success()
             case let .setKeychainMode(mode):
+                guard vaultReader == nil else {
+                    throw v3ReadOnlyOperationError()
+                }
                 try setKeychainMode(mode)
                 return .success()
             case let .get(name, allowStale):
+                if let vaultReader {
+                    let value = try vaultReader.read(
+                        name: name,
+                        allowStale: allowStale
+                    )
+                    return .success(
+                        try renderValue(
+                            for: value.type,
+                            decryptedValue: value.plaintext
+                        )
+                    )
+                }
                 try vaultUXService.authorizeRead(
                     name: name,
                     allowStale: allowStale
@@ -211,19 +295,22 @@ public final class KeyServiceHandler {
             return
         }
 
-        let configuredRoot: URL
+        let configured: ConfiguredVaultRuntimeSelection
         do {
-            configuredRoot = try configStore
-                .configuredVaultDirectoryURL()
-                .standardizedFileURL
+            configured = try configStore
+                .configuredVaultRuntimeSelection()
         } catch {
             keyStore.invalidate()
             throw error
         }
-        guard configuredRoot == entryStore.rootURL.standardizedFileURL else {
+        guard configured.rootURL.standardizedFileURL
+                == entryStore.rootURL.standardizedFileURL,
+              configured.vaultID == configuredVaultID,
+              configured.keychainMode == keychainMode()
+        else {
             keyStore.invalidate()
             throw AppError.operationRefused(
-                "The vault directory configuration changed while Key Agent was running. Run `key lock`, then retry the command."
+                "The vault configuration changed while Key Agent was running. Run `key lock`, then retry the command."
             )
         }
     }
@@ -530,6 +617,12 @@ public final class KeyServiceHandler {
             return try TOTPGenerator.generateCode(fromBase32Seed: decryptedValue, at: now())
         }
     }
+}
+
+private func v3ReadOnlyOperationError() -> AppError {
+    AppError.operationRefused(
+        "Version 3 vault writes and migration are not enabled in this release."
+    )
 }
 
 private extension KeyServiceRequest {

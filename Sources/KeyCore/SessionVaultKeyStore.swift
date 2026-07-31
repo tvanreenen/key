@@ -1,6 +1,10 @@
 import Foundation
 
-public final class SessionVaultKeyStore: VaultKeyStoring, KeySessionStatusReporting {
+public final class SessionVaultKeyStore:
+    VaultKeyStoring,
+    KeySessionStatusReporting,
+    @unchecked Sendable
+{
     private struct SessionState {
         var mode: KeychainMode?
         var cachedKeyData: Data?
