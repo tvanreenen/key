@@ -89,7 +89,8 @@ struct CryptoAndStorageTests {
         }
     }
 
-    func entryStoreListsSortedEntries() throws {
+    @Test
+    func entryStoreListsSortedVisibleAndHiddenEntries() throws {
         let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -106,8 +107,18 @@ struct CryptoAndStorageTests {
             as: "alpha/two",
             overwrite: false
         )
+        try store.save(
+            SecretFile(nonce: Data([1]).base64EncodedString(), ciphertext: Data([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]).base64EncodedString()),
+            as: ".private",
+            overwrite: false
+        )
+        try store.save(
+            SecretFile(nonce: Data([1]).base64EncodedString(), ciphertext: Data([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]).base64EncodedString()),
+            as: ".group/token",
+            overwrite: false
+        )
 
-        #expect(try store.listEntries() == ["alpha/two", "zeta/one"])
+        #expect(try store.listEntries() == [".group/token", ".private", "alpha/two", "zeta/one"])
     }
 
     @Test

@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `92fc9fd` |
+| Production base | `main` at `752a22d` |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/connect-v3-read-only-runtime` |
-| Current PR | Not opened |
-| Active increment | `RUNTIME-411` implemented; awaiting review |
-| Next work | Review RUNTIME-411, then add explicit migration/bootstrap without enabling shared-vault writes |
+| Current branch | `agent/prepare-alpha-2-release` |
+| Current PR | #41 |
+| Active increment | Prepare the `v0.2.0-alpha.2` authenticated-reader release and contain unsafe legacy v2 key adoption |
+| Next work | Publish `v0.2.0-alpha.2`, then add explicit migration/bootstrap without enabling shared-vault writes |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -114,7 +114,7 @@ security or durability boundary and updates this tracker before it merges.
 | `TXN-408` | Complete; PR #36 | Recover every interrupted transaction phase without trusting synchronized staging |
 | `UX-409` | Complete; PR #37 | Add typed service failures, status, and conflict-resolution CLI commands |
 | `READ-410` | Complete; PR #38 | Bind every v3 read to one exact authenticated entry and repository state |
-| `RUNTIME-411` | Implemented; awaiting review | Connect exact v3 reads to the shipping helper while every v3 mutation remains disabled |
+| `RUNTIME-411` | Complete; PR #39 | Connect exact v3 reads to the shipping helper while every v3 mutation remains disabled |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -607,7 +607,7 @@ Acceptance gate:
 
 #### `RUNTIME-411` — Shipping Read-Only Runtime
 
-Status: implemented on `agent/connect-v3-read-only-runtime`; awaiting review.
+Status: complete; squash-merged as `752a22d` in PR #39.
 
 The helper must select the storage format from device-local configuration, not
 from untrusted files arriving through a synchronized vault directory. Existing
@@ -791,6 +791,37 @@ formats or transport stacks:
 
 ## Release Gates
 
+### Alpha Release Checkpoints
+
+These prereleases deliberately expose one new security boundary at a time. An
+alpha is cut before implementation begins on the next checkpoint so regressions
+can be attributed to a narrow change. Expected build numbers assume no
+intervening release; `CURRENT_PROJECT_VERSION` remains an automatically
+incremented internal counter rather than part of the public version identity.
+
+`v0.2.0-alpha.1` was [withdrawn on July 28,
+2026](https://github.com/tvanreenen/key/releases/tag/v0.2.0-alpha.1), and its
+installation assets were removed. Its legacy mode-change path could accept a
+vault key after authenticating only one entry; a vault whose entries had been
+sealed under different keys could therefore retain inaccessible entries. The
+release record remains available as the recovery warning and historical source
+of truth. This failure drove the replacement design toward exact vault and key
+identities, whole authenticated state, fail-before-mutation transitions, and
+explicit migration rather than another implicit synchronized-key repair.
+
+| Version | Expected build | Status | Checkpoint |
+|---|---:|---|---|
+| `v0.2.0-alpha.1` | 6 | Withdrawn | Retained release record and version 2 incident baseline; installation assets removed |
+| `v0.2.0-alpha.2` | 7 | Next release | Contain unsafe legacy version 2 key adoption and ship the authenticated version 3 reader while version 2 remains the default and every version 3 writer stays disabled |
+| `v0.2.0-alpha.3` | 8 | Planned | Add explicit, opt-in local version 2 to version 3 migration and verified bootstrap |
+| `v0.2.0-alpha.4` | 9 | Planned | Add device enrollment and multi-device read-only sharing |
+| `v0.2.0-alpha.5` | 10 | Planned | Enable guarded multi-device writes and conflict resolution |
+| `v0.2.0-beta.1` | 11 | Planned | Complete provider qualification, migration and rollback validation, recovery documentation, signing checks, and the required security-review gates |
+
+Urgent fixes may add an intervening prerelease and advance the build counter,
+but they do not redefine the security checkpoint assigned to a version above.
+Update this table whenever a checkpoint ships or its scope changes.
+
 - [ ] All ten invariants pass.
 - [ ] The v3 reader ships before any v3 writer is enabled.
 - [ ] Local APFS and every supported sync provider pass commit/conflict tests.
@@ -803,7 +834,9 @@ formats or transport stacks:
 
 ## Immediate Next Action
 
-Review `RUNTIME-411`, then add an explicit local-v2 migration/bootstrap command
-that writes the device-local v3 selection only after the staged v3 vault,
-checkpoint, and verified reopen succeed. Keep shared-vault enrollment and every
-v3 writer disabled until their remaining security and release gates pass.
+Publish `v0.2.0-alpha.2` from clean `main`, verify the notarized GitHub and
+Homebrew artifacts, and only then add an explicit local-v2 migration/bootstrap
+command. Migration writes the device-local v3 selection only after the staged
+v3 vault, checkpoint, and verified reopen succeed. Keep shared-vault enrollment
+and every general v3 writer disabled until their remaining security and release
+gates pass.

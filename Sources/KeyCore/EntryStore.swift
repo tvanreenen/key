@@ -77,7 +77,7 @@ public struct EntryStore {
         guard let enumerator = fileManager.enumerator(
             at: rootURL,
             includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
+            options: []
         ) else {
             throw AppError.io("Failed to enumerate stored secrets.")
         }
