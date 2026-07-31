@@ -45,6 +45,11 @@ public struct V3DestinationConflict: Equatable, Sendable {
 public struct V3ContentConflictReport: Equatable, Sendable {
     public let commonAncestor: V3VaultHead
     public let heads: [V3VaultHead]
+    /// Deterministic entry-ID results that are not themselves conflicted.
+    ///
+    /// These entries may still participate in a destination-name collision,
+    /// which consumers must continue to treat as ambiguous by name.
+    public let entriesReconciledByID: [V3ManifestEntry]
     public let entryConflicts: [V3EntryConflict]
     public let destinationConflicts: [V3DestinationConflict]
 }
@@ -200,6 +205,9 @@ public struct V3ManifestReconciler: Sendable {
             return .contentConflict(V3ContentConflictReport(
                 commonAncestor: ancestorHead,
                 heads: headReferences,
+                entriesReconciledByID: mergedEntries.sorted(
+                    by: manifestEntryPrecedesForReconciliation
+                ),
                 entryConflicts: entryConflicts,
                 destinationConflicts: destinationConflicts
             ))

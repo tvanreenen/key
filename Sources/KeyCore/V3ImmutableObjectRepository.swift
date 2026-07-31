@@ -54,6 +54,15 @@ struct V3VaultRepositoryObservation: Equatable, Sendable {
     let resourceUsage: V3ManifestRepositoryUsage?
 }
 
+/// One exact device-local checkpoint and authenticated repository head set.
+///
+/// Reads revalidate this state before releasing plaintext; transactions
+/// revalidate it before publishing immutable objects.
+struct V3ExpectedRepositoryState: Equatable, Sendable {
+    let checkpoint: V3ManifestCheckpoint
+    let heads: [V3VaultHead]
+}
+
 struct V3ManifestRepositoryLimits: Equatable, Sendable {
     static let standard = V3ManifestRepositoryLimits(
         maximumManifestObjects: 4_096,
