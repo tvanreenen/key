@@ -7,6 +7,8 @@ if [[ $# -ne 1 ]]; then
 fi
 
 version="$1"
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+cask_token="$("${repo_root}/scripts/homebrew-cask-token.sh" "${version}")"
 tap_repo_root="${KEY_TAP_REPO:-$HOME/Code/homebrew-tap}"
 
 if [[ ! -d "${tap_repo_root}" ]]; then
@@ -16,7 +18,7 @@ if [[ ! -d "${tap_repo_root}" ]]; then
 fi
 
 tap_repo="$(cd "${tap_repo_root}" && pwd)"
-cask_path="Casks/key.rb"
+cask_path="Casks/${cask_token}.rb"
 
 if [[ ! -f "${tap_repo}/${cask_path}" ]]; then
   echo "missing ${cask_path} in ${tap_repo}" >&2
@@ -41,7 +43,7 @@ if git -C "${tap_repo}" diff --cached --quiet; then
   exit 0
 fi
 
-git -C "${tap_repo}" commit -m "Update key cask to ${version}"
+git -C "${tap_repo}" commit -m "Update ${cask_token} cask to ${version}"
 git -C "${tap_repo}" push
 
 echo "Published Homebrew tap update:"

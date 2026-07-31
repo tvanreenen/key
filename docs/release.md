@@ -40,11 +40,31 @@ Versions with a prerelease suffix such as `-alpha.1`, `-beta.1`, or `-rc.1` will
 The release tag includes the leading `v`; the app and CLI marketing version do not.
 The planned version 3 prerelease checkpoints and their security boundaries are tracked in [v3-vault-implementation.md](v3-vault-implementation.md#alpha-release-checkpoints).
 
+Following [Homebrew's alternative release channel convention](https://docs.brew.sh/Cask-Cookbook#casks-for-alternative-release-channels),
+prereleases use separate, opt-in casks. Stable tags update `key`, while numbered
+prereleases update `key@alpha`, `key@beta`, or `key@rc`.
+This keeps an ordinary `brew upgrade` from moving a stable installation onto a
+prerelease. A tester opts into the current alpha with:
+
+```bash
+brew install --cask tvanreenen/tap/key@alpha
+```
+
+The channel casks conflict with one another because they install the same app
+bundle and `key` executable. Switch channels by uninstalling the currently
+installed cask first. In particular, an alpha previously installed through the
+stable token moves to the opt-in channel with:
+
+```bash
+brew uninstall --cask key
+brew install --cask tvanreenen/tap/key@alpha
+```
+
 `bump-version.sh` updates Xcode's `MARKETING_VERSION`, auto-increments `CURRENT_PROJECT_VERSION`, commits the version bump on `main`, and creates the local release tag.
 `build-release.sh` builds, notarizes, staples, and zips the app. The final zip includes both `Key.app` and `completions/_key` for Homebrew-installed zsh completion.
 `publish-release.sh` pushes `main` plus the release tag, then uses `gh` to create or update a GitHub release, upload the zip asset, and print the final download URL plus sha256 needed for the tap cask. It uses the tag as the release title and GitHub's generated release notes.
-`update-homebrew-tap.sh` fast-forwards a local tap checkout and then updates `Casks/key.rb`. It defaults to `~/Code/homebrew-tap` and can be overridden with `KEY_TAP_REPO`.
-`publish-homebrew-tap.sh` stages the generated cask, commits it, and pushes it.
+`update-homebrew-tap.sh` fast-forwards a local tap checkout and then updates the cask selected from the tag: `Casks/key.rb` for a stable release or the matching `Casks/key@<channel>.rb` for a prerelease. It defaults to `~/Code/homebrew-tap` and can be overridden with `KEY_TAP_REPO`.
+`publish-homebrew-tap.sh` derives the same channel from the tag, stages only that cask, commits it, and pushes it.
 `release.sh` runs the full release flow end to end on `main`: version bump, signed/notarized build, GitHub release publish, Homebrew tap update, and Homebrew tap publish.
 `CURRENT_PROJECT_VERSION` is treated as an internal Apple/Xcode build counter and auto-increments with each release bump. The semver or prerelease string remains the primary release identity.
 
@@ -66,7 +86,7 @@ Manual path, if you want to inspect each stage:
 2. `just build-release vX.Y.Z[-prerelease]`
 3. `just publish-release vX.Y.Z[-prerelease] <zip-path>`
 4. `just update-homebrew-tap vX.Y.Z[-prerelease] <download-url> <sha256>`
-5. `git -C "$HOME/Code/homebrew-tap" diff -- Casks/key.rb`
+5. Inspect the cask path printed by `update-homebrew-tap.sh` (`Casks/key.rb` for stable or `Casks/key@<channel>.rb` for a prerelease).
 6. `just publish-homebrew-tap vX.Y.Z[-prerelease]`
 
 This project currently publishes its cask through:

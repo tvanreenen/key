@@ -2,9 +2,14 @@
 default:
   @just --list --unsorted
 
-# Run the Swift test suite.
+# Run the Swift and release-script test suites.
 test:
   swift test
+  Tests/ReleaseScripts/homebrew-cask-token-tests.sh
+
+# Verify stable and prerelease Homebrew channel selection.
+test-release-scripts:
+  Tests/ReleaseScripts/homebrew-cask-token-tests.sh
 
 # Build the app in Debug using the checked-in Xcode project.
 build-debug:
@@ -42,7 +47,7 @@ build-release tag:
 release tag:
   scripts/release.sh "{{tag}}"
 
-# Fast-forward the Homebrew tap checkout, then write the updated cask.
+# Fast-forward the Homebrew tap checkout, then write the tag's stable or prerelease cask.
 update-homebrew-tap tag download_url sha256:
   scripts/update-homebrew-tap.sh "{{tag}}" "{{download_url}}" "{{sha256}}"
 
