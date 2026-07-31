@@ -887,7 +887,7 @@ struct KeyServiceHandlerTests {
     }
 
     @Test
-    func iCloudModeReadRejectsMixedKeyVaultBeforeRepairingLocalMirror() throws {
+    func iCloudModeReadRejectsMixedKeyVaultHiddenEntryBeforeRepairingLocalMirror() throws {
         let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let vaultDirectory = homeDirectory.appendingPathComponent("Vault", isDirectory: true)
@@ -901,7 +901,12 @@ struct KeyServiceHandlerTests {
         let sharedKey = Data((0..<32).map(UInt8.init))
         let otherEntryKey = Data((32..<64).map(UInt8.init))
         let store = EntryStore(rootURL: vaultDirectory)
-        try saveMixedKeyEntries(in: store, acceptedKey: sharedKey, otherKey: otherEntryKey)
+        try saveMixedKeyEntries(
+            in: store,
+            acceptedKey: sharedKey,
+            otherKey: otherEntryKey,
+            otherName: "zeta/.other"
+        )
 
         let keyStore = MemoryVaultKeyStore()
         keyStore.localKeyData = otherEntryKey
@@ -1175,7 +1180,8 @@ struct KeyServiceHandlerTests {
     private func saveMixedKeyEntries(
         in store: EntryStore,
         acceptedKey: Data,
-        otherKey: Data
+        otherKey: Data,
+        otherName: String = "zeta/other"
     ) throws {
         let cipher = VaultCipher()
         try store.save(
@@ -1185,7 +1191,7 @@ struct KeyServiceHandlerTests {
         )
         try store.save(
             cipher.encrypt("other", keyData: otherKey),
-            as: "zeta/other",
+            as: otherName,
             overwrite: false
         )
     }
