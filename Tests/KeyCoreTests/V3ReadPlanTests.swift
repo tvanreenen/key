@@ -105,6 +105,16 @@ struct V3ReadPlanTests {
         #expect(
             plan.authority == .lastTrusted(trusted.checkpoint)
         )
+
+        let list = try planner.planList(
+            allowStale: true,
+            classification: classification,
+            trustedCurrent: trusted
+        )
+        #expect(list.entries == [trustedEntry])
+        #expect(
+            list.authority == .lastTrusted(trusted.checkpoint)
+        )
     }
 
     @Test
@@ -265,6 +275,13 @@ struct V3ReadPlanTests {
             trustedCurrent: trusted
         )
         #expect(safe.entry == currentSafe)
+
+        let list = try planner.planList(
+            allowStale: false,
+            classification: classification,
+            trustedCurrent: trusted
+        )
+        #expect(list.entries == [currentSafe])
     }
 
     @Test

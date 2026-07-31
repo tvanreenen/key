@@ -132,13 +132,11 @@ private func run() -> Never {
             sessionKeyStore.invalidate()
             exit(EXIT_SUCCESS)
         }
-        let handler = KeyServiceHandler(
+        let handler = try KeyServiceHandler.live(
             keyStore: sessionKeyStore,
-            entryStore: EntryStore(
-                rootURL: keyConfiguration.vaultDirectoryURL
-            ),
-            keychainMode: keyConfiguration.keychainMode,
-            configStore: configStore
+            keyConfiguration: keyConfiguration,
+            configStore: configStore,
+            runtimeConfiguration: configuration
         )
         #if DEBUG
         let signingPolicy = KeyXPCCodeSigningPolicy.development

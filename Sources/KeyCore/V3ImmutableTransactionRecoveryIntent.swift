@@ -1,5 +1,5 @@
 import Foundation
-import JSONCanonicalization
+internal import JSONCanonicalization
 
 enum V3ImmutableTransactionRecoveryIntentError:
     Error,

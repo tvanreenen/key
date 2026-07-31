@@ -60,6 +60,11 @@ struct V3AuthenticatedReadPlan: Equatable, Sendable {
     }
 }
 
+struct V3AuthenticatedListPlan: Equatable, Sendable {
+    let authority: V3ReadAuthority
+    let entries: [V3ManifestEntry]
+}
+
 /// Resolves user intent into an exact authenticated immutable-entry read.
 ///
 /// Planning is pure: it performs no filesystem access, key lookup, decryption,
@@ -78,16 +83,58 @@ struct V3AuthenticatedReadPlanner: Sendable {
         trustedCurrent: V3TrustedManifest
     ) throws -> V3AuthenticatedReadPlan {
         let name = try normalizedReadName(name)
+        let state = try effectiveReadState(
+            allowStale: allowStale,
+            classification: classification,
+            trustedCurrent: trustedCurrent
+        )
+        guard !state.ambiguousNames.contains(name) else {
+            throw VaultUXServiceError.contentConflict
+        }
+        return try plan(
+            named: name,
+            in: state.entries,
+            vaultID: trustedCurrent.checkpoint.vaultID,
+            authority: state.authority
+        )
+    }
+
+    func planList(
+        allowStale: Bool,
+        classification: V3VaultRepositoryClassification,
+        trustedCurrent: V3TrustedManifest
+    ) throws -> V3AuthenticatedListPlan {
+        let state = try effectiveReadState(
+            allowStale: allowStale,
+            classification: classification,
+            trustedCurrent: trustedCurrent
+        )
+        return V3AuthenticatedListPlan(
+            authority: state.authority,
+            entries: state.entries
+                .filter { !state.ambiguousNames.contains($0.name) }
+                .sorted(by: manifestEntryPrecedesForRead)
+        )
+    }
+
+    private func effectiveReadState(
+        allowStale: Bool,
+        classification: V3VaultRepositoryClassification,
+        trustedCurrent: V3TrustedManifest
+    ) throws -> (
+        authority: V3ReadAuthority,
+        entries: [V3ManifestEntry],
+        ambiguousNames: Set<String>
+    ) {
         switch classification.status {
         case .incomplete:
             guard allowStale else {
                 throw VaultUXServiceError.vaultIncomplete
             }
-            return try plan(
-                named: name,
-                in: trustedCurrent.envelope.content.manifest.entries,
-                vaultID: trustedCurrent.checkpoint.vaultID,
-                authority: .lastTrusted(trustedCurrent.checkpoint)
+            return (
+                .lastTrusted(trustedCurrent.checkpoint),
+                trustedCurrent.envelope.content.manifest.entries,
+                []
             )
         case .securityConflicted:
             throw VaultUXServiceError.securityConflict
@@ -102,7 +149,6 @@ struct V3AuthenticatedReadPlanner: Sendable {
             trustedCurrent: trustedCurrent
         )
         let expected = try expectedState(for: proof)
-        let vaultID = trustedCurrent.checkpoint.vaultID
 
         switch try reconciler.reconcile(proof) {
         case let .noMergeRequired(head):
@@ -111,21 +157,19 @@ struct V3AuthenticatedReadPlanner: Sendable {
             }) else {
                 throw V3ManifestReconciliationError.invalidAncestryProof
             }
-            return try plan(
-                named: name,
-                in: manifest.envelope.content.manifest.entries,
-                vaultID: vaultID,
-                authority: .current(expected)
+            return (
+                .current(expected),
+                manifest.envelope.content.manifest.entries,
+                []
             )
         case let .automaticMerge(merge):
             guard normalizedHeads(merge.parentHeads) == expected.heads else {
                 throw V3ManifestReconciliationError.invalidAncestryProof
             }
-            return try plan(
-                named: name,
-                in: merge.content.manifest.entries,
-                vaultID: vaultID,
-                authority: .current(expected)
+            return (
+                .current(expected),
+                merge.content.manifest.entries,
+                []
             )
         case let .contentConflict(report):
             guard normalizedHeads(report.heads) == expected.heads else {
@@ -136,14 +180,17 @@ struct V3AuthenticatedReadPlanner: Sendable {
             }) {
                 throw VaultUXServiceError.rollbackDetected
             }
-            guard !conflicts(name, report: report) else {
-                throw VaultUXServiceError.contentConflict
-            }
-            return try plan(
-                named: name,
-                in: report.entriesReconciledByID,
-                vaultID: vaultID,
-                authority: .current(expected)
+            let ambiguousNames = Set(
+                report.destinationConflicts.map(\.name)
+                    + report.entryConflicts.flatMap { conflict in
+                        [conflict.commonAncestorEntry?.name]
+                            + conflict.versions.map(\.entry?.name)
+                    }.compactMap { $0 }
+            )
+            return (
+                .current(expected),
+                report.entriesReconciledByID,
+                ambiguousNames
             )
         case .securityConflict:
             throw VaultUXServiceError.securityConflict
@@ -237,33 +284,7 @@ private func requiredProof(
 private func expectedState(
     for proof: V3ManifestAncestryProof
 ) throws -> V3ExpectedRepositoryState {
-    let heads = try proof.heads.map(V3VaultHead.init(verifiedManifest:))
-    let normalized = normalizedHeads(heads)
-    guard !normalized.isEmpty,
-          Set(normalized).count == normalized.count,
-          normalized.allSatisfy({
-              $0.vaultID == proof.checkpoint.vaultID
-          })
-    else {
-        throw V3ManifestReconciliationError.invalidAncestryProof
-    }
-    return V3ExpectedRepositoryState(
-        checkpoint: proof.checkpoint,
-        heads: normalized
-    )
-}
-
-private func conflicts(
-    _ name: String,
-    report: V3ContentConflictReport
-) -> Bool {
-    if report.destinationConflicts.contains(where: { $0.name == name }) {
-        return true
-    }
-    return report.entryConflicts.contains { conflict in
-        conflict.commonAncestorEntry?.name == name
-            || conflict.versions.contains { $0.entry?.name == name }
-    }
+    try V3ExpectedRepositoryState(proof: proof)
 }
 
 private func normalizedHeads(
@@ -282,4 +303,17 @@ private func normalizedReadName(_ name: String) throws -> String {
         )
     }
     return normalized
+}
+
+private func manifestEntryPrecedesForRead(
+    _ lhs: V3ManifestEntry,
+    _ rhs: V3ManifestEntry
+) -> Bool {
+    let lhsName = Data(lhs.name.utf8)
+    let rhsName = Data(rhs.name.utf8)
+    return lhsName.lexicographicallyPrecedes(rhsName)
+        || (lhsName == rhsName
+            && Data(lhs.entryID.utf8).lexicographicallyPrecedes(
+                Data(rhs.entryID.utf8)
+            ))
 }

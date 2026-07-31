@@ -1,12 +1,12 @@
 import Foundation
 
-package enum CanonicalJSONError: Error, Equatable {
+public enum CanonicalJSONError: Error, Equatable {
     case invalidEncoding
     case invalidJSON
     case duplicateProperty
 }
 
-package enum CanonicalJSONValue {
+public enum CanonicalJSONValue {
     case null
     case bool(Bool)
     case integer(UInt64)
@@ -14,28 +14,28 @@ package enum CanonicalJSONValue {
     case array([CanonicalJSONValue])
     case object([(String, CanonicalJSONValue)])
 
-    package var objectValue: [(String, CanonicalJSONValue)]? {
+    public var objectValue: [(String, CanonicalJSONValue)]? {
         guard case let .object(value) = self else {
             return nil
         }
         return value
     }
 
-    package var arrayValue: [CanonicalJSONValue]? {
+    public var arrayValue: [CanonicalJSONValue]? {
         guard case let .array(value) = self else {
             return nil
         }
         return value
     }
 
-    package var stringValue: String? {
+    public var stringValue: String? {
         guard case let .string(value) = self else {
             return nil
         }
         return value
     }
 
-    package var integerValue: UInt64? {
+    public var integerValue: UInt64? {
         guard case let .integer(value) = self else {
             return nil
         }
@@ -43,10 +43,10 @@ package enum CanonicalJSONValue {
     }
 }
 
-package enum CanonicalJSON {
+public enum CanonicalJSON {
     private static let maximumNestingDepth = 32
 
-    package static func parse(_ data: Data) throws -> CanonicalJSONValue {
+    public static func parse(_ data: Data) throws -> CanonicalJSONValue {
         guard !data.starts(with: [0xEF, 0xBB, 0xBF]) else {
             throw CanonicalJSONError.invalidEncoding
         }
@@ -54,13 +54,13 @@ package enum CanonicalJSON {
         return try parser.parseDocument()
     }
 
-    package static func encode(_ value: CanonicalJSONValue) -> Data {
+    public static func encode(_ value: CanonicalJSONValue) -> Data {
         var bytes: [UInt8] = []
         append(value, to: &bytes)
         return Data(bytes)
     }
 
-    package static func canonicalize(_ data: Data) throws -> Data {
+    public static func canonicalize(_ data: Data) throws -> Data {
         encode(try parse(data))
     }
 

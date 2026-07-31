@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `a0404d0` |
+| Production base | `main` at `92fc9fd` |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/bind-v3-reads-to-authenticated-state` |
+| Current branch | `agent/connect-v3-read-only-runtime` |
 | Current PR | Not opened |
-| Active increment | `READ-410` exact authenticated read plans implemented; awaiting review |
-| Next work | Review READ-410, then connect the read-only v3 runtime to the shipping target |
+| Active increment | `RUNTIME-411` implemented; awaiting review |
+| Next work | Review RUNTIME-411, then add explicit migration/bootstrap without enabling shared-vault writes |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -113,7 +113,8 @@ security or durability boundary and updates this tracker before it merges.
 | `TXN-407` | Complete; PR #35 | Publish entries first and the expected-head manifest last |
 | `TXN-408` | Complete; PR #36 | Recover every interrupted transaction phase without trusting synchronized staging |
 | `UX-409` | Complete; PR #37 | Add typed service failures, status, and conflict-resolution CLI commands |
-| `READ-410` | Implemented; awaiting review | Bind every v3 read to one exact authenticated entry and repository state |
+| `READ-410` | Complete; PR #38 | Bind every v3 read to one exact authenticated entry and repository state |
+| `RUNTIME-411` | Implemented; awaiting review | Connect exact v3 reads to the shipping helper while every v3 mutation remains disabled |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -560,8 +561,7 @@ Acceptance gate:
 
 #### `READ-410` — Exact Authenticated Read Plans
 
-Status: implemented on
-`agent/bind-v3-reads-to-authenticated-state`.
+Status: complete; squash-merged as `92fc9fd` in PR #38.
 
 The v3 runtime must not authorize a name and later reopen whichever file then
 appears current at that name. Repository state can change while a file
@@ -604,6 +604,53 @@ Acceptance gate:
   conflict read before plaintext is returned.
 - [x] Tests exercise planning and execution without enabling the shipping v3
   reader, migration, resolution publication, or writes.
+
+#### `RUNTIME-411` — Shipping Read-Only Runtime
+
+Status: implemented on `agent/connect-v3-read-only-runtime`; awaiting review.
+
+The helper must select the storage format from device-local configuration, not
+from untrusted files arriving through a synchronized vault directory. Existing
+configuration without a vault identity continues to mean version 2. A
+device-local canonical `vault_id` selects version 3 and binds the configured
+root to that exact identity; the Keychain checkpoint and authenticated
+manifest must still agree before any v3 metadata or plaintext is returned.
+Migration and future enrollment will write this selection deliberately. This
+increment does not infer it from synchronized files or change an existing
+configuration automatically.
+
+For a selected v3 vault, the shipping helper opens and retains the configured
+root, reopens the exact checkpointed manifest, authenticates and classifies the
+available immutable history, and composes the status/conflict UX with the
+READ-410 planner and executor. Ordinary `get` and `copy` requests require no
+version argument. `--allow-stale` remains explicit, conflict-value reads remain
+bound to the exact reviewed heads, and logical listing returns only
+authenticated unambiguous names.
+
+The runtime is deliberately read-only. Unlocking never creates a replacement
+key or invokes the legacy iCloud-to-local key repair path for a selected v3
+vault. It authenticates the loaded key against the exact device-local
+checkpoint and checkpointed manifest before succeeding. Add, edit, duplicate,
+rename, remove, conflict resolution, migration, and key-storage-mode changes
+fail before touching vault files or Keychain state. Changing the configured
+vault directory remains available and restarts the helper through the existing
+coordination path.
+
+Acceptance gate:
+
+- [x] Configuration without `vault_id` retains the exact existing v2 runtime;
+  a valid canonical UUID selects only that exact v3 identity.
+- [x] The installed helper target contains the canonical JSON and required v3
+  reader modules without collapsing their SwiftPM separation.
+- [x] V3 status, conflict inspection, list, get, copy, explicit stale reads,
+  and selected conflict-version reads use one freshly authenticated runtime.
+- [x] V3 unlock cannot create a key, and every v3 mutation or migration command
+  fails before a v2 filesystem operation can run.
+- [x] A wrong configured vault ID, absent or changed checkpoint, unavailable
+  checkpoint manifest, changed head set, wrong key, or invalid immutable object
+  fails without releasing plaintext.
+- [x] Focused service integration tests and the complete v3 suite pass; no v3
+  migration, bootstrap, resolution publication, or write path is enabled.
 
 ### Committed CLI And Conflict Contract
 
@@ -735,6 +782,8 @@ formats or transport stacks:
   destination-collision, authority-divergence, and criss-cross-history tests.
 - [x] Expected-head, entry-first, no-overwrite, durable-object, and
   manifest-last publication tests.
+- [x] Shipping v3 runtime selection, exact read, stale read, conflict read,
+  no-key-creation, and read-only enforcement tests.
 - [ ] Local-v2 migration and rollback tests.
 - [ ] Revocation tests with retained old keys.
 - [x] Recovery tests for unavailable provider content and corrupt or
@@ -754,9 +803,7 @@ formats or transport stacks:
 
 ## Immediate Next Action
 
-Review `READ-410`, then add the read-only v3 runtime adapter to the shipping
-target. That integration should obtain fresh authenticated repository
-observations, produce exact read plans, and serve status and safe reads through
-the established UX seam before any migration or v3 writer is enabled. Keep
-real-provider smoke testing as release qualification and keep the writer
-disabled until the remaining release gates pass.
+Review `RUNTIME-411`, then add an explicit local-v2 migration/bootstrap command
+that writes the device-local v3 selection only after the staged v3 vault,
+checkpoint, and verified reopen succeed. Keep shared-vault enrollment and every
+v3 writer disabled until their remaining security and release gates pass.

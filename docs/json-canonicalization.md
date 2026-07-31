@@ -8,8 +8,10 @@ purpose is to keep byte-level JSON parsing and serialization separate from
 vault schemas, cryptography, and trust decisions.
 
 The target is intentionally not a public package product yet. Its API uses
-Swift `package` access so `KeyCore` can consume it across a real module
-boundary without presenting an API that we are not ready to support.
+Swift `public` declarations only because both SwiftPM and the shipping Xcode
+project compile it as a separate module. `KeyCore` uses an `internal import`,
+and the package does not expose a `JSONCanonicalization` product, so these
+declarations are not a supported package API.
 
 This boundary also creates a clean path to a small, dependency-free public
 package later. Extracting it is an option, not a requirement for completing
@@ -53,8 +55,8 @@ the ECMAScript binary64-to-decimal algorithm. It also means the module must not
 yet be described or published as a complete RFC 8785 implementation.
 
 The input parser rejects values outside this profile. Programmatically
-constructed `CanonicalJSONValue` instances are trusted package-internal input
-at present; the encoder does not yet return validation errors for duplicate
+constructed `CanonicalJSONValue` instances are trusted module-client input at
+present; the encoder does not yet return validation errors for duplicate
 members or integers above `2^53 - 1`.
 
 ## Ownership boundary

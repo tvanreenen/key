@@ -1,5 +1,5 @@
 import Foundation
-import JSONCanonicalization
+internal import JSONCanonicalization
 import Security
 
 enum V3ImmutableTransactionRecoveryAnchorError:

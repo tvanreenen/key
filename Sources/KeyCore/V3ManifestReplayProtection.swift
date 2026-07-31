@@ -1,6 +1,6 @@
 import CryptoKit
 import Foundation
-import JSONCanonicalization
+internal import JSONCanonicalization
 
 public enum V3ManifestReplayError: Error, Equatable, LocalizedError {
     case invalidCheckpoint

@@ -1,5 +1,5 @@
 import Foundation
-import JSONCanonicalization
+internal import JSONCanonicalization
 
 public enum V3EntryAuthenticationContextError: Error, Equatable, LocalizedError {
     case invalidVaultID

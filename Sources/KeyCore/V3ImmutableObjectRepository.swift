@@ -61,6 +61,33 @@ struct V3VaultRepositoryObservation: Equatable, Sendable {
 struct V3ExpectedRepositoryState: Equatable, Sendable {
     let checkpoint: V3ManifestCheckpoint
     let heads: [V3VaultHead]
+
+    init(
+        checkpoint: V3ManifestCheckpoint,
+        heads: [V3VaultHead]
+    ) {
+        self.checkpoint = checkpoint
+        self.heads = heads
+    }
+
+    init(proof: V3ManifestAncestryProof) throws {
+        let heads = try proof.heads.map(V3VaultHead.init(verifiedManifest:))
+            .sorted {
+                $0.envelopeDigest.lexicographicallyPrecedes(
+                    $1.envelopeDigest
+                )
+            }
+        guard !heads.isEmpty,
+              Set(heads).count == heads.count,
+              heads.allSatisfy({
+                  $0.vaultID == proof.checkpoint.vaultID
+              })
+        else {
+            throw V3ManifestReconciliationError.invalidAncestryProof
+        }
+        checkpoint = proof.checkpoint
+        self.heads = heads
+    }
 }
 
 struct V3ManifestRepositoryLimits: Equatable, Sendable {

@@ -1,7 +1,7 @@
 import Foundation
 @testable import KeyCore
 
-final class MemoryVaultKeyStore: VaultKeyStoring {
+final class MemoryVaultKeyStore: VaultKeyStoring, @unchecked Sendable {
     var localKeyData: Data?
     var iCloudKeyData: Data?
     var error: Error?

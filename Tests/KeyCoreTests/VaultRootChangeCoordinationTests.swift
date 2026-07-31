@@ -148,6 +148,47 @@ struct VaultRootChangeCoordinationTests {
     }
 
     @Test
+    func externallyChangedVaultIdentityFailsClosed() throws {
+        let home = try temporaryHomeDirectory()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let originalRoot = home.appendingPathComponent(
+            "Original Vault",
+            isDirectory: true
+        )
+        let configStore = KeyConfigStore(homeDirectoryURL: home)
+        let configuration = try configStore.setValue(
+            originalRoot.path(percentEncoded: false),
+            for: .vaultDir
+        )
+        let keyStore = MemoryVaultKeyStore()
+        let handler = KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: EntryStore(rootURL: originalRoot),
+            configStore: configStore
+        )
+
+        try """
+        # key configuration
+        vault_dir = "\(originalRoot.path(percentEncoded: false))"
+        keychain_mode = "local"
+        vault_id = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
+        """.write(
+            to: configuration.configFileURL,
+            atomically: true,
+            encoding: .utf8
+        )
+        let response = handler.handle(.list)
+
+        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(
+            response.errorMessage?.contains(
+                "configuration changed while Key Agent was running"
+            ) == true
+        )
+        #expect(keyStore.invalidateCount == 1)
+    }
+
+    @Test
     func missingConfigurationFailsClosedWithoutRecreatingIt() throws {
         let home = try temporaryHomeDirectory()
         defer { try? FileManager.default.removeItem(at: home) }
