@@ -14,7 +14,7 @@ state.
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
 | Current branch | `agent/prepare-alpha-2-release` |
-| Current PR | Not opened |
+| Current PR | #41 |
 | Active increment | Prepare the `v0.2.0-alpha.2` authenticated-reader release and contain unsafe legacy v2 key adoption |
 | Next work | Publish `v0.2.0-alpha.2`, then add explicit migration/bootstrap without enabling shared-vault writes |
 
