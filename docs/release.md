@@ -38,6 +38,7 @@ just publish-homebrew-tap <tag>
 Use tags and release names like `v0.1.0`, `v0.1.1`, or `v0.2.0-alpha.1`.
 Versions with a prerelease suffix such as `-alpha.1`, `-beta.1`, or `-rc.1` will be published as GitHub prereleases automatically.
 The release tag includes the leading `v`; the app and CLI marketing version do not.
+The planned version 3 prerelease checkpoints and their security boundaries are tracked in [v3-vault-implementation.md](v3-vault-implementation.md#alpha-release-checkpoints).
 
 `bump-version.sh` updates Xcode's `MARKETING_VERSION`, auto-increments `CURRENT_PROJECT_VERSION`, commits the version bump on `main`, and creates the local release tag.
 `build-release.sh` builds, notarizes, staples, and zips the app. The final zip includes both `Key.app` and `completions/_key` for Homebrew-installed zsh completion.
