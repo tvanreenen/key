@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `0f41ed0` |
+| Production base | `main` at `a0404d0` |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/add-v3-status-conflict-ux` |
+| Current branch | `agent/bind-v3-reads-to-authenticated-state` |
 | Current PR | Not opened |
-| Active increment | `UX-409` typed status and conflict UX in progress |
-| Next work | Review UX-409, then integrate the read-only v3 runtime before enabling migration or writes |
+| Active increment | `READ-410` exact authenticated read plans implemented; awaiting review |
+| Next work | Review READ-410, then connect the read-only v3 runtime to the shipping target |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -112,7 +112,8 @@ security or durability boundary and updates this tracker before it merges.
 | `MERGE-406` | Complete; PR #34 | Reconcile independent path changes and return typed conflicts |
 | `TXN-407` | Complete; PR #35 | Publish entries first and the expected-head manifest last |
 | `TXN-408` | Complete; PR #36 | Recover every interrupted transaction phase without trusting synchronized staging |
-| `UX-409` | In progress | Add typed service failures, status, and conflict-resolution CLI commands |
+| `UX-409` | Complete; PR #37 | Add typed service failures, status, and conflict-resolution CLI commands |
+| `READ-410` | Implemented; awaiting review | Bind every v3 read to one exact authenticated entry and repository state |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -488,7 +489,7 @@ Acceptance gate:
 
 #### `UX-409` — Typed Status And Conflict UX
 
-Status: implemented on `agent/add-v3-status-conflict-ux`; awaiting review.
+Status: complete; squash-merged as `a0404d0` in PR #37.
 
 This increment gives the CLI one plain-language answer to “is my vault safe to
 use right now?” The answer comes from a typed observation shared by status,
@@ -556,6 +557,53 @@ Acceptance gate:
 - [x] Unaffected reads continue during content conflicts.
 - [x] Mutations remain paused until genuine conflicts are resolved.
 - [x] Stale reads require explicit `--allow-stale`; stale writes are impossible.
+
+#### `READ-410` — Exact Authenticated Read Plans
+
+Status: implemented on
+`agent/bind-v3-reads-to-authenticated-state`.
+
+The v3 runtime must not authorize a name and later reopen whichever file then
+appears current at that name. Repository state can change while a file
+provider delivers new objects, so the result of trust evaluation must remain
+attached to the eventual immutable-object read.
+
+This increment introduces a typed read plan containing the authenticated
+checkpoint, expected head set when current repository state is required,
+vault ID, exact manifest entry, ciphertext digest, and whether the user
+explicitly selected the last locally trusted checkpoint. Planning resolves
+the requested name against a complete authenticated ancestry proof,
+deterministic automatic merge, or exact local checkpoint. Content conflicts
+block only ambiguous names; authority conflict, rollback, and recovery states
+block every ordinary read.
+
+Execution opens the digest-addressed entry beneath the retained vault-root
+handle, applies the existing size bound, verifies the SHA-256 digest and
+canonical entry context, obtains only the vault key named by the authenticated
+entry, and uses the existing AES-256-GCM entry cipher. For a current or
+conflict-selected read, the executor revalidates the expected checkpoint and
+head set immediately before releasing plaintext. An explicit stale read is
+instead bound to the exact device-local checkpoint that made it permissible.
+
+This increment remains a Swift-package security seam. It does not select v3
+at runtime, add v3 sources to the shipping Xcode target, migrate a v2 vault,
+publish a conflict resolution, or enable any v3 mutation.
+
+Acceptance gate:
+
+- [x] A normal read identifies one exact entry from authenticated effective
+  state and retains its expected checkpoint and heads.
+- [x] An incomplete repository fails unless the caller explicitly requests a
+  stale read, which uses only the exact locally trusted checkpoint.
+- [x] Unambiguous entries remain readable during an ordinary content conflict;
+  ambiguous names, destination collisions, rollback, authority conflict, and
+  recovery states fail closed.
+- [x] Missing, oversized, substituted, malformed, digest-mismatched,
+  context-mismatched, or wrong-key entry objects never release plaintext.
+- [x] A changed checkpoint or head set invalidates a current or selected
+  conflict read before plaintext is returned.
+- [x] Tests exercise planning and execution without enabling the shipping v3
+  reader, migration, resolution publication, or writes.
 
 ### Committed CLI And Conflict Contract
 
@@ -706,9 +754,9 @@ formats or transport stacks:
 
 ## Immediate Next Action
 
-Review `UX-409`, then add the read-only v3 runtime adapter to the shipping
-target. That integration should observe authenticated repository state and
-serve safe reads through the established status/conflict seam before any
-migration or v3 writer is enabled. Keep real-provider smoke testing as release
-qualification and keep the writer disabled until the remaining release gates
-pass.
+Review `READ-410`, then add the read-only v3 runtime adapter to the shipping
+target. That integration should obtain fresh authenticated repository
+observations, produce exact read plans, and serve status and safe reads through
+the established UX seam before any migration or v3 writer is enabled. Keep
+real-provider smoke testing as release qualification and keep the writer
+disabled until the remaining release gates pass.

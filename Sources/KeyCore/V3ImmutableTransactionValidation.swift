@@ -1,11 +1,6 @@
 import CryptoKit
 import Foundation
 
-struct V3ExpectedRepositoryState: Equatable, Sendable {
-    let checkpoint: V3ManifestCheckpoint
-    let heads: [V3VaultHead]
-}
-
 struct V3EntryObjectKey: Hashable, Sendable {
     let entryID: String
     let digest: Data

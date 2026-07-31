@@ -192,6 +192,7 @@ struct V3ManifestReconciliationTests {
 
         let report = try contentConflict(base: base, heads: [left, right])
 
+        #expect(report.entriesReconciledByID.isEmpty)
         #expect(report.entryConflicts.count == 1)
         #expect(report.entryConflicts[0].kind == .editEdit)
         #expect(report.entryConflicts[0].commonAncestorEntry == baseEntry)
@@ -438,6 +439,9 @@ struct V3ManifestReconciliationTests {
             heads: [collisionLeft, collisionRight]
         )
         #expect(collisionReport.entryConflicts.isEmpty)
+        #expect(
+            collisionReport.entriesReconciledByID == [renamedA, renamedB]
+        )
         #expect(collisionReport.destinationConflicts == [
             V3DestinationConflict(
                 name: "account/collision",
