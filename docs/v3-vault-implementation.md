@@ -13,9 +13,9 @@ state.
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/document-v3-alpha-roadmap` |
+| Current branch | `agent/prepare-alpha-2-release` |
 | Current PR | Not opened |
-| Active increment | Prepare the `v0.2.0-alpha.2` authenticated-reader release checkpoint |
+| Active increment | Prepare the `v0.2.0-alpha.2` authenticated-reader release and contain unsafe legacy v2 key adoption |
 | Next work | Publish `v0.2.0-alpha.2`, then add explicit migration/bootstrap without enabling shared-vault writes |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
@@ -799,10 +799,20 @@ can be attributed to a narrow change. Expected build numbers assume no
 intervening release; `CURRENT_PROJECT_VERSION` remains an automatically
 incremented internal counter rather than part of the public version identity.
 
+`v0.2.0-alpha.1` was [withdrawn on July 28,
+2026](https://github.com/tvanreenen/key/releases/tag/v0.2.0-alpha.1), and its
+installation assets were removed. Its legacy mode-change path could accept a
+vault key after authenticating only one entry; a vault whose entries had been
+sealed under different keys could therefore retain inaccessible entries. The
+release record remains available as the recovery warning and historical source
+of truth. This failure drove the replacement design toward exact vault and key
+identities, whole authenticated state, fail-before-mutation transitions, and
+explicit migration rather than another implicit synchronized-key repair.
+
 | Version | Expected build | Status | Checkpoint |
 |---|---:|---|---|
-| `v0.2.0-alpha.1` | 6 | Released | Existing version 2 desktop baseline |
-| `v0.2.0-alpha.2` | 7 | Next release | Ship the authenticated version 3 reader while version 2 remains the default and every version 3 writer stays disabled |
+| `v0.2.0-alpha.1` | 6 | Withdrawn | Retained release record and version 2 incident baseline; installation assets removed |
+| `v0.2.0-alpha.2` | 7 | Next release | Contain unsafe legacy version 2 key adoption and ship the authenticated version 3 reader while version 2 remains the default and every version 3 writer stays disabled |
 | `v0.2.0-alpha.3` | 8 | Planned | Add explicit, opt-in local version 2 to version 3 migration and verified bootstrap |
 | `v0.2.0-alpha.4` | 9 | Planned | Add device enrollment and multi-device read-only sharing |
 | `v0.2.0-alpha.5` | 10 | Planned | Enable guarded multi-device writes and conflict resolution |

@@ -421,7 +421,7 @@ public final class KeyServiceHandler {
         }
 
         let keyData = try keyStore.loadKey(mode: .icloud, reason: reason, createIfMissing: false)
-        try verifyVaultKeyMatchesExistingEntries(keyData, sourceMode: .icloud)
+        try verifyVaultKeyMatchesAllExistingEntries(keyData, sourceMode: .icloud)
         try keyStore.storeKey(keyData, mode: .local, overwriteExisting: true)
         return keyData
     }
@@ -444,7 +444,7 @@ public final class KeyServiceHandler {
                 reason: "Unlock key vault to enable iCloud Keychain mode.",
                 createIfMissing: false
             )
-            try verifyVaultKeyMatchesExistingEntries(iCloudKey, sourceMode: .icloud)
+            try verifyVaultKeyMatchesAllExistingEntries(iCloudKey, sourceMode: .icloud)
             try keyStore.storeKey(iCloudKey, mode: .local, overwriteExisting: true)
             try persistKeychainMode(.icloud)
             return
@@ -458,7 +458,7 @@ public final class KeyServiceHandler {
             )
 
             do {
-                try verifyVaultKeyMatchesExistingEntries(localKey, sourceMode: .local)
+                try verifyVaultKeyMatchesAllExistingEntries(localKey, sourceMode: .local)
             } catch AppError.vaultKeyMismatch {
                 if hasEntries {
                     throw waitingForICloudVaultKeyError()
@@ -486,7 +486,7 @@ public final class KeyServiceHandler {
                 createIfMissing: false
             )
             do {
-                try verifyVaultKeyMatchesExistingEntries(localKey, sourceMode: .local)
+                try verifyVaultKeyMatchesAllExistingEntries(localKey, sourceMode: .local)
                 try persistKeychainMode(.local)
                 return
             } catch AppError.vaultKeyMismatch {
@@ -500,7 +500,7 @@ public final class KeyServiceHandler {
                 reason: "Unlock key vault to enable local Keychain mode.",
                 createIfMissing: false
             )
-            try verifyVaultKeyMatchesExistingEntries(iCloudKey, sourceMode: .icloud)
+            try verifyVaultKeyMatchesAllExistingEntries(iCloudKey, sourceMode: .icloud)
             try keyStore.storeKey(iCloudKey, mode: .local, overwriteExisting: true)
             try persistKeychainMode(.local)
             return
@@ -527,18 +527,16 @@ public final class KeyServiceHandler {
         !(try entryStore.listEntries().isEmpty)
     }
 
-    private func verifyVaultKeyMatchesExistingEntries(_ keyData: Data, sourceMode: KeychainMode) throws {
-        guard let sampleName = try entryStore.listEntries().first else {
-            return
-        }
-
-        let file = try entryStore.load(sampleName)
-        do {
-            _ = try cipher.decrypt(file, keyData: keyData)
-        } catch CryptoKitError.authenticationFailure {
-            throw mismatchError(for: sourceMode)
-        } catch {
-            throw error
+    private func verifyVaultKeyMatchesAllExistingEntries(_ keyData: Data, sourceMode: KeychainMode) throws {
+        for name in try entryStore.listEntries() {
+            let file = try entryStore.load(name)
+            do {
+                _ = try cipher.decrypt(file, keyData: keyData)
+            } catch CryptoKitError.authenticationFailure {
+                throw mismatchError(for: sourceMode)
+            } catch {
+                throw error
+            }
         }
     }
 

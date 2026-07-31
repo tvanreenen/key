@@ -818,6 +818,109 @@ struct KeyServiceHandlerTests {
     }
 
     @Test
+    func switchingToICloudRejectsMixedKeyVaultBeforeRepairingLocalMirror() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let vaultDirectory = homeDirectory.appendingPathComponent("Vault", isDirectory: true)
+        try FileManager.default.createDirectory(at: vaultDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
+        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+
+        let sharedKey = Data((0..<32).map(UInt8.init))
+        let otherEntryKey = Data((32..<64).map(UInt8.init))
+        let staleLocalKey = Data((64..<96).map(UInt8.init))
+        let store = EntryStore(rootURL: vaultDirectory)
+        try saveMixedKeyEntries(in: store, acceptedKey: sharedKey, otherKey: otherEntryKey)
+
+        let keyStore = MemoryVaultKeyStore()
+        keyStore.localKeyData = staleLocalKey
+        keyStore.iCloudKeyData = sharedKey
+        let handler = KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: store,
+            configStore: configStore
+        )
+
+        let response = handler.handle(.setKeychainMode(.icloud))
+
+        #expect(response.errorCode == .vaultKeyMismatch)
+        #expect(keyStore.storeCount == 0)
+        #expect(keyStore.localKeyData == staleLocalKey)
+        #expect(try configStore.getValue(for: .keychainMode) == "local")
+    }
+
+    @Test
+    func switchingBackToLocalRejectsMixedKeyVaultBeforeRepairingLocalMirror() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let vaultDirectory = homeDirectory.appendingPathComponent("Vault", isDirectory: true)
+        try FileManager.default.createDirectory(at: vaultDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
+        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+        _ = try configStore.setValue("icloud", for: .keychainMode)
+
+        let sharedKey = Data((0..<32).map(UInt8.init))
+        let otherEntryKey = Data((32..<64).map(UInt8.init))
+        let store = EntryStore(rootURL: vaultDirectory)
+        try saveMixedKeyEntries(in: store, acceptedKey: sharedKey, otherKey: otherEntryKey)
+
+        let keyStore = MemoryVaultKeyStore()
+        keyStore.localKeyData = otherEntryKey
+        keyStore.iCloudKeyData = sharedKey
+        let handler = KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: store,
+            keychainMode: .icloud,
+            configStore: configStore
+        )
+
+        let response = handler.handle(.setKeychainMode(.local))
+
+        #expect(response.errorCode == .vaultKeyMismatch)
+        #expect(keyStore.storeCount == 0)
+        #expect(keyStore.localKeyData == otherEntryKey)
+        #expect(try configStore.getValue(for: .keychainMode) == "icloud")
+    }
+
+    @Test
+    func iCloudModeReadRejectsMixedKeyVaultBeforeRepairingLocalMirror() throws {
+        let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let vaultDirectory = homeDirectory.appendingPathComponent("Vault", isDirectory: true)
+        try FileManager.default.createDirectory(at: vaultDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
+        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+        _ = try configStore.setValue("icloud", for: .keychainMode)
+
+        let sharedKey = Data((0..<32).map(UInt8.init))
+        let otherEntryKey = Data((32..<64).map(UInt8.init))
+        let store = EntryStore(rootURL: vaultDirectory)
+        try saveMixedKeyEntries(in: store, acceptedKey: sharedKey, otherKey: otherEntryKey)
+
+        let keyStore = MemoryVaultKeyStore()
+        keyStore.localKeyData = otherEntryKey
+        keyStore.iCloudKeyData = sharedKey
+        let handler = KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: store,
+            keychainMode: .icloud,
+            configStore: configStore
+        )
+
+        let response = handler.handle(.get(name: "alpha/matching"))
+
+        #expect(response.errorCode == .vaultKeyMismatch)
+        #expect(keyStore.storeCount == 0)
+        #expect(keyStore.localKeyData == otherEntryKey)
+    }
+
+    @Test
     func rejectsOverwriteWithoutForce() throws {
         let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -1067,6 +1170,24 @@ struct KeyServiceHandlerTests {
 
         let listResponse = handler.handle(.list)
         #expect(listResponse == .success("alpha/two\nzeta/one\n"))
+    }
+
+    private func saveMixedKeyEntries(
+        in store: EntryStore,
+        acceptedKey: Data,
+        otherKey: Data
+    ) throws {
+        let cipher = VaultCipher()
+        try store.save(
+            cipher.encrypt("matching", keyData: acceptedKey),
+            as: "alpha/matching",
+            overwrite: false
+        )
+        try store.save(
+            cipher.encrypt("other", keyData: otherKey),
+            as: "zeta/other",
+            overwrite: false
+        )
     }
 }
 
