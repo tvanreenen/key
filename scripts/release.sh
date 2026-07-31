@@ -13,8 +13,11 @@ if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
 fi
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+homebrew_cask_token="$("${repo_root}/scripts/homebrew-cask-token.sh" "${version}")"
 release_root="${HOME}/Library/Developer/Xcode/Releases/key/${version}"
 final_zip="${release_root}/Key-${version}.zip"
+
+echo "==> Homebrew channel: ${homebrew_cask_token}"
 
 echo "==> Bump version"
 "${repo_root}/scripts/bump-version.sh" "${version}"
