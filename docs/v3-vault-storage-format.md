@@ -403,6 +403,82 @@ identity mismatch MUST fail closed and MUST NOT silently generate a replacement
 identity. Replacing an enrolled identity requires an explicit later recovery or
 revocation flow.
 
+#### Enrollment Message Mailbox
+
+`ENR-503` uses synchronized vault files only as an untrusted mailbox. An
+invitation is stored at:
+
+```text
+.enrollment/invitations/<invitation-payload-sha256-lowercase-hex>.json
+```
+
+A join request is stored at:
+
+```text
+.enrollment/join-requests/<invitation-payload-sha256-lowercase-hex>/<join-request-payload-sha256-lowercase-hex>.json
+```
+
+The files contain the exact canonical signed envelopes defined above. The path
+digests identify the unsigned canonical payloads, not the randomized ECDSA
+envelopes. A reader MUST parse the bounded canonical envelope, reproduce its
+payload digest, require that digest to match the path, verify the enclosed
+identity signature, and enforce the invitation's signed expiry. A valid file
+provider path or successful synchronization supplies no authentication.
+
+Writers MUST install a complete message atomically and MUST NOT replace
+different bytes already present at the same digest path. Publishing the same
+exact bytes again is idempotent. Directory enumeration MUST have an explicit
+object-count cap, and every observed entry counts toward it before invalid or
+provider-specific names are filtered. A reader MUST NOT trust provider
+timestamps, versions, conflict labels, enumeration order, delivery order, or
+placeholder state to establish freshness, authority, or a winner. Missing and
+placeholder objects are temporary transport unavailability; malformed,
+oversized, substituted, symbolic-link, or unsafe-root states fail closed.
+
+Mailbox artifacts are retained through the first read-only enrollment release.
+Safe synchronized cleanup is deferred until realistic provider testing defines
+rules that cannot delete another device's only delivered copy. Retention does
+not grant replay authority because later ceremony steps remain bound to exact
+local state and authenticated manifest history.
+
+#### Device-Local Enrollment Ceremony State
+
+Each participant stores one non-synchronizing, this-device-only Keychain item
+for the exact vault ID and invitation payload digest. The record contains
+canonical JSON with exactly:
+
+| Field | Requirement |
+|---|---|
+| `format` | Exactly `key-vault-enrollment-ceremony-state` |
+| `version` | Exactly `1` |
+| `vaultID` | Exact canonical version 3 vault UUID |
+| `invitationDigest` | Canonical base64url 32-byte invitation payload digest |
+| `role` | Exactly `inviter` or `joiner` |
+| `phase` | Exactly `awaitingJoinRequest`, `awaitingComparison`, or `consumed` |
+| `signedInvitation` | Canonical base64url of the exact signed invitation carrier bytes |
+| `signedJoinRequest` | JSON `null`, or canonical base64url of the exact signed join-request carrier bytes |
+
+The inviter may wait for a join request without storing one. Both roles require
+the exact join request while awaiting comparison or after consumption. Every
+load reparses and reauthenticates the signed carriers and reconstructs their
+exact transcript. Invalid local bytes fail closed and are not silently replaced.
+
+The local record is saved before publishing its corresponding mailbox message.
+This ordering ensures a crash or transport failure can retry the exact carrier
+bytes rather than re-signing the same payload and creating another randomized
+ECDSA envelope. State replacement requires the exact previously observed bytes.
+The inviter durably pins one explicitly selected authenticated join response;
+a different response for the invitation is a conflict. Marking the exact
+compared transcript consumed is one-way, while repeating that exact consumption
+is idempotent.
+
+Replay tracking here is intentionally device-local, not a synchronized global
+claim. Losing this local record loses ceremony resumption and its local consumed
+marker, but it still cannot grant membership or recover a vault key. `ENR-504`
+and `ENR-505` MUST independently bind authority and first trust to the exact
+authenticated manifest transition, so a retained or replayed mailbox message
+alone can never complete enrollment.
+
 ### Wrapped-Key Record
 
 | Field | Type | Requirement |
