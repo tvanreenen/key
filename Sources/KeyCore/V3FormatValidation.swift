@@ -115,6 +115,14 @@ func isV3ControlCharacter(_ scalar: UnicodeScalar) -> Bool {
     scalar.value <= 0x1F || (0x7F...0x9F).contains(scalar.value)
 }
 
+func isValidV3DeviceDisplayName(_ name: String) -> Bool {
+    !name.isEmpty
+        && name.unicodeScalars.count <= 128
+        && Data(name.utf8)
+            == Data(name.precomposedStringWithCanonicalMapping.utf8)
+        && !name.unicodeScalars.contains(where: isV3ControlCharacter)
+}
+
 private func hasLeadingOrTrailingWhitespace(_ value: String) -> Bool {
     guard let first = value.unicodeScalars.first,
           let last = value.unicodeScalars.last

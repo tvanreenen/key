@@ -205,6 +205,112 @@ current snapshot does not carry a counter pretending to identify those
 transitions. Role semantics and enrollment authorization are finalized by
 `ENR-501` through `ENR-505`.
 
+### Enrollment Invitation And Transcript
+
+Enrollment is an explicit, short-lived exchange between an existing owner and
+one joining device. File synchronization may carry the messages, but transport
+does not make them trustworthy. Each device constructs the same canonical
+transcript and the user compares the displayed code before the owner grants
+authority or the joining device accepts first trust.
+
+`ENR-501` defines two non-secret canonical message payloads. Their artifact
+version starts at `1`; it is independent from the vault format version.
+
+An invitation has exactly:
+
+| Field | Requirement |
+|---|---|
+| `format` | Exactly `key-vault-enrollment-invitation` |
+| `version` | Exactly `1` |
+| `vaultID` | Exact canonical version 3 vault UUID |
+| `vaultFormatVersion` | Exactly `3` for this enrollment protocol version |
+| `parentManifestDigest` | Base64url SHA-256 digest of the inviter's exact trusted head |
+| `invitingDevice` | Proposed owner identity containing its display name and distinct P-256 signing and wrapping public keys |
+| `invitedRole` | Exact role to grant: `owner` or `member` |
+| `nonce` | Fresh 32-byte invitation nonce |
+| `expiresAt` | Positive Unix time in seconds, no greater than the I-JSON safe-integer maximum |
+
+The inviting device is always proposed as an owner. For a local-to-shared
+transition, its identity becomes the first manifest owner only after the
+completed ceremony authorizes and publishes that transition. For an already
+shared vault, a later increment additionally requires this identity to match
+an active owner in the exact parent manifest.
+
+A join request has exactly:
+
+| Field | Requirement |
+|---|---|
+| `format` | Exactly `key-vault-enrollment-join-request` |
+| `version` | Exactly `1` |
+| `invitationDigest` | Base64url SHA-256 digest of the exact canonical invitation |
+| `joiningDevice` | Proposed joining identity containing its display name and distinct P-256 signing and wrapping public keys |
+| `nonce` | Fresh 32-byte joining-device nonce |
+
+Each device ID is derived from the exact signing/wrapping key pair by the
+device-identity rule above. All four public keys across the two identities MUST
+be distinct. The joining device MUST differ from the inviting device, and a
+join request MUST name the exact invitation digest it answers.
+
+The canonical comparison transcript has exactly:
+
+```json
+{
+  "format": "key-vault-enrollment-transcript",
+  "version": 1,
+  "invitationDigest": "<base64url SHA-256 of canonical invitation>",
+  "joinRequestDigest": "<base64url SHA-256 of canonical join request>"
+}
+```
+
+The complete transcript digest is:
+
+```text
+SHA-256(
+  UTF8("work.tvr.key/v3/enrollment-transcript") ||
+  0x00 ||
+  JCS(transcript)
+)
+```
+
+The human comparison code is the first 10 digest bytes rendered as five
+lowercase hexadecimal groups of four characters. This 80-bit short
+authentication string is only an independent user comparison over the exact
+vault, trusted parent, both device key pairs, granted role, expiry, and both
+nonces. It does not replace device signatures, manifest authentication,
+wrapped-key verification, expiry enforcement, or durable replay protection.
+Those checks are added by `ENR-502` through `ENR-505`; until then, these
+payloads grant no vault or device authority and are not exposed by the shipping
+CLI.
+
+#### Enrollment And Vault Version Compatibility
+
+The application release number is not part of the ceremony. Compatibility is
+decided only from version fields carried by the exact protocol artifacts;
+later ceremony signatures bind those fields to both devices:
+
+- `version` identifies the invitation, join-request, or transcript protocol;
+- `vaultFormatVersion` identifies the persisted vault format the joining
+  device is being asked to read; and
+- `parentManifestDigest` binds the invitation to one exact manifest encoded in
+  that vault format.
+
+Both devices MUST support the exact enrollment-message and vault-format
+versions named by the invitation. There is no range negotiation, implicit
+downgrade, or provider-selected fallback. A canonical message with a newer
+message version, or an invitation naming an unsupported vault format, is an
+upgrade-required outcome rather than malformed or corrupt input. A malformed
+current-version message remains invalid and MUST NOT be reclassified as an
+upgrade request.
+
+After enrollment, the authenticated manifest version remains the compatibility
+boundary. Different application releases may safely use the vault while they
+implement the same persisted format and semantics. An incompatible persisted
+or security-semantic change requires a new vault-format version. An older
+device encountering that format MUST retain its existing device-local
+checkpoint, release no newly observed plaintext, perform no mutation, and
+report that an upgrade is required. Feature or application build numbers do
+not belong in shared vault state.
+
 ### Wrapped-Key Record
 
 | Field | Type | Requirement |
