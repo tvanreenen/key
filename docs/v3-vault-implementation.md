@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `5945539` (`v0.2.0-alpha.2`) |
+| Production base | `main` at `d312d49` (`v0.2.0-alpha.3`) |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/add-v3-migration-bootstrap` |
+| Current branch | `agent/add-v3-device-enrollment` |
 | Current PR | Not opened |
-| Active increment | `MIG-412` — Implementation complete; local review pending |
-| Next work | Review the uncommitted migration/bootstrap implementation, then commit and open its draft PR |
+| Active increment | `ENR-501` — Canonical invitation and transcript protocol |
+| Next work | Review and validate the uncommitted enrollment-protocol implementation |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -115,7 +115,12 @@ security or durability boundary and updates this tracker before it merges.
 | `UX-409` | Complete; PR #37 | Add typed service failures, status, and conflict-resolution CLI commands |
 | `READ-410` | Complete; PR #38 | Bind every v3 read to one exact authenticated entry and repository state |
 | `RUNTIME-411` | Complete; PR #39 | Connect exact v3 reads to the shipping helper while every v3 mutation remains disabled |
-| `MIG-412` | Implementation complete; review pending | Add explicit local version 2 migration and verified version 3 bootstrap |
+| `MIG-412` | Complete; PR #43 | Add explicit local version 2 migration and verified version 3 bootstrap |
+| `ENR-501` | In progress | Define canonical enrollment invitations, join requests, and comparison transcripts |
+| `ENR-502` | Planned | Create device-bound signing and wrapping identities and signed ceremony messages |
+| `ENR-503` | Planned | Exchange bounded enrollment messages without trusting the file provider |
+| `ENR-504` | Planned | Approve and publish the owner-authorized local-to-shared transition |
+| `ENR-505` | Planned | Verify first trust, unwrap the exact vault key, select the vault, and expose the read-only CLI flow |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -655,8 +660,8 @@ Acceptance gate:
 
 #### `MIG-412` — Opt-In Local Migration And Verified Bootstrap
 
-Status: implementation complete on `agent/add-v3-migration-bootstrap`; local
-review pending before commit.
+Status: complete; squash-merged as `eb9779d` in PR #43 and released as
+`v0.2.0-alpha.3`.
 
 This increment adds the first deliberately enabled version 3 write path, but
 only for converting the current device's readable local version 2 vault. The
@@ -723,6 +728,63 @@ Acceptance gate:
   and failure.
 - Every other version 3 mutation and all shared-vault behavior remain disabled.
 
+#### `ENR-501` — Canonical Enrollment Invitation And Transcript
+
+Status: implementation in progress on `agent/add-v3-device-enrollment`.
+
+The first alpha.4 increment defines the exact public facts that two devices
+must agree on before any key is shared or membership changes. An existing
+device creates a short-lived invitation for one exact trusted vault head and
+role. The joining device answers that exact invitation with a second fresh
+nonce and its proposed identity. Both sides then derive the same compact
+comparison code from the canonical message digests.
+
+Scope:
+
+- Represent each proposed device identity by its display name and distinct
+  P-256 signing and wrapping public keys; derive and validate its device ID
+  with the manifest's existing identity rule.
+- Bind the invitation to the canonical vault ID, exact trusted parent-manifest
+  digest, exact vault format version, inviting owner identity, role to grant,
+  32-byte nonce, and explicit expiry.
+- Bind the join request to the exact invitation digest, joining identity, and
+  an independent 32-byte nonce.
+- Reject malformed, oversized, noncanonical, unknown-field, wrong-digest,
+  self-enrollment, and public-key-reuse inputs.
+- Distinguish a canonical future enrollment-message or unsupported vault-format
+  version as upgrade-required while retaining invalid-format classification for
+  malformed current-version bytes.
+- Derive a domain-separated transcript digest and display its first 80 bits as
+  five groups of four lowercase hexadecimal characters.
+- Publish a fixed deterministic vector so later implementations can reproduce
+  the exact bytes and comparison value.
+
+Out of scope:
+
+- creating, storing, or using Secure Enclave private keys;
+- signing either ceremony message or granting manifest authority;
+- wrapping, transporting, or persisting the vault key;
+- provider mailbox paths, local ceremony state, expiry consumption, or durable
+  replay tracking;
+- publishing a local-to-shared manifest transition or establishing first
+  trust on the joining device; and
+- any shipping CLI or XPC behavior.
+
+Acceptance gate:
+
+- Changing the vault, parent head, granted role, expiry, either nonce, or any
+  public identity key changes the transcript digest.
+- The invitation explicitly binds vault format 3; unsupported enrollment or
+  vault versions fail with a typed upgrade-required result rather than being
+  mistaken for current-format corruption.
+- Canonical invitation and join-request bytes parse back to the exact typed
+  values; noncanonical or structurally extended bytes fail closed.
+- A join request cannot answer a different invitation, enroll the inviter as a
+  second device, or reuse any public key across purposes or devices.
+- Expiry has a deterministic inclusive boundary for later clock-aware callers.
+- This increment cannot modify files, Keychain state, device membership, the
+  selected vault, or plaintext behavior.
+
 ### Committed CLI And Conflict Contract
 
 - Existing everyday commands retain their current names and default behavior.
@@ -779,8 +841,18 @@ formats or transport stacks:
 
 ### Enrollment And Revocation Track
 
-- [ ] Bind enrollment to both keys, roles, vault ID, nonces, and expiry.
-- [ ] Derive and independently display a transcript authentication value.
+- [x] `ENR-501` Bind the canonical enrollment transcript to both device key
+  pairs, exact roles, vault ID, trusted parent, fresh nonces, and expiry.
+- [x] `ENR-501` Derive an independently reproducible 80-bit comparison value
+  from the domain-separated complete transcript digest.
+- [ ] `ENR-502` Create device-bound signing and wrapping keys and authenticate
+  both sides of the ceremony.
+- [ ] `ENR-503` Exchange bounded messages and reject expired, replayed, or
+  mismatched ceremony state without trusting provider metadata.
+- [ ] `ENR-504` Publish an owner-authorized shared manifest with one exact-key
+  wrapper for every active device.
+- [ ] `ENR-505` Independently verify first trust and select the same exact
+  authenticated head on the joining device.
 - [ ] Reject replay, substitution, wrong-vault, and role confusion.
 - [ ] Add device inspection and revoke/rotate commands.
 - [ ] Re-encrypt for remaining devices after revocation.
@@ -884,8 +956,8 @@ explicit migration rather than another implicit synchronized-key repair.
 |---|---:|---|---|
 | `v0.2.0-alpha.1` | 6 | Withdrawn | Retained release record and version 2 incident baseline; installation assets removed |
 | `v0.2.0-alpha.2` | 7 | Released | Contain unsafe legacy version 2 key adoption and ship the authenticated version 3 reader while version 2 remains the default and every version 3 writer stays disabled |
-| `v0.2.0-alpha.3` | 8 | Active | Add explicit, opt-in local version 2 to version 3 migration and verified bootstrap |
-| `v0.2.0-alpha.4` | 9 | Planned | Add device enrollment and multi-device read-only sharing |
+| `v0.2.0-alpha.3` | 8 | Released | Add explicit, opt-in local version 2 to version 3 migration and verified bootstrap |
+| `v0.2.0-alpha.4` | 9 | In progress | Add device enrollment and multi-device read-only sharing |
 | `v0.2.0-alpha.5` | 10 | Planned | Enable guarded multi-device writes and conflict resolution |
 | `v0.2.0-beta.1` | 11 | Planned | Complete provider qualification, migration and rollback validation, recovery documentation, signing checks, and the required security-review gates |
 
@@ -905,7 +977,9 @@ Update this table whenever a checkpoint ships or its scope changes.
 
 ## Immediate Next Action
 
-Review the uncommitted `MIG-412` implementation, then commit it and open its
-draft PR. Keep shared-vault enrollment and every general version 3 writer
-disabled. After the PR is reviewed, merged, and validated from `main`, stop and
-cut `v0.2.0-alpha.3 (8)` before beginning enrollment work.
+Review and validate the uncommitted `ENR-501` canonical enrollment-protocol
+implementation. Keep the messages internal and non-authoritative: this
+increment does not create device keys, publish a shared manifest, distribute a
+vault key, or expose enrollment through the CLI. Continue through `ENR-502` to
+`ENR-505` as separate reviewable PRs, then cut `v0.2.0-alpha.4 (9)` only after
+the complete read-only two-device ceremony passes release validation.

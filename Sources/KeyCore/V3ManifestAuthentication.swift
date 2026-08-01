@@ -960,12 +960,7 @@ private func validateSemantics(_ manifest: V3ManifestBody) throws {
 
 private func validateDisplayNames(_ devices: [V3ManifestDevice]) throws {
     for device in devices {
-        let name = device.displayName
-        guard !name.isEmpty,
-              name.unicodeScalars.count <= 128,
-              Data(name.utf8) == Data(name.precomposedStringWithCanonicalMapping.utf8),
-              !name.unicodeScalars.contains(where: isV3ControlCharacter)
-        else {
+        guard isValidV3DeviceDisplayName(device.displayName) else {
             throw V3ManifestError.semanticViolation("devices.displayName")
         }
     }
