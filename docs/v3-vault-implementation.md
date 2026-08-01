@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `d312d49` (`v0.2.0-alpha.3`) |
+| Production base | `main` at `45eb609` (`v0.2.0-alpha.3`) |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/add-v3-device-enrollment` |
+| Current branch | `agent/authenticate-v3-enrollment-identities` |
 | Current PR | Not opened |
-| Active increment | `ENR-501` — Canonical invitation and transcript protocol |
-| Next work | Review and validate the uncommitted enrollment-protocol implementation |
+| Active increment | `ENR-502` — Device-bound identities and signed enrollment messages |
+| Next work | Validate and review the uncommitted ENR-502 implementation |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -116,8 +116,8 @@ security or durability boundary and updates this tracker before it merges.
 | `READ-410` | Complete; PR #38 | Bind every v3 read to one exact authenticated entry and repository state |
 | `RUNTIME-411` | Complete; PR #39 | Connect exact v3 reads to the shipping helper while every v3 mutation remains disabled |
 | `MIG-412` | Complete; PR #43 | Add explicit local version 2 migration and verified version 3 bootstrap |
-| `ENR-501` | In progress | Define canonical enrollment invitations, join requests, and comparison transcripts |
-| `ENR-502` | Planned | Create device-bound signing and wrapping identities and signed ceremony messages |
+| `ENR-501` | Complete; PR #44 | Define canonical enrollment invitations, join requests, and comparison transcripts |
+| `ENR-502` | In progress | Create device-bound signing and wrapping identities and signed ceremony messages |
 | `ENR-503` | Planned | Exchange bounded enrollment messages without trusting the file provider |
 | `ENR-504` | Planned | Approve and publish the owner-authorized local-to-shared transition |
 | `ENR-505` | Planned | Verify first trust, unwrap the exact vault key, select the vault, and expose the read-only CLI flow |
@@ -730,7 +730,7 @@ Acceptance gate:
 
 #### `ENR-501` — Canonical Enrollment Invitation And Transcript
 
-Status: implementation in progress on `agent/add-v3-device-enrollment`.
+Status: complete; squash-merged as `45eb609` in PR #44.
 
 The first alpha.4 increment defines the exact public facts that two devices
 must agree on before any key is shared or membership changes. An existing
@@ -784,6 +784,60 @@ Acceptance gate:
 - Expiry has a deterministic inclusive boundary for later clock-aware callers.
 - This increment cannot modify files, Keychain state, device membership, the
   selected vault, or plaintext behavior.
+
+#### `ENR-502` — Device-Bound Identities And Signed Messages
+
+Status: implementation complete; local validation passed on
+`agent/authenticate-v3-enrollment-identities`.
+
+The second alpha.4 increment proves that each participant controls the private
+signing key represented in the `ENR-501` transcript. It also creates the
+separate device-bound wrapping key that a later increment will use to deliver
+the vault key. Both private keys remain in the Secure Enclave; synchronized
+files receive only public identities and signed messages.
+
+Scope:
+
+- Create one distinct Secure Enclave P-256 signing key and one distinct Secure
+  Enclave P-256 key-agreement key for an exact vault enrollment identity.
+- Require device-only accessibility, private-key usage, and user presence for
+  both private-key operations.
+- Persist only CryptoKit's opaque key representations and the derived public
+  identity in one non-synchronizing, this-device-only Keychain record scoped to
+  the signed application's access group and exact vault ID.
+- Refuse to overwrite an existing identity or silently replace a malformed,
+  mismatched, inaccessible, or invalidated Secure Enclave identity.
+- Wrap invitations and join requests in strict canonical signed envelopes with
+  separate domain-separated P-256 ECDSA-SHA256 inputs.
+- Normalize generated signatures to canonical low-`s` form and reject high-`s`,
+  substituted, wrong-key, wrong-signer, cross-message, noncanonical, oversized,
+  or structurally extended envelopes.
+- Keep pure message authentication, private-key operations, and Keychain
+  persistence behind separate testable seams.
+
+Out of scope:
+
+- provider mailbox paths or any shared-file exchange;
+- durable invitation consumption, replay tracking, or ceremony resumption;
+- deriving a wrapping shared secret or transporting the vault key;
+- verifying that the inviter is an active owner of the exact parent manifest;
+- publishing device membership or a local-to-shared manifest transition;
+- establishing the joining device's checkpoint or selected vault; and
+- any shipping CLI or XPC behavior.
+
+Acceptance gate:
+
+- Each signed carrier verifies only under the signing key embedded in its exact
+  invitation or join request and cannot be replayed as the other message kind.
+- A device-local identity cannot sign for another vault, and join-request
+  signing requires the exact verified invitation being answered.
+- Signature randomness does not change the `ENR-501` comparison transcript.
+- The signing and wrapping private keys are device-bound, separately generated,
+  non-synchronizing, and recover the exact stored public identity.
+- Existing, corrupt, mismatched, or inaccessible local identity state fails
+  closed without replacement.
+- No vault file, manifest, checkpoint, vault key, selected-vault setting, or
+  plaintext behavior can change through this increment.
 
 ### Committed CLI And Conflict Contract
 
@@ -845,7 +899,7 @@ formats or transport stacks:
   pairs, exact roles, vault ID, trusted parent, fresh nonces, and expiry.
 - [x] `ENR-501` Derive an independently reproducible 80-bit comparison value
   from the domain-separated complete transcript digest.
-- [ ] `ENR-502` Create device-bound signing and wrapping keys and authenticate
+- [x] `ENR-502` Create device-bound signing and wrapping keys and authenticate
   both sides of the ceremony.
 - [ ] `ENR-503` Exchange bounded messages and reject expired, replayed, or
   mismatched ceremony state without trusting provider metadata.
@@ -977,9 +1031,11 @@ Update this table whenever a checkpoint ships or its scope changes.
 
 ## Immediate Next Action
 
-Review and validate the uncommitted `ENR-501` canonical enrollment-protocol
-implementation. Keep the messages internal and non-authoritative: this
-increment does not create device keys, publish a shared manifest, distribute a
-vault key, or expose enrollment through the CLI. Continue through `ENR-502` to
-`ENR-505` as separate reviewable PRs, then cut `v0.2.0-alpha.4 (9)` only after
-the complete read-only two-device ceremony passes release validation.
+Review the uncommitted `ENR-502` device-identity and signed-message
+implementation. Keep the new identity APIs internal and non-authoritative:
+this increment proves possession of each participant's signing key and creates
+the later wrapping key, but it does not exchange messages, grant membership,
+distribute a vault key, or expose enrollment through the CLI. Continue through
+`ENR-503` to `ENR-505` as separate reviewable PRs, then cut
+`v0.2.0-alpha.4 (9)` only after the complete read-only two-device ceremony
+passes release validation.

@@ -193,10 +193,10 @@ The signing and wrapping keys MUST be distinct.
 ```
 
 Separate keys preserve purpose separation between authorization signatures and
-vault-key delivery. Both keys are bound by the enrollment transcript. The
-signing private key MUST be Secure Enclave-backed and require user presence;
-therefore ordinary entry-only manifests deliberately do not require a
-signature.
+vault-key delivery. Both keys are bound by the enrollment transcript. Both
+private keys MUST be Secure Enclave-backed, remain device-bound, and require
+user presence for private-key operations. Ordinary entry-only manifests
+deliberately do not require a signature.
 
 Revoked records remain in the manifest so a removed identity cannot be silently
 reintroduced as if it were new. Enrollment and revocation are authenticated
@@ -310,6 +310,98 @@ device encountering that format MUST retain its existing device-local
 checkpoint, release no newly observed plaintext, perform no mutation, and
 report that an upgrade is required. Feature or application build numbers do
 not belong in shared vault state.
+
+#### Signed Enrollment Messages
+
+`ENR-502` carries each `ENR-501` payload in a canonical signed envelope. The
+signature proves control of the signing private key represented inside that
+exact payload. It does not by itself prove that the inviter is an active owner,
+approve a membership change, or establish first trust.
+
+A signed invitation envelope has exactly:
+
+| Field | Requirement |
+|---|---|
+| `format` | Exactly `key-vault-enrollment-signed-invitation` |
+| `version` | Exactly `1` |
+| `invitation` | Exact canonical invitation object defined above |
+| `authentication` | Exact signing authentication object defined below |
+
+A signed join-request envelope has exactly:
+
+| Field | Requirement |
+|---|---|
+| `format` | Exactly `key-vault-enrollment-signed-join-request` |
+| `version` | Exactly `1` |
+| `joinRequest` | Exact canonical join-request object defined above |
+| `authentication` | Exact signing authentication object defined below |
+
+The authentication object has exactly:
+
+| Field | Requirement |
+|---|---|
+| `algorithm` | Exactly `P-256-ECDSA-SHA256` |
+| `signerDeviceID` | Exact ID derived from the signing and wrapping keys in the enclosed device identity |
+| `signature` | Canonical base64url encoding of the 64-byte low-`s` P-256 `r || s` signature |
+
+The invitation signature is over SHA-256 of:
+
+```text
+UTF8("work.tvr.key/v3/enrollment-signed-invitation/v1") ||
+0x00 ||
+JCS(invitation)
+```
+
+The join-request signature is over SHA-256 of:
+
+```text
+UTF8("work.tvr.key/v3/enrollment-signed-join-request/v1") ||
+0x00 ||
+JCS(joinRequest)
+```
+
+The distinct domains prevent a valid signature for one message kind from being
+reused as the other. Verification MUST require canonical envelope bytes, the
+exact current envelope schema, a low-`s` signature, a signer ID matching the
+enclosed identity, and a valid signature under that identity's signing public
+key. The invitation MUST be signed by `invitingDevice`; the join request MUST
+be signed by `joiningDevice`. A device-local signer is scoped to one exact
+vault ID and MUST NOT sign an invitation for another vault. Signing a join
+request requires the already verified invitation it answers; the signer vault
+ID MUST match that invitation and the join request MUST contain its exact
+digest.
+
+The join request continues to identify the digest of the unsigned canonical
+invitation payload. The comparison transcript likewise retains the two payload
+digests. Signature randomness therefore cannot change the value users compare,
+while each accepted carrier still proves possession of the corresponding
+private key.
+
+Canonical future signed-envelope versions are upgrade-required outcomes.
+Malformed or extended current-version envelopes remain invalid. Until the
+later owner-authorization and first-trust increments complete, a correctly
+signed enrollment envelope still grants no vault authority.
+
+#### Device-Local Enrollment Identity
+
+Each device creates one distinct P-256 signing key and one distinct P-256 key-
+agreement key for each vault enrollment identity. CryptoKit creates both
+private keys in the Secure Enclave with device-only accessibility, private-key
+usage, and user-presence access control. The private key material is not
+exportable.
+
+Key stores only CryptoKit's opaque persistent representations together with the
+derived public identity in one non-synchronizing, this-device-only Keychain
+record scoped to the signed application's access group and exact vault ID.
+Storing the pair as one record prevents a partially persisted signing/wrapping
+identity. The record is never written into the synchronized vault.
+
+Creation MUST fail if a record already exists. Loading MUST reconstruct both
+Secure Enclave keys and require their public keys to reproduce the stored
+identity. A malformed record, an inaccessible or invalidated private key, or an
+identity mismatch MUST fail closed and MUST NOT silently generate a replacement
+identity. Replacing an enrolled identity requires an explicit later recovery or
+revocation flow.
 
 ### Wrapped-Key Record
 
