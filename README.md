@@ -57,8 +57,17 @@ key config get <config-name>            # print a config value
 key config set <config-name> <value>    # update a config value
 key config list                         # list known config values
 key migrate --check                     # check v2 migration readiness without changing the vault
+key migrate --apply                     # explicitly create, verify, and select a read-only v3 copy
 key version [--json]                    # print the CLI version
 ```
+
+Migration never starts during installation or unlock. `key migrate --apply`
+rechecks the complete version 2 vault, retains every version 2 source file,
+and switches this Mac only after the new version 3 vault has been independently
+reopened. Other devices remain unchanged; enrollment is not enabled yet.
+Version 3 add, edit, duplicate, rename, and remove are also not enabled yet.
+Later version 2 changes made by another device are not copied into the migrated
+snapshot.
 
 When a file provider has not finished delivering a newer version 3 vault
 state, `--allow-stale` explicitly permits `get` and `copy` to read the last

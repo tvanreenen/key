@@ -97,7 +97,7 @@ protocol V3ManifestAncestryObserving: Sendable {
 /// Staging paths are non-authoritative transaction state. Publishing must be
 /// no-overwrite and durable before returning. An existing destination is
 /// successful only when it contains the exact requested bytes.
-protocol V3TransactionArtifactStore: V3ImmutableObjectReading {
+protocol V3TransactionArtifactStore: V3ImmutableObjectPublishing {
     func persistRecoveryIntent(
         _ data: Data,
         operationID: VaultTransactionOperationID
@@ -108,67 +108,11 @@ protocol V3TransactionArtifactStore: V3ImmutableObjectReading {
         maximumBytes: Int
     ) throws -> V3RepositoryObjectRead
 
-    func readStagedEntry(
-        entryID: String,
-        digest: Data,
-        operationID: VaultTransactionOperationID,
-        maximumBytes: Int
-    ) throws -> V3RepositoryObjectRead
-
-    func readStagedManifest(
-        digest: Data,
-        operationID: VaultTransactionOperationID,
-        maximumBytes: Int
-    ) throws -> V3RepositoryObjectRead
-
-    func stageEntry(
-        _ data: Data,
-        entryID: String,
-        digest: Data,
-        operationID: VaultTransactionOperationID
-    ) throws
-
-    func stageManifest(
-        _ data: Data,
-        digest: Data,
-        operationID: VaultTransactionOperationID
-    ) throws
-
-    func publishStagedEntry(
-        _ data: Data,
-        entryID: String,
-        digest: Data,
-        operationID: VaultTransactionOperationID
-    ) throws
-
-    func publishStagedManifest(
-        _ data: Data,
-        digest: Data,
-        operationID: VaultTransactionOperationID
-    ) throws
-
-    func removeStagedEntry(
-        _ data: Data,
-        entryID: String,
-        digest: Data,
-        operationID: VaultTransactionOperationID
-    ) throws
-
-    func removeStagedManifest(
-        _ data: Data,
-        digest: Data,
-        operationID: VaultTransactionOperationID
-    ) throws
-
     func removeRecoveryIntent(
         _ data: Data,
         operationID: VaultTransactionOperationID
     ) throws
 
-    func removeEmptyTransactionDirectories(
-        operationID: VaultTransactionOperationID,
-        entryIDs: [String]
-    ) throws
 }
 
 enum V3ImmutableTransactionPhase: Equatable, Sendable {

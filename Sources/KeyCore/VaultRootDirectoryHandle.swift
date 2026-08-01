@@ -155,11 +155,13 @@ public final class VaultRootDirectoryHandle: Sendable {
     func withFileDescriptor<Result>(
         _ operation: (Int32) throws -> Result
     ) throws -> Result {
-        try verifyConfiguredRootIdentity()
+        try requireConfiguredRootIdentity()
         return try operation(descriptor.rawValue)
     }
 
-    private func verifyConfiguredRootIdentity() throws {
+    /// Reopens the configured path and requires it to name this exact opened
+    /// directory before an external authority transition is committed.
+    func requireConfiguredRootIdentity() throws {
         let displayPath = rootURL.path(percentEncoded: false)
         let currentRoot: VaultRootDirectoryHandle
         do {

@@ -94,6 +94,19 @@ struct V2MigrationPreflightReport: Equatable, Sendable {
     }
 }
 
+struct V2MigrationSourceEntry: Equatable, Sendable {
+    let name: String
+    let type: SecretEntryType
+    let plaintext: String
+    let sourceData: Data
+}
+
+struct V2MigrationInspection: Equatable, Sendable {
+    let report: V2MigrationPreflightReport
+    let vaultKey: Data?
+    let entries: [V2MigrationSourceEntry]
+}
+
 /// Inspects the shipping version 2 vault without returning plaintext or
 /// invoking any file or Keychain mutation API.
 ///
@@ -102,18 +115,58 @@ struct V2MigrationPreflightReport: Equatable, Sendable {
 struct V2MigrationPreflight {
     private static let unsupportedPrototypeMetadataFilename = ".key-vault.json"
 
+    private enum InspectionContent {
+        case reportOnly
+        case migrationSnapshot
+
+        var retainsSource: Bool {
+            switch self {
+            case .reportOnly:
+                false
+            case .migrationSnapshot:
+                true
+            }
+        }
+    }
+
     let entryStore: EntryStore
     let cipher: VaultCipher
 
     func inspect(loadVaultKey: () throws -> Data) throws -> V2MigrationPreflightReport {
+        try inspect(
+            content: .reportOnly,
+            loadVaultKey: loadVaultKey
+        ).report
+    }
+
+    /// Performs the same complete preflight while retaining an exact,
+    /// authenticated source snapshot for an immediately following migration.
+    /// A blocked inspection never returns plaintext or a vault key.
+    func inspectForMigration(
+        loadVaultKey: () throws -> Data
+    ) throws -> V2MigrationInspection {
+        try inspect(
+            content: .migrationSnapshot,
+            loadVaultKey: loadVaultKey
+        )
+    }
+
+    private func inspect(
+        content: InspectionContent,
+        loadVaultKey: () throws -> Data
+    ) throws -> V2MigrationInspection {
         try refuseUnsupportedPrototypeMetadata()
         let entryNames = try entryStore.listEntries()
         guard !entryNames.isEmpty else {
-            return V2MigrationPreflightReport(
-                entryCount: 0,
-                secretCount: 0,
-                totpCount: 0,
-                problems: []
+            return V2MigrationInspection(
+                report: V2MigrationPreflightReport(
+                    entryCount: 0,
+                    secretCount: 0,
+                    totpCount: 0,
+                    problems: []
+                ),
+                vaultKey: nil,
+                entries: []
             )
         }
 
@@ -121,15 +174,22 @@ struct V2MigrationPreflight {
         var secretCount = 0
         var totpCount = 0
         var problems: [V2MigrationPreflightReport.Problem] = []
+        var sourceEntries: [V2MigrationSourceEntry] = []
+        if content.retainsSource {
+            sourceEntries.reserveCapacity(entryNames.count)
+        }
 
         for entryName in entryNames {
-            if !isValidV3EntryName(entryName) {
+            let hasCompatibleName = isValidV3EntryName(entryName)
+            if !hasCompatibleName {
                 problems.append(.init(entryName: entryName, kind: .incompatibleName))
             }
 
+            let stored: (file: SecretFile, data: Data)
             let file: SecretFile
             do {
-                file = try entryStore.load(entryName)
+                stored = try entryStore.loadStoredSecret(entryName)
+                file = stored.file
             } catch {
                 problems.append(.init(entryName: entryName, kind: .unreadableFile))
                 continue
@@ -149,12 +209,25 @@ struct V2MigrationPreflight {
 
             do {
                 let plaintext = try cipher.decrypt(file, keyData: vaultKey)
+                let normalizedPlaintext: String
                 if file.type == .totp {
                     do {
-                        _ = try TOTPGenerator.normalizeBase32Seed(plaintext)
+                        normalizedPlaintext = try TOTPGenerator
+                            .normalizeBase32Seed(plaintext)
                     } catch {
                         problems.append(.init(entryName: entryName, kind: .invalidTOTPSeed))
+                        continue
                     }
+                } else {
+                    normalizedPlaintext = plaintext
+                }
+                if content.retainsSource, hasCompatibleName {
+                    sourceEntries.append(V2MigrationSourceEntry(
+                        name: entryName,
+                        type: file.type,
+                        plaintext: normalizedPlaintext,
+                        sourceData: stored.data
+                    ))
                 }
             } catch CryptoKitError.authenticationFailure {
                 problems.append(.init(entryName: entryName, kind: .authenticationFailed))
@@ -177,11 +250,18 @@ struct V2MigrationPreflight {
                 || (leftName == rightName && $0.kind.rawValue < $1.kind.rawValue)
         }
 
-        return V2MigrationPreflightReport(
+        let report = V2MigrationPreflightReport(
             entryCount: entryNames.count,
             secretCount: secretCount,
             totpCount: totpCount,
             problems: problems
+        )
+        return V2MigrationInspection(
+            report: report,
+            vaultKey:
+                report.isReady && content.retainsSource ? vaultKey : nil,
+            entries:
+                report.isReady && content.retainsSource ? sourceEntries : []
         )
     }
 

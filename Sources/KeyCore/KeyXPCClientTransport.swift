@@ -128,6 +128,7 @@ private extension KeyServiceRequest {
         case .resolveConflicts: "conflict resolve"
         case .list: "list"
         case .migrationPreflight: "migration preflight"
+        case .migrationApply: "migration"
         case .setVaultDirectory: "vault directory configuration"
         case .setKeychainMode: "keychain configuration"
         case .get: "get"

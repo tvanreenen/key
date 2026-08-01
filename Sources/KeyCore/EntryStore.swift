@@ -105,6 +105,16 @@ public struct EntryStore {
     }
 
     public func load(_ name: String) throws -> SecretFile {
+        try loadStoredSecret(name).file
+    }
+
+    /// Returns the decoded v2 entry together with its exact source bytes.
+    ///
+    /// Migration retains these bytes only long enough to prove that the v2
+    /// source did not change between inspection and the final v3 selection.
+    func loadStoredSecret(
+        _ name: String
+    ) throws -> (file: SecretFile, data: Data) {
         let fileURL = try url(for: name)
         guard fileManager.fileExists(atPath: fileURL.path(percentEncoded: false)) else {
             throw AppError.entryNotFound("Secret '\(name)' was not found.")
@@ -112,7 +122,10 @@ public struct EntryStore {
 
         do {
             let data = try Data(contentsOf: fileURL)
-            return try decoder.decode(SecretFile.self, from: data)
+            return (
+                try decoder.decode(SecretFile.self, from: data),
+                data
+            )
         } catch let error as AppError {
             throw error
         } catch {

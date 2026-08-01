@@ -29,6 +29,7 @@ public enum Command: Equatable {
     case version(json: Bool)
     case config(ConfigCommand)
     case migrationPreflight
+    case migrationApply
     case status(json: Bool, verbose: Bool)
     case conflict(ConflictCommand)
     case unlock

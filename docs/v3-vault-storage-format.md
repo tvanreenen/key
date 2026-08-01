@@ -925,8 +925,8 @@ The report is a point-in-time diagnostic, not permission to skip later checks.
 A migration writer MUST rerun the complete preflight under the serialized
 mutation owner immediately before staging output.
 
-The later migration writer and transaction layer MUST implement this rollback
-contract:
+`key migrate --apply` is the only migration writer. It MUST implement this
+rollback contract:
 
 1. Treat the version 2 vault as the active and only authoritative state
    until a complete version 3 replacement has been staged and verified.
@@ -934,19 +934,36 @@ contract:
    location. Never overwrite a version 2 entry in place.
 3. Authenticate and reopen every staged version 3 entry through its candidate
    manifest before publishing an authenticated version 3 head.
-4. Make the authenticated-head commit and device-local checkpoint transition
-   the only operation that selects version 3 as active state.
-5. On failure before that transition, discard only incomplete version 3 staging
-   state; the untouched version 2 vault remains active.
-6. Retain the complete version 2 source after transition until the committed
-   version 3 vault has been reopened successfully and the user explicitly
-   chooses a later cleanup policy.
-7. On interruption during or after the transition, use transaction recovery
-   to select one complete state. Never combine version 2 and version 3
-   files into a partially migrated active vault.
+4. Publish and reopen every immutable entry before publishing and reopening the
+   authenticated genesis manifest.
+5. Establish the device-local checkpoint, then independently reopen the exact
+   published vault through the shipping version 3 reader.
+6. Recheck the exact version 2 source bytes and device-local configuration.
+   Writing `vault_id` is the last operation and the only operation that selects
+   version 3 as active on this device.
+7. On failure before selection, discard only removable staging state. The
+   untouched version 2 vault remains selected and readable.
+8. Retain the complete version 2 source after selection until the user
+   explicitly chooses a later cleanup policy.
+9. Never combine version 2 and version 3 files into one partially migrated
+   active state.
 
-`key migrate --check` implements only the diagnostic portion of this contract.
-It does not enable a version 3 writer or an apply command.
+A hard interruption can leave encrypted staging objects, published immutable
+objects, or a device-local checkpoint for an unselected candidate vault. Those
+artifacts have no authority while configuration lacks their exact `vault_id`.
+Migration does not recursively delete them because synchronized-provider-safe
+garbage collection is a later policy. Retrying builds and verifies a fresh
+candidate; it never treats leftover staging as trusted state.
+
+An empty version 2 vault still passes `--check` without key access. Explicit
+`--apply` requires an existing vault key and never creates or repairs one. A
+keyless empty vault has no established version 2 identity to migrate and is
+refused until synchronization delivers its key or the user creates ordinary
+version 2 content.
+
+The migrated version 3 vault is read-only in this release. Other devices remain
+on version 2, and their later changes are not imported into this snapshot.
+General version 3 writes and device enrollment require later releases.
 
 ## Unsupported Prototype Enclave State
 

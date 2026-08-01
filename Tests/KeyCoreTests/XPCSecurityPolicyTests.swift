@@ -20,6 +20,7 @@ struct XPCSecurityPolicyTests {
         ]),
         .list,
         .migrationPreflight,
+        .migrationApply,
         .setVaultDirectory(path: "/tmp/vault"),
         .setKeychainMode(.local),
         .get(name: "entry"),
@@ -116,6 +117,7 @@ struct XPCSecurityPolicyTests {
         #expect(KeyServiceRequest.unlock.responseTimeoutSeconds == 120)
         #expect(KeyServiceRequest.get(name: "entry").responseTimeoutSeconds == 120)
         #expect(KeyServiceRequest.migrationPreflight.responseTimeoutSeconds == 120)
+        #expect(KeyServiceRequest.migrationApply.responseTimeoutSeconds == nil)
         #expect(KeyServiceRequest.list.responseTimeoutSeconds == 30)
         #expect(KeyServiceRequest.vaultStatus.responseTimeoutSeconds == 30)
         #expect(
@@ -134,6 +136,18 @@ struct XPCSecurityPolicyTests {
         let decoded = try JSONDecoder().decode(KeyServiceRequest.self, from: encoded)
 
         #expect(decoded == .migrationPreflight)
+    }
+
+    @Test
+    func migrationApplyRequestRoundTripsAndRestartsTheHelper() throws {
+        let encoded = try JSONEncoder().encode(KeyServiceRequest.migrationApply)
+        let decoded = try JSONDecoder().decode(
+            KeyServiceRequest.self,
+            from: encoded
+        )
+
+        #expect(decoded == .migrationApply)
+        #expect(decoded.requiresHelperShutdownAfterSuccess)
     }
 
     @Test
@@ -156,6 +170,7 @@ struct XPCSecurityPolicyTests {
 
     @Test
     func mutationsWaitForDefinitiveCompletion() {
+        #expect(KeyServiceRequest.migrationApply.responseTimeoutSeconds == nil)
         #expect(
             KeyServiceRequest.setVaultDirectory(path: "/tmp/vault")
                 .responseTimeoutSeconds == nil

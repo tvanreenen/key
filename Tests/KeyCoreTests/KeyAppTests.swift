@@ -277,6 +277,34 @@ struct KeyCLIApplicationTests {
     }
 
     @Test
+    func migrationApplyPrintsTheVerifiedHelperReport() throws {
+        let report = """
+        Migration completed.
+        Entries migrated: 2 (1 secret, 1 TOTP entry).
+        This Mac now uses authenticated version 3 vault '018f4d38-7d5a-7b20-b0f1-97d6e96c44b3'.
+        The version 2 source files were retained unchanged. No cleanup was performed.
+        Version 3 is read-only in this release; add, edit, duplicate, rename, and remove remain unavailable.
+        Other devices remain on version 2. Their later changes are not copied into this version 3 snapshot, and enrollment requires a later release.
+
+        """
+        let transport = MemoryTransport { request in
+            #expect(request == .migrationApply)
+            return .success(report)
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: ["migrate", "--apply"]) == EXIT_SUCCESS)
+        #expect(io.stdout == report)
+        #expect(io.stderr == "")
+        #expect(transport.requests == [.migrationApply])
+    }
+
+    @Test
     func blockedMigrationPreflightPrintsOnlyToStderr() throws {
         let transport = MemoryTransport { request in
             #expect(request == .migrationPreflight)

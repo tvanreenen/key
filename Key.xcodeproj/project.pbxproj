@@ -53,6 +53,11 @@
 		A50D0001A50D0001A50D0001 /* V3ReadExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50D0002A50D0002A50D0002 /* V3ReadExecutor.swift */; };
 		A50E0001A50E0001A50E0001 /* V3ReadOnlyVaultRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50E0002A50E0002A50E0002 /* V3ReadOnlyVaultRuntime.swift */; };
 		A50F0001A50F0001A50F0001 /* VaultReadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50F0002A50F0002A50F0002 /* VaultReadService.swift */; };
+		A5120001A5120001A5120001 /* V3LocalMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5120002A5120002A5120002 /* V3LocalMigration.swift */; };
+		A5130001A5130001A5130001 /* V3ImmutableObjectPublicationFilesystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5130002A5130002A5130002 /* V3ImmutableObjectPublicationFilesystem.swift */; };
+		A5140001A5140001A5140001 /* V3AtomicStagedObjectWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5140002A5140002A5140002 /* V3AtomicStagedObjectWriter.swift */; };
+		A5150001A5150001A5150001 /* V3LocalGenesisBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5150002A5150002A5150002 /* V3LocalGenesisBuilder.swift */; };
+		A5160001A5160001A5160001 /* V3ImmutableObjectPublishing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5160002A5160002A5160002 /* V3ImmutableObjectPublishing.swift */; };
 		A5000011A5000011A5000011 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000012A5000012A5000012 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000013A5000013A5000013 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
@@ -161,6 +166,11 @@
 		A50D0002A50D0002A50D0002 /* V3ReadExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ReadExecutor.swift; sourceTree = "<group>"; };
 		A50E0002A50E0002A50E0002 /* V3ReadOnlyVaultRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ReadOnlyVaultRuntime.swift; sourceTree = "<group>"; };
 		A50F0002A50F0002A50F0002 /* VaultReadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultReadService.swift; sourceTree = "<group>"; };
+		A5120002A5120002A5120002 /* V3LocalMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3LocalMigration.swift; sourceTree = "<group>"; };
+		A5130002A5130002A5130002 /* V3ImmutableObjectPublicationFilesystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ImmutableObjectPublicationFilesystem.swift; sourceTree = "<group>"; };
+		A5140002A5140002A5140002 /* V3AtomicStagedObjectWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3AtomicStagedObjectWriter.swift; sourceTree = "<group>"; };
+		A5150002A5150002A5150002 /* V3LocalGenesisBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3LocalGenesisBuilder.swift; sourceTree = "<group>"; };
+		A5160002A5160002A5160002 /* V3ImmutableObjectPublishing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ImmutableObjectPublishing.swift; sourceTree = "<group>"; };
 		A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libJSONCanonicalization.a; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -240,6 +250,11 @@
 				A3040002A3040002A3040002 /* VaultContainedMutation.swift */,
 				A4090002A4090002A4090002 /* VaultObservation.swift */,
 				A50F0002A50F0002A50F0002 /* VaultReadService.swift */,
+				A5120002A5120002A5120002 /* V3LocalMigration.swift */,
+				A5130002A5130002A5130002 /* V3ImmutableObjectPublicationFilesystem.swift */,
+				A5140002A5140002A5140002 /* V3AtomicStagedObjectWriter.swift */,
+				A5150002A5150002A5150002 /* V3LocalGenesisBuilder.swift */,
+				A5160002A5160002A5160002 /* V3ImmutableObjectPublishing.swift */,
 				A4090012A4090012A4090012 /* VaultUXService.swift */,
 				A4010002A4010002A4010002 /* VaultTransactionMutationOwner.swift */,
 				B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */,
@@ -584,6 +599,11 @@
 				A3040001A3040001A3040001 /* VaultContainedMutation.swift in Sources */,
 				A4090001A4090001A4090001 /* VaultObservation.swift in Sources */,
 				A50F0001A50F0001A50F0001 /* VaultReadService.swift in Sources */,
+				A5120001A5120001A5120001 /* V3LocalMigration.swift in Sources */,
+				A5130001A5130001A5130001 /* V3ImmutableObjectPublicationFilesystem.swift in Sources */,
+				A5140001A5140001A5140001 /* V3AtomicStagedObjectWriter.swift in Sources */,
+				A5150001A5150001A5150001 /* V3LocalGenesisBuilder.swift in Sources */,
+				A5160001A5160001A5160001 /* V3ImmutableObjectPublishing.swift in Sources */,
 				A4090011A4090011A4090011 /* VaultUXService.swift in Sources */,
 				A4010001A4010001A4010001 /* VaultTransactionMutationOwner.swift in Sources */,
 				2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */,

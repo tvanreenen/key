@@ -50,6 +50,9 @@ public final class KeyCLIApplication {
         case .migrationPreflight:
             response = try transport.send(.migrationPreflight)
             return try handle(response, for: command)
+        case .migrationApply:
+            response = try transport.send(.migrationApply)
+            return try handle(response, for: command)
         case let .status(json, verbose):
             response = try transport.send(.vaultStatus)
             if response.vaultStatus == nil,
@@ -124,7 +127,7 @@ public final class KeyCLIApplication {
             break
         case .config:
             break
-        case .migrationPreflight, .unlock, .lock, .list:
+        case .migrationPreflight, .migrationApply, .unlock, .lock, .list:
             if let value = response.value, !value.isEmpty {
                 io.writeStdout(value)
             }
