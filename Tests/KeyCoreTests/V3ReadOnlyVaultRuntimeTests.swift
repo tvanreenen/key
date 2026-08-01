@@ -75,22 +75,88 @@ struct V3ReadOnlyVaultRuntimeTests {
     }
 
     @Test
-    func unavailableCheckpointManifestAndWrongKeyReleaseNothing() throws {
+    func missingCheckpointManifestIsTemporarilyUnavailable() throws {
         let fixture = try RuntimeFixture()
-        let unavailableKeys = RuntimeKeyProvider(key: fixture.vaultKey)
-        let unavailable = V3ReadOnlyVaultRuntime(
+        let keys = RuntimeKeyProvider(key: fixture.vaultKey)
+        let checkpointStore = TrackingRuntimeCheckpointStore(
+            checkpoint: fixture.checkpoint.canonicalBytes
+        )
+        let response = try serviceResponse(
             source: RuntimeObjectSource(manifests: [:], entries: [:]),
-            vaultID: fixture.vaultID,
-            checkpointStore: FixedRuntimeCheckpointStore(
-                checkpoint: fixture.checkpoint.canonicalBytes
-            ),
-            vaultKeyProvider: unavailableKeys.load
+            fixture: fixture,
+            checkpointStore: checkpointStore,
+            keys: keys
         )
 
-        #expect(throws: VaultUXServiceError.vaultIncomplete) {
-            try unavailable.unlock()
-        }
-        #expect(unavailableKeys.callCount == 0)
+        #expect(response.exitCode == KeyExitCode.temporarilyUnavailable.rawValue)
+        #expect(response.errorCode == .vaultIncomplete)
+        #expect(response.value == nil)
+        #expect(keys.callCount == 0)
+        #expect(checkpointStore.replaceCount == 0)
+        #expect(checkpointStore.checkpoint == fixture.checkpoint.canonicalBytes)
+    }
+
+    @Test
+    func malformedCheckpointManifestRequiresRecovery() throws {
+        let fixture = try RuntimeFixture()
+        let malformed = Data("not-json".utf8)
+        let digest = Data(SHA256.hash(data: malformed))
+        let checkpoint = try V3ManifestCheckpoint(
+            vaultID: fixture.vaultID,
+            envelopeDigest: digest
+        )
+        let keys = RuntimeKeyProvider(key: fixture.vaultKey)
+        let checkpointStore = TrackingRuntimeCheckpointStore(
+            checkpoint: checkpoint.canonicalBytes
+        )
+        let response = try serviceResponse(
+            source: RuntimeObjectSource(
+                manifests: [digest: malformed],
+                entries: [:]
+            ),
+            fixture: fixture,
+            checkpointStore: checkpointStore,
+            keys: keys
+        )
+
+        #expect(response.exitCode == KeyExitCode.securityFailure.rawValue)
+        #expect(response.errorCode == .recoveryRequired)
+        #expect(response.value == nil)
+        #expect(checkpointStore.replaceCount == 0)
+        #expect(checkpointStore.checkpoint == checkpoint.canonicalBytes)
+    }
+
+    @Test
+    func substitutedCheckpointManifestRequiresRecoveryBeforeKeyAccess() throws {
+        let fixture = try RuntimeFixture()
+        let keys = RuntimeKeyProvider(key: fixture.vaultKey)
+        let checkpointStore = TrackingRuntimeCheckpointStore(
+            checkpoint: fixture.checkpoint.canonicalBytes
+        )
+        let response = try serviceResponse(
+            source: RuntimeObjectSource(
+                manifests: [
+                    fixture.checkpoint.envelopeDigest:
+                        fixture.substitutedManifest
+                ],
+                entries: [:]
+            ),
+            fixture: fixture,
+            checkpointStore: checkpointStore,
+            keys: keys
+        )
+
+        #expect(response.exitCode == KeyExitCode.securityFailure.rawValue)
+        #expect(response.errorCode == .recoveryRequired)
+        #expect(response.value == nil)
+        #expect(keys.callCount == 0)
+        #expect(checkpointStore.replaceCount == 0)
+        #expect(checkpointStore.checkpoint == fixture.checkpoint.canonicalBytes)
+    }
+
+    @Test
+    func wrongVaultKeyRequiresRecoveryWithoutReleasingPlaintext() throws {
+        let fixture = try RuntimeFixture()
 
         let wrongKeys = RuntimeKeyProvider(
             key: Data(repeating: 0xFF, count: 32)
@@ -103,9 +169,54 @@ struct V3ReadOnlyVaultRuntimeTests {
             ),
             vaultKeyProvider: wrongKeys.load
         )
-        #expect(throws: V3ManifestError.authenticationFailed) {
+        #expect(throws: VaultUXServiceError.recoveryRequired) {
             try wrongKeyRuntime.unlock()
         }
+    }
+
+    private func serviceResponse(
+        source: RuntimeObjectSource,
+        fixture: RuntimeFixture,
+        checkpointStore: TrackingRuntimeCheckpointStore,
+        keys: RuntimeKeyProvider
+    ) throws -> KeyServiceResponse {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let runtime = V3ReadOnlyVaultRuntime(
+            source: source,
+            vaultID: fixture.vaultID,
+            checkpointStore: checkpointStore,
+            vaultKeyProvider: keys.load
+        )
+        let keyStore = MemoryVaultKeyStore()
+        let handler = KeyServiceHandler(
+            keyStore: keyStore,
+            entryStore: EntryStore(rootURL: root),
+            mutationOwner: VaultTransactionMutationOwner(),
+            vaultUXService: runtime,
+            vaultReader: runtime,
+            configuredVaultID: fixture.vaultID
+        )
+
+        let response = handler.handle(.get(
+            name: "mail/personal",
+            allowStale: false
+        ))
+
+        #expect(
+            try FileManager.default.contentsOfDirectory(atPath: root.path)
+                .isEmpty
+        )
+        #expect(keyStore.storeCount == 0)
+        #expect(keyStore.localKeyData == nil)
+        #expect(keyStore.iCloudKeyData == nil)
+        return response
     }
 
     @Test
@@ -141,6 +252,7 @@ private struct RuntimeFixture {
     let vaultKey = selectedVaultKey
     let source: RuntimeObjectSource
     let checkpoint: V3ManifestCheckpoint
+    let substitutedManifest: Data
 
     init() throws {
         let secret = try Self.sealedEntry(
@@ -159,6 +271,7 @@ private struct RuntimeFixture {
             secret.record,
             totp.record
         ])
+        substitutedManifest = try Self.localManifest(entries: [])
         let digest = Data(SHA256.hash(data: manifest))
         let verified = try V3ManifestAuthenticator().verify(
             manifest,
@@ -337,6 +450,42 @@ private struct FixedRuntimeCheckpointStore:
         vaultID _: String
     ) throws {
         throw AppError.operationRefused("Read-only test checkpoint store.")
+    }
+}
+
+private final class TrackingRuntimeCheckpointStore:
+    V3ManifestCheckpointStoring,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var stored: Data?
+    private var replacements = 0
+
+    init(checkpoint: Data?) {
+        stored = checkpoint
+    }
+
+    var checkpoint: Data? {
+        lock.withLock { stored }
+    }
+
+    var replaceCount: Int {
+        lock.withLock { replacements }
+    }
+
+    func loadCheckpoint(vaultID _: String) throws -> Data? {
+        lock.withLock { stored }
+    }
+
+    func replaceCheckpoint(
+        _ checkpoint: Data,
+        expectedCheckpoint _: Data?,
+        vaultID _: String
+    ) throws {
+        lock.withLock {
+            replacements += 1
+            stored = checkpoint
+        }
     }
 }
 
