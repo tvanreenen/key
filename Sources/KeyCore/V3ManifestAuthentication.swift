@@ -518,33 +518,11 @@ public struct V3ManifestAuthenticator: Sendable {
     }
 
     static func canonicalizeP256Signature(_ rawSignature: Data) throws -> Data {
-        guard rawSignature.count == 64 else {
+        do {
+            return try V3P256Signature.canonicalize(rawSignature)
+        } catch {
             throw V3ManifestError.authorizationFailed
         }
-        let order: [UInt8] = [
-            0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
-            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-            0xBC, 0xE6, 0xFA, 0xAD, 0xA7, 0x17, 0x9E, 0x84,
-            0xF3, 0xB9, 0xCA, 0xC2, 0xFC, 0x63, 0x25, 0x51
-        ]
-        var result = Array(rawSignature)
-        let s = Array(result[32..<64])
-        if !isLowP256Scalar(s) {
-            var normalized = [UInt8](repeating: 0, count: 32)
-            var borrow = 0
-            for index in stride(from: 31, through: 0, by: -1) {
-                let difference = Int(order[index]) - Int(s[index]) - borrow
-                if difference < 0 {
-                    normalized[index] = UInt8(difference + 256)
-                    borrow = 1
-                } else {
-                    normalized[index] = UInt8(difference)
-                    borrow = 0
-                }
-            }
-            result.replaceSubrange(32..<64, with: normalized)
-        }
-        return Data(result)
     }
 
     private func authenticate(
@@ -606,7 +584,7 @@ public struct V3ManifestAuthenticator: Sendable {
                 expectedByteCount: 64,
                 error: .authorizationFailed
             )
-            guard isLowP256Scalar(Array(signatureBytes.suffix(32))) else {
+            guard V3P256Signature.isCanonical(signatureBytes) else {
                 throw V3ManifestError.authorizationFailed
             }
 
@@ -1137,19 +1115,6 @@ private func decodeBase64URL(
         throw error
     }
     return decoded
-}
-
-private func isLowP256Scalar(_ scalar: [UInt8]) -> Bool {
-    let halfOrder: [UInt8] = [
-        0x7F, 0xFF, 0xFF, 0xFF, 0x80, 0x00, 0x00, 0x00,
-        0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-        0xDE, 0x73, 0x7D, 0x56, 0xD3, 0x8B, 0xCF, 0x42,
-        0x79, 0xDC, 0xE5, 0x61, 0x7E, 0x31, 0x92, 0xA8
-    ]
-    guard scalar.count == 32 else {
-        return false
-    }
-    return scalar == halfOrder || scalar.lexicographicallyPrecedes(halfOrder)
 }
 
 private func utf8Precedes(_ lhs: String, _ rhs: String) -> Bool {

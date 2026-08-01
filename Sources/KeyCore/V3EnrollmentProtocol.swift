@@ -99,7 +99,7 @@ struct V3EnrollmentDeviceIdentity: Equatable, Sendable {
         self.wrappingPublicKey = wrappingPublicKey
     }
 
-    fileprivate var canonicalValue: CanonicalJSONValue {
+    var canonicalValue: CanonicalJSONValue {
         .object([
             ("deviceID", .string(deviceID)),
             ("displayName", .string(displayName)),
@@ -231,7 +231,7 @@ struct V3EnrollmentInvitation: Equatable, Sendable {
         }
     }
 
-    fileprivate var canonicalValue: CanonicalJSONValue {
+    var canonicalValue: CanonicalJSONValue {
         .object([
             ("format", .string("key-vault-enrollment-invitation")),
             ("version", .integer(1)),
@@ -312,7 +312,7 @@ struct V3EnrollmentJoinRequest: Equatable, Sendable {
         Data(SHA256.hash(data: canonicalBytes))
     }
 
-    fileprivate var canonicalValue: CanonicalJSONValue {
+    var canonicalValue: CanonicalJSONValue {
         .object([
             ("format", .string("key-vault-enrollment-join-request")),
             ("version", .integer(1)),
@@ -439,7 +439,7 @@ private func parseEnrollmentObject(
     return object
 }
 
-private func decodeEnrollmentDevice(
+func decodeEnrollmentDevice(
     _ value: CanonicalJSONValue
 ) throws -> V3EnrollmentDeviceIdentity {
     guard let object = value.objectValue,
