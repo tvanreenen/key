@@ -24,7 +24,7 @@ enum V3ImmutableObjectPublicationError: Error, Equatable, LocalizedError {
 }
 
 struct V3FilesystemTransactionArtifactStore:
-    V3TransactionArtifactStore,
+    V3ImmutableObjectPublishing,
     Sendable
 {
     let rootHandle: VaultRootDirectoryHandle
@@ -71,37 +71,6 @@ struct V3FilesystemTransactionArtifactStore:
 }
 
 extension V3FilesystemTransactionArtifactStore {
-    func persistRecoveryIntent(
-        _ data: Data,
-        operationID: VaultTransactionOperationID
-    ) throws {
-        let intent: V3ImmutableTransactionRecoveryIntent
-        do {
-            intent = try V3ImmutableTransactionRecoveryIntent(
-                canonicalBytes: data
-            )
-        } catch {
-            throw V3ImmutableObjectPublicationError.digestMismatch
-        }
-        guard intent.operationID == operationID else {
-            throw V3ImmutableObjectPublicationError.invalidPath
-        }
-        try writeStagedObject(
-            data,
-            at: recoveryIntentPath(operationID: operationID)
-        )
-    }
-
-    func readRecoveryIntent(
-        operationID: VaultTransactionOperationID,
-        maximumBytes: Int
-    ) throws -> V3RepositoryObjectRead {
-        try readRecoveryObject(
-            at: recoveryIntentPath(operationID: operationID),
-            maximumBytes: maximumBytes
-        )
-    }
-
     func readStagedEntry(
         entryID: String,
         digest: Data,
@@ -251,22 +220,6 @@ extension V3FilesystemTransactionArtifactStore {
         )
     }
 
-    func removeRecoveryIntent(
-        _ data: Data,
-        operationID: VaultTransactionOperationID
-    ) throws {
-        let intent = try V3ImmutableTransactionRecoveryIntent(
-            canonicalBytes: data
-        )
-        guard intent.operationID == operationID else {
-            throw V3ImmutableObjectPublicationError.invalidPath
-        }
-        try removeExactRecoveryObject(
-            data,
-            at: recoveryIntentPath(operationID: operationID)
-        )
-    }
-
     func removeEmptyTransactionDirectories(
         operationID: VaultTransactionOperationID,
         entryIDs: [String]
@@ -291,7 +244,7 @@ extension V3FilesystemTransactionArtifactStore {
         try removeDirectoryIfEmpty(at: ".transactions")
     }
 
-    private func readRecoveryObject(
+    func readRecoveryObject(
         at path: String,
         maximumBytes: Int
     ) throws -> V3RepositoryObjectRead {
@@ -315,7 +268,7 @@ extension V3FilesystemTransactionArtifactStore {
         }
     }
 
-    private func writeStagedObject(
+    func writeStagedObject(
         _ data: Data,
         at path: String
     ) throws {
@@ -400,7 +353,7 @@ extension V3FilesystemTransactionArtifactStore {
         }
     }
 
-    private func removeExactRecoveryObject(
+    func removeExactRecoveryObject(
         _ expected: Data,
         at path: String
     ) throws {
@@ -574,12 +527,6 @@ private func stagedEntryPath(
     digest: Data
 ) -> String {
     ".transactions/\(operationID)/entries/\(entryID)/\(v3LowercaseHex(digest)).json"
-}
-
-private func recoveryIntentPath(
-    operationID: VaultTransactionOperationID
-) -> String {
-    ".transactions/\(operationID)/intent.json"
 }
 
 private func stagedManifestPath(

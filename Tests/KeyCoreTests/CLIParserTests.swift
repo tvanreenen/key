@@ -57,6 +57,12 @@ struct CLIParserTests {
     }
 
     @Test
+    func parsesExplicitMigrationApply() throws {
+        let command = try CLIParser.parse(arguments: ["migrate", "--apply"])
+        #expect(command == .migrationApply)
+    }
+
+    @Test
     func parsesGet() throws {
         let command = try CLIParser.parse(arguments: ["get", "github/personal"])
         #expect(command == .get(name: "github/personal"))
@@ -346,9 +352,9 @@ struct CLIParserTests {
     }
 
     @Test
-    func rejectsMigrationWithoutExplicitCheck() throws {
+    func rejectsMigrationWithoutAnExplicitAction() throws {
         #expect(throws: AppError.usage(
-            "Migration does not start automatically. Use `key migrate --check` to inspect readiness without changing the vault.\n\n\(CLIParser.usageText)"
+            "Migration does not start automatically. Use `key migrate --check` to inspect readiness or `key migrate --apply` to convert this device explicitly.\n\n\(CLIParser.usageText)"
         )) {
             try CLIParser.parse(arguments: ["migrate"])
         }
@@ -356,8 +362,8 @@ struct CLIParserTests {
 
     @Test
     func rejectsUnsupportedMigrationOptions() throws {
-        #expect(throws: AppError.usage("Unknown option '--apply' for migrate.\n\n\(CLIParser.usageText)")) {
-            try CLIParser.parse(arguments: ["migrate", "--apply"])
+        #expect(throws: AppError.usage("Unknown option '--automatic' for migrate.\n\n\(CLIParser.usageText)")) {
+            try CLIParser.parse(arguments: ["migrate", "--automatic"])
         }
     }
 

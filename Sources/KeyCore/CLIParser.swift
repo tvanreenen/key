@@ -53,6 +53,7 @@ public enum CLIParser {
       config set <config-name> <value>   Update a config value.
       config list                        List known config values.
       migrate --check                    Check v2 migration readiness without changing the vault.
+      migrate --apply                    Create and select a verified, read-only v3 copy on this Mac.
       status [--json] [--verbose]        Explain vault health without changing it.
       conflict list [--json]             List unresolved content conflicts.
       conflict show <id> [--json]        Show authenticated versions of a conflict.
@@ -75,6 +76,7 @@ public enum CLIParser {
     Options:
       --force  Skip overwrite or removal confirmation.
       --check  Run the read-only v2 migration preflight.
+      --apply  Explicitly create and select a read-only local v3 copy.
       --json   Print supported diagnostics as stable JSON.
       --verbose  Include authenticated version details in human-readable status.
       --allow-stale  Read the last complete trusted version when newer transport is incomplete.
@@ -169,16 +171,22 @@ public enum CLIParser {
     private static func parseMigrate(arguments: [String]) throws -> Command {
         guard let argument = arguments.first else {
             throw AppError.usage(
-                "Migration does not start automatically. Use `key migrate --check` to inspect readiness without changing the vault.\n\n\(usageText)"
+                "Migration does not start automatically. Use `key migrate --check` to inspect readiness or `key migrate --apply` to convert this device explicitly.\n\n\(usageText)"
             )
-        }
-        guard argument == "--check" else {
-            throw AppError.usage("Unknown option '\(argument)' for migrate.\n\n\(usageText)")
         }
         guard arguments.count == 1 else {
             throw AppError.usage("Unknown option '\(arguments[1])' for migrate.\n\n\(usageText)")
         }
-        return .migrationPreflight
+        return switch argument {
+        case "--check":
+            .migrationPreflight
+        case "--apply":
+            .migrationApply
+        default:
+            throw AppError.usage(
+                "Unknown option '\(argument)' for migrate.\n\n\(usageText)"
+            )
+        }
     }
 
     private static func parseStatus(arguments: [String]) throws -> Command {

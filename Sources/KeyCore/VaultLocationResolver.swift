@@ -218,6 +218,61 @@ public struct KeyConfigStore {
         )
     }
 
+    /// Selects one fully verified v3 vault without exposing `vault_id` as a
+    /// general-purpose configuration mutation.
+    ///
+    /// Migration calls this last and supplies the exact v2 runtime selection
+    /// under which it began. A changed root, key mode, or existing v3
+    /// selection fails rather than being overwritten.
+    func selectV3Vault(
+        vaultID: String,
+        expectedRootHandle: VaultRootDirectoryHandle,
+        expectedKeychainMode: KeychainMode
+    ) throws -> KeyConfiguration {
+        guard isValidV3UUID(vaultID) else {
+            throw AppError.invalidConfiguration(
+                "Cannot select an invalid version 3 vault ID."
+            )
+        }
+        let current = try configuredVaultRuntimeSelection()
+        guard current.vaultID == nil else {
+            throw AppError.operationRefused(
+                "This device already selects a version 3 vault."
+            )
+        }
+        guard current.rootURL.standardizedFileURL
+                == expectedRootHandle.rootURL.standardizedFileURL,
+              current.keychainMode == expectedKeychainMode
+        else {
+            throw AppError.operationRefused(
+                "The vault configuration changed during migration. Version 2 remains selected; retry with the current configuration."
+            )
+        }
+        try expectedRootHandle.requireConfiguredRootIdentity()
+
+        let paths = configurationPaths()
+        try writeConfigurationFile(
+            KeyConfigurationFile(
+                vaultDirectoryURL: current.rootURL,
+                keychainMode: current.keychainMode,
+                vaultID: vaultID
+            ),
+            to: paths.configFileURL
+        )
+        let pathSource: VaultPathSource =
+            current.rootURL.standardizedFileURL
+                == paths.defaultVaultURL.standardizedFileURL
+            ? .appSupportConfigDefault
+            : .appSupportConfigCustom
+        return KeyConfiguration(
+            configFileURL: paths.configFileURL,
+            vaultDirectoryURL: current.rootURL,
+            vaultPathSource: pathSource,
+            keychainMode: current.keychainMode,
+            vaultID: vaultID
+        )
+    }
+
     private func bootstrapPaths() throws -> BootstrapPaths {
         let paths = configurationPaths()
 

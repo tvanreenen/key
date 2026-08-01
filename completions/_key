@@ -13,7 +13,7 @@ _key_commands=(
   'rename:rename an entry'
   'remove:remove a secret'
   'list:list stored secrets'
-  'migrate:check version 2 migration readiness'
+  'migrate:check readiness or explicitly migrate this device to version 3'
   'unlock:warm the helper session'
   'lock:clear the helper session and stop the helper'
   'version:print the CLI version'
@@ -185,7 +185,8 @@ case "${state}" in
         ;;
       migrate)
         _arguments \
-          '--check[check readiness without changing the vault]'
+          '--check[check readiness without changing the vault]' \
+          '--apply[explicitly create, verify, and select a read-only version 3 copy]'
         ;;
       list|unlock|lock)
         ;;

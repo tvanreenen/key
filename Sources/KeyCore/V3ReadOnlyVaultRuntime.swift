@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 private struct V3ReadRuntimeState: Sendable {
@@ -141,11 +142,18 @@ private struct V3ReadRuntimeContext: Sendable {
         let checkpoint = try currentCheckpoint()
         let manifestData = try checkpointManifestData(checkpoint)
         let vaultKey = try vaultKeyProvider(reason)
-        let trustedCurrent = try replayProtector.trustCurrent(
-            manifestData,
-            expectedVaultID: vaultID,
-            vaultKey: vaultKey
-        )
+        let trustedCurrent: V3TrustedManifest
+        do {
+            trustedCurrent = try replayProtector.trustCurrent(
+                manifestData,
+                expectedVaultID: vaultID,
+                vaultKey: vaultKey
+            )
+        } catch is V3ManifestError {
+            throw VaultUXServiceError.recoveryRequired
+        } catch is V3ManifestReplayError {
+            throw VaultUXServiceError.recoveryRequired
+        }
         let classification = try repository.classify(
             trustedCurrent: trustedCurrent,
             vaultKeys: [vaultKey]
@@ -178,6 +186,11 @@ private struct V3ReadRuntimeContext: Sendable {
                 V3ManifestRepositoryLimits.standard.maximumManifestBytes
         ) {
         case let .available(data):
+            guard Data(SHA256.hash(data: data))
+                    == checkpoint.envelopeDigest
+            else {
+                throw VaultUXServiceError.recoveryRequired
+            }
             return data
         case .unavailable:
             throw VaultUXServiceError.vaultIncomplete

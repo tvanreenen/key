@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `752a22d` |
+| Production base | `main` at `5945539` (`v0.2.0-alpha.2`) |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/prepare-alpha-2-release` |
-| Current PR | #41 |
-| Active increment | Prepare the `v0.2.0-alpha.2` authenticated-reader release and contain unsafe legacy v2 key adoption |
-| Next work | Publish `v0.2.0-alpha.2`, then add explicit migration/bootstrap without enabling shared-vault writes |
+| Current branch | `agent/add-v3-migration-bootstrap` |
+| Current PR | Not opened |
+| Active increment | `MIG-412` — Implementation complete; local review pending |
+| Next work | Review the uncommitted migration/bootstrap implementation, then commit and open its draft PR |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -115,6 +115,7 @@ security or durability boundary and updates this tracker before it merges.
 | `UX-409` | Complete; PR #37 | Add typed service failures, status, and conflict-resolution CLI commands |
 | `READ-410` | Complete; PR #38 | Bind every v3 read to one exact authenticated entry and repository state |
 | `RUNTIME-411` | Complete; PR #39 | Connect exact v3 reads to the shipping helper while every v3 mutation remains disabled |
+| `MIG-412` | Implementation complete; review pending | Add explicit local version 2 migration and verified version 3 bootstrap |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -652,6 +653,76 @@ Acceptance gate:
 - [x] Focused service integration tests and the complete v3 suite pass; no v3
   migration, bootstrap, resolution publication, or write path is enabled.
 
+#### `MIG-412` — Opt-In Local Migration And Verified Bootstrap
+
+Status: implementation complete on `agent/add-v3-migration-bootstrap`; local
+review pending before commit.
+
+This increment adds the first deliberately enabled version 3 write path, but
+only for converting the current device's readable local version 2 vault. The
+user must request migration explicitly. Installing or unlocking a new release
+never starts it automatically.
+
+Scope:
+
+- Add one explicit migration command whose normal output first makes clear
+  that version 2 remains available and cleanup is deferred.
+- Run the complete version 2 compatibility and decryptability preflight again
+  inside the serialized mutation owner; an earlier `--check` result is never a
+  reusable authorization.
+- Generate a canonical vault ID and use the currently authenticated local
+  vault key to create a local-mode version 3 genesis state. Migration never
+  creates or repairs a vault key; a keyless empty vault is refused.
+- Decrypt each version 2 entry, normalize its supported value, assign a stable
+  version 3 entry identity and initial revision, then seal it with the complete
+  version 3 associated-data context.
+- Stage and publish immutable entries before the authenticated genesis
+  manifest, establish the device-local checkpoint, and independently reopen
+  the complete candidate through the shipping version 3 reader.
+- Write the device-local `vault_id` selection only after that verified reopen
+  succeeds and the configured path still names the exact root directory opened
+  for publication. Until then, version 2 remains the selected and authoritative
+  runtime.
+- Retain every version 2 source file after success. Cleanup requires a later,
+  explicit policy and is not part of this increment.
+- Fail or interrupt without selecting incomplete version 3 state or mixing it
+  into the active version 2 vault.
+- Treat encrypted staging, immutable objects, or a checkpoint left by a hard
+  interruption as non-authoritative while their exact `vault_id` is not
+  selected. Defer provider-safe orphan cleanup rather than deleting broadly.
+
+Out of scope:
+
+- shared-vault device enrollment or synchronized key distribution;
+- general version 3 add, edit, duplicate, rename, remove, or conflict-resolution
+  writes;
+- deleting, moving, or rewriting the retained version 2 source; and
+- automatic migration, provider-specific cleanup, or a version 2 downgrade
+  command.
+
+User-visible caveat:
+
+- The selected version 3 vault is read-only in this release. Add, edit,
+  duplicate, rename, remove, and conflict-resolution writes remain disabled.
+- Other devices continue using version 2. Any later version 2 changes are not
+  imported into this version 3 snapshot; enrollment and multi-device version 3
+  transport arrive in later increments.
+
+Acceptance gate:
+
+- Migration never begins implicitly and refuses a selected version 3 vault.
+- A blocker, authentication failure, write failure, interruption, or failed
+  verified reopen leaves version 2 selected and readable.
+- A keyless empty vault creates no key or version 3 state, and a root-directory
+  replacement before selection is refused.
+- A successful migration produces the same logical names, types, and values
+  through ordinary version 3 list, get, and copy commands.
+- The device-local checkpoint and `vault_id` are installed only for the exact
+  authenticated genesis that was independently reopened.
+- Every version 2 source file remains byte-for-byte intact after both success
+  and failure.
+- Every other version 3 mutation and all shared-vault behavior remain disabled.
+
 ### Committed CLI And Conflict Contract
 
 - Existing everyday commands retain their current names and default behavior.
@@ -812,8 +883,8 @@ explicit migration rather than another implicit synchronized-key repair.
 | Version | Expected build | Status | Checkpoint |
 |---|---:|---|---|
 | `v0.2.0-alpha.1` | 6 | Withdrawn | Retained release record and version 2 incident baseline; installation assets removed |
-| `v0.2.0-alpha.2` | 7 | Next release | Contain unsafe legacy version 2 key adoption and ship the authenticated version 3 reader while version 2 remains the default and every version 3 writer stays disabled |
-| `v0.2.0-alpha.3` | 8 | Planned | Add explicit, opt-in local version 2 to version 3 migration and verified bootstrap |
+| `v0.2.0-alpha.2` | 7 | Released | Contain unsafe legacy version 2 key adoption and ship the authenticated version 3 reader while version 2 remains the default and every version 3 writer stays disabled |
+| `v0.2.0-alpha.3` | 8 | Active | Add explicit, opt-in local version 2 to version 3 migration and verified bootstrap |
 | `v0.2.0-alpha.4` | 9 | Planned | Add device enrollment and multi-device read-only sharing |
 | `v0.2.0-alpha.5` | 10 | Planned | Enable guarded multi-device writes and conflict resolution |
 | `v0.2.0-beta.1` | 11 | Planned | Complete provider qualification, migration and rollback validation, recovery documentation, signing checks, and the required security-review gates |
@@ -834,9 +905,7 @@ Update this table whenever a checkpoint ships or its scope changes.
 
 ## Immediate Next Action
 
-Publish `v0.2.0-alpha.2` from clean `main`, verify the notarized GitHub and
-Homebrew artifacts, and only then add an explicit local-v2 migration/bootstrap
-command. Migration writes the device-local v3 selection only after the staged
-v3 vault, checkpoint, and verified reopen succeed. Keep shared-vault enrollment
-and every general v3 writer disabled until their remaining security and release
-gates pass.
+Review the uncommitted `MIG-412` implementation, then commit it and open its
+draft PR. Keep shared-vault enrollment and every general version 3 writer
+disabled. After the PR is reviewed, merged, and validated from `main`, stop and
+cut `v0.2.0-alpha.3 (8)` before beginning enrollment work.

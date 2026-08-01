@@ -11,6 +11,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     case resolveConflicts([VaultConflictResolution])
     case list
     case migrationPreflight
+    case migrationApply
     case setVaultDirectory(path: String)
     case setKeychainMode(KeychainMode)
     case get(name: String, allowStale: Bool)
@@ -30,7 +31,8 @@ public enum KeyServiceRequest: Codable, Equatable {
             120
         case .list:
             30
-        case .setVaultDirectory, .setKeychainMode, .addManual, .editManual,
+        case .migrationApply, .setVaultDirectory, .setKeychainMode,
+            .addManual, .editManual,
             .copyEntry, .moveEntry, .removeEntry, .resolveConflicts:
             nil
         }
@@ -39,7 +41,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     /// Whether the XPC client must complete the post-reply shutdown handshake.
     public var requiresHelperShutdownAfterSuccess: Bool {
         switch self {
-        case .lock, .setVaultDirectory:
+        case .lock, .setVaultDirectory, .migrationApply:
             true
         default:
             false
@@ -73,6 +75,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case resolveConflicts
         case list
         case migrationPreflight
+        case migrationApply
         case setVaultDirectory
         case setKeychainMode
         case get
@@ -119,6 +122,8 @@ public enum KeyServiceRequest: Codable, Equatable {
             self = .list
         case .migrationPreflight:
             self = .migrationPreflight
+        case .migrationApply:
+            self = .migrationApply
         case .setVaultDirectory:
             self = .setVaultDirectory(
                 path: try container.decode(
@@ -192,6 +197,8 @@ public enum KeyServiceRequest: Codable, Equatable {
             try container.encode(Kind.list, forKey: .kind)
         case .migrationPreflight:
             try container.encode(Kind.migrationPreflight, forKey: .kind)
+        case .migrationApply:
+            try container.encode(Kind.migrationApply, forKey: .kind)
         case let .setVaultDirectory(path):
             try container.encode(Kind.setVaultDirectory, forKey: .kind)
             try container.encode(path, forKey: .vaultDirectory)

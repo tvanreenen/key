@@ -10,6 +10,7 @@ public final class KeyServiceHandler {
     private let cipher: VaultCipher
     private let now: () -> Date
     private let mutationOwner: any VaultTransactionMutationOwning
+    private let migrationService: (any V3LocalMigrationServicing)?
     private let vaultUXService: any VaultUXServicing
     private let vaultReader: (any VaultReadServicing)?
     private let configuredVaultID: String?
@@ -37,6 +38,7 @@ public final class KeyServiceHandler {
             cipher: cipher,
             now: now,
             mutationOwner: VaultTransactionMutationOwner(),
+            migrationService: nil,
             vaultUXService: V2VaultUXService(entryStore: entryStore),
             vaultReader: nil,
             configuredVaultID: nil
@@ -51,6 +53,7 @@ public final class KeyServiceHandler {
         cipher: VaultCipher = VaultCipher(),
         now: @escaping () -> Date = Date.init,
         mutationOwner: any VaultTransactionMutationOwning,
+        migrationService: (any V3LocalMigrationServicing)? = nil,
         vaultUXService: (any VaultUXServicing)? = nil,
         vaultReader: (any VaultReadServicing)? = nil,
         configuredVaultID: String? = nil
@@ -61,6 +64,7 @@ public final class KeyServiceHandler {
         self.cipher = cipher
         self.now = now
         self.mutationOwner = mutationOwner
+        self.migrationService = migrationService
         self.vaultUXService = vaultUXService
             ?? V2VaultUXService(entryStore: entryStore)
         self.vaultReader = vaultReader
@@ -94,11 +98,44 @@ public final class KeyServiceHandler {
             rootURL: keyConfiguration.vaultDirectoryURL
         )
         guard let vaultID = keyConfiguration.vaultID else {
+            let mutationOwner = VaultTransactionMutationOwner()
+            let migrationService = DeferredV3LocalMigrationService {
+                let rootHandle = try VaultRootDirectoryHandle(
+                    opening: keyConfiguration.vaultDirectoryURL
+                )
+                return V3LocalMigrationService(
+                    entryStore: entryStore,
+                    cipher: VaultCipher(),
+                    objectStore: V3FilesystemTransactionArtifactStore(
+                        rootHandle: rootHandle
+                    ),
+                    checkpointStore: V3ManifestCheckpointKeychainStore(
+                        configuration: runtimeConfiguration
+                    ),
+                    loadVaultKey: { reason, createIfMissing in
+                        try keyStore.loadKey(
+                            mode: keyConfiguration.keychainMode,
+                            reason: reason,
+                            createIfMissing: createIfMissing
+                        )
+                    },
+                    selectVault: { vaultID in
+                        _ = try configStore.selectV3Vault(
+                            vaultID: vaultID,
+                            expectedRootHandle: rootHandle,
+                            expectedKeychainMode:
+                                keyConfiguration.keychainMode
+                        )
+                    }
+                )
+            }
             return KeyServiceHandler(
                 keyStore: keyStore,
                 entryStore: entryStore,
                 keychainMode: keyConfiguration.keychainMode,
-                configStore: configStore
+                configStore: configStore,
+                mutationOwner: mutationOwner,
+                migrationService: migrationService
             )
         }
 
@@ -132,14 +169,14 @@ public final class KeyServiceHandler {
     }
 
     public func handle(_ request: KeyServiceRequest) -> KeyServiceResponse {
-        if request.isVaultDirectoryChange {
+        if request.requiresExclusiveRuntimeSelectionChange {
             return requestQueue.sync(flags: .barrier) {
                 guard !vaultRootChangePending else {
                     return .failure(
                         "The vault directory changed and Key Agent is restarting. Run `key lock`, then retry the command."
                     )
                 }
-                let response = handleRequest(request)
+                let response = handleWithMutationOwnership(request)
                 if response.exitCode == EXIT_SUCCESS {
                     vaultRootChangePending = true
                 }
@@ -153,27 +190,39 @@ public final class KeyServiceHandler {
                     "The vault directory changed and Key Agent is restarting. Run `key lock`, then retry the command."
                 )
             }
-            if let mutationKind = request.transactionMutationKind {
-                do {
-                    return try mutationOwner.perform(mutationKind) { _ in
-                        if !request.isConflictResolution {
-                            try vaultUXService.authorizeMutation()
-                        }
-                        return handleRequest(request)
-                    }
-                } catch let error as AppError {
-                    return .failure(error)
-                } catch let error as VaultUXServiceError {
-                    return .failure(error)
-                } catch {
-                    return .failure(error.localizedDescription)
-                }
-            }
-            return handleRequest(request)
+            return handleWithMutationOwnership(request)
         }
     }
 
-    private func handleRequest(_ request: KeyServiceRequest) -> KeyServiceResponse {
+    private func handleWithMutationOwnership(
+        _ request: KeyServiceRequest
+    ) -> KeyServiceResponse {
+        guard let mutationKind = request.transactionMutationKind else {
+            return handleRequest(request)
+        }
+        do {
+            return try mutationOwner.perform(mutationKind) { context in
+                if !request.isConflictResolution {
+                    try vaultUXService.authorizeMutation()
+                }
+                return handleRequest(
+                    request,
+                    mutationContext: context
+                )
+            }
+        } catch let error as AppError {
+            return .failure(error)
+        } catch let error as VaultUXServiceError {
+            return .failure(error)
+        } catch {
+            return .failure(error.localizedDescription)
+        }
+    }
+
+    private func handleRequest(
+        _ request: KeyServiceRequest,
+        mutationContext: VaultTransactionMutationContext? = nil
+    ) -> KeyServiceResponse {
         do {
             try verifyConfiguredVaultRoot(for: request)
 
@@ -226,6 +275,23 @@ public final class KeyServiceHandler {
                     throw v3ReadOnlyOperationError()
                 }
                 return migrationPreflightResponse()
+            case .migrationApply:
+                guard vaultReader == nil else {
+                    throw v3ReadOnlyOperationError()
+                }
+                guard let migrationService,
+                      let mutationContext,
+                      mutationContext.kind == .migrateToV3
+                else {
+                    throw AppError.operationRefused(
+                        "Version 3 migration is unavailable in this helper runtime."
+                    )
+                }
+                return .success(
+                    try migrationService.migrate(
+                        operationID: mutationContext.operationID
+                    ).rendered
+                )
             case let .setVaultDirectory(path):
                 try setVaultDirectory(path)
                 return .success()
@@ -619,11 +685,20 @@ public final class KeyServiceHandler {
 
 private func v3ReadOnlyOperationError() -> AppError {
     AppError.operationRefused(
-        "Version 3 vault writes and migration are not enabled in this release."
+        "This device already selects a version 3 vault. Local version 2 migration is unavailable, and general version 3 writes are not enabled in this release."
     )
 }
 
 private extension KeyServiceRequest {
+    var requiresExclusiveRuntimeSelectionChange: Bool {
+        switch self {
+        case .setVaultDirectory, .migrationApply:
+            true
+        default:
+            false
+        }
+    }
+
     var isVaultDirectoryChange: Bool {
         if case .setVaultDirectory = self {
             true
@@ -646,6 +721,8 @@ private extension KeyServiceRequest {
             .removeEntry
         case .resolveConflicts:
             .resolveConflict
+        case .migrationApply:
+            .migrateToV3
         default:
             nil
         }
