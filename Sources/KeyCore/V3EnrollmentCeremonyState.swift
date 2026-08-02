@@ -53,6 +53,7 @@ enum V3EnrollmentCeremonyRole: String, Equatable, Sendable {
 enum V3EnrollmentCeremonyPhase: String, Equatable, Sendable {
     case awaitingJoinRequest
     case awaitingComparison
+    case publishingApproval
     case consumed
 }
 
@@ -69,6 +70,7 @@ struct V3EnrollmentCeremonyState: Equatable, Sendable {
     let phase: V3EnrollmentCeremonyPhase
     let signedInvitation: V3SignedEnrollmentInvitation
     let signedJoinRequest: V3SignedEnrollmentJoinRequest?
+    let ownerApproval: V3EnrollmentPreparedOwnerApproval?
 
     init(
         vaultID: String,
@@ -76,7 +78,8 @@ struct V3EnrollmentCeremonyState: Equatable, Sendable {
         role: V3EnrollmentCeremonyRole,
         phase: V3EnrollmentCeremonyPhase,
         signedInvitation: V3SignedEnrollmentInvitation,
-        signedJoinRequest: V3SignedEnrollmentJoinRequest?
+        signedJoinRequest: V3SignedEnrollmentJoinRequest?,
+        ownerApproval: V3EnrollmentPreparedOwnerApproval? = nil
     ) throws {
         guard isValidV3UUID(vaultID),
             invitationDigest.count == 32,
@@ -86,26 +89,50 @@ struct V3EnrollmentCeremonyState: Equatable, Sendable {
             throw V3EnrollmentCeremonyStateError.invalidState
         }
 
+        let validatedTranscript: V3EnrollmentTranscript?
         if let signedJoinRequest {
-            guard
-                signedJoinRequest.joinRequest.invitationDigest
+            guard signedJoinRequest.joinRequest.invitationDigest
                     == invitationDigest,
-                (try? V3EnrollmentTranscript(
-                    invitation: signedInvitation.invitation,
-                    joinRequest: signedJoinRequest.joinRequest
-                )) != nil
+                  let transcript = try? V3EnrollmentTranscript(
+                      invitation: signedInvitation.invitation,
+                      joinRequest: signedJoinRequest.joinRequest
+                  )
             else {
                 throw V3EnrollmentCeremonyStateError.invalidState
             }
+            validatedTranscript = transcript
+        } else {
+            validatedTranscript = nil
         }
 
         switch phase {
         case .awaitingJoinRequest:
-            guard role == .inviter, signedJoinRequest == nil else {
+            guard role == .inviter,
+                  signedJoinRequest == nil,
+                  ownerApproval == nil
+            else {
                 throw V3EnrollmentCeremonyStateError.invalidState
             }
-        case .awaitingComparison, .consumed:
-            guard signedJoinRequest != nil else {
+        case .awaitingComparison:
+            guard signedJoinRequest != nil, ownerApproval == nil else {
+                throw V3EnrollmentCeremonyStateError.invalidState
+            }
+        case .publishingApproval:
+            guard role == .inviter,
+                  signedJoinRequest != nil,
+                  let ownerApproval,
+                  ownerApproval.transcriptDigest
+                    == validatedTranscript?.digest
+            else {
+                throw V3EnrollmentCeremonyStateError.invalidState
+            }
+        case .consumed:
+            guard signedJoinRequest != nil,
+                  (role == .inviter) == (ownerApproval != nil),
+                  ownerApproval?.transcriptDigest
+                    == validatedTranscript?.digest
+                    || ownerApproval == nil
+            else {
                 throw V3EnrollmentCeremonyStateError.invalidState
             }
         }
@@ -116,6 +143,7 @@ struct V3EnrollmentCeremonyState: Equatable, Sendable {
         self.phase = phase
         self.signedInvitation = signedInvitation
         self.signedJoinRequest = signedJoinRequest
+        self.ownerApproval = ownerApproval
     }
 
     init(canonicalBytes: Data) throws {
@@ -133,8 +161,8 @@ struct V3EnrollmentCeremonyState: Equatable, Sendable {
             Set(object.map(\.0))
                 == Set([
                     "format", "invitationDigest", "phase", "role",
-                    "signedInvitation", "signedJoinRequest", "vaultID",
-                    "version",
+                    "signedInvitation", "signedJoinRequest", "ownerApproval",
+                    "vaultID", "version",
                 ]),
             ceremonyString("format", in: object)
                 == "key-vault-enrollment-ceremony-state",
@@ -164,14 +192,23 @@ struct V3EnrollmentCeremonyState: Equatable, Sendable {
             maximumBytes: V3SignedEnrollmentJoinRequest.maximumBytes,
             in: object
         )
+        let ownerApprovalBytes = try decodeOptionalCeremonyData(
+            "ownerApproval",
+            maximumBytes: V3EnrollmentPreparedOwnerApproval.maximumBytes,
+            in: object
+        )
         let signedInvitation: V3SignedEnrollmentInvitation
         let signedJoinRequest: V3SignedEnrollmentJoinRequest?
+        let ownerApproval: V3EnrollmentPreparedOwnerApproval?
         do {
             signedInvitation = try V3SignedEnrollmentInvitation(
                 canonicalBytes: invitationBytes
             )
             signedJoinRequest = try joinRequestBytes.map {
                 try V3SignedEnrollmentJoinRequest(canonicalBytes: $0)
+            }
+            ownerApproval = try ownerApprovalBytes.map {
+                try V3EnrollmentPreparedOwnerApproval(canonicalBytes: $0)
             }
         } catch {
             throw V3EnrollmentCeremonyStateError.invalidState
@@ -183,7 +220,8 @@ struct V3EnrollmentCeremonyState: Equatable, Sendable {
             role: role,
             phase: phase,
             signedInvitation: signedInvitation,
-            signedJoinRequest: signedJoinRequest
+            signedJoinRequest: signedJoinRequest,
+            ownerApproval: ownerApproval
         )
     }
 
@@ -209,6 +247,12 @@ struct V3EnrollmentCeremonyState: Equatable, Sendable {
                 (
                     "signedJoinRequest",
                     signedJoinRequest.map {
+                        .string(Base64URL.encode($0.canonicalBytes))
+                    } ?? .null
+                ),
+                (
+                    "ownerApproval",
+                    ownerApproval.map {
                         .string(Base64URL.encode($0.canonicalBytes))
                     } ?? .null
                 ),

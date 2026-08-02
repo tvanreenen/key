@@ -153,7 +153,9 @@
           "const": "p256-ecies-x963-sha256-aes-gcm"
         },
         "ciphertext": {
-          "$ref": "v3-common.schema.json#/$defs/base64url"
+          "$ref": "v3-common.schema.json#/$defs/base64url",
+          "minLength": 168,
+          "maxLength": 168
         }
       }
     },

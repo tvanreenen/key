@@ -175,8 +175,8 @@ struct V3ManifestAuthenticationTests {
         )) {
             _ = try V3ManifestAuthenticator().parse(replacing(
                 shared,
-                "\"ciphertext\":\"AQID\",\"deviceID\":\"\(fixture.deviceID)\"}",
-                with: "\"ciphertext\":\"AQID\",\"deviceID\":\"\(fixture.deviceID)\",\"keyEpoch\":1}"
+                "\"ciphertext\":\"\(fixture.wrapperCiphertext)\",\"deviceID\":\"\(fixture.deviceID)\"}",
+                with: "\"ciphertext\":\"\(fixture.wrapperCiphertext)\",\"deviceID\":\"\(fixture.deviceID)\",\"keyEpoch\":1}"
             ))
         }
     }
@@ -207,8 +207,8 @@ struct V3ManifestAuthenticationTests {
         )) {
             _ = try V3ManifestAuthenticator().parse(replacing(
                 shared,
-                "\"ciphertext\":\"AQID\",\"deviceID\":\"\(fixture.deviceID)\"}",
-                with: "\"ciphertext\":\"AQID\",\"deviceID\":\"\(fixture.deviceID)\",\"keyID\":\"\(Fixture.keyID.rawValue)\"}"
+                "\"ciphertext\":\"\(fixture.wrapperCiphertext)\",\"deviceID\":\"\(fixture.deviceID)\"}",
+                with: "\"ciphertext\":\"\(fixture.wrapperCiphertext)\",\"deviceID\":\"\(fixture.deviceID)\",\"keyID\":\"\(Fixture.keyID.rawValue)\"}"
             ))
         }
     }
@@ -332,7 +332,11 @@ struct V3ManifestAuthenticationTests {
             ("status", "\"status\":\"active\"", "\"status\":\"revoked\""),
             ("signingPublicKey", fixture.signingPublicKeyValue, fixture.alternateSigningPublicKeyValue),
             ("wrappingPublicKey", fixture.wrappingPublicKeyValue, fixture.alternateWrappingPublicKeyValue),
-            ("wrappedKeyCiphertext", "\"ciphertext\":\"AQID\",\"deviceID\"", "\"ciphertext\":\"BAUG\",\"deviceID\"")
+            (
+                "wrappedKeyCiphertext",
+                "\"ciphertext\":\"\(fixture.wrapperCiphertext)\",\"deviceID\"",
+                "\"ciphertext\":\"\(fixture.alternateWrapperCiphertext)\",\"deviceID\""
+            )
         ]
 
         for (_, original, replacement) in sharedReplacements {
@@ -586,6 +590,20 @@ struct V3ManifestAuthenticationTests {
         #expect(throws: V3ManifestError.semanticViolation("wrappedKeys.coverage")) {
             try V3ManifestAuthenticator().verify(
                 missingWrapper,
+                vaultKey: Fixture.vaultKey,
+                trustAnchor: try Fixture.trustAnchor(for: parent)
+            )
+        }
+
+        let malformedWrapper = try signedCandidate(fixture.content(
+            parents: parentReferences,
+            wrapperCiphertext: "AQID"
+        ))
+        #expect(throws: V3ManifestError.semanticViolation(
+            "wrappedKeys.ciphertext"
+        )) {
+            try V3ManifestAuthenticator().verify(
+                malformedWrapper,
                 vaultKey: Fixture.vaultKey,
                 trustAnchor: try Fixture.trustAnchor(for: parent)
             )
@@ -1055,6 +1073,14 @@ private struct Fixture {
         )
     }
 
+    var wrapperCiphertext: String {
+        v3TestWrappedKeyCiphertext()
+    }
+
+    var alternateWrapperCiphertext: String {
+        v3TestWrappedKeyCiphertext(scalar: 3, fill: 0x7c)
+    }
+
     func content(
         parents: CanonicalJSONValue = .array([]),
         mode: V3VaultMode = .shared,
@@ -1064,6 +1090,7 @@ private struct Fixture {
         includeDevice: Bool = true,
         includeWrapper: Bool? = nil,
         wrapperDeviceID: String? = nil,
+        wrapperCiphertext: String? = nil,
         additionalDeviceRole: V3DeviceRole? = nil,
         deviceID overriddenDeviceID: String? = nil,
         entryName: String = "email/personal",
@@ -1080,6 +1107,7 @@ private struct Fixture {
                 includeDevice: includeDevice,
                 includeWrapper: includeWrapper,
                 wrapperDeviceID: wrapperDeviceID,
+                wrapperCiphertext: wrapperCiphertext,
                 additionalDeviceRole: additionalDeviceRole,
                 deviceID: overriddenDeviceID,
                 entryName: entryName,
@@ -1097,6 +1125,7 @@ private struct Fixture {
         includeDevice: Bool,
         includeWrapper: Bool?,
         wrapperDeviceID: String?,
+        wrapperCiphertext: String?,
         additionalDeviceRole: V3DeviceRole?,
         deviceID overriddenDeviceID: String?,
         entryName: String,
@@ -1152,14 +1181,26 @@ private struct Fixture {
             wrapperRecords.append((actualWrapperDeviceID, .object([
                 ("deviceID", .string(actualWrapperDeviceID)),
                 ("algorithm", .string("p256-ecies-x963-sha256-aes-gcm")),
-                ("ciphertext", .string("AQID"))
+                (
+                    "ciphertext",
+                    .string(
+                        wrapperCiphertext
+                            ?? v3TestWrappedKeyCiphertext()
+                    )
+                )
             ])))
         }
         if additionalDeviceRole != nil {
             wrapperRecords.append((alternateDeviceID, .object([
                 ("deviceID", .string(alternateDeviceID)),
                 ("algorithm", .string("p256-ecies-x963-sha256-aes-gcm")),
-                ("ciphertext", .string("BAUG"))
+                (
+                    "ciphertext",
+                    .string(v3TestWrappedKeyCiphertext(
+                        scalar: 2,
+                        fill: 0x6b
+                    ))
+                )
             ])))
         }
         let wrappedKeys = wrapperRecords

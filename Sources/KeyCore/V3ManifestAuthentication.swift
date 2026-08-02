@@ -258,6 +258,47 @@ public struct V3ManifestAuthenticator: Sendable {
         )
     }
 
+    /// Verifies the one authority transition that cannot have a parent owner:
+    /// converting a device-local manifest into the first shared manifest.
+    ///
+    /// The caller must independently authenticate the exact enrollment
+    /// transcript before using this gate. Ordinary repository discovery does
+    /// not receive that evidence and therefore cannot self-authorize a local
+    /// conversion merely from synchronized candidate bytes.
+    func verifyLocalToSharedEnrollment(
+        _ candidateData: Data,
+        vaultKey: Data,
+        parent: V3VerifiedManifest,
+        transcript: V3EnrollmentTranscript
+    ) throws -> V3VerifiedManifest {
+        guard vaultKey.count == 32 else {
+            throw V3ManifestError.invalidVaultKey
+        }
+        let candidate = try parse(candidateData)
+        let parents = try validateParentSet(
+            of: candidate,
+            against: .verifiedParents([parent])
+        )
+        let input = try authenticate(candidate, vaultKey: vaultKey)
+        try validateLocalToSharedEnrollmentTransition(
+            candidate,
+            parent: parent.envelope,
+            transcript: transcript,
+            input: input
+        )
+        try validateEntryRevisionTransition(
+            to: candidate.content.manifest,
+            from: parents
+        )
+        try validateSemantics(candidate.content.manifest)
+        try validateAuthorizationOrdering(candidate.authorizations)
+
+        return V3VerifiedManifest(
+            envelope: candidate,
+            envelopeDigest: Data(SHA256.hash(data: candidateData))
+        )
+    }
+
     private func validateParentSet(
         of candidate: V3ManifestEnvelope,
         against trustAnchor: V3ManifestTrustAnchor
@@ -606,6 +647,98 @@ public struct V3ManifestAuthenticator: Sendable {
             }
         }
     }
+
+    private func validateLocalToSharedEnrollmentTransition(
+        _ candidate: V3ManifestEnvelope,
+        parent: V3ManifestEnvelope,
+        transcript: V3EnrollmentTranscript,
+        input: Data
+    ) throws {
+        let invitation = transcript.invitation
+        let joinRequest = transcript.joinRequest
+        let parentBody = parent.content.manifest
+        let candidateBody = candidate.content.manifest
+        guard parentBody.mode == .local,
+              parentBody.devices.isEmpty,
+              parentBody.wrappedKeys.isEmpty,
+              candidateBody.mode == .shared,
+              candidateBody.vaultID == parentBody.vaultID,
+              candidateBody.keyID == parentBody.keyID,
+              candidateBody.entries == parentBody.entries,
+              invitation.vaultID == parentBody.vaultID,
+              invitation.parentManifestDigest
+                == Data(SHA256.hash(data: parent.canonicalBytes)),
+              invitation.vaultFormatVersion == 3,
+              joinRequest.invitationDigest == invitation.digest
+        else {
+            throw V3ManifestError.authorizationFailed
+        }
+
+        let expectedDevices = [
+            enrollmentManifestDevice(
+                invitation.invitingDevice,
+                role: .owner
+            ),
+            enrollmentManifestDevice(
+                joinRequest.joiningDevice,
+                role: invitation.invitedRole
+            ),
+        ].sorted { utf8Precedes($0.deviceID, $1.deviceID) }
+        guard candidateBody.devices == expectedDevices,
+              candidateBody.wrappedKeys.map(\.deviceID)
+                == expectedDevices.map(\.deviceID),
+              candidate.authorizations.count == 1,
+              candidate.authorizations[0].signerDeviceID
+                == invitation.invitingDevice.deviceID
+        else {
+            throw V3ManifestError.authorizationFailed
+        }
+
+        let authorization = candidate.authorizations[0]
+        let signatureBytes = try decodeBase64URL(
+            authorization.signature,
+            expectedByteCount: 64,
+            error: .authorizationFailed
+        )
+        guard V3P256Signature.isCanonical(signatureBytes) else {
+            throw V3ManifestError.authorizationFailed
+        }
+        do {
+            let publicKey = try P256.Signing.PublicKey(
+                x963Representation:
+                    invitation.invitingDevice.signingPublicKey
+            )
+            let signature = try P256.Signing.ECDSASignature(
+                rawRepresentation: signatureBytes
+            )
+            let digest = Data(SHA256.hash(data: input))
+            guard publicKey.isValidSignature(signature, for: digest) else {
+                throw V3ManifestError.authorizationFailed
+            }
+        } catch let error as V3ManifestError {
+            throw error
+        } catch {
+            throw V3ManifestError.authorizationFailed
+        }
+    }
+}
+
+private func enrollmentManifestDevice(
+    _ identity: V3EnrollmentDeviceIdentity,
+    role: V3DeviceRole
+) -> V3ManifestDevice {
+    V3ManifestDevice(
+        deviceID: identity.deviceID,
+        displayName: identity.displayName,
+        role: role,
+        status: .active,
+        signingPublicKey: V3DevicePublicKey(
+            value: Base64URL.encode(identity.signingPublicKey)
+        ),
+        wrappingPublicKey: V3DevicePublicKey(
+            value: Base64URL.encode(identity.wrappingPublicKey)
+        )
+    )
 }
 
 private func manifestError(for error: CanonicalJSONError) -> V3ManifestError {
@@ -988,10 +1121,17 @@ private func validateDeviceOrderingAndIdentity(_ devices: [V3ManifestDevice]) th
 private func validateWrappedKeyOrdering(_ wrappedKeys: [V3WrappedKey]) throws {
     var previousDeviceID: String?
     for wrappedKey in wrappedKeys {
-        _ = try decodeBase64URL(
+        let ciphertext = try decodeBase64URL(
             wrappedKey.ciphertext,
             error: .semanticViolation("wrappedKeys.ciphertext")
         )
+        guard (try? V3EnrollmentWrappedVaultKeyCiphertext(
+            combinedBytes: ciphertext
+        )) != nil else {
+            throw V3ManifestError.semanticViolation(
+                "wrappedKeys.ciphertext"
+            )
+        }
         if let previousDeviceID,
            !utf8Precedes(previousDeviceID, wrappedKey.deviceID) {
             throw V3ManifestError.semanticViolation("wrappedKeys.order")

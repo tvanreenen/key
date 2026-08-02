@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 @testable import KeyCore
 
@@ -79,6 +80,21 @@ final class MemoryVaultKeyStore: VaultKeyStoring, @unchecked Sendable {
     func invalidate() {
         invalidateCount += 1
     }
+}
+
+func v3TestWrappedKeyCiphertext(
+    scalar: UInt8 = 1,
+    fill: UInt8 = 0x5a
+) -> String {
+    var privateBytes = Data(repeating: 0, count: 32)
+    privateBytes[31] = scalar
+    let key = try! P256.KeyAgreement.PrivateKey(
+        rawRepresentation: privateBytes
+    )
+    var bytes = Data([V3EnrollmentWrappedVaultKeyCiphertext.formatVersion])
+    bytes.append(key.publicKey.x963Representation)
+    bytes.append(Data(repeating: fill, count: 12 + 32 + 16))
+    return Base64URL.encode(bytes)
 }
 
 final class MemoryIO: InputOutput {
