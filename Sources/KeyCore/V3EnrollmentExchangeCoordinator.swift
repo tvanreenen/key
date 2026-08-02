@@ -223,6 +223,99 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
         ).state
     }
 
+    /// Persists the exact randomized owner approval before any shared
+    /// manifest publication. Repeating the same preparation is idempotent;
+    /// a different candidate for the same transcript is a conflict.
+    func prepareOwnerApproval(
+        vaultID: String,
+        invitationDigest: Data,
+        approval: V3EnrollmentPreparedOwnerApproval,
+        at unixTime: UInt64
+    ) throws -> V3EnrollmentCeremonyState {
+        let loaded = try loadValidatedState(
+            vaultID: vaultID,
+            invitationDigest: invitationDigest
+        )
+        guard let loaded else {
+            throw V3EnrollmentCeremonyStateError.notFound
+        }
+        let state = loaded.state
+        guard state.role == .inviter else {
+            throw V3EnrollmentCeremonyStateError.wrongRole
+        }
+        guard state.phase != .consumed else {
+            throw V3EnrollmentCeremonyStateError.replayed
+        }
+        guard state.transcript?.digest == approval.transcriptDigest else {
+            throw V3EnrollmentCeremonyStateError.conflict
+        }
+        if state.phase == .publishingApproval {
+            guard state.ownerApproval == approval else {
+                throw V3EnrollmentCeremonyStateError.conflict
+            }
+            return state
+        }
+        guard state.phase == .awaitingComparison,
+              state.ownerApproval == nil
+        else {
+            throw V3EnrollmentCeremonyStateError.invalidState
+        }
+        try state.signedInvitation.invitation.requireUnexpired(
+            at: unixTime
+        )
+        let prepared = try V3EnrollmentCeremonyState(
+            vaultID: state.vaultID,
+            invitationDigest: state.invitationDigest,
+            role: state.role,
+            phase: .publishingApproval,
+            signedInvitation: state.signedInvitation,
+            signedJoinRequest: state.signedJoinRequest,
+            ownerApproval: approval
+        )
+        try stateStore.replaceState(
+            prepared.canonicalBytes,
+            expectedState: loaded.bytes,
+            vaultID: vaultID,
+            invitationDigest: invitationDigest
+        )
+        return prepared
+    }
+
+    /// Reopens inviter state for ENR-504. Once an exact approval has been
+    /// prepared, retries may finish publication after the invitation expires;
+    /// no new candidate or approval can be created at that point.
+    func resumeOwnerApproval(
+        vaultID: String,
+        invitationDigest: Data,
+        at unixTime: UInt64
+    ) throws -> V3EnrollmentCeremonyState {
+        guard let loaded = try loadValidatedState(
+            vaultID: vaultID,
+            invitationDigest: invitationDigest
+        ) else {
+            throw V3EnrollmentCeremonyStateError.notFound
+        }
+        let state = loaded.state
+        guard state.role == .inviter else {
+            throw V3EnrollmentCeremonyStateError.wrongRole
+        }
+        switch state.phase {
+        case .awaitingComparison:
+            try state.signedInvitation.invitation.requireUnexpired(
+                at: unixTime
+            )
+        case .publishingApproval:
+            guard state.ownerApproval != nil else {
+                throw V3EnrollmentCeremonyStateError.invalidState
+            }
+        case .awaitingJoinRequest:
+            throw V3EnrollmentCeremonyStateError.invalidState
+        case .consumed:
+            throw V3EnrollmentCeremonyStateError.replayed
+        }
+        return state
+    }
+
     /// Marks the exact compared transcript as consumed using a CAS guard.
     ///
     /// This is non-authoritative bookkeeping for ENR-504 and ENR-505. Calling
@@ -253,11 +346,20 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
         if state.phase == .consumed {
             return state
         }
-        try state.signedInvitation.invitation.requireUnexpired(
-            at: unixTime
-        )
-        guard state.phase == .awaitingComparison else {
-            throw V3EnrollmentCeremonyStateError.invalidState
+        switch state.role {
+        case .inviter:
+            guard state.phase == .publishingApproval,
+                  state.ownerApproval != nil
+            else {
+                throw V3EnrollmentCeremonyStateError.invalidState
+            }
+        case .joiner:
+            try state.signedInvitation.invitation.requireUnexpired(
+                at: unixTime
+            )
+            guard state.phase == .awaitingComparison else {
+                throw V3EnrollmentCeremonyStateError.invalidState
+            }
         }
         let consumed = try V3EnrollmentCeremonyState(
             vaultID: state.vaultID,
@@ -265,7 +367,8 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
             role: state.role,
             phase: .consumed,
             signedInvitation: state.signedInvitation,
-            signedJoinRequest: state.signedJoinRequest
+            signedJoinRequest: state.signedJoinRequest,
+            ownerApproval: state.ownerApproval
         )
         try stateStore.replaceState(
             consumed.canonicalBytes,

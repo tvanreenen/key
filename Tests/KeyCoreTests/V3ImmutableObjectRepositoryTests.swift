@@ -86,7 +86,10 @@ struct V3ImmutableObjectRepositoryTests {
         let contentChild = try fixture.manifest(parents: [parent])
         let securityChild = try fixture.manifest(
             parents: [parent],
-            wrapperCiphertext: "BAUG",
+            wrapperCiphertext: v3TestWrappedKeyCiphertext(
+                scalar: 2,
+                fill: 0x6b
+            ),
             authorizeWithOwner: true
         )
         let source = MemoryV3ObjectSource(manifests: [
@@ -632,7 +635,7 @@ private struct SharedManifestFixture {
 
     func manifest(
         parents: [Data] = [],
-        wrapperCiphertext: String = "AQID",
+        wrapperCiphertext: String = v3TestWrappedKeyCiphertext(),
         authorizeWithOwner: Bool = false
     ) throws -> Data {
         let keyID = try V3VaultKeyID.derive(

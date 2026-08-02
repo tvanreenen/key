@@ -454,9 +454,10 @@ canonical JSON with exactly:
 | `vaultID` | Exact canonical version 3 vault UUID |
 | `invitationDigest` | Canonical base64url 32-byte invitation payload digest |
 | `role` | Exactly `inviter` or `joiner` |
-| `phase` | Exactly `awaitingJoinRequest`, `awaitingComparison`, or `consumed` |
+| `phase` | Exactly `awaitingJoinRequest`, `awaitingComparison`, `publishingApproval`, or `consumed` |
 | `signedInvitation` | Canonical base64url of the exact signed invitation carrier bytes |
 | `signedJoinRequest` | JSON `null`, or canonical base64url of the exact signed join-request carrier bytes |
+| `ownerApproval` | JSON `null`, or canonical base64url of the exact prepared owner-approval record |
 
 The inviter may wait for a join request without storing one. Both roles require
 the exact join request while awaiting comparison or after consumption. Every
@@ -472,12 +473,41 @@ a different response for the invitation is a conflict. Marking the exact
 compared transcript consumed is one-way, while repeating that exact consumption
 is idempotent.
 
+Only inviter state may enter `publishingApproval`. That phase requires the
+exact join request and prepared owner-approval record described below. Creating
+the record requires an unexpired invitation. Once stored, an exact retry may
+finish publishing it after expiry; expiry cannot produce a different approval.
+Consumed inviter state retains the record, while joiner state MUST keep
+`ownerApproval` null.
+
 Replay tracking here is intentionally device-local, not a synchronized global
 claim. Losing this local record loses ceremony resumption and its local consumed
 marker, but it still cannot grant membership or recover a vault key. `ENR-504`
 and `ENR-505` MUST independently bind authority and first trust to the exact
 authenticated manifest transition, so a retained or replayed mailbox message
 alone can never complete enrollment.
+
+#### Prepared Owner Approval
+
+Before publishing the first shared manifest, the inviter stores one bounded
+canonical approval record inside its device-local ceremony state. It contains
+exactly:
+
+| Field | Requirement |
+|---|---|
+| `format` | Exactly `key-vault-enrollment-owner-approval` |
+| `version` | Exactly `1` |
+| `transcriptDigest` | Canonical base64url of the complete 32-byte compared transcript digest |
+| `wrappedKeys` | Exactly two canonical wrapped-key records ordered by device ID |
+| `authorization` | Exact inviter manifest-authorization record |
+| `candidateManifestDigest` | Canonical base64url SHA-256 digest of the resulting manifest envelope |
+
+The record contains no plaintext vault key and does not duplicate the complete
+manifest. The exact parent and signed transcript deterministically reconstruct
+the manifest body; retaining the randomized wrapper ciphertexts and ECDSA
+signature is sufficient to reproduce the identical envelope and digest after
+a retry or restart. A different prepared record for the same ceremony is a
+conflict, not a replacement.
 
 ### Wrapped-Key Record
 
@@ -486,6 +516,41 @@ alone can never complete enrollment.
 | `deviceID` | device ID | Recipient device |
 | `algorithm` | enum | `p256-ecies-x963-sha256-aes-gcm` |
 | `ciphertext` | base64url | Complete algorithm output |
+
+For algorithm version 1, the decoded ciphertext is exactly 126 bytes:
+
+```text
+0x01 || ephemeralPublicKey[65] || nonce[12] || ciphertext[32] || tag[16]
+```
+
+`ephemeralPublicKey` is a fresh uncompressed P-256 X9.63 public key generated
+by the wrapping device. The recipient private key is the device-bound P-256
+key-agreement key represented by its manifest identity. Their ECDH shared
+secret is expanded to a 32-byte AES key with ANSI X9.63 KDF using SHA-256 and:
+
+```text
+sharedInfo =
+  UTF8("work.tvr.key/v3/enrollment-wrapped-key-kek/v1") ||
+  0x00 ||
+  JCS(wrapContext)
+```
+
+The canonical wrap context contains exactly `format` =
+`key-vault-enrollment-wrapped-key-context`, `version` = `1`, the canonical
+`vaultID`, exact manifest `keyID`, `recipientDeviceID`, and complete enrollment
+`transcriptDigest`. AES-256-GCM encrypts the exact 32-byte vault key with a
+fresh 12-byte nonce and authenticates:
+
+```text
+UTF8("work.tvr.key/v3/enrollment-wrapped-key/v1") ||
+0x00 ||
+JCS(wrapContext)
+```
+
+Readers MUST reject every other framing version or length, an invalid
+ephemeral P-256 point, or a non-12-byte nonce before attempting to unwrap.
+AES-GCM authentication and the derived exact `keyID` check are both required
+before the result can be used.
 
 Local manifests MUST have empty `devices` and `wrappedKeys` arrays. Shared
 manifests MUST contain at least one active owner and exactly one wrapper at the
@@ -558,6 +623,13 @@ Version 3 uses a layered authority model:
   least one P-256 ECDSA signature from a device that was an active `owner` in
   the parent manifest. This supplies device attribution and prevents an
   ordinary member that knows the vault key from changing authority.
+- The first local-to-shared transition has no parent owner. Its dedicated
+  enrollment verifier instead requires the exact authenticated and compared
+  transcript, preserves the local parent's vault ID, key ID, and complete
+  entry set, creates exactly the two compared active devices and wrappers, and
+  verifies the candidate-owner signature from the inviting identity. Generic
+  repository discovery is not given the local transcript and MUST NOT admit a
+  synchronized self-signed conversion through the ordinary parent rule.
 - A multi-parent transition is admitted only when every parent and the
   candidate have identical vault identity, mode, active key ID, membership,
   roles, public keys, statuses, and wrapped-key state. A merge cannot change
@@ -1296,7 +1368,7 @@ Manifest body:
     {
       "deviceID": "DzO1MpK36yEEcRSR1JUYExdqhU-2FMv_jYlp5gZ99xs",
       "algorithm": "p256-ecies-x963-sha256-aes-gcm",
-      "ciphertext": "AQIDBA"
+      "ciphertext": "AQRrF9Hy4SxCR_i85uVjpEDydwN9gS3rM6D0oTlF2JjClk_jQuL-Gn-bjufrSnwPnhYrzjNXazFezsu2QGg3v1H1WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpa"
     }
   ],
   "entries": [
@@ -1350,7 +1422,7 @@ Authenticated envelope:
         {
           "deviceID": "DzO1MpK36yEEcRSR1JUYExdqhU-2FMv_jYlp5gZ99xs",
           "algorithm": "p256-ecies-x963-sha256-aes-gcm",
-          "ciphertext": "AQIDBA"
+          "ciphertext": "AQRrF9Hy4SxCR_i85uVjpEDydwN9gS3rM6D0oTlF2JjClk_jQuL-Gn-bjufrSnwPnhYrzjNXazFezsu2QGg3v1H1WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpa"
         }
       ],
       "entries": []

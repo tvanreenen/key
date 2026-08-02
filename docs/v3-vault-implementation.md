@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `bf0f049` (`v0.2.0-alpha.3`) |
+| Production base | `main` at `d4d4f06` (`v0.2.0-alpha.3`) |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/exchange-v3-enrollment-messages` |
+| Current branch | `agent/authorize-v3-enrollment` |
 | Current PR | Not opened |
-| Active increment | `ENR-503` — Bounded enrollment message exchange and local ceremony state |
-| Next work | Review the uncommitted ENR-503 implementation and validation |
+| Active increment | `ENR-504` — Owner approval, exact-key wrapping, and local-to-shared publication |
+| Next work | Review and validate the uncommitted ENR-504 implementation |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -118,8 +118,8 @@ security or durability boundary and updates this tracker before it merges.
 | `MIG-412` | Complete; PR #43 | Add explicit local version 2 migration and verified version 3 bootstrap |
 | `ENR-501` | Complete; PR #44 | Define canonical enrollment invitations, join requests, and comparison transcripts |
 | `ENR-502` | Complete; PR #45 | Create device-bound signing and wrapping identities and signed ceremony messages |
-| `ENR-503` | Implementation complete; review pending | Exchange bounded enrollment messages without trusting the file provider |
-| `ENR-504` | Planned | Approve and publish the owner-authorized local-to-shared transition |
+| `ENR-503` | Complete; PR #46 | Exchange bounded enrollment messages without trusting the file provider |
+| `ENR-504` | Implementation in progress | Approve and publish the owner-authorized local-to-shared transition |
 | `ENR-505` | Planned | Verify first trust, unwrap the exact vault key, select the vault, and expose the read-only CLI flow |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
@@ -840,8 +840,7 @@ Acceptance gate:
 
 #### `ENR-503` — Bounded Message Exchange And Resumable Ceremony State
 
-Status: implementation complete; review pending on
-`agent/exchange-v3-enrollment-messages`.
+Status: complete; squash-merged as `d4d4f06` in PR #46.
 
 This increment lets the two devices pass the signed `ENR-502` invitation and
 join request through the synchronized vault without treating the sync provider
@@ -904,6 +903,80 @@ Acceptance gate:
   replacing the existing record.
 - Provider files and local ceremony state grant no membership, manifest
   authority, vault key, checkpoint, selected-vault setting, or plaintext access.
+
+#### `ENR-504` — Owner Approval And Local-To-Shared Publication
+
+Status: implementation in progress on `agent/authorize-v3-enrollment`.
+
+This increment lets the inviting Mac turn one exact, independently compared
+enrollment transcript into the first authenticated shared manifest. It wraps
+the unchanged vault key separately for both compared devices, records the two
+active memberships, and publishes the immutable authority transition before
+advancing only the inviter's checkpoint. The joining device still receives no
+trust or plaintext through this increment.
+
+Scope:
+
+- Require inviter-side ceremony state for the exact signed invitation and
+  selected signed join request, with the caller supplying the complete 32-byte
+  transcript digest it independently approved.
+- Require the invitation to name the one complete local checkpoint and head.
+  Preserve the exact vault ID, key ID, entry records, and parent digest; the
+  conversion cannot also edit entries, rotate the key, or reconcile a branch.
+- Create exactly two active device records from the compared identities. The
+  inviter becomes an owner and the joining device receives exactly the role in
+  the signed invitation.
+- Wrap the same exact 32-byte vault key independently to each device's P-256
+  wrapping public key. Bind X9.63-SHA256 key derivation and AES-256-GCM
+  authenticated data to the vault ID, exact key ID, recipient device ID, and
+  complete enrollment transcript digest.
+- Sign the complete candidate manifest content with the inviter's Secure
+  Enclave signing key. The candidate HMAC continues to prove exact vault-key
+  possession; the owner signature proves the compared inviter approved this
+  exact membership and wrapper state.
+- Keep the local-to-shared verification exception narrow. The parent must be
+  local and membership-free, the candidate must preserve its exact key and
+  entries, and the candidate identities must reproduce the exact authenticated
+  transcript. Ordinary repository discovery does not receive the local
+  approval evidence and cannot treat an arbitrary self-signed conversion as
+  an authoritative descendant.
+- Persist a bounded device-local retry record before publication. It contains
+  only the two randomized wrapper outputs, the owner signature, transcript
+  digest, and candidate digest—not the vault key or full manifest—so a retry
+  reconstructs the identical candidate without another signature prompt.
+- Serialize publication with other helper mutations, stage and reopen the
+  exact candidate, recheck the exact checkpoint and head, publish the immutable
+  manifest, reopen it, and replace the inviter checkpoint last. Mark the local
+  ceremony consumed only after checkpoint advancement.
+- Permit an exact prepared approval to finish after invitation expiry. Expiry
+  still prevents creating a new approval; this exception only completes bytes
+  that were durably approved while the signed invitation was valid.
+
+Out of scope:
+
+- unwrapping the vault key with the joining device's Secure Enclave key;
+- letting the joining device adopt the shared manifest or establish a
+  checkpoint;
+- CLI, XPC, or user-interface enrollment commands;
+- adding a third device to an already shared vault;
+- changing an existing role, revoking a device, or rotating/re-encrypting the
+  vault key; and
+- synchronized mailbox or immutable-history cleanup.
+
+Acceptance gate:
+
+- A wrong vault, parent, key ID, transcript digest, inviter identity, joining
+  identity, role, wrapper recipient, owner signature, or wrapped-key context
+  fails before checkpoint advancement.
+- Generic parent verification continues to reject the local-to-shared
+  candidate without the exact authenticated enrollment transcript.
+- The owner-authorized candidate preserves every parent entry record exactly
+  and contains one current-key wrapper for each of the two active devices.
+- A failed preparation publishes nothing. A failure after preparation retries
+  the same wrappers, signature, and manifest digest; a failure after checkpoint
+  advancement only completes the idempotent local consumption marker.
+- No joining-device checkpoint, selected-vault setting, Keychain vault key, or
+  plaintext access changes through this increment.
 
 ### Committed CLI And Conflict Contract
 
@@ -1097,11 +1170,10 @@ Update this table whenever a checkpoint ships or its scope changes.
 
 ## Immediate Next Action
 
-Review the uncommitted `ENR-503` mailbox and ceremony-state implementation.
-Keep its APIs internal and non-authoritative: synchronized files only carry
-bounded signed messages, while device-local state makes retries and replay
-handling durable. This increment does not grant membership, distribute a vault
-key, change a checkpoint, or expose enrollment through the CLI. Continue with
-`ENR-504` and `ENR-505` as separate reviewable PRs, then cut
-`v0.2.0-alpha.4 (9)` only after the complete read-only two-device ceremony
-passes release validation.
+Review and validate the uncommitted `ENR-504` owner-approval transition. Keep
+the local-to-shared exception bound to the exact authenticated transcript and
+local parent; generic synchronized history must not self-authorize conversion.
+This increment advances only the inviter's checkpoint. Continue with
+`ENR-505` as a separate reviewable PR for joining-device unwrap, first trust,
+selection, and CLI behavior, then cut `v0.2.0-alpha.4 (9)` only after the
+complete read-only two-device ceremony passes release validation.
