@@ -62,6 +62,10 @@
 		A5180001A5180001A5180001 /* V3P256Signature.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5180002A5180002A5180002 /* V3P256Signature.swift */; };
 		A5190001A5190001A5190001 /* V3EnrollmentAuthentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5190002A5190002A5190002 /* V3EnrollmentAuthentication.swift */; };
 		A5200001A5200001A5200001 /* V3EnrollmentDeviceIdentityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5200002A5200002A5200002 /* V3EnrollmentDeviceIdentityStore.swift */; };
+		A5210001A5210001A5210001 /* V3EnrollmentMailbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5210002A5210002A5210002 /* V3EnrollmentMailbox.swift */; };
+		A5220001A5220001A5220001 /* V3EnrollmentCeremonyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5220002A5220002A5220002 /* V3EnrollmentCeremonyState.swift */; };
+		A5230001A5230001A5230001 /* V3EnrollmentCeremonyStateKeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5230002A5230002A5230002 /* V3EnrollmentCeremonyStateKeychainStore.swift */; };
+		A5240001A5240001A5240001 /* V3EnrollmentExchangeCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5240002A5240002A5240002 /* V3EnrollmentExchangeCoordinator.swift */; };
 		A5000011A5000011A5000011 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000012A5000012A5000012 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000013A5000013A5000013 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
@@ -179,6 +183,10 @@
 		A5180002A5180002A5180002 /* V3P256Signature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3P256Signature.swift; sourceTree = "<group>"; };
 		A5190002A5190002A5190002 /* V3EnrollmentAuthentication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3EnrollmentAuthentication.swift; sourceTree = "<group>"; };
 		A5200002A5200002A5200002 /* V3EnrollmentDeviceIdentityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3EnrollmentDeviceIdentityStore.swift; sourceTree = "<group>"; };
+		A5210002A5210002A5210002 /* V3EnrollmentMailbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3EnrollmentMailbox.swift; sourceTree = "<group>"; };
+		A5220002A5220002A5220002 /* V3EnrollmentCeremonyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3EnrollmentCeremonyState.swift; sourceTree = "<group>"; };
+		A5230002A5230002A5230002 /* V3EnrollmentCeremonyStateKeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3EnrollmentCeremonyStateKeychainStore.swift; sourceTree = "<group>"; };
+		A5240002A5240002A5240002 /* V3EnrollmentExchangeCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3EnrollmentExchangeCoordinator.swift; sourceTree = "<group>"; };
 		A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libJSONCanonicalization.a; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -267,6 +275,10 @@
 				A5180002A5180002A5180002 /* V3P256Signature.swift */,
 				A5190002A5190002A5190002 /* V3EnrollmentAuthentication.swift */,
 				A5200002A5200002A5200002 /* V3EnrollmentDeviceIdentityStore.swift */,
+				A5210002A5210002A5210002 /* V3EnrollmentMailbox.swift */,
+				A5220002A5220002A5220002 /* V3EnrollmentCeremonyState.swift */,
+				A5230002A5230002A5230002 /* V3EnrollmentCeremonyStateKeychainStore.swift */,
+				A5240002A5240002A5240002 /* V3EnrollmentExchangeCoordinator.swift */,
 				A4090012A4090012A4090012 /* VaultUXService.swift */,
 				A4010002A4010002A4010002 /* VaultTransactionMutationOwner.swift */,
 				B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */,
@@ -620,6 +632,10 @@
 				A5180001A5180001A5180001 /* V3P256Signature.swift in Sources */,
 				A5190001A5190001A5190001 /* V3EnrollmentAuthentication.swift in Sources */,
 				A5200001A5200001A5200001 /* V3EnrollmentDeviceIdentityStore.swift in Sources */,
+				A5210001A5210001A5210001 /* V3EnrollmentMailbox.swift in Sources */,
+				A5220001A5220001A5220001 /* V3EnrollmentCeremonyState.swift in Sources */,
+				A5230001A5230001A5230001 /* V3EnrollmentCeremonyStateKeychainStore.swift in Sources */,
+				A5240001A5240001A5240001 /* V3EnrollmentExchangeCoordinator.swift in Sources */,
 				A4090011A4090011A4090011 /* VaultUXService.swift in Sources */,
 				A4010001A4010001A4010001 /* VaultTransactionMutationOwner.swift in Sources */,
 				2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */,

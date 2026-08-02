@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `45eb609` (`v0.2.0-alpha.3`) |
+| Production base | `main` at `bf0f049` (`v0.2.0-alpha.3`) |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/authenticate-v3-enrollment-identities` |
+| Current branch | `agent/exchange-v3-enrollment-messages` |
 | Current PR | Not opened |
-| Active increment | `ENR-502` — Device-bound identities and signed enrollment messages |
-| Next work | Validate and review the uncommitted ENR-502 implementation |
+| Active increment | `ENR-503` — Bounded enrollment message exchange and local ceremony state |
+| Next work | Review the uncommitted ENR-503 implementation and validation |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -117,8 +117,8 @@ security or durability boundary and updates this tracker before it merges.
 | `RUNTIME-411` | Complete; PR #39 | Connect exact v3 reads to the shipping helper while every v3 mutation remains disabled |
 | `MIG-412` | Complete; PR #43 | Add explicit local version 2 migration and verified version 3 bootstrap |
 | `ENR-501` | Complete; PR #44 | Define canonical enrollment invitations, join requests, and comparison transcripts |
-| `ENR-502` | In progress | Create device-bound signing and wrapping identities and signed ceremony messages |
-| `ENR-503` | Planned | Exchange bounded enrollment messages without trusting the file provider |
+| `ENR-502` | Complete; PR #45 | Create device-bound signing and wrapping identities and signed ceremony messages |
+| `ENR-503` | Implementation complete; review pending | Exchange bounded enrollment messages without trusting the file provider |
 | `ENR-504` | Planned | Approve and publish the owner-authorized local-to-shared transition |
 | `ENR-505` | Planned | Verify first trust, unwrap the exact vault key, select the vault, and expose the read-only CLI flow |
 
@@ -787,8 +787,7 @@ Acceptance gate:
 
 #### `ENR-502` — Device-Bound Identities And Signed Messages
 
-Status: implementation complete; local validation passed on
-`agent/authenticate-v3-enrollment-identities`.
+Status: complete; squash-merged as `bf0f049` in PR #45.
 
 The second alpha.4 increment proves that each participant controls the private
 signing key represented in the `ENR-501` transcript. It also creates the
@@ -838,6 +837,73 @@ Acceptance gate:
   closed without replacement.
 - No vault file, manifest, checkpoint, vault key, selected-vault setting, or
   plaintext behavior can change through this increment.
+
+#### `ENR-503` — Bounded Message Exchange And Resumable Ceremony State
+
+Status: implementation complete; review pending on
+`agent/exchange-v3-enrollment-messages`.
+
+This increment lets the two devices pass the signed `ENR-502` invitation and
+join request through the synchronized vault without treating the sync provider
+as a trusted participant. It also gives each device enough private local state
+to retry safely after an interrupted upload or process restart. It still does
+not enroll a device or share a vault key.
+
+Scope:
+
+- Store immutable signed invitations beneath
+  `.enrollment/invitations/<invitation-payload-digest>.json` and signed join
+  requests beneath
+  `.enrollment/join-requests/<invitation-payload-digest>/<join-payload-digest>.json`.
+- Derive every path from the authenticated canonical payload digest and require
+  the parsed message to reproduce that digest before accepting it.
+- Install complete message bytes atomically without overwriting a different
+  object already present at the same digest path.
+- Bound each message read and directory scan. Count every provider-created
+  directory entry toward the scan limit before ignoring names that are not
+  canonical digest filenames.
+- Treat missing or placeholder files as temporarily unavailable, while
+  malformed, oversized, substituted, symbolic-link, and root-replacement
+  states fail closed.
+- Retain the exact signed invitation and join-request carrier bytes in one
+  non-synchronizing, this-device-only Keychain record per invitation. Saving
+  before publishing means a retry republishes the identical randomized ECDSA
+  carrier rather than creating a competing message for the same payload.
+- Track whether the local device is the inviter or joiner, whether it is waiting
+  for a response or comparison, and whether the exact transcript has been
+  consumed. Local state changes use expected-state guards so a stale operation
+  cannot silently advance a ceremony.
+- Enforce expiry from the signed invitation and explicitly supplied current
+  time. Provider timestamps, versions, conflict labels, enumeration order, and
+  delivery order never influence authenticity, freshness, or authority.
+- Pin the first exact authenticated join response selected by the inviter.
+  Reopening that response is idempotent; selecting a different response is a
+  conflict rather than an implicit winner.
+
+Out of scope:
+
+- proving that the inviter is an active owner of the named parent manifest;
+- asking the user to compare and approve the transcript;
+- deriving a P-256 shared secret or wrapping the vault key;
+- publishing membership or an owner-authorized manifest transition;
+- establishing the joining device's checkpoint or selected vault;
+- removing synchronized mailbox artifacts; and
+- any shipping CLI or XPC surface.
+
+Acceptance gate:
+
+- A failed publish leaves resumable device-local state containing the exact
+  carrier bytes, and an exact retry is idempotent.
+- A mailbox object is accepted only at its payload-derived path and only after
+  canonical parsing, signature verification, vault/transcript binding, and
+  signed expiry checks.
+- Untrusted directory contents cannot bypass the object-count cap or cause an
+  implicit response selection.
+- Corrupt local state, the wrong local role, a stale expected state, a second
+  join response, or a consumed transcript fails closed without deleting or
+  replacing the existing record.
+- Provider files and local ceremony state grant no membership, manifest
+  authority, vault key, checkpoint, selected-vault setting, or plaintext access.
 
 ### Committed CLI And Conflict Contract
 
@@ -901,7 +967,7 @@ formats or transport stacks:
   from the domain-separated complete transcript digest.
 - [x] `ENR-502` Create device-bound signing and wrapping keys and authenticate
   both sides of the ceremony.
-- [ ] `ENR-503` Exchange bounded messages and reject expired, replayed, or
+- [x] `ENR-503` Exchange bounded messages and reject expired, replayed, or
   mismatched ceremony state without trusting provider metadata.
 - [ ] `ENR-504` Publish an owner-authorized shared manifest with one exact-key
   wrapper for every active device.
@@ -1031,11 +1097,11 @@ Update this table whenever a checkpoint ships or its scope changes.
 
 ## Immediate Next Action
 
-Review the uncommitted `ENR-502` device-identity and signed-message
-implementation. Keep the new identity APIs internal and non-authoritative:
-this increment proves possession of each participant's signing key and creates
-the later wrapping key, but it does not exchange messages, grant membership,
-distribute a vault key, or expose enrollment through the CLI. Continue through
-`ENR-503` to `ENR-505` as separate reviewable PRs, then cut
+Review the uncommitted `ENR-503` mailbox and ceremony-state implementation.
+Keep its APIs internal and non-authoritative: synchronized files only carry
+bounded signed messages, while device-local state makes retries and replay
+handling durable. This increment does not grant membership, distribute a vault
+key, change a checkpoint, or expose enrollment through the CLI. Continue with
+`ENR-504` and `ENR-505` as separate reviewable PRs, then cut
 `v0.2.0-alpha.4 (9)` only after the complete read-only two-device ceremony
 passes release validation.

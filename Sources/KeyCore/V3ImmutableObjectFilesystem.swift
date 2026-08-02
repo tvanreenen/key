@@ -50,7 +50,7 @@ struct V3FilesystemImmutableObjectSource: V3ImmutableObjectReading {
                 ) {
                 case let .names(names, objectCount):
                     return .available(
-                        digests: names.compactMap(manifestDigest(fromFilename:)),
+                        digests: names.compactMap(v3Digest(fromJSONFilename:)),
                         objectCount: objectCount
                     )
                 case .limitExceeded:
@@ -118,13 +118,13 @@ struct V3FilesystemImmutableObjectSource: V3ImmutableObjectReading {
     }
 }
 
-private enum DirectoryEntries {
+enum DirectoryEntries {
     case names([String], objectCount: Int)
     case limitExceeded
     case invalid
 }
 
-private func directoryEntryNames(
+func directoryEntryNames(
     descriptor: Int32,
     maximumCount: Int
 ) -> DirectoryEntries {
@@ -203,7 +203,7 @@ func readObjectData(
     }
 }
 
-private func manifestDigest(fromFilename filename: String) -> Data? {
+func v3Digest(fromJSONFilename filename: String) -> Data? {
     guard filename.hasSuffix(".json") else {
         return nil
     }
