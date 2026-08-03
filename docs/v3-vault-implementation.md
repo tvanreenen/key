@@ -14,9 +14,9 @@ state.
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
 | Current branch | `agent/adopt-v3-enrollment` |
-| Current PR | Not opened |
+| Current PR | [#48](https://github.com/tvanreenen/key/pull/48) |
 | Active increment | `ENR-505` — Joining-device first trust, exact-key unwrap, vault selection, and read-only CLI enrollment |
-| Next work | Review the complete uncommitted ENR-505 implementation and run installed two-Mac release validation |
+| Next work | Review and merge PR #48, then run installed two-Mac release validation |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -120,7 +120,7 @@ security or durability boundary and updates this tracker before it merges.
 | `ENR-502` | Complete; PR #45 | Create device-bound signing and wrapping identities and signed ceremony messages |
 | `ENR-503` | Complete; PR #46 | Exchange bounded enrollment messages without trusting the file provider |
 | `ENR-504` | Complete; PR #47 | Approve and publish the owner-authorized local-to-shared transition |
-| `ENR-505` | Implementation in progress | Verify first trust, unwrap the exact vault key, select the vault, and expose the read-only CLI flow |
+| `ENR-505` | Implementation complete; PR #48 open | Verify first trust, unwrap the exact vault key, select the vault, and expose the read-only CLI flow |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -980,7 +980,8 @@ Acceptance gate:
 
 #### `ENR-505` — Joining-Device First Trust And Read-Only Sharing
 
-Status: implementation in progress on `agent/adopt-v3-enrollment`.
+Status: implementation complete; PR #48 open from
+`agent/adopt-v3-enrollment`.
 
 This increment completes the first two-device enrollment ceremony. Both Macs
 show the same device pair, granted role, and 80-bit comparison code. The
@@ -1262,11 +1263,7 @@ Update this table whenever a checkpoint ships or its scope changes.
 
 ## Immediate Next Action
 
-Implement and validate `ENR-505` on `agent/adopt-v3-enrollment`. The joining
-device must authenticate the exact independently compared transcript and
-owner-authorized local-to-shared manifest, unwrap only its bound copy of the
-exact current vault key, establish its first device-local checkpoint, verify
-the shipping read-only runtime, and write `vault_id` last. Expose the complete
-ceremony through an accessible CLI without granting provider files authority
-or releasing secret plaintext during enrollment. Cut `v0.2.0-alpha.4 (9)` only
-after the complete read-only two-device ceremony passes release validation.
+Review and merge PR #48, then validate the complete installed two-Mac ceremony
+and provider-delivery behavior. Cut `v0.2.0-alpha.4 (9)` only after that
+read-only sharing checkpoint passes release validation; do not begin guarded
+shared-write work before the prerelease is published and verified.
