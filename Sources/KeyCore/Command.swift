@@ -24,6 +24,28 @@ public enum ConflictCommand: Equatable, Sendable {
     case resolve([VaultConflictResolution])
 }
 
+public enum ShareCommand: Equatable, Sendable {
+    case invitations
+    case invite(deviceName: String, role: V3DeviceRole)
+    case join(invitationID: String, deviceName: String)
+    case requests(invitationID: String)
+    case compare(
+        vaultID: String,
+        invitationID: String,
+        joinRequestID: String?
+    )
+    case approve(
+        vaultID: String,
+        invitationID: String,
+        comparisonCode: String
+    )
+    case accept(
+        vaultID: String,
+        invitationID: String,
+        comparisonCode: String
+    )
+}
+
 public enum Command: Equatable {
     case help
     case version(json: Bool)
@@ -32,6 +54,7 @@ public enum Command: Equatable {
     case migrationApply
     case status(json: Bool, verbose: Bool)
     case conflict(ConflictCommand)
+    case share(ShareCommand)
     case unlock
     case lock
     case get(name: String, allowStale: Bool)

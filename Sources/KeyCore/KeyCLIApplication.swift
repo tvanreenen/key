@@ -67,6 +67,11 @@ public final class KeyCLIApplication {
             return response.exitCode
         case let .conflict(conflictCommand):
             return try executeConflictCommand(conflictCommand)
+        case let .share(shareCommand):
+            response = try transport.send(.share(
+                serviceShareRequest(shareCommand)
+            ))
+            return try handle(response, for: command)
         case .unlock:
             response = try transport.send(.unlock)
             return try handle(response, for: command)
@@ -127,7 +132,8 @@ public final class KeyCLIApplication {
             break
         case .config:
             break
-        case .migrationPreflight, .migrationApply, .unlock, .lock, .list:
+        case .migrationPreflight, .migrationApply, .share,
+            .unlock, .lock, .list:
             if let value = response.value, !value.isEmpty {
                 io.writeStdout(value)
             }
@@ -143,6 +149,39 @@ public final class KeyCLIApplication {
         }
 
         return response.exitCode
+    }
+
+    private func serviceShareRequest(
+        _ command: ShareCommand
+    ) -> KeyShareRequest {
+        switch command {
+        case .invitations:
+            .invitations
+        case let .invite(deviceName, role):
+            .invite(deviceName: deviceName, role: role)
+        case let .join(invitationID, deviceName):
+            .join(invitationID: invitationID, deviceName: deviceName)
+        case let .requests(invitationID):
+            .requests(invitationID: invitationID)
+        case let .compare(vaultID, invitationID, joinRequestID):
+            .compare(
+                vaultID: vaultID,
+                invitationID: invitationID,
+                joinRequestID: joinRequestID
+            )
+        case let .approve(vaultID, invitationID, comparisonCode):
+            .approve(
+                vaultID: vaultID,
+                invitationID: invitationID,
+                comparisonCode: comparisonCode
+            )
+        case let .accept(vaultID, invitationID, comparisonCode):
+            .accept(
+                vaultID: vaultID,
+                invitationID: invitationID,
+                comparisonCode: comparisonCode
+            )
+        }
     }
 
     private func formattedGetOutput(_ value: String) -> String {

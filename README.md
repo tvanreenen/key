@@ -58,16 +58,33 @@ key config set <config-name> <value>    # update a config value
 key config list                         # list known config values
 key migrate --check                     # check v2 migration readiness without changing the vault
 key migrate --apply                     # explicitly create, verify, and select a read-only v3 copy
+key share invitations                   # list available short-lived invitations
+key share invite --name "Office Mac"    # invite the first second device as a member
+key share join <invite> --name "Laptop" # answer one exact invitation on the joining Mac
+key share requests <invite>             # list exact answers on the existing Mac
+key share compare <vault> <invite> [request]
+                                         # show the device pair and comparison code
+key share approve <vault> <invite> <code>
+                                         # approve that exact pair on the existing Mac
+key share accept <vault> <invite> <code>
+                                         # trust and select the vault on the joining Mac
 key version [--json]                    # print the CLI version
 ```
 
 Migration never starts during installation or unlock. `key migrate --apply`
 rechecks the complete version 2 vault, retains every version 2 source file,
 and switches this Mac only after the new version 3 vault has been independently
-reopened. Other devices remain unchanged; enrollment is not enabled yet.
-Version 3 add, edit, duplicate, rename, and remove are also not enabled yet.
-Later version 2 changes made by another device are not copied into the migrated
-snapshot.
+reopened. To add the first second Mac, point both Macs at the same synchronized
+vault directory and use the explicit `key share` ceremony above. Both Macs must
+show the same device names, role, and five-group comparison code before you run
+`approve` and `accept`. Enclave authenticates synchronized bytes but does not
+control provider delivery, so retry discovery after synchronization settles.
+
+This alpha supports one local-to-shared transition only. Adding a third device,
+revocation, role changes, vault-key rotation, and enrollment-mailbox cleanup are
+not enabled yet. Version 3 add, edit, duplicate, rename, and remove are also not
+enabled yet. Later version 2 changes made by another device are not copied into
+the migrated snapshot.
 
 When a file provider has not finished delivering a newer version 3 vault
 state, `--allow-stale` explicitly permits `get` and `copy` to read the last

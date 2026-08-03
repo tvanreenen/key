@@ -18,6 +18,7 @@ struct XPCSecurityPolicyTests {
                 versionID: "abc123"
             )
         ]),
+        .share(.invitations),
         .list,
         .migrationPreflight,
         .migrationApply,
@@ -148,6 +149,35 @@ struct XPCSecurityPolicyTests {
 
         #expect(decoded == .migrationApply)
         #expect(decoded.requiresHelperShutdownAfterSuccess)
+    }
+
+    @Test
+    func sharingRequestsRoundTripAndOnlyAcceptanceRestartsTheHelper() throws {
+        let requests: [KeyServiceRequest] = [
+            .share(.invite(deviceName: "Office Mac", role: .member)),
+            .share(.compare(
+                vaultID: "vault",
+                invitationID: "invite",
+                joinRequestID: "request"
+            )),
+            .share(.accept(
+                vaultID: "vault",
+                invitationID: "invite",
+                comparisonCode: "1234-5678-9abc-def0-1234"
+            ))
+        ]
+        for request in requests {
+            let encoded = try JSONEncoder().encode(request)
+            #expect(
+                try JSONDecoder().decode(
+                    KeyServiceRequest.self,
+                    from: encoded
+                ) == request
+            )
+        }
+        #expect(!requests[0].requiresHelperShutdownAfterSuccess)
+        #expect(!requests[1].requiresHelperShutdownAfterSuccess)
+        #expect(requests[2].requiresHelperShutdownAfterSuccess)
     }
 
     @Test

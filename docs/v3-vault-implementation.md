@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `d4d4f06` (`v0.2.0-alpha.3`) |
+| Production base | `main` at `2e59478` (`v0.2.0-alpha.3`) |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/authorize-v3-enrollment` |
-| Current PR | Not opened |
-| Active increment | `ENR-504` — Owner approval, exact-key wrapping, and local-to-shared publication |
-| Next work | Review and validate the uncommitted ENR-504 implementation |
+| Current branch | `agent/adopt-v3-enrollment` |
+| Current PR | [#48](https://github.com/tvanreenen/key/pull/48) |
+| Active increment | `ENR-505` — Joining-device first trust, exact-key unwrap, vault selection, and read-only CLI enrollment |
+| Next work | Review and merge PR #48, then run installed two-Mac release validation |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -25,7 +25,7 @@ unavailable or explicitly experimental until every release gate below passes.
 
 - [x] `INV-01` Only the correctly signed CLI or utility role can invoke its
   authorized helper operations.
-- [ ] `INV-02` Enrollment authenticates both device keys, roles, vault ID,
+- [x] `INV-02` Enrollment authenticates both device keys, roles, vault ID,
   fresh nonces, and an independently compared transcript.
 - [x] `INV-03` Membership, exact vault-key identity, wrapped keys, and committed entries form
   one authenticated state.
@@ -119,8 +119,8 @@ security or durability boundary and updates this tracker before it merges.
 | `ENR-501` | Complete; PR #44 | Define canonical enrollment invitations, join requests, and comparison transcripts |
 | `ENR-502` | Complete; PR #45 | Create device-bound signing and wrapping identities and signed ceremony messages |
 | `ENR-503` | Complete; PR #46 | Exchange bounded enrollment messages without trusting the file provider |
-| `ENR-504` | Implementation in progress | Approve and publish the owner-authorized local-to-shared transition |
-| `ENR-505` | Planned | Verify first trust, unwrap the exact vault key, select the vault, and expose the read-only CLI flow |
+| `ENR-504` | Complete; PR #47 | Approve and publish the owner-authorized local-to-shared transition |
+| `ENR-505` | Implementation complete; PR #48 open | Verify first trust, unwrap the exact vault key, select the vault, and expose the read-only CLI flow |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -906,7 +906,7 @@ Acceptance gate:
 
 #### `ENR-504` — Owner Approval And Local-To-Shared Publication
 
-Status: implementation in progress on `agent/authorize-v3-enrollment`.
+Status: complete; squash-merged as `2e59478` in PR #47.
 
 This increment lets the inviting Mac turn one exact, independently compared
 enrollment transcript into the first authenticated shared manifest. It wraps
@@ -978,6 +978,98 @@ Acceptance gate:
 - No joining-device checkpoint, selected-vault setting, Keychain vault key, or
   plaintext access changes through this increment.
 
+#### `ENR-505` — Joining-Device First Trust And Read-Only Sharing
+
+Status: implementation complete; PR #48 open from
+`agent/adopt-v3-enrollment`.
+
+This increment completes the first two-device enrollment ceremony. Both Macs
+show the same device pair, granted role, and 80-bit comparison code. The
+existing Mac approves that exact transcript and publishes the shared manifest;
+the joining Mac then independently verifies the approval, opens only the vault
+key wrapper addressed to its Secure Enclave identity, and selects the vault
+only after its local key, checkpoint, and shipping read-only runtime are ready.
+
+Scope:
+
+- Add explicit `key share` commands for invitation discovery, invitation
+  creation, joining, request discovery, comparison, approval, and acceptance.
+  Every provider object is selected by its complete lowercase hexadecimal
+  digest; there is no implicit "latest" invitation or join request.
+- Create short-lived ten-minute invitations. Require both users to compare the
+  same five-group code and readable device pair, then supply that exact code to
+  `approve` and `accept` before either command can advance its local ceremony.
+- Keep invitation and join-request files transport-only. Authenticate their
+  canonical bytes, payload-derived path, signatures, nonces, identities,
+  vault, role, parent, and expiry before displaying a comparison.
+- Before asking the joining Secure Enclave to unwrap, require one candidate
+  with the exact compared parent, device set, role, wrapper recipients, and a
+  valid signature from the compared inviter. Unrelated or unauthenticated
+  repository files cannot become trust and cannot create extra unwrap prompts.
+  Candidate discovery enforces both the repository object-count cap and its
+  aggregate manifest-byte cap before local trust can change.
+- Derive the key-encryption key through the joining device's non-exportable
+  P-256 key-agreement key. Authenticate the vault ID, exact manifest key ID,
+  recipient device ID, and complete transcript digest as wrap context, then
+  require the recovered 32-byte key to derive the manifest's exact key ID.
+- Reopen the exact parent digest named by the compared invitation and run the
+  narrow local-to-shared verifier again with the recovered key and complete
+  transcript. The generic repository verifier still cannot self-authorize the
+  transition.
+- Treat local adoption as monotonic, exact-idempotent steps: consume the exact
+  transcript as a retry marker, insert or match the vault key, insert or match
+  the checkpoint, authenticate the shipping read-only runtime, and write
+  `vault_id` last. Runtime authentication must classify the complete referenced
+  repository as ready; missing or invalid entry objects cannot commit
+  selection. A different existing key or checkpoint is never replaced.
+- If join-request publication fails after local persistence, repeat `share
+  join` republishes the exact stored request bytes before any fresh nonce,
+  signature, or identity state is created.
+- Restart the helper only after successful joining-device selection so the next
+  ordinary command is served by the selected v3 runtime.
+- Map a merely unavailable approved manifest or parent to temporary-unavailable
+  exit code 5. Map ambiguous, substituted, unauthenticated, wrong-key,
+  wrong-identity, or conflicting local trust state to recovery-required exit
+  code 6. Enrollment never prints secret plaintext.
+
+Current caveats:
+
+- This release enrolls the first second device only. Adding a third device,
+  changing a role, revoking a device, or rotating the vault key remains out of
+  scope.
+- Both Macs must point at copies of the same file-provider-backed vault root.
+  Enclave authenticates what arrives but does not control provider delivery;
+  a missing invitation, request, parent, or approval should be retried after
+  synchronization settles.
+- The provider mailbox and retained version 2 files are not cleaned up by this
+  ceremony. They grant no authority, but cleanup needs a separate explicit
+  policy.
+- The selected shared v3 vault remains read-only in alpha.4. List, get, copy,
+  status, and conflict inspection are available; ordinary entry and authority
+  mutations stay disabled.
+- Loss of every enrolled Secure Enclave identity still has no recovery path.
+  That unresolved policy remains a release gate and must be plainly documented
+  before a stable release.
+
+Acceptance gate:
+
+- Missing approval bytes change no joining-device key, checkpoint, ceremony
+  phase, configuration, file, or plaintext behavior.
+- An invalid comparison code, invitation, request, owner signature, parent,
+  wrapper recipient or context, recovered key ID, candidate HMAC, membership,
+  role, or preserved entry fails before vault selection.
+- A different existing local key or checkpoint is retained unchanged and
+  reported as recovery-required; the adoption path never uses overwrite.
+- An interruption after comparison, key insertion, checkpoint insertion, or
+  runtime verification retries only the exact consumed ceremony. Expiry cannot
+  strand an already consumed exact retry, and `vault_id` remains the final
+  commit point.
+- A persisted-but-unpublished join request is republished byte-for-byte, and
+  candidate scanning stops at the aggregate repository manifest-byte limit.
+- After success, both devices trust the same authenticated shared manifest and
+  ordinary v3 list/get/copy reads produce the same logical vault without
+  enabling any general v3 writer.
+
 ### Committed CLI And Conflict Contract
 
 - Existing everyday commands retain their current names and default behavior.
@@ -1042,11 +1134,11 @@ formats or transport stacks:
   both sides of the ceremony.
 - [x] `ENR-503` Exchange bounded messages and reject expired, replayed, or
   mismatched ceremony state without trusting provider metadata.
-- [ ] `ENR-504` Publish an owner-authorized shared manifest with one exact-key
+- [x] `ENR-504` Publish an owner-authorized shared manifest with one exact-key
   wrapper for every active device.
-- [ ] `ENR-505` Independently verify first trust and select the same exact
+- [x] `ENR-505` Independently verify first trust and select the same exact
   authenticated head on the joining device.
-- [ ] Reject replay, substitution, wrong-vault, and role confusion.
+- [x] Reject replay, substitution, wrong-vault, and role confusion.
 - [ ] Add device inspection and revoke/rotate commands.
 - [ ] Re-encrypt for remaining devices after revocation.
 
@@ -1090,6 +1182,7 @@ formats or transport stacks:
 | `DEC-024` | Accepted | Store immutable manifest and entry objects under lowercase hexadecimal SHA-256 filenames so content addressing remains collision-safe on case-insensitive providers. Discover history read-only from the exact device-local checkpoint, reopen its digest-linked ancestors, fully authenticate forward descendants, and expose a typed ancestry proof only when every referenced object is complete and valid. Treat missing or dataless provider objects as incomplete transport, referenced invalid objects or exhausted bounds as recovery-required state, and unrelated invalid objects as non-authoritative noise. |
 | `DEC-025` | Accepted | Reconcile complete authenticated history by stable entry ID against one unique nearest common ancestor. Automatically combine zero or one valid advancing change per entry across any number of heads, but preserve revision rollback, same-revision substitution, edit/edit, delete/edit, rename-plus-edit, conflicting rename, destination, security-state, and criss-cross-base ambiguity as typed conflicts. Enforce revision monotonicity again when authenticating a parent-to-child transition; a merge may reuse only an exact, unambiguous highest parent revision. Treat rename-plus-edit conservatively because opaque ciphertext resealed under name-bound AAD cannot prove that the rename branch preserved the ancestor value. |
 | `DEC-026` | Accepted | Publish a v3 transaction only inside the serialized mutation owner. Stage canonical immutable entry and manifest bytes under a local operation ID, recheck the exact authenticated checkpoint and head set, publish entries through exclusive digest-path renames, reopen every referenced entry, publish and reopen the manifest last, then advance the device-local checkpoint with an expected-value guard. Staging has no authority and remains available for later recovery. A remote head arriving after the final recheck creates an ordinary immutable branch rather than overwriting either history. |
+| `DEC-027` | Accepted | Complete first trust through an explicit digest-selected, independently compared two-device ceremony. Filter synchronized candidates by the exact transcript and inviter signature before Secure Enclave unwrap, bind the exact recipient and key identity into authenticated wrap context, rerun the narrow local-to-shared verifier with the recovered key, install only absent-or-identical local key and checkpoint state, authenticate through the shipping reader, and write the device-local `vault_id` last. Treat consumed joiner state as an exact retry marker rather than provider authority. |
 
 ## Validation Matrix
 
@@ -1106,7 +1199,7 @@ formats or transport stacks:
 - [x] Trusted vault-root type, no-follow open, retained-identity, and close-on-exec tests.
 - [x] Component-by-component relative resolution, traversal rejection, symlink rejection, and terminal-type tests.
 - [x] Vault-key ID derivation, substitution, and cross-vault separation tests.
-- [ ] Enrollment and key-identity replay tests.
+- [x] Enrollment and key-identity replay tests.
 - [x] Installed XPC tests for intended and unintended signing identities.
 - [ ] Mutation/key-transition concurrency tests.
 - [x] Transaction fault injection at every phase.
@@ -1170,10 +1263,7 @@ Update this table whenever a checkpoint ships or its scope changes.
 
 ## Immediate Next Action
 
-Review and validate the uncommitted `ENR-504` owner-approval transition. Keep
-the local-to-shared exception bound to the exact authenticated transcript and
-local parent; generic synchronized history must not self-authorize conversion.
-This increment advances only the inviter's checkpoint. Continue with
-`ENR-505` as a separate reviewable PR for joining-device unwrap, first trust,
-selection, and CLI behavior, then cut `v0.2.0-alpha.4 (9)` only after the
-complete read-only two-device ceremony passes release validation.
+Review and merge PR #48, then validate the complete installed two-Mac ceremony
+and provider-delivery behavior. Cut `v0.2.0-alpha.4 (9)` only after that
+read-only sharing checkpoint passes release validation; do not begin guarded
+shared-write work before the prerelease is published and verified.

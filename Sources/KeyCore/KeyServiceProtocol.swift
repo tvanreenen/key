@@ -1,5 +1,27 @@
 import Foundation
 
+public enum KeyShareRequest: Codable, Equatable, Sendable {
+    case invitations
+    case invite(deviceName: String, role: V3DeviceRole)
+    case join(invitationID: String, deviceName: String)
+    case requests(invitationID: String)
+    case compare(
+        vaultID: String,
+        invitationID: String,
+        joinRequestID: String?
+    )
+    case approve(
+        vaultID: String,
+        invitationID: String,
+        comparisonCode: String
+    )
+    case accept(
+        vaultID: String,
+        invitationID: String,
+        comparisonCode: String
+    )
+}
+
 public enum KeyServiceRequest: Codable, Equatable {
     case unlock
     case lock
@@ -9,6 +31,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     case showConflict(id: String)
     case getConflictValue(id: String, versionID: String)
     case resolveConflicts([VaultConflictResolution])
+    case share(KeyShareRequest)
     case list
     case migrationPreflight
     case migrationApply
@@ -31,7 +54,7 @@ public enum KeyServiceRequest: Codable, Equatable {
             120
         case .list:
             30
-        case .migrationApply, .setVaultDirectory, .setKeychainMode,
+        case .migrationApply, .share, .setVaultDirectory, .setKeychainMode,
             .addManual, .editManual,
             .copyEntry, .moveEntry, .removeEntry, .resolveConflicts:
             nil
@@ -41,7 +64,8 @@ public enum KeyServiceRequest: Codable, Equatable {
     /// Whether the XPC client must complete the post-reply shutdown handshake.
     public var requiresHelperShutdownAfterSuccess: Bool {
         switch self {
-        case .lock, .setVaultDirectory, .migrationApply:
+        case .lock, .setVaultDirectory, .migrationApply,
+            .share(.accept):
             true
         default:
             false
@@ -62,6 +86,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case conflictID
         case versionID
         case resolutions
+        case shareRequest
     }
 
     private enum Kind: String, Codable {
@@ -73,6 +98,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case showConflict
         case getConflictValue
         case resolveConflicts
+        case share
         case list
         case migrationPreflight
         case migrationApply
@@ -116,6 +142,13 @@ public enum KeyServiceRequest: Codable, Equatable {
                 try container.decode(
                     [VaultConflictResolution].self,
                     forKey: .resolutions
+                )
+            )
+        case .share:
+            self = .share(
+                try container.decode(
+                    KeyShareRequest.self,
+                    forKey: .shareRequest
                 )
             )
         case .list:
@@ -193,6 +226,9 @@ public enum KeyServiceRequest: Codable, Equatable {
         case let .resolveConflicts(resolutions):
             try container.encode(Kind.resolveConflicts, forKey: .kind)
             try container.encode(resolutions, forKey: .resolutions)
+        case let .share(request):
+            try container.encode(Kind.share, forKey: .kind)
+            try container.encode(request, forKey: .shareRequest)
         case .list:
             try container.encode(Kind.list, forKey: .kind)
         case .migrationPreflight:

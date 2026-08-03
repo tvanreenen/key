@@ -255,6 +255,12 @@ protocol V3EnrollmentDeviceKeyOperating: Sendable {
         signingKeyRepresentation: Data,
         reason: String
     ) throws -> Data
+
+    func sharedSecret(
+        with publicKey: P256.KeyAgreement.PublicKey,
+        wrappingKeyRepresentation: Data,
+        reason: String
+    ) throws -> SharedSecret
 }
 
 struct V3SecureEnclaveEnrollmentDeviceKeyOperations:
@@ -360,6 +366,32 @@ struct V3SecureEnclaveEnrollmentDeviceKeyOperations:
         }
     }
 
+    func sharedSecret(
+        with publicKey: P256.KeyAgreement.PublicKey,
+        wrappingKeyRepresentation: Data,
+        reason: String
+    ) throws -> SharedSecret {
+        guard !reason.isEmpty else {
+            throw V3EnrollmentDeviceIdentityStoreError
+                .invalidIdentityRequest
+        }
+        guard isAvailable else {
+            throw V3EnrollmentDeviceIdentityStoreError
+                .secureEnclaveUnavailable
+        }
+        do {
+            let key = try SecureEnclave.P256.KeyAgreement.PrivateKey(
+                dataRepresentation: wrappingKeyRepresentation,
+                authenticationContext: makeAuthenticationContext(
+                    reason: reason
+                )
+            )
+            return try key.sharedSecretFromKeyAgreement(with: publicKey)
+        } catch {
+            throw V3EnrollmentDeviceIdentityStoreError.keyOperationFailed
+        }
+    }
+
     private func makeAccessControl() throws -> SecAccessControl {
         var accessControlError: Unmanaged<CFError>?
         guard
@@ -385,11 +417,13 @@ struct V3SecureEnclaveEnrollmentDeviceKeyOperations:
 
 struct V3EnrollmentDevicePrivateIdentity:
     V3EnrollmentMessageSigning,
+    V3EnrollmentVaultKeyUnwrapping,
     Sendable
 {
     let vaultID: String
     let publicIdentity: V3EnrollmentDeviceIdentity
     private let signingKeyRepresentation: Data
+    private let wrappingKeyRepresentation: Data
     private let keyOperations: any V3EnrollmentDeviceKeyOperating
 
     fileprivate init(
@@ -399,6 +433,7 @@ struct V3EnrollmentDevicePrivateIdentity:
         vaultID = record.vaultID
         publicIdentity = record.identity
         signingKeyRepresentation = record.signingKeyRepresentation
+        wrappingKeyRepresentation = record.wrappingKeyRepresentation
         self.keyOperations = keyOperations
     }
 
@@ -411,6 +446,30 @@ struct V3EnrollmentDevicePrivateIdentity:
             signingKeyRepresentation: signingKeyRepresentation,
             reason: reason
         )
+    }
+
+    func unwrapVaultKey(
+        _ ciphertext: Data,
+        context: V3EnrollmentVaultKeyWrapContext,
+        reason: String
+    ) throws -> Data {
+        guard context.vaultID == vaultID,
+            context.recipientDeviceID == publicIdentity.deviceID,
+            !reason.isEmpty
+        else {
+            throw V3EnrollmentDeviceIdentityStoreError
+                .invalidIdentityRequest
+        }
+        return try V3EnrollmentVaultKeyWrapper().unwrap(
+            ciphertext,
+            context: context
+        ) { publicKey in
+            try keyOperations.sharedSecret(
+                with: publicKey,
+                wrappingKeyRepresentation: wrappingKeyRepresentation,
+                reason: reason
+            )
+        }
     }
 }
 

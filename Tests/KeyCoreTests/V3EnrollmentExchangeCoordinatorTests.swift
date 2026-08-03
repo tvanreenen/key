@@ -85,11 +85,10 @@ struct V3EnrollmentExchangeCoordinatorTests {
         )
 
         mailbox.failJoinRequestPublish = false
-        let resumed = try coordinator.beginJoining(
-            fixture.signedJoinRequest,
+        let resumed = try #require(try coordinator.resumeJoining(
             answering: fixture.verifiedInvitation,
             at: Self.activeTime
-        )
+        ))
         #expect(resumed == state)
         #expect(
             mailbox.joinRequests[fixture.invitation.digest]?[

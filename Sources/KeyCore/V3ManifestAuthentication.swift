@@ -60,7 +60,7 @@ public enum V3VaultMode: String, Equatable, Sendable {
     case shared
 }
 
-public enum V3DeviceRole: String, Equatable, Sendable {
+public enum V3DeviceRole: String, Codable, Equatable, Sendable {
     case owner
     case member
 }
@@ -296,6 +296,31 @@ public struct V3ManifestAuthenticator: Sendable {
         return V3VerifiedManifest(
             envelope: candidate,
             envelopeDigest: Data(SHA256.hash(data: candidateData))
+        )
+    }
+
+    /// Checks the compared inviter's signature before the joining device
+    /// performs a user-present Secure Enclave unwrap.
+    ///
+    /// This is only a candidate filter. It does not authenticate the manifest
+    /// HMAC, establish ancestry, or grant trust; the complete enrollment
+    /// verifier must still run after the exact vault key is recovered.
+    func verifyLocalToSharedEnrollmentAuthorization(
+        _ candidate: V3ManifestEnvelope,
+        transcript: V3EnrollmentTranscript
+    ) throws {
+        guard candidate.authorizations.count == 1,
+            candidate.authorizations[0].signerDeviceID
+                == transcript.invitation.invitingDevice.deviceID
+        else {
+            throw V3ManifestError.authorizationFailed
+        }
+        try verifyEnrollmentAuthorization(
+            candidate.authorizations[0],
+            identity: transcript.invitation.invitingDevice,
+            input: Self.authenticationInput(
+                for: candidate.canonicalContentBytes
+            )
         )
     }
 
@@ -694,7 +719,18 @@ public struct V3ManifestAuthenticator: Sendable {
             throw V3ManifestError.authorizationFailed
         }
 
-        let authorization = candidate.authorizations[0]
+        try verifyEnrollmentAuthorization(
+            candidate.authorizations[0],
+            identity: invitation.invitingDevice,
+            input: input
+        )
+    }
+
+    private func verifyEnrollmentAuthorization(
+        _ authorization: V3ManifestAuthorization,
+        identity: V3EnrollmentDeviceIdentity,
+        input: Data
+    ) throws {
         let signatureBytes = try decodeBase64URL(
             authorization.signature,
             expectedByteCount: 64,
@@ -705,8 +741,7 @@ public struct V3ManifestAuthenticator: Sendable {
         }
         do {
             let publicKey = try P256.Signing.PublicKey(
-                x963Representation:
-                    invitation.invitingDevice.signingPublicKey
+                x963Representation: identity.signingPublicKey
             )
             let signature = try P256.Signing.ECDSASignature(
                 rawRepresentation: signatureBytes

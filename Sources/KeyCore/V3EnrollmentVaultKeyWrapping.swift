@@ -24,7 +24,7 @@ enum V3EnrollmentVaultKeyWrappingError:
         case .invalidCiphertext:
             "The version 3 enrollment wrapped-key ciphertext is invalid."
         case .cryptographicFailure:
-            "The version 3 enrollment vault key could not be wrapped."
+            "The version 3 enrollment vault-key cryptographic operation failed."
         }
     }
 }
@@ -141,6 +141,17 @@ protocol V3EnrollmentVaultKeyWrapping: Sendable {
     ) throws -> Data
 }
 
+protocol V3EnrollmentVaultKeyUnwrapping: Sendable {
+    var vaultID: String { get }
+    var publicIdentity: V3EnrollmentDeviceIdentity { get }
+
+    func unwrapVaultKey(
+        _ ciphertext: Data,
+        context: V3EnrollmentVaultKeyWrapContext,
+        reason: String
+    ) throws -> Data
+}
+
 /// Uses an ephemeral software P-256 key only to derive a one-time wrapping
 /// key. The recipient private key remains device-bound in the Secure Enclave.
 struct V3EnrollmentVaultKeyWrapper: V3EnrollmentVaultKeyWrapping, Sendable {
@@ -210,6 +221,51 @@ struct V3EnrollmentVaultKeyWrapper: V3EnrollmentVaultKeyWrapping, Sendable {
                 ciphertext: sealed.ciphertext,
                 tag: sealed.tag
             ).combinedBytes
+        } catch let error as V3EnrollmentVaultKeyWrappingError {
+            throw error
+        } catch {
+            throw V3EnrollmentVaultKeyWrappingError.cryptographicFailure
+        }
+    }
+
+    func unwrap(
+        _ ciphertext: Data,
+        context: V3EnrollmentVaultKeyWrapContext,
+        sharedSecret: (P256.KeyAgreement.PublicKey) throws -> SharedSecret
+    ) throws -> Data {
+        let framed = try V3EnrollmentWrappedVaultKeyCiphertext(
+            combinedBytes: ciphertext
+        )
+        do {
+            let ephemeral = try P256.KeyAgreement.PublicKey(
+                x963Representation: framed.ephemeralPublicKey
+            )
+            let wrappingKey = try sharedSecret(ephemeral)
+                .x963DerivedSymmetricKey(
+                    using: SHA256.self,
+                    sharedInfo: domainInput(
+                        Self.keyDerivationDomain,
+                        context: context
+                    ),
+                    outputByteCount: 32
+                )
+            let sealed = try AES.GCM.SealedBox(
+                nonce: AES.GCM.Nonce(data: framed.nonce),
+                ciphertext: framed.ciphertext,
+                tag: framed.tag
+            )
+            let vaultKey = try AES.GCM.open(
+                sealed,
+                using: wrappingKey,
+                authenticating: domainInput(
+                    Self.authenticatedDataDomain,
+                    context: context
+                )
+            )
+            guard vaultKey.count == 32 else {
+                throw V3EnrollmentVaultKeyWrappingError.invalidVaultKey
+            }
+            return vaultKey
         } catch let error as V3EnrollmentVaultKeyWrappingError {
             throw error
         } catch {
