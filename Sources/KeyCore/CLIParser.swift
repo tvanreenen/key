@@ -19,6 +19,8 @@ public enum CLIParser {
             return try parseStatus(arguments: Array(arguments.dropFirst()))
         case "conflict":
             return try parseConflict(arguments: Array(arguments.dropFirst()))
+        case "share":
+            return try parseShare(arguments: Array(arguments.dropFirst()))
         case "unlock":
             return try parseUnlock(arguments: Array(arguments.dropFirst()))
         case "lock":
@@ -60,6 +62,16 @@ public enum CLIParser {
       conflict get <id> <version>        Print one conflicted secret version.
       conflict copy <id> <version>       Copy one conflicted secret version.
       conflict resolve <id>=<version>…   Resolve every listed conflict together.
+      share invitations                   List short-lived vault invitations.
+      share invite --name <name>          Invite a member from the current v3 Mac.
+      share join <invite> --name <name>   Answer one exact invitation.
+      share requests <invite>             List answers to an invitation.
+      share compare <vault> <invite> [request]
+                                          Show the code and device pair to compare.
+      share approve <vault> <invite> <code>
+                                          Approve the compared joining Mac.
+      share accept <vault> <invite> <code>
+                                          Trust and select the approved vault here.
       get <name> [--allow-stale]         Print a secret or current TOTP code.
       copy <name> [--allow-stale]        Copy a secret or current TOTP code.
       add [--totp] <name>                Add a new secret from stdin or prompt.
@@ -259,6 +271,119 @@ public enum CLIParser {
                 "Unknown conflict subcommand '\(action)'.\n\n\(usageText)"
             )
         }
+    }
+
+    private static func parseShare(arguments: [String]) throws -> Command {
+        guard let action = arguments.first else {
+            throw AppError.usage(
+                "Missing share subcommand.\n\n\(usageText)"
+            )
+        }
+        let remaining = Array(arguments.dropFirst())
+        switch action {
+        case "invitations":
+            guard remaining.isEmpty else {
+                throw AppError.usage(
+                    "Unknown option '\(remaining[0])' for share invitations.\n\n\(usageText)"
+                )
+            }
+            return .share(.invitations)
+        case "invite":
+            let (name, role) = try parseShareIdentityOptions(remaining)
+            return .share(.invite(deviceName: name, role: role))
+        case "join":
+            guard let invitationID = remaining.first else {
+                throw AppError.usage(
+                    "Missing invitation ID for share join.\n\n\(usageText)"
+                )
+            }
+            let (name, role) = try parseShareIdentityOptions(
+                Array(remaining.dropFirst()),
+                permitsRole: false
+            )
+            guard role == .member else {
+                throw AppError.usage(usageText)
+            }
+            return .share(.join(
+                invitationID: invitationID,
+                deviceName: name
+            ))
+        case "requests":
+            guard remaining.count == 1 else {
+                throw AppError.usage(
+                    "Use `key share requests <invitation-id>`.\n\n\(usageText)"
+                )
+            }
+            return .share(.requests(invitationID: remaining[0]))
+        case "compare":
+            guard remaining.count == 2 || remaining.count == 3 else {
+                throw AppError.usage(
+                    "Use `key share compare <vault-id> <invitation-id> [join-request-id]`.\n\n\(usageText)"
+                )
+            }
+            return .share(.compare(
+                vaultID: remaining[0],
+                invitationID: remaining[1],
+                joinRequestID: remaining.count == 3 ? remaining[2] : nil
+            ))
+        case "approve", "accept":
+            guard remaining.count == 3 else {
+                throw AppError.usage(
+                    "Use `key share \(action) <vault-id> <invitation-id> <comparison-code>`.\n\n\(usageText)"
+                )
+            }
+            return .share(
+                action == "approve"
+                    ? .approve(
+                        vaultID: remaining[0],
+                        invitationID: remaining[1],
+                        comparisonCode: remaining[2]
+                    )
+                    : .accept(
+                        vaultID: remaining[0],
+                        invitationID: remaining[1],
+                        comparisonCode: remaining[2]
+                    )
+            )
+        default:
+            throw AppError.usage(
+                "Unknown share subcommand '\(action)'.\n\n\(usageText)"
+            )
+        }
+    }
+
+    private static func parseShareIdentityOptions(
+        _ arguments: [String],
+        permitsRole: Bool = true
+    ) throws -> (name: String, role: V3DeviceRole) {
+        var name: String?
+        var role: V3DeviceRole = .member
+        var index = 0
+        while index < arguments.count {
+            switch arguments[index] {
+            case "--name":
+                guard index + 1 < arguments.count, name == nil else {
+                    throw AppError.usage(
+                        "Provide one device name after --name.\n\n\(usageText)"
+                    )
+                }
+                name = arguments[index + 1]
+                index += 2
+            case "--owner" where permitsRole:
+                role = .owner
+                index += 1
+            default:
+                throw AppError.usage(
+                    "Unknown option '\(arguments[index])' for share.\n\n\(usageText)"
+                )
+            }
+        }
+        guard let name else {
+            throw AppError.usage(
+                "Provide this Mac's readable name with --name.\n\n\(usageText)"
+            )
+        }
+        return (name, role)
     }
 
     private static func parseOptionalJSON(

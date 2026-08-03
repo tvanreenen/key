@@ -117,6 +117,42 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
         return state
     }
 
+    /// Republishes the exact join request already owned by this device.
+    ///
+    /// This is intentionally checked before a caller creates a new nonce or
+    /// signature. A transient provider failure after device-local persistence
+    /// can therefore resume with identical bytes instead of conflicting with
+    /// the durable ceremony state.
+    func resumeJoining(
+        answering verifiedInvitation: V3VerifiedEnrollmentInvitation,
+        at unixTime: UInt64
+    ) throws -> V3EnrollmentCeremonyState? {
+        let verifiedInvitation = try authenticator.verify(
+            verifiedInvitation.signedInvitation
+        )
+        let invitation = verifiedInvitation.invitation
+        guard let loaded = try loadValidatedState(
+            vaultID: invitation.vaultID,
+            invitationDigest: invitation.digest
+        ) else {
+            return nil
+        }
+        let state = loaded.state
+        guard state.role == .joiner,
+              state.phase == .awaitingComparison,
+              state.signedInvitation == verifiedInvitation.signedInvitation,
+              let signedJoinRequest = state.signedJoinRequest
+        else {
+            throw V3EnrollmentCeremonyStateError.conflict
+        }
+        try invitation.requireUnexpired(at: unixTime)
+        try mailbox.publishJoinRequest(
+            signedJoinRequest.canonicalBytes,
+            invitationDigest: invitation.digest
+        )
+        return state
+    }
+
     /// Lists only bounded digest-shaped candidates for an active local invite.
     func availableJoinRequestDigests(
         vaultID: String,
@@ -221,6 +257,40 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
             invitationDigest: invitationDigest,
             at: unixTime
         ).state
+    }
+
+    /// Reopens joining-side state for the final adoption transaction.
+    ///
+    /// A consumed state is an exact, device-local retry marker: comparison
+    /// and first-trust verification already completed, but the helper may
+    /// still need to finish checkpoint or configuration installation after a
+    /// crash. New adoption attempts remain subject to invitation expiry.
+    func resumeJoinerAdoption(
+        vaultID: String,
+        invitationDigest: Data,
+        at unixTime: UInt64
+    ) throws -> V3EnrollmentCeremonyState {
+        guard let loaded = try loadValidatedState(
+            vaultID: vaultID,
+            invitationDigest: invitationDigest
+        ) else {
+            throw V3EnrollmentCeremonyStateError.notFound
+        }
+        let state = loaded.state
+        guard state.role == .joiner else {
+            throw V3EnrollmentCeremonyStateError.wrongRole
+        }
+        switch state.phase {
+        case .awaitingComparison:
+            try state.signedInvitation.invitation.requireUnexpired(
+                at: unixTime
+            )
+        case .consumed:
+            break
+        case .awaitingJoinRequest, .publishingApproval:
+            throw V3EnrollmentCeremonyStateError.invalidState
+        }
+        return state
     }
 
     /// Persists the exact randomized owner approval before any shared

@@ -111,7 +111,7 @@ struct V3EnrollmentOwnerApprovalCoordinator: Sendable {
         }
     }
 
-    private func approve(
+    func approve(
         vaultID: String,
         invitationDigest: Data,
         approvedTranscriptDigest: Data,

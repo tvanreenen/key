@@ -87,9 +87,21 @@ private struct V3ReadRuntimeContext: Sendable {
     }
 
     func unlock() throws {
-        _ = try loadState(
+        let state = try loadState(
             reason: "Unlock and authenticate version 3 vault."
         )
+        switch state.classification.status {
+        case .ready:
+            return
+        case .incomplete:
+            throw VaultUXServiceError.vaultIncomplete
+        case .contentConflicted:
+            throw VaultUXServiceError.contentConflict
+        case .securityConflicted:
+            throw VaultUXServiceError.securityConflict
+        case .recoveryRequired:
+            throw VaultUXServiceError.recoveryRequired
+        }
     }
 
     func authorizeRead(

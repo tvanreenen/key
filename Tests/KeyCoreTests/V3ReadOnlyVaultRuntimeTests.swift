@@ -174,6 +174,46 @@ struct V3ReadOnlyVaultRuntimeTests {
         }
     }
 
+    @Test
+    func unlockRequiresACompleteValidRepository() throws {
+        let fixture = try RuntimeFixture()
+        let checkpointStore = FixedRuntimeCheckpointStore(
+            checkpoint: fixture.checkpoint.canonicalBytes
+        )
+        let unavailableEntryRuntime = V3ReadOnlyVaultRuntime(
+            source: RuntimeObjectSource(
+                manifests: fixture.source.manifests,
+                entries: [:]
+            ),
+            vaultID: fixture.vaultID,
+            checkpointStore: checkpointStore,
+            vaultKeyProvider: RuntimeKeyProvider(
+                key: fixture.vaultKey
+            ).load
+        )
+        #expect(throws: VaultUXServiceError.vaultIncomplete) {
+            try unavailableEntryRuntime.unlock()
+        }
+
+        var invalidEntries = fixture.source.entries
+        let firstEntry = try #require(invalidEntries.keys.first)
+        invalidEntries[firstEntry] = Data("invalid entry".utf8)
+        let invalidEntryRuntime = V3ReadOnlyVaultRuntime(
+            source: RuntimeObjectSource(
+                manifests: fixture.source.manifests,
+                entries: invalidEntries
+            ),
+            vaultID: fixture.vaultID,
+            checkpointStore: checkpointStore,
+            vaultKeyProvider: RuntimeKeyProvider(
+                key: fixture.vaultKey
+            ).load
+        )
+        #expect(throws: VaultUXServiceError.recoveryRequired) {
+            try invalidEntryRuntime.unlock()
+        }
+    }
+
     private func serviceResponse(
         source: RuntimeObjectSource,
         fixture: RuntimeFixture,

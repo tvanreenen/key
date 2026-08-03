@@ -70,6 +70,8 @@
 		A5260001A5260001A5260001 /* V3EnrollmentOwnerTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5260002A5260002A5260002 /* V3EnrollmentOwnerTransition.swift */; };
 		A5270001A5270001A5270001 /* V3EnrollmentOwnerApprovalCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5270002A5270002A5270002 /* V3EnrollmentOwnerApprovalCoordinator.swift */; };
 		A5280001A5280001A5280001 /* V3ManifestAncestryObservation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5280002A5280002A5280002 /* V3ManifestAncestryObservation.swift */; };
+		A5290001A5290001A5290001 /* V3EnrollmentAdoption.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5290002A5290002A5290002 /* V3EnrollmentAdoption.swift */; };
+		A5300001A5300001A5300001 /* V3EnrollmentWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5300002A5300002A5300002 /* V3EnrollmentWorkflow.swift */; };
 		A5000011A5000011A5000011 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000012A5000012A5000012 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000013A5000013A5000013 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
@@ -195,6 +197,8 @@
 		A5260002A5260002A5260002 /* V3EnrollmentOwnerTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3EnrollmentOwnerTransition.swift; sourceTree = "<group>"; };
 		A5270002A5270002A5270002 /* V3EnrollmentOwnerApprovalCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3EnrollmentOwnerApprovalCoordinator.swift; sourceTree = "<group>"; };
 		A5280002A5280002A5280002 /* V3ManifestAncestryObservation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ManifestAncestryObservation.swift; sourceTree = "<group>"; };
+		A5290002A5290002A5290002 /* V3EnrollmentAdoption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3EnrollmentAdoption.swift; sourceTree = "<group>"; };
+		A5300002A5300002A5300002 /* V3EnrollmentWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3EnrollmentWorkflow.swift; sourceTree = "<group>"; };
 		A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libJSONCanonicalization.a; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -291,6 +295,8 @@
 				A5260002A5260002A5260002 /* V3EnrollmentOwnerTransition.swift */,
 				A5270002A5270002A5270002 /* V3EnrollmentOwnerApprovalCoordinator.swift */,
 				A5280002A5280002A5280002 /* V3ManifestAncestryObservation.swift */,
+				A5290002A5290002A5290002 /* V3EnrollmentAdoption.swift */,
+				A5300002A5300002A5300002 /* V3EnrollmentWorkflow.swift */,
 				A4090012A4090012A4090012 /* VaultUXService.swift */,
 				A4010002A4010002A4010002 /* VaultTransactionMutationOwner.swift */,
 				B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */,
@@ -652,6 +658,8 @@
 				A5260001A5260001A5260001 /* V3EnrollmentOwnerTransition.swift in Sources */,
 				A5270001A5270001A5270001 /* V3EnrollmentOwnerApprovalCoordinator.swift in Sources */,
 				A5280001A5280001A5280001 /* V3ManifestAncestryObservation.swift in Sources */,
+				A5290001A5290001A5290001 /* V3EnrollmentAdoption.swift in Sources */,
+				A5300001A5300001A5300001 /* V3EnrollmentWorkflow.swift in Sources */,
 				A4090011A4090011A4090011 /* VaultUXService.swift in Sources */,
 				A4010001A4010001A4010001 /* VaultTransactionMutationOwner.swift in Sources */,
 				2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */,

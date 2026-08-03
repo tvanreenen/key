@@ -131,6 +131,68 @@ struct CLIParserTests {
     }
 
     @Test
+    func parsesExplicitDeviceSharingCeremony() throws {
+        #expect(
+            try CLIParser.parse(arguments: ["share", "invitations"])
+                == .share(.invitations)
+        )
+        #expect(
+            try CLIParser.parse(arguments: [
+                "share", "invite", "--name", "Office Mac", "--owner"
+            ]) == .share(.invite(
+                deviceName: "Office Mac",
+                role: .owner
+            ))
+        )
+        #expect(
+            try CLIParser.parse(arguments: [
+                "share", "join", "invite-id", "--name", "Laptop"
+            ]) == .share(.join(
+                invitationID: "invite-id",
+                deviceName: "Laptop"
+            ))
+        )
+        #expect(
+            try CLIParser.parse(arguments: [
+                "share", "compare", "vault-id", "invite-id",
+                "request-id"
+            ]) == .share(.compare(
+                vaultID: "vault-id",
+                invitationID: "invite-id",
+                joinRequestID: "request-id"
+            ))
+        )
+        #expect(
+            try CLIParser.parse(arguments: [
+                "share", "accept", "vault-id", "invite-id",
+                "1234-5678-9abc-def0-1234"
+            ]) == .share(.accept(
+                vaultID: "vault-id",
+                invitationID: "invite-id",
+                comparisonCode: "1234-5678-9abc-def0-1234"
+            ))
+        )
+    }
+
+    @Test
+    func rejectsImplicitOrUnnamedDeviceSharing() {
+        #expect(throws: AppError.self) {
+            try CLIParser.parse(arguments: ["share", "invite"])
+        }
+        #expect(throws: AppError.self) {
+            try CLIParser.parse(arguments: [
+                "share", "join", "invite-id", "--owner",
+                "--name", "Laptop"
+            ])
+        }
+        #expect(throws: AppError.self) {
+            try CLIParser.parse(arguments: [
+                "share", "approve", "vault-id", "invite-id"
+            ])
+        }
+    }
+
+    @Test
     func parsesExplicitStaleReads() throws {
         #expect(
             try CLIParser.parse(

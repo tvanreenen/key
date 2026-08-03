@@ -284,7 +284,7 @@ struct KeyCLIApplicationTests {
         This Mac now uses authenticated version 3 vault '018f4d38-7d5a-7b20-b0f1-97d6e96c44b3'.
         The version 2 source files were retained unchanged. No cleanup was performed.
         Version 3 is read-only in this release; add, edit, duplicate, rename, and remove remain unavailable.
-        Other devices remain on version 2. Their later changes are not copied into this version 3 snapshot, and enrollment requires a later release.
+        Other devices remain on version 2 and their later changes are not copied into this snapshot. To share this read-only v3 vault with a second Mac, start with `key share invite --name <device-name>`.
 
         """
         let transport = MemoryTransport { request in
@@ -302,6 +302,33 @@ struct KeyCLIApplicationTests {
         #expect(io.stdout == report)
         #expect(io.stderr == "")
         #expect(transport.requests == [.migrationApply])
+    }
+
+    @Test
+    func shareAcceptSendsOnlyPublicCeremonyInputsAndPrintsReport() {
+        let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
+        let invitationID = String(repeating: "ab", count: 32)
+        let code = "1234-5678-9abc-def0-1234"
+        let transport = MemoryTransport { request in
+            #expect(request == .share(.accept(
+                vaultID: vaultID,
+                invitationID: invitationID,
+                comparisonCode: code
+            )))
+            return .success("Enrollment completed.\n")
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: [
+            "share", "accept", vaultID, invitationID, code
+        ]) == EXIT_SUCCESS)
+        #expect(io.stdout == "Enrollment completed.\n")
+        #expect(io.stderr.isEmpty)
     }
 
     @Test

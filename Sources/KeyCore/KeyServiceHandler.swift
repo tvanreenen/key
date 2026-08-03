@@ -11,6 +11,7 @@ public final class KeyServiceHandler {
     private let now: () -> Date
     private let mutationOwner: any VaultTransactionMutationOwning
     private let migrationService: (any V3LocalMigrationServicing)?
+    private let enrollmentService: (any V3EnrollmentWorkflowServicing)?
     private let vaultUXService: any VaultUXServicing
     private let vaultReader: (any VaultReadServicing)?
     private let configuredVaultID: String?
@@ -39,6 +40,7 @@ public final class KeyServiceHandler {
             now: now,
             mutationOwner: VaultTransactionMutationOwner(),
             migrationService: nil,
+            enrollmentService: nil,
             vaultUXService: V2VaultUXService(entryStore: entryStore),
             vaultReader: nil,
             configuredVaultID: nil
@@ -54,6 +56,7 @@ public final class KeyServiceHandler {
         now: @escaping () -> Date = Date.init,
         mutationOwner: any VaultTransactionMutationOwning,
         migrationService: (any V3LocalMigrationServicing)? = nil,
+        enrollmentService: (any V3EnrollmentWorkflowServicing)? = nil,
         vaultUXService: (any VaultUXServicing)? = nil,
         vaultReader: (any VaultReadServicing)? = nil,
         configuredVaultID: String? = nil
@@ -65,6 +68,7 @@ public final class KeyServiceHandler {
         self.now = now
         self.mutationOwner = mutationOwner
         self.migrationService = migrationService
+        self.enrollmentService = enrollmentService
         self.vaultUXService = vaultUXService
             ?? V2VaultUXService(entryStore: entryStore)
         self.vaultReader = vaultReader
@@ -129,13 +133,27 @@ public final class KeyServiceHandler {
                     }
                 )
             }
+            let enrollmentService = DeferredV3EnrollmentWorkflowService {
+                let rootHandle = try VaultRootDirectoryHandle(
+                    opening: keyConfiguration.vaultDirectoryURL
+                )
+                return makeLiveV3EnrollmentWorkflowService(
+                    rootHandle: rootHandle,
+                    selectedVaultID: nil,
+                    keyStore: keyStore,
+                    keyConfiguration: keyConfiguration,
+                    configStore: configStore,
+                    runtimeConfiguration: runtimeConfiguration
+                )
+            }
             return KeyServiceHandler(
                 keyStore: keyStore,
                 entryStore: entryStore,
                 keychainMode: keyConfiguration.keychainMode,
                 configStore: configStore,
                 mutationOwner: mutationOwner,
-                migrationService: migrationService
+                migrationService: migrationService,
+                enrollmentService: enrollmentService
             )
         }
 
@@ -156,12 +174,21 @@ public final class KeyServiceHandler {
                 )
             }
         )
+        let enrollmentService = makeLiveV3EnrollmentWorkflowService(
+            rootHandle: rootHandle,
+            selectedVaultID: vaultID,
+            keyStore: keyStore,
+            keyConfiguration: keyConfiguration,
+            configStore: configStore,
+            runtimeConfiguration: runtimeConfiguration
+        )
         return KeyServiceHandler(
             keyStore: keyStore,
             entryStore: entryStore,
             keychainMode: keyConfiguration.keychainMode,
             configStore: configStore,
             mutationOwner: VaultTransactionMutationOwner(),
+            enrollmentService: enrollmentService,
             vaultUXService: runtime,
             vaultReader: runtime,
             configuredVaultID: vaultID
@@ -202,7 +229,9 @@ public final class KeyServiceHandler {
         }
         do {
             return try mutationOwner.perform(mutationKind) { context in
-                if !request.isConflictResolution {
+                if !request.isConflictResolution
+                    && !request.isEnrollmentMutation
+                {
                     try vaultUXService.authorizeMutation()
                 }
                 return handleRequest(
@@ -260,6 +289,17 @@ public final class KeyServiceHandler {
             case let .resolveConflicts(resolutions):
                 try vaultUXService.resolve(resolutions)
                 return .success()
+            case let .share(action):
+                guard let enrollmentService else {
+                    throw AppError.operationRefused(
+                        "Version 3 device sharing is unavailable in this helper runtime."
+                    )
+                }
+                return .success(try handleShare(
+                    action,
+                    service: enrollmentService,
+                    mutationContext: mutationContext
+                ))
             case .list:
                 let entries = if let vaultReader {
                     try vaultReader.list(allowStale: false)
@@ -345,8 +385,84 @@ public final class KeyServiceHandler {
             return .failure(error)
         } catch let error as VaultUXServiceError {
             return .failure(error)
+        } catch let error as V3EnrollmentAdoptionError {
+            return enrollmentFailure(error)
         } catch {
             return .failure(error.localizedDescription)
+        }
+    }
+
+    private func handleShare(
+        _ request: KeyShareRequest,
+        service: any V3EnrollmentWorkflowServicing,
+        mutationContext: VaultTransactionMutationContext?
+    ) throws -> String {
+        let unixTime = UInt64(max(0, now().timeIntervalSince1970))
+        switch request {
+        case .invitations:
+            return try service.listInvitations()
+        case let .invite(deviceName, role):
+            return try service.createInvitation(
+                deviceName: deviceName,
+                role: role,
+                at: unixTime
+            )
+        case let .join(invitationID, deviceName):
+            return try service.join(
+                invitationDigest: try enrollmentDigest(invitationID),
+                deviceName: deviceName,
+                at: unixTime
+            )
+        case let .requests(invitationID):
+            return try service.listJoinRequests(
+                invitationDigest: try enrollmentDigest(invitationID),
+                at: unixTime
+            )
+        case let .compare(vaultID, invitationID, joinRequestID):
+            return try service.compare(
+                vaultID: vaultID,
+                invitationDigest: try enrollmentDigest(invitationID),
+                joinRequestDigest: try joinRequestID.map(enrollmentDigest),
+                at: unixTime
+            )
+        case let .approve(
+            vaultID,
+            invitationID,
+            comparisonCode
+        ):
+            guard let mutationContext,
+                mutationContext.kind == .enrollDevice
+            else {
+                throw AppError.operationRefused(
+                    "Enrollment approval requires the helper's serialized mutation boundary."
+                )
+            }
+            return try service.approve(
+                vaultID: vaultID,
+                invitationDigest: try enrollmentDigest(invitationID),
+                comparisonCode: comparisonCode,
+                at: unixTime,
+                operationID: mutationContext.operationID
+            )
+        case let .accept(
+            vaultID,
+            invitationID,
+            comparisonCode
+        ):
+            guard let mutationContext,
+                mutationContext.kind == .enrollDevice
+            else {
+                throw AppError.operationRefused(
+                    "Enrollment acceptance requires the helper's serialized mutation boundary."
+                )
+            }
+            return try service.accept(
+                vaultID: vaultID,
+                invitationDigest: try enrollmentDigest(invitationID),
+                comparisonCode: comparisonCode,
+                at: unixTime,
+                operationID: mutationContext.operationID
+            )
         }
     }
 
@@ -692,7 +808,8 @@ private func v3ReadOnlyOperationError() -> AppError {
 private extension KeyServiceRequest {
     var requiresExclusiveRuntimeSelectionChange: Bool {
         switch self {
-        case .setVaultDirectory, .migrationApply:
+        case .setVaultDirectory, .migrationApply,
+            .share(.accept):
             true
         default:
             false
@@ -723,6 +840,8 @@ private extension KeyServiceRequest {
             .resolveConflict
         case .migrationApply:
             .migrateToV3
+        case .share(.approve), .share(.accept):
+            .enrollDevice
         default:
             nil
         }
@@ -734,5 +853,62 @@ private extension KeyServiceRequest {
         } else {
             false
         }
+    }
+
+    var isEnrollmentMutation: Bool {
+        switch self {
+        case .share(.approve), .share(.accept):
+            true
+        default:
+            false
+        }
+    }
+}
+
+private func enrollmentDigest(_ value: String) throws -> Data {
+    guard value.utf8.count == 64,
+        value.utf8.allSatisfy({
+            ($0 >= 48 && $0 <= 57) || ($0 >= 97 && $0 <= 102)
+        })
+    else {
+        throw AppError.usage(
+            "Enrollment IDs must be complete 64-character lowercase hexadecimal values."
+        )
+    }
+    var result = Data()
+    result.reserveCapacity(32)
+    var index = value.startIndex
+    for _ in 0..<32 {
+        let next = value.index(index, offsetBy: 2)
+        guard let byte = UInt8(value[index..<next], radix: 16) else {
+            throw AppError.usage("Invalid enrollment ID.")
+        }
+        result.append(byte)
+        index = next
+    }
+    return result
+}
+
+private func enrollmentFailure(
+    _ error: V3EnrollmentAdoptionError
+) -> KeyServiceResponse {
+    switch error {
+    case .approvalUnavailable:
+        return .failure(
+            error.localizedDescription,
+            code: .vaultIncomplete
+        )
+    case .invalidCeremony, .selectionFailed:
+        return .failure(
+            error.localizedDescription,
+            code: .operationRefused
+        )
+    case .ambiguousApproval, .invalidApproval, .identityUnavailable,
+        .invalidWrappedKey, .conflictingVaultKey,
+        .conflictingCheckpoint:
+        return .failure(
+            error.localizedDescription,
+            code: .recoveryRequired
+        )
     }
 }

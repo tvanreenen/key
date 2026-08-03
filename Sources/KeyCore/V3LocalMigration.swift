@@ -42,7 +42,7 @@ struct V3LocalMigrationReport: Equatable, Sendable {
             "This Mac now uses authenticated version 3 vault '\(vaultID)'.",
             "The version 2 source files were retained unchanged. No cleanup was performed.",
             "Version 3 is read-only in this release; add, edit, duplicate, rename, and remove remain unavailable.",
-            "Other devices remain on version 2. Their later changes are not copied into this version 3 snapshot, and enrollment requires a later release."
+            "Other devices remain on version 2 and their later changes are not copied into this snapshot. To share this read-only v3 vault with a second Mac, start with `key share invite --name <device-name>`."
         ].joined(separator: "\n") + "\n"
     }
 }

@@ -362,6 +362,17 @@ private final class SoftwareEnrollmentDeviceKeyOperations:
         return try key.signature(for: input).rawRepresentation
     }
 
+    func sharedSecret(
+        with publicKey: P256.KeyAgreement.PublicKey,
+        wrappingKeyRepresentation: Data,
+        reason _: String
+    ) throws -> SharedSecret {
+        let key = try P256.KeyAgreement.PrivateKey(
+            rawRepresentation: wrappingKeyRepresentation
+        )
+        return try key.sharedSecretFromKeyAgreement(with: publicKey)
+    }
+
     func keys(
         signingScalar: UInt8,
         wrappingScalar: UInt8
