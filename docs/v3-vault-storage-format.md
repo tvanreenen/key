@@ -480,6 +480,16 @@ finish publishing it after expiry; expiry cannot produce a different approval.
 Consumed inviter state retains the record, while joiner state MUST keep
 `ownerApproval` null.
 
+Final joiner adoption MAY reopen its exact locally pinned
+`awaitingComparison` state after invitation expiry. This exception MUST NOT
+create or accept new ceremony messages. Before marking that state consumed or
+installing vault authority, the joiner MUST authenticate the unique shared
+manifest transition bound to the pinned transcript and unwrap the key addressed
+to its exact device identity. Missing provider objects remain temporary
+unavailability and leave local authority unchanged. This permits an approval
+published before expiry to survive delayed file-provider delivery without
+turning an expired invitation into a reusable enrollment grant.
+
 Replay tracking here is intentionally device-local, not a synchronized global
 claim. Losing this local record loses ceremony resumption and its local consumed
 marker, but it still cannot grant membership or recover a vault key. `ENR-504`

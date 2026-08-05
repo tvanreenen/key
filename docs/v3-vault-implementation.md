@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `2e59478` (`v0.2.0-alpha.3`) |
+| Production base | `main` at `6785166` (`v0.2.0-alpha.4`) |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/adopt-v3-enrollment` |
-| Current PR | [#48](https://github.com/tvanreenen/key/pull/48) |
-| Active increment | `ENR-505` — Joining-device first trust, exact-key unwrap, vault selection, and read-only CLI enrollment |
-| Next work | Review and merge PR #48, then run installed two-Mac release validation |
+| Current branch | `agent/resume-approved-enrollment` |
+| Current PR | Not opened |
+| Active increment | `ENR-506` — Resume exact owner-approved adoption after invitation expiry and delayed provider delivery |
+| Next work | Review and merge `ENR-506`, release `v0.2.0-alpha.5 (10)`, then retry the preserved two-Mac ceremony |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -120,7 +120,8 @@ security or durability boundary and updates this tracker before it merges.
 | `ENR-502` | Complete; PR #45 | Create device-bound signing and wrapping identities and signed ceremony messages |
 | `ENR-503` | Complete; PR #46 | Exchange bounded enrollment messages without trusting the file provider |
 | `ENR-504` | Complete; PR #47 | Approve and publish the owner-authorized local-to-shared transition |
-| `ENR-505` | Implementation complete; PR #48 open | Verify first trust, unwrap the exact vault key, select the vault, and expose the read-only CLI flow |
+| `ENR-505` | Complete; PR #48 | Verify first trust, unwrap the exact vault key, select the vault, and expose the read-only CLI flow |
+| `ENR-506` | Implementation in progress | Resume only the exact authenticated owner approval after provider delivery outlives its invitation |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads

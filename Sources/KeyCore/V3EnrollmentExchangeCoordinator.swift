@@ -261,14 +261,15 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
 
     /// Reopens joining-side state for the final adoption transaction.
     ///
-    /// A consumed state is an exact, device-local retry marker: comparison
-    /// and first-trust verification already completed, but the helper may
-    /// still need to finish checkpoint or configuration installation after a
-    /// crash. New adoption attempts remain subject to invitation expiry.
+    /// Expiry prevents new enrollment traffic; it does not invalidate an
+    /// immutable owner approval that may arrive later through the file
+    /// provider. This returns only the exact pinned local transcript. The
+    /// adoption service must still authenticate its matching approval before
+    /// consuming the ceremony or installing any authority.
     func resumeJoinerAdoption(
         vaultID: String,
         invitationDigest: Data,
-        at unixTime: UInt64
+        at _: UInt64
     ) throws -> V3EnrollmentCeremonyState {
         guard let loaded = try loadValidatedState(
             vaultID: vaultID,
@@ -281,11 +282,7 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
             throw V3EnrollmentCeremonyStateError.wrongRole
         }
         switch state.phase {
-        case .awaitingComparison:
-            try state.signedInvitation.invitation.requireUnexpired(
-                at: unixTime
-            )
-        case .consumed:
+        case .awaitingComparison, .consumed:
             break
         case .awaitingJoinRequest, .publishingApproval:
             throw V3EnrollmentCeremonyStateError.invalidState
@@ -390,12 +387,14 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
     ///
     /// This is non-authoritative bookkeeping for ENR-504 and ENR-505. Calling
     /// it again for the same transcript is idempotent; every other ceremony
-    /// operation rejects the consumed record as replayed.
+    /// operation rejects the consumed record as replayed. Invitation expiry
+    /// does not block this final marker because the caller has already bound
+    /// its work to the exact persisted transcript and authenticated approval.
     func markConsumed(
         vaultID: String,
         invitationDigest: Data,
         transcriptDigest: Data,
-        at unixTime: UInt64
+        at _: UInt64
     ) throws -> V3EnrollmentCeremonyState {
         guard transcriptDigest.count == 32 else {
             throw V3EnrollmentCeremonyStateError.invalidState
@@ -424,9 +423,6 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
                 throw V3EnrollmentCeremonyStateError.invalidState
             }
         case .joiner:
-            try state.signedInvitation.invitation.requireUnexpired(
-                at: unixTime
-            )
             guard state.phase == .awaitingComparison else {
                 throw V3EnrollmentCeremonyStateError.invalidState
             }
