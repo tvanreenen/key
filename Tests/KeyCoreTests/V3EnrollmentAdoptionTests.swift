@@ -78,6 +78,67 @@ struct V3EnrollmentAdoptionTests {
     }
 
     @Test
+    func expiredCeremonyWithoutApprovalChangesNoLocalAuthority() throws {
+        let fixture = try Fixture(includeCandidate: false)
+        let selection = AdoptionSelection()
+
+        #expect(throws: V3EnrollmentAdoptionError.approvalUnavailable) {
+            try fixture.service(selection: selection).adopt(
+                vaultID: Self.vaultID,
+                invitationDigest: fixture.invitation.digest,
+                approvedTranscriptDigest: fixture.transcript.digest,
+                at: fixture.invitation.expiresAt + 1,
+                operationID: VaultTransactionOperationID()
+            )
+        }
+        #expect(fixture.keyStore.localKeyData == nil)
+        #expect(fixture.checkpointStore.checkpoint == nil)
+        #expect(selection.selectedVaultID == nil)
+        #expect(
+            try V3EnrollmentCeremonyState(
+                canonicalBytes: fixture.stateStore.state
+            ).phase == .awaitingComparison
+        )
+    }
+
+    @Test
+    func providerDelayedApprovalCanBeAdoptedAfterInvitationExpiry() throws {
+        let fixture = try Fixture(includeCandidate: false)
+        let selection = AdoptionSelection()
+        let service = fixture.service(selection: selection)
+
+        #expect(throws: V3EnrollmentAdoptionError.approvalUnavailable) {
+            try service.adopt(
+                vaultID: Self.vaultID,
+                invitationDigest: fixture.invitation.digest,
+                approvedTranscriptDigest: fixture.transcript.digest,
+                at: Self.activeTime,
+                operationID: VaultTransactionOperationID()
+            )
+        }
+        fixture.source.manifests[
+            fixture.candidate.verifiedManifest.envelopeDigest
+        ] = fixture.candidate.manifestData
+
+        _ = try service.adopt(
+            vaultID: Self.vaultID,
+            invitationDigest: fixture.invitation.digest,
+            approvedTranscriptDigest: fixture.transcript.digest,
+            at: fixture.invitation.expiresAt + 1,
+            operationID: VaultTransactionOperationID()
+        )
+
+        #expect(fixture.keyStore.localKeyData == Self.vaultKey)
+        #expect(fixture.checkpointStore.checkpoint != nil)
+        #expect(selection.selectedVaultID == Self.vaultID)
+        #expect(
+            try V3EnrollmentCeremonyState(
+                canonicalBytes: fixture.stateStore.state
+            ).phase == .consumed
+        )
+    }
+
+    @Test
     func conflictingExistingKeyIsNeverReplaced() throws {
         let fixture = try Fixture()
         let conflicting = Data(repeating: 0xEE, count: 32)
@@ -297,7 +358,7 @@ private final class AdoptionSource:
     V3ImmutableObjectReading,
     @unchecked Sendable
 {
-    let manifests: [Data: Data]
+    var manifests: [Data: Data]
 
     init(manifests: [Data: Data]) {
         self.manifests = manifests

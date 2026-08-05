@@ -401,6 +401,36 @@ struct V3EnrollmentExchangeCoordinatorTests {
     }
 
     @Test
+    func finalJoinerAdoptionCanResumeAfterInvitationExpiry() throws {
+        let fixture = try Fixture()
+        let stateStore = MemoryCeremonyStateStore()
+        let coordinator = V3EnrollmentExchangeCoordinator(
+            mailbox: MemoryEnrollmentMailbox(),
+            stateStore: stateStore
+        )
+        let awaitingComparison = try coordinator.beginJoining(
+            fixture.signedJoinRequest,
+            answering: fixture.verifiedInvitation,
+            at: Self.activeTime
+        )
+
+        #expect(
+            try coordinator.resumeJoinerAdoption(
+                vaultID: Self.vaultID,
+                invitationDigest: fixture.invitation.digest,
+                at: fixture.invitation.expiresAt + 1
+            ) == awaitingComparison
+        )
+        #expect(throws: V3EnrollmentProtocolError.expired) {
+            try coordinator.resume(
+                vaultID: Self.vaultID,
+                invitationDigest: fixture.invitation.digest,
+                at: fixture.invitation.expiresAt + 1
+            )
+        }
+    }
+
+    @Test
     func consumedTranscriptIsIdempotentButCannotBeReplayed() throws {
         let fixture = try Fixture()
         let stateStore = MemoryCeremonyStateStore()
