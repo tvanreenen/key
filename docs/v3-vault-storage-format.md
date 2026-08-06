@@ -1,17 +1,15 @@
 # Key Vault Version 3 Storage Format
 
-Status: normative schema, authority, replay, membership, migration,
-prototype-refusal, exact-head, exact-key-identity, and canonical multi-parent
-history specification through `HIST-404`.
+Status: shipping version 3 specification through guarded two-device writes and
+explicit conflict resolution in `v0.2.0-alpha.6`.
 
-This document defines the current unreleased data model and canonical encoding
+This document defines the current data model and canonical encoding
 for the version 3 vault manifest body, authenticated manifest envelope, and
 encrypted entry files. The envelope uses layered symmetric authentication and
-device authorization as defined below. Planned format changes are explicitly
-listed under Deliberately Deferred and must update this specification before
-implementation.
-
-No version 3 reader or writer is enabled by this specification.
+device authorization as defined below. Alpha.6 enables explicit migration,
+enrollment of the first additional device, authenticated reads, guarded entry
+writes, and explicit conflict resolution. Planned boundaries are listed under
+Deliberately Deferred and must update this specification before implementation.
 
 ## Normative Language
 
@@ -435,11 +433,11 @@ placeholder state to establish freshness, authority, or a winner. Missing and
 placeholder objects are temporary transport unavailability; malformed,
 oversized, substituted, symbolic-link, or unsafe-root states fail closed.
 
-Mailbox artifacts are retained through the first read-only enrollment release.
-Safe synchronized cleanup is deferred until realistic provider testing defines
-rules that cannot delete another device's only delivered copy. Retention does
-not grant replay authority because later ceremony steps remain bound to exact
-local state and authenticated manifest history.
+Mailbox artifacts remain retained in the current alpha. Safe synchronized
+cleanup is deferred until realistic provider testing defines rules that cannot
+delete another device's only delivered copy. Retention does not grant replay
+authority because later ceremony steps remain bound to exact local state and
+authenticated manifest history.
 
 #### Device-Local Enrollment Ceremony State
 
@@ -1317,9 +1315,10 @@ keyless empty vault has no established version 2 identity to migrate and is
 refused until synchronization delivers its key or the user creates ordinary
 version 2 content.
 
-The migrated version 3 vault is read-only in this release. Other devices remain
-on version 2, and their later changes are not imported into this snapshot.
-General version 3 writes and device enrollment require later releases.
+Migration does not enroll another device or import later version 2 changes.
+Other devices remain on version 2 until they complete the explicit enrollment
+ceremony. Alpha.6 permits guarded entry writes only after version 3 is selected;
+it never turns later version 2 files into version 3 history.
 
 ## Unsupported Prototype Enclave State
 
@@ -1499,20 +1498,20 @@ defined by a later specification.
 
 ## Deliberately Deferred
 
-`HIST-402`, `KEY-403`, `HIST-404`, `STORE-405`, `MERGE-406`, `TXN-407`, the
-core `TXN-408` recovery protocol, and the `UX-409` status/conflict contract
-establish exact digest-based identities, safe multi-parent authentication,
-bounded read-only discovery, deterministic logical reconciliation, and
-restartable entry-first immutable publication with stable user-visible health
-states. They deliberately do not define:
+The shipping alpha.6 format and runtime deliberately do not define:
 
-- release-environment protected-write and synchronized-provider validation;
-- shipping-target activation of the v3 reader and conflict-resolution
-  publisher; or
-- physical migration execution beyond preflight.
+- adding a third device, changing roles, revoking a device, or rotating the
+  vault key;
+- recovery after every enrolled Secure Enclave identity is lost;
+- provider-safe immutable-history, enrollment-mailbox, staging-orphan, or
+  retained-version-2 garbage collection; or
+- support policy for synchronized providers beyond the qualified iCloud Drive
+  alpha smoke-test scope.
 
-Until those runtime and migration work packages land, version 3 artifacts
-remain disabled as trusted production state.
+Version 2 remains the default until the user explicitly migrates. A shared
+version 3 vault remains unavailable to another Mac until that Mac completes
+the authenticated enrollment ceremony. Future work that changes these
+boundaries or the authenticated format must update this specification first.
 
 Implementation boundaries and future extraction work are tracked in the
 [canonical JSON module plan](json-canonicalization.md).

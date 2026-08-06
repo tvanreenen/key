@@ -40,13 +40,8 @@ key unlock                              # authenticate and warm the helper sessi
 key lock                                # clear the helper session and stop the helper
 key status                              # explain vault health and the next safe action
 key status --json                       # print stable machine-readable vault status
-key conflict list                       # list authenticated content conflicts
-key conflict show <id>                  # show the available authenticated versions
-key conflict get <id> <version>         # print one selected conflicted value
-key conflict copy <id> <version>        # copy one selected conflicted value
-key conflict resolve <id>=<version> ... # resolve every current conflict together
-key get <name> [--allow-stale]          # print a secret or current TOTP code
-key copy <name> [--allow-stale]         # copy a secret or current TOTP code
+key get <name>                          # print a secret or current TOTP code
+key copy <name>                         # copy a secret or current TOTP code
 key add <name> [--totp]                 # add a new secret or TOTP seed from stdin or prompt
 key edit <name> [--totp]                # update a secret or TOTP seed from stdin or prompt
 key list                                # list stored secrets
@@ -56,39 +51,35 @@ key remove <name> [--force]             # remove a secret
 key config get <config-name>            # print a config value
 key config set <config-name> <value>    # update a config value
 key config list                         # list known config values
-key migrate --check                     # check v2 migration readiness without changing the vault
-key migrate --apply                     # explicitly create, verify, and select a read-only v3 copy
-key share invitations                   # list available short-lived invitations
-key share invite --name "Office Mac"    # invite the first second device as a member
-key share join <invite> --name "Laptop" # answer one exact invitation on the joining Mac
-key share requests <invite>             # list exact answers on the existing Mac
-key share compare <vault> <invite> [request]
-                                         # show the device pair and comparison code
-key share approve <vault> <invite> <code>
-                                         # approve that exact pair on the existing Mac
-key share accept <vault> <invite> <code>
-                                         # trust and select the vault on the joining Mac
 key version [--json]                    # print the CLI version
 ```
 
-Migration never starts during installation or unlock. `key migrate --apply`
-rechecks the complete version 2 vault, retains every version 2 source file,
-and switches this Mac only after the new version 3 vault has been independently
-reopened. To add the first second Mac, point both Macs at the same synchronized
-vault directory and use the explicit `key share` ceremony above. Both Macs must
-show the same device names, role, and five-group comparison code before you run
-`approve` and `accept`. Enclave authenticates synchronized bytes but does not
-control provider delivery, so retry discovery after synchronization settles.
+## Coming in 0.2.0: secure multi-device vaults
 
-This alpha supports one local-to-shared transition only. Adding a third device,
-revocation, role changes, vault-key rotation, and enrollment-mailbox cleanup are
-not enabled yet. Version 3 add, edit, duplicate, rename, and remove are also not
-enabled yet. Later version 2 changes made by another device are not copied into
-the migrated snapshot.
+Version 0.2.0 brings secure multi-device vaults to Key without giving up the
+file-based model. You keep the encrypted vault in a folder you control, and
+each Mac must be explicitly approved with keys bound to its Secure Enclave.
+Your file-sync service carries encrypted, authenticated history, but it never
+receives the vault key or the authority to enroll a device, silently roll back
+trusted state, or choose a conflict winner.
 
-When a file provider has not finished delivering a newer version 3 vault
-state, `--allow-stale` explicitly permits `get` and `copy` to read the last
-complete version trusted by this Mac. Stale writes are never allowed.
+Each Mac advances only from the exact vault state it already trusts. Missing,
+substituted, rolled-back, or conflicting files therefore fail closed instead
+of quietly becoming your vault. Independent edits still merge automatically;
+genuine conflicts are preserved for you to inspect and resolve.
+
+An opt-in alpha is available now:
+
+```bash
+brew install --cask tvanreenen/tap/key@alpha
+```
+
+The preview currently supports explicit migration, one additional Mac,
+guarded reads and writes, and conflict resolution. It is not yet a stable or
+complete recovery story: adding more devices, revocation, key rotation, and
+recovery after losing every enrolled device remain unfinished. See the
+[version 3 implementation tracker](docs/v3-vault-implementation.md) for the
+current scope, limitations, and release-qualification results.
 
 ## Generating passwords
 

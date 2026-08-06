@@ -8,15 +8,13 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | In progress |
-| Production base | `main` at `4828a97` (`v0.2.0-alpha.5`) |
+| Status | `v0.2.0-alpha.6` released and two-device qualification complete; beta gates remain open |
+| Latest release | `v0.2.0-alpha.6 (11)` at `e02c76c` |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/enable-guarded-v3-writes` |
-| Current PR | Not opened |
-| Active increment | `MUT-507` — Enable guarded entry writes and explicit conflict-resolution publication for selected v3 vaults |
-| Next work | Review and merge `MUT-507`, then release and validate `v0.2.0-alpha.6 (11)` in both directions between the enrolled Macs |
+| Active work | Record alpha.6 qualification and decompose the remaining beta gates into narrow reviewable increments |
+| Next work | Define the supported-provider policy and recovery documentation, then validate realistic migration and rollback copies before beta |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -122,7 +120,7 @@ security or durability boundary and updates this tracker before it merges.
 | `ENR-504` | Complete; PR #47 | Approve and publish the owner-authorized local-to-shared transition |
 | `ENR-505` | Complete; PR #48 | Verify first trust, unwrap the exact vault key, select the vault, and expose the read-only CLI flow |
 | `ENR-506` | Complete; PR #49 | Resume only the exact authenticated owner approval after provider delivery outlives its invitation |
-| `MUT-507` | Implementation in progress | Route selected-vault entry mutations and explicit conflict choices through authenticated expected-head publication |
+| `MUT-507` | Complete; PR #50 | Route selected-vault entry mutations and explicit conflict choices through authenticated expected-head publication |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -480,8 +478,9 @@ build.
 Real iCloud Drive and other provider smoke tests remain valuable release
 qualification. They are not a correctness input to the provider-neutral
 recovery protocol and are not practical as a deterministic automated test
-gate. Version 3 writing remains disabled until the broader release gates
-below—including an intentionally supported provider policy—are resolved.
+gate. At the `TXN-408` checkpoint, version 3 writing remained disabled. It was
+enabled later by `MUT-507` only after the deterministic recovery gates passed;
+the broader supported-provider policy remains open.
 
 Acceptance gate:
 
@@ -493,8 +492,10 @@ Acceptance gate:
   signed hardened-runtime build succeeds.
 - [x] Provider unavailability and interruption behavior pass the deterministic
   recovery matrix.
-- [ ] Representative synchronized providers receive release-qualification
-  smoke testing before v3 writes are enabled.
+- [x] iCloud Drive receives release-qualification smoke testing before the
+  alpha.6 guarded writer is treated as qualified.
+- [ ] Additional providers remain unsupported until each receives equivalent
+  release qualification and an explicit policy decision.
 
 #### `UX-409` — Typed Status And Conflict UX
 
@@ -707,8 +708,9 @@ Out of scope:
 
 User-visible caveat:
 
-- The selected version 3 vault is read-only in this release. Add, edit,
-  duplicate, rename, remove, and conflict-resolution writes remain disabled.
+- The selected version 3 vault is read-only at the alpha.3 migration
+  checkpoint. Add, edit, duplicate, rename, remove, and conflict-resolution
+  writes remain disabled at that checkpoint.
 - Other devices continue using version 2. Any later version 2 changes are not
   imported into this version 3 snapshot; enrollment and multi-device version 3
   transport arrive in later increments.
@@ -1072,8 +1074,8 @@ Acceptance gate:
 
 #### `MUT-507` — Guarded Shared Entry Writes
 
-Status: implementation in progress on
-`agent/enable-guarded-v3-writes`.
+Status: complete; squash-merged as `7364aa9` in PR #50 and released as
+`v0.2.0-alpha.6 (11)`.
 
 This increment enables the existing everyday entry commands for a selected
 version 3 vault without giving the file provider, a pathname, or a stale local
@@ -1317,28 +1319,59 @@ explicit migration rather than another implicit synchronized-key repair.
 | `v0.2.0-alpha.3` | 8 | Released | Add explicit, opt-in local version 2 to version 3 migration and verified bootstrap |
 | `v0.2.0-alpha.4` | 9 | Released | Add device enrollment and multi-device read-only sharing |
 | `v0.2.0-alpha.5` | 10 | Released | Resume the exact authenticated owner-approved enrollment after invitation expiry or delayed provider delivery |
-| `v0.2.0-alpha.6` | 11 | Planned | Enable guarded multi-device writes and conflict resolution |
+| `v0.2.0-alpha.6` | 11 | Released | Enable guarded multi-device writes and conflict resolution |
 | `v0.2.0-beta.1` | 12 | Planned | Complete provider qualification, migration and rollback validation, recovery documentation, signing checks, and the required security-review gates |
 
 Urgent fixes may add an intervening prerelease and advance the build counter,
 but they do not redefine the security checkpoint assigned to a version above.
 Update this table whenever a checkpoint ships or its scope changes.
 
+#### Alpha.6 Release Qualification
+
+The signed and notarized alpha.6 build was installed through the opt-in
+Homebrew alpha channel on both enrolled Macs. The complete Swift suite passed
+432 tests across 40 suites before release. Installed app, CLI, and helper
+signatures, Gatekeeper assessment, notarization, helper registration, and
+build-version alignment passed on the release artifacts.
+
+The two-device iCloud Drive exercise then verified:
+
+- one disposable write on each Mac was delivered, authenticated, and decrypted
+  by the other Mac;
+- simultaneous edits to one disposable entry produced one authenticated
+  `edit_edit` conflict rather than a silent winner;
+- the conflicted entry released no default plaintext while an unrelated entry
+  remained readable;
+- both exact versions could be inspected and authenticated before one was
+  explicitly selected;
+- the resolution converged on both Macs, and cleanup restored the original
+  entry count with zero conflicts and both disposable entries absent; and
+- recovery source, configuration, Git state, and retained backups remained
+  unchanged throughout the exercise.
+
+Provider caveat: one final iCloud convergence remained temporarily unavailable
+until the user manually retriggered provider upload on the originating Mac.
+Key remained fail closed, released no ambiguous plaintext, and performed no
+speculative mutation while delivery was incomplete. The retry completed normal
+authenticated convergence. This qualifies iCloud Drive for the current alpha
+smoke-test scope; it does not turn provider timing into a Key correctness input
+or establish support for other providers.
+
 - [ ] All ten invariants pass.
-- [ ] The v3 reader ships before any v3 writer is enabled.
+- [x] The v3 reader ships before any v3 writer is enabled.
 - [ ] Local APFS and every supported sync provider pass commit/conflict tests.
-- [ ] Protected writes pass in the release environment.
+- [x] Protected writes pass in the release environment.
 - [ ] Migration and rollback pass with realistic vault copies.
 - [ ] Recovery limitations are visible in CLI help and documentation.
 - [ ] An independent security review signs off on identity, enrollment,
   authentication, revocation, and recovery.
-- [ ] Signing, notarization, and installed-helper verification pass.
+- [x] Signing, notarization, and installed-helper verification pass.
 
 ## Immediate Next Action
 
-Complete `MUT-507`, review its guarded-write boundary, and merge it before
-cutting `v0.2.0-alpha.6 (11)`. Validate one disposable write from the owner Mac
-to the enrolled Mac and one in the reverse direction before editing important
-entries. Exercise an intentional same-entry conflict only after the linear
-two-way path passes; do not begin beta qualification until both conflict
-inspection and explicit resolution have been verified on installed builds.
+Merge the alpha.6 qualification record, then divide beta qualification into
+narrow reviewable increments. Begin with the supported-provider policy and
+plain-language recovery limits, followed by realistic migration and rollback
+copies. Revocation, all-devices-lost recovery, and independent security review
+remain explicit gates; alpha.6 must not be presented as stable while those
+boundaries are unresolved.
