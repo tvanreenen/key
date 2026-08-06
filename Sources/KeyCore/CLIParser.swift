@@ -62,6 +62,7 @@ public enum CLIParser {
       conflict get <id> <version>        Print one conflicted secret version.
       conflict copy <id> <version>       Copy one conflicted secret version.
       conflict resolve <id>=<version>…   Resolve every listed conflict together.
+      share devices [--json]              List authenticated vault devices.
       share invitations                   List short-lived vault invitations.
       share invite --name <name>          Invite a member from the current v3 Mac.
       share join <invite> --name <name>   Answer one exact invitation.
@@ -281,6 +282,11 @@ public enum CLIParser {
         }
         let remaining = Array(arguments.dropFirst())
         switch action {
+        case "devices":
+            return .share(.devices(json: try parseOptionalJSON(
+                remaining,
+                commandName: "share devices"
+            )))
         case "invitations":
             guard remaining.isEmpty else {
                 throw AppError.usage(

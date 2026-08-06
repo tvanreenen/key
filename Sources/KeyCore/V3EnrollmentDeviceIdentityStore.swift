@@ -560,6 +560,28 @@ struct V3EnrollmentDeviceIdentityManager: Sendable {
             keyOperations: keyOperations
         )
     }
+
+    /// Reads only the public identity recorded for this Mac.
+    ///
+    /// This is sufficient to label device inventory. Private-key operations
+    /// still reconstruct and validate the Secure Enclave keys through
+    /// `loadIdentity(vaultID:reason:)` before they can grant authority.
+    func loadRecordedPublicIdentity(
+        vaultID: String
+    ) throws -> V3EnrollmentDeviceIdentity? {
+        guard isValidV3UUID(vaultID) else {
+            throw V3EnrollmentDeviceIdentityStoreError
+                .invalidIdentityRequest
+        }
+        guard let bytes = try recordStore.loadRecord(vaultID: vaultID) else {
+            return nil
+        }
+        let record = try V3EnrollmentDeviceKeyRecord(canonicalBytes: bytes)
+        guard record.vaultID == vaultID else {
+            throw V3EnrollmentDeviceIdentityStoreError.invalidRecord
+        }
+        return record.identity
+    }
 }
 
 private func identityRecordMember(

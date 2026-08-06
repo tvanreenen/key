@@ -11,6 +11,145 @@ struct V3EnrollmentAdoptionTests {
     fileprivate static let activeTime: UInt64 = 1_900_000_000
 
     @Test
+    func deviceInventoryAuthenticatesWithoutAdvancingTheCheckpoint() throws {
+        let fixture = try Fixture()
+        let candidateCheckpoint = try V3ManifestCheckpoint(
+            verifiedManifest: fixture.candidate.verifiedManifest
+        ).canonicalBytes
+        fixture.checkpointStore.checkpoint = candidateCheckpoint
+        fixture.keyStore.localKeyData = Self.vaultKey
+        let service = V3EnrollmentWorkflowService(
+            selectedVaultID: Self.vaultID,
+            source: fixture.source,
+            objectStore: fixture.source,
+            checkpointStore: fixture.checkpointStore,
+            exchange: V3EnrollmentExchangeCoordinator(
+                mailbox: AdoptionEmptyMailbox(),
+                stateStore: fixture.stateStore
+            ),
+            identityManager: fixture.identityManager,
+            vaultKeyStore: fixture.keyStore,
+            keychainMode: .local,
+            selectVault: { _ in
+                Issue.record("device inspection must not select a vault")
+            },
+            verifyRuntime: { _ in
+                Issue.record("device inspection must not replace trust")
+            }
+        )
+
+        let inventory = try service.deviceInventory()
+        let localIdentity = try fixture.identityManager
+            .loadRecordedPublicIdentity(
+                vaultID: Self.vaultID
+            )
+        let recordedIdentity = try #require(
+            localIdentity
+        )
+
+        #expect(inventory.mode == .shared)
+        #expect(inventory.currentDeviceID == recordedIdentity.deviceID)
+        #expect(
+            inventory.devices.map(\.deviceID)
+                == fixture.candidate.verifiedManifest.envelope.content
+                    .manifest.devices.map(\.deviceID)
+        )
+        #expect(fixture.checkpointStore.checkpoint == candidateCheckpoint)
+    }
+
+    @Test
+    func deviceInventoryRemainsAvailableAcrossContentOnlyForks() throws {
+        let fixture = try Fixture()
+        let parent = fixture.candidate.verifiedManifest
+        let parentBody = parent.envelope.content.manifest
+        let parentDigest = Base64URL.encode(parent.envelopeDigest)
+        let emptyChild = try V3ManifestCandidateBuilder().build(
+            content: V3ManifestContent(
+                parents: [parentDigest],
+                manifest: parentBody
+            ),
+            vaultKey: Self.vaultKey,
+            trustAnchor: .verifiedParents([parent])
+        )
+        let entryID = "018f4d39-930c-735d-8d6f-588e9b0a3a48"
+        let context = try V3EntryAuthenticationContext(
+            vaultID: Self.vaultID,
+            entryID: entryID,
+            name: "branch/entry",
+            type: .secret,
+            keyID: parentBody.keyID,
+            revision: 1
+        )
+        let encrypted = try V3EntryCipher().seal(
+            "branch value",
+            context: context,
+            vaultKey: Self.vaultKey
+        )
+        let populatedBody = V3ManifestBody(
+            vaultID: parentBody.vaultID,
+            mode: parentBody.mode,
+            keyID: parentBody.keyID,
+            devices: parentBody.devices,
+            wrappedKeys: parentBody.wrappedKeys,
+            entries: [V3ManifestEntry(
+                entryID: entryID,
+                name: context.name,
+                type: context.type,
+                revision: context.revision,
+                keyID: context.keyID,
+                ciphertextDigest: encrypted.ciphertextDigest
+            )]
+        )
+        let populatedChild = try V3ManifestCandidateBuilder().build(
+            content: V3ManifestContent(
+                parents: [parentDigest],
+                manifest: populatedBody
+            ),
+            vaultKey: Self.vaultKey,
+            trustAnchor: .verifiedParents([parent])
+        )
+        fixture.source.manifests[emptyChild.verified.envelopeDigest] =
+            emptyChild.data
+        fixture.source.manifests[populatedChild.verified.envelopeDigest] =
+            populatedChild.data
+        fixture.source.entries[AdoptionEntryKey(
+            entryID: entryID,
+            digest: try #require(Base64URL.decodeCanonical(
+                encrypted.ciphertextDigest
+            ))
+        )] = encrypted.canonicalBytes
+        let candidateCheckpoint = try V3ManifestCheckpoint(
+            verifiedManifest: parent
+        ).canonicalBytes
+        fixture.checkpointStore.checkpoint = candidateCheckpoint
+        fixture.keyStore.localKeyData = Self.vaultKey
+        let service = V3EnrollmentWorkflowService(
+            selectedVaultID: Self.vaultID,
+            source: fixture.source,
+            objectStore: fixture.source,
+            checkpointStore: fixture.checkpointStore,
+            exchange: V3EnrollmentExchangeCoordinator(
+                mailbox: AdoptionEmptyMailbox(),
+                stateStore: fixture.stateStore
+            ),
+            identityManager: fixture.identityManager,
+            vaultKeyStore: fixture.keyStore,
+            keychainMode: .local,
+            selectVault: { _ in },
+            verifyRuntime: { _ in }
+        )
+
+        let inventory = try service.deviceInventory()
+
+        #expect(inventory.mode == .shared)
+        #expect(
+            inventory.devices.map(\.deviceID)
+                == parentBody.devices.map(\.deviceID)
+        )
+        #expect(fixture.checkpointStore.checkpoint == candidateCheckpoint)
+    }
+
+    @Test
     func adoptionAuthenticatesBeforeInstallingAndSelectsLast() throws {
         let fixture = try Fixture()
         let phases = AdoptionPhases()
@@ -355,13 +494,18 @@ private struct Fixture {
 }
 
 private final class AdoptionSource:
-    V3ImmutableObjectReading,
+    V3ImmutableObjectPublishing,
     @unchecked Sendable
 {
     var manifests: [Data: Data]
+    var entries: [AdoptionEntryKey: Data]
 
-    init(manifests: [Data: Data]) {
+    init(
+        manifests: [Data: Data],
+        entries: [AdoptionEntryKey: Data] = [:]
+    ) {
         self.manifests = manifests
+        self.entries = entries
     }
 
     func manifestDigests(
@@ -382,12 +526,75 @@ private final class AdoptionSource:
     }
 
     func readEntry(
-        entryID _: String,
-        digest _: Data,
+        entryID: String,
+        digest: Data,
         maximumBytes _: Int
     ) throws -> V3RepositoryObjectRead {
-        .unavailable
+        entries[AdoptionEntryKey(entryID: entryID, digest: digest)]
+            .map(V3RepositoryObjectRead.available) ?? .unavailable
     }
+
+    func readStagedEntry(
+        entryID _: String,
+        digest _: Data,
+        operationID _: VaultTransactionOperationID,
+        maximumBytes _: Int
+    ) throws -> V3RepositoryObjectRead { .unavailable }
+
+    func readStagedManifest(
+        digest _: Data,
+        operationID _: VaultTransactionOperationID,
+        maximumBytes _: Int
+    ) throws -> V3RepositoryObjectRead { .unavailable }
+
+    func stageEntry(
+        _: Data,
+        entryID _: String,
+        digest _: Data,
+        operationID _: VaultTransactionOperationID
+    ) throws { Issue.record("device inspection must not stage entries") }
+
+    func stageManifest(
+        _: Data,
+        digest _: Data,
+        operationID _: VaultTransactionOperationID
+    ) throws { Issue.record("device inspection must not stage manifests") }
+
+    func publishStagedEntry(
+        _: Data,
+        entryID _: String,
+        digest _: Data,
+        operationID _: VaultTransactionOperationID
+    ) throws { Issue.record("device inspection must not publish entries") }
+
+    func publishStagedManifest(
+        _: Data,
+        digest _: Data,
+        operationID _: VaultTransactionOperationID
+    ) throws { Issue.record("device inspection must not publish manifests") }
+
+    func removeStagedEntry(
+        _: Data,
+        entryID _: String,
+        digest _: Data,
+        operationID _: VaultTransactionOperationID
+    ) throws { Issue.record("device inspection must not remove entries") }
+
+    func removeStagedManifest(
+        _: Data,
+        digest _: Data,
+        operationID _: VaultTransactionOperationID
+    ) throws { Issue.record("device inspection must not remove manifests") }
+
+    func removeEmptyTransactionDirectories(
+        operationID _: VaultTransactionOperationID,
+        entryIDs _: [String]
+    ) throws { Issue.record("device inspection must not clean staging") }
+}
+
+private struct AdoptionEntryKey: Hashable {
+    let entryID: String
+    let digest: Data
 }
 
 private final class AdoptionStateStore:

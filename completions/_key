@@ -5,6 +5,7 @@ _key_commands=(
   'config:read or update config values'
   'status:explain vault health'
   'conflict:inspect or resolve authenticated content conflicts'
+  'share:inspect or change version 3 device sharing'
   'get:print a secret'
   'copy:copy a secret to the clipboard'
   'add:add a new secret from stdin or prompt'
@@ -152,6 +153,54 @@ case "${state}" in
             resolve)
               _arguments \
                 '*:resolution in conflict-id=version-id form:'
+              ;;
+          esac
+        fi
+        ;;
+      share)
+        if (( CURRENT == 2 )); then
+          _describe -t share-commands 'share command' \
+            'devices:list authenticated vault devices' \
+            'invitations:list short-lived vault invitations' \
+            'invite:invite another Mac' \
+            'join:answer one invitation' \
+            'requests:list answers to an invitation' \
+            'compare:compare one device pair' \
+            'approve:approve the compared joining Mac' \
+            'accept:trust and select the approved vault'
+        else
+          case "${words[2]}" in
+            devices)
+              _arguments \
+                '--json[print stable machine-readable device inventory]'
+              ;;
+            invitations)
+              ;;
+            invite)
+              _arguments \
+                '--name[set the joining Mac name]:device name:' \
+                '--owner[invite the device as an owner]'
+              ;;
+            join)
+              _arguments \
+                '1:invitation ID:' \
+                '--name[set this Mac name]:device name:'
+              ;;
+            requests)
+              _arguments \
+                '1:invitation ID:'
+              ;;
+            compare)
+              _arguments \
+                '1:vault ID:' \
+                '2:invitation ID:' \
+                '3:join request ID:'
+              ;;
+            approve|accept)
+              _arguments \
+                '1:vault ID:' \
+                '2:invitation ID:' \
+                '3:comparison code:'
               ;;
           esac
         fi

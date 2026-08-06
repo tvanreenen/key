@@ -55,7 +55,7 @@ public enum V3ManifestError: Error, Equatable, LocalizedError {
     }
 }
 
-public enum V3VaultMode: String, Equatable, Sendable {
+public enum V3VaultMode: String, Codable, Equatable, Sendable {
     case local
     case shared
 }
@@ -65,7 +65,7 @@ public enum V3DeviceRole: String, Codable, Equatable, Sendable {
     case member
 }
 
-public enum V3DeviceStatus: String, Equatable, Sendable {
+public enum V3DeviceStatus: String, Codable, Equatable, Sendable {
     case active
     case revoked
 }

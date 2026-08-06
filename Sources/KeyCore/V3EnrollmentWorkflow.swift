@@ -61,6 +61,7 @@ func makeLiveV3EnrollmentWorkflowService(
 }
 
 protocol V3EnrollmentWorkflowServicing {
+    func deviceInventory() throws -> V3VaultDeviceInventory
     func listInvitations() throws -> String
     func createInvitation(
         deviceName: String,
@@ -106,6 +107,10 @@ struct DeferredV3EnrollmentWorkflowService:
 
     init(makeService: @escaping Factory) {
         self.makeService = makeService
+    }
+
+    func deviceInventory() throws -> V3VaultDeviceInventory {
+        try makeService().deviceInventory()
     }
 
     func listInvitations() throws -> String {
@@ -193,7 +198,7 @@ struct DeferredV3EnrollmentWorkflowService:
     }
 }
 
-/// High-level enrollment use cases shared by the XPC handler and CLI.
+/// High-level device-sharing use cases shared by the XPC handler and CLI.
 ///
 /// The CLI passes explicit immutable message IDs. This layer translates those
 /// choices into the narrow protocol coordinators; it never treats a directory
@@ -237,6 +242,34 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         self.verifyRuntime = verifyRuntime
     }
 
+    func deviceInventory() throws -> V3VaultDeviceInventory {
+        guard let vaultID = selectedVaultID else {
+            throw AppError.operationRefused(
+                "Device inspection requires a selected version 3 vault."
+            )
+        }
+        let authority = try currentAuthenticatedDeviceAuthority(
+            vaultID: vaultID,
+            reason: "Unlock version 3 vault to inspect authenticated devices."
+        )
+        let localIdentity = try identityManager.loadRecordedPublicIdentity(
+            vaultID: vaultID
+        )
+        return V3VaultDeviceInventory(
+            vaultID: vaultID,
+            mode: authority.mode,
+            currentDeviceID: localIdentity?.deviceID,
+            devices: authority.devices.map {
+                V3VaultDeviceSummary(
+                    deviceID: $0.deviceID,
+                    displayName: $0.displayName,
+                    role: $0.role,
+                    status: $0.status
+                )
+            }
+        )
+    }
+
     func listInvitations() throws -> String {
         let digests = try exchange.availableInvitationDigests(
             maximumCount: Self.maximumMailboxObjects
@@ -257,8 +290,11 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
                 "Create an enrollment invitation on a Mac that already uses the version 3 vault."
             )
         }
-        let current = try currentTrustedState(vaultID: vaultID)
-        guard current.trusted.envelope.content.manifest.mode == .local else {
+        let current = try currentTrustedState(
+            vaultID: vaultID,
+            reason: "Unlock version 3 vault to create an enrollment invitation."
+        )
+        guard current.effective.envelope.content.manifest.mode == .local else {
             throw AppError.operationRefused(
                 "This release can enroll only the first second device. Adding another device to an already shared vault is not enabled yet."
             )
@@ -274,7 +310,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         let invitation = try V3EnrollmentInvitation(
             vaultID: vaultID,
             parentManifestDigest:
-                current.trusted.verifiedManifest.envelopeDigest,
+                current.effective.envelopeDigest,
             invitingDevice: identity.publicIdentity,
             invitedRole: role,
             nonce: randomNonce(),
@@ -443,7 +479,10 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         ) else {
             throw V3EnrollmentAdoptionError.identityUnavailable
         }
-        let current = try currentTrustedState(vaultID: vaultID)
+        let current = try currentTrustedState(
+            vaultID: vaultID,
+            reason: "Unlock version 3 vault to approve the compared Mac."
+        )
         let observer = V3LiveManifestAncestryObserver(
             source: source,
             checkpointStore: checkpointStore,
@@ -511,8 +550,83 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
     }
 
     private func currentTrustedState(
-        vaultID: String
+        vaultID: String,
+        reason: String
     ) throws -> CurrentTrustedState {
+        let current = try currentObservedState(
+            vaultID: vaultID,
+            reason: reason
+        )
+        switch current.observed.classification.status {
+        case .incomplete:
+            throw VaultUXServiceError.vaultIncomplete
+        case .contentConflicted:
+            throw VaultUXServiceError.contentConflict
+        case .securityConflicted:
+            throw VaultUXServiceError.securityConflict
+        case .recoveryRequired:
+            throw VaultUXServiceError.recoveryRequired
+        case .ready:
+            break
+        }
+        guard current.observed.resourceUsage != nil,
+              let proof = current.observed.classification.ancestryProof,
+              proof.heads.count == 1,
+              let effective = proof.heads.first
+        else {
+            throw VaultUXServiceError.recoveryRequired
+        }
+        return CurrentTrustedState(
+            trusted: current.trusted,
+            effective: effective,
+            vaultKey: current.vaultKey
+        )
+    }
+
+    /// Returns only authority fields that agree across every authenticated
+    /// head. Content-only forks can therefore be inspected without weakening
+    /// the single-head requirement used by enrollment mutations.
+    private func currentAuthenticatedDeviceAuthority(
+        vaultID: String,
+        reason: String
+    ) throws -> AuthenticatedDeviceAuthority {
+        let current = try currentObservedState(
+            vaultID: vaultID,
+            reason: reason
+        )
+        switch current.observed.classification.status {
+        case .incomplete:
+            throw VaultUXServiceError.vaultIncomplete
+        case .securityConflicted:
+            throw VaultUXServiceError.securityConflict
+        case .recoveryRequired:
+            throw VaultUXServiceError.recoveryRequired
+        case .ready, .contentConflicted:
+            break
+        }
+        guard current.observed.resourceUsage != nil,
+              let proof = current.observed.classification.ancestryProof,
+              let first = proof.heads.first,
+              proof.heads.dropFirst().allSatisfy({
+                  hasSameV3ManifestAuthority(
+                      first.envelope.content.manifest,
+                      $0.envelope.content.manifest
+                  )
+              })
+        else {
+            throw VaultUXServiceError.recoveryRequired
+        }
+        let manifest = first.envelope.content.manifest
+        return AuthenticatedDeviceAuthority(
+            mode: manifest.mode,
+            devices: manifest.devices
+        )
+    }
+
+    private func currentObservedState(
+        vaultID: String,
+        reason: String
+    ) throws -> CurrentObservedState {
         guard let checkpointData = try checkpointStore.loadCheckpoint(
             vaultID: vaultID
         ) else {
@@ -543,7 +657,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         }
         let vaultKey = try vaultKeyStore.loadKey(
             mode: keychainMode,
-            reason: "Unlock the current version 3 vault for enrollment.",
+            reason: reason,
             createIfMissing: false
         )
         let trusted: V3TrustedManifest
@@ -566,14 +680,9 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             trustedCurrent: trusted,
             vaultKeys: [vaultKey]
         )
-        guard observed.classification.status == .ready,
-            observed.classification.ancestryProof != nil,
-            observed.resourceUsage != nil
-        else {
-            throw VaultUXServiceError.recoveryRequired
-        }
-        return CurrentTrustedState(
+        return CurrentObservedState(
             trusted: trusted,
+            observed: observed,
             vaultKey: vaultKey
         )
     }
@@ -638,6 +747,18 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
 
     private struct CurrentTrustedState {
         let trusted: V3TrustedManifest
+        let effective: V3VerifiedManifest
         let vaultKey: Data
+    }
+
+    private struct CurrentObservedState {
+        let trusted: V3TrustedManifest
+        let observed: V3VaultRepositoryObservation
+        let vaultKey: Data
+    }
+
+    private struct AuthenticatedDeviceAuthority {
+        let mode: V3VaultMode
+        let devices: [V3ManifestDevice]
     }
 }

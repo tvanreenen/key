@@ -317,11 +317,11 @@ public final class KeyServiceHandler {
                         "Version 3 device sharing is unavailable in this helper runtime."
                     )
                 }
-                return .success(try handleShare(
+                return try handleShare(
                     action,
                     service: enrollmentService,
                     mutationContext: mutationContext
-                ))
+                )
             case .list:
                 let entries = if let vaultReader {
                     try vaultReader.list(allowStale: false)
@@ -476,35 +476,37 @@ public final class KeyServiceHandler {
         _ request: KeyShareRequest,
         service: any V3EnrollmentWorkflowServicing,
         mutationContext: VaultTransactionMutationContext?
-    ) throws -> String {
+    ) throws -> KeyServiceResponse {
         let unixTime = UInt64(max(0, now().timeIntervalSince1970))
         switch request {
+        case .devices:
+            return .deviceInventory(try service.deviceInventory())
         case .invitations:
-            return try service.listInvitations()
+            return .success(try service.listInvitations())
         case let .invite(deviceName, role):
-            return try service.createInvitation(
+            return .success(try service.createInvitation(
                 deviceName: deviceName,
                 role: role,
                 at: unixTime
-            )
+            ))
         case let .join(invitationID, deviceName):
-            return try service.join(
+            return .success(try service.join(
                 invitationDigest: try enrollmentDigest(invitationID),
                 deviceName: deviceName,
                 at: unixTime
-            )
+            ))
         case let .requests(invitationID):
-            return try service.listJoinRequests(
+            return .success(try service.listJoinRequests(
                 invitationDigest: try enrollmentDigest(invitationID),
                 at: unixTime
-            )
+            ))
         case let .compare(vaultID, invitationID, joinRequestID):
-            return try service.compare(
+            return .success(try service.compare(
                 vaultID: vaultID,
                 invitationDigest: try enrollmentDigest(invitationID),
                 joinRequestDigest: try joinRequestID.map(enrollmentDigest),
                 at: unixTime
-            )
+            ))
         case let .approve(
             vaultID,
             invitationID,
@@ -517,13 +519,13 @@ public final class KeyServiceHandler {
                     "Enrollment approval requires the helper's serialized mutation boundary."
                 )
             }
-            return try service.approve(
+            return .success(try service.approve(
                 vaultID: vaultID,
                 invitationDigest: try enrollmentDigest(invitationID),
                 comparisonCode: comparisonCode,
                 at: unixTime,
                 operationID: mutationContext.operationID
-            )
+            ))
         case let .accept(
             vaultID,
             invitationID,
@@ -536,13 +538,13 @@ public final class KeyServiceHandler {
                     "Enrollment acceptance requires the helper's serialized mutation boundary."
                 )
             }
-            return try service.accept(
+            return .success(try service.accept(
                 vaultID: vaultID,
                 invitationDigest: try enrollmentDigest(invitationID),
                 comparisonCode: comparisonCode,
                 at: unixTime,
                 operationID: mutationContext.operationID
-            )
+            ))
         }
     }
 
