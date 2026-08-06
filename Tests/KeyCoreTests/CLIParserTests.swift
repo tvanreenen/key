@@ -133,6 +133,15 @@ struct CLIParserTests {
     @Test
     func parsesExplicitDeviceSharingCeremony() throws {
         #expect(
+            try CLIParser.parse(arguments: ["share", "devices"])
+                == .share(.devices(json: false))
+        )
+        #expect(
+            try CLIParser.parse(arguments: [
+                "share", "devices", "--json"
+            ]) == .share(.devices(json: true))
+        )
+        #expect(
             try CLIParser.parse(arguments: ["share", "invitations"])
                 == .share(.invitations)
         )
@@ -176,6 +185,11 @@ struct CLIParserTests {
 
     @Test
     func rejectsImplicitOrUnnamedDeviceSharing() {
+        #expect(throws: AppError.self) {
+            try CLIParser.parse(arguments: [
+                "share", "devices", "--verbose"
+            ])
+        }
         #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["share", "invite"])
         }

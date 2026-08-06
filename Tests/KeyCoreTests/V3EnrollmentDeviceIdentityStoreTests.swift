@@ -62,6 +62,29 @@ struct V3EnrollmentDeviceIdentityStoreTests {
     }
 
     @Test
+    func publicInventoryIdentityDoesNotInvokePrivateKeyOperations() throws {
+        let store = MemoryEnrollmentDeviceKeyRecordStore()
+        let operations = SoftwareEnrollmentDeviceKeyOperations()
+        let manager = V3EnrollmentDeviceIdentityManager(
+            recordStore: store,
+            keyOperations: operations
+        )
+        let created = try manager.createIdentity(
+            vaultID: Self.vaultID,
+            displayName: "Office Mac",
+            reason: "Create device identity"
+        )
+        operations.failPublicKeyLoad = true
+
+        let recorded = try manager.loadRecordedPublicIdentity(
+            vaultID: Self.vaultID
+        )
+
+        #expect(recorded == created.publicIdentity)
+        #expect(operations.publicKeyLoadCount == 0)
+    }
+
+    @Test
     func existingIdentityIsNeverRegeneratedOrOverwritten() throws {
         let store = MemoryEnrollmentDeviceKeyRecordStore()
         let operations = SoftwareEnrollmentDeviceKeyOperations()

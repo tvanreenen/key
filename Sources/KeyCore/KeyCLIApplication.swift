@@ -68,10 +68,7 @@ public final class KeyCLIApplication {
         case let .conflict(conflictCommand):
             return try executeConflictCommand(conflictCommand)
         case let .share(shareCommand):
-            response = try transport.send(.share(
-                serviceShareRequest(shareCommand)
-            ))
-            return try handle(response, for: command)
+            return try executeShareCommand(shareCommand)
         case .unlock:
             response = try transport.send(.unlock)
             return try handle(response, for: command)
@@ -155,6 +152,8 @@ public final class KeyCLIApplication {
         _ command: ShareCommand
     ) -> KeyShareRequest {
         switch command {
+        case .devices:
+            .devices
         case .invitations:
             .invitations
         case let .invite(deviceName, role):
@@ -181,6 +180,33 @@ public final class KeyCLIApplication {
                 invitationID: invitationID,
                 comparisonCode: comparisonCode
             )
+        }
+    }
+
+    private func executeShareCommand(
+        _ command: ShareCommand
+    ) throws -> Int32 {
+        let response = try transport.send(.share(
+            serviceShareRequest(command)
+        ))
+        guard response.exitCode == EXIT_SUCCESS else {
+            return try handle(response, for: .share(command))
+        }
+        switch command {
+        case let .devices(json):
+            let inventory = try requiredServicePayload(
+                response.deviceInventory,
+                operation: "device inventory"
+            )
+            if json {
+                try writeJSON(inventory)
+            } else {
+                writeDeviceInventory(inventory)
+            }
+            return response.exitCode
+        case .invitations, .invite, .join, .requests, .compare,
+            .approve, .accept:
+            return try handle(response, for: .share(command))
         }
     }
 
@@ -379,6 +405,39 @@ public final class KeyCLIApplication {
         let lines = conflicts.map { conflict in
             let name = conflict.entryName ?? "(deleted or renamed)"
             return "\(conflict.id)  \(name)  \(humanConflictKind(conflict.kind))  \(conflict.versionCount) versions"
+        }
+        io.writeStdout(lines.joined(separator: "\n") + "\n")
+    }
+
+    private func writeDeviceInventory(
+        _ inventory: V3VaultDeviceInventory
+    ) {
+        guard inventory.mode == .shared else {
+            io.writeStdout("This version 3 vault has not been shared yet.\n")
+            return
+        }
+
+        var lines = ["Devices in the authenticated vault record:"]
+        for device in inventory.devices {
+            let current = device.deviceID == inventory.currentDeviceID
+                ? " (this Mac)"
+                : ""
+            lines.append(
+                "\(device.displayName) — \(device.role.rawValue), \(device.status.rawValue)\(current)"
+            )
+            lines.append("  ID: \(device.deviceID)")
+        }
+        if let currentDeviceID = inventory.currentDeviceID,
+           !inventory.devices.contains(where: {
+               $0.deviceID == currentDeviceID
+           }) {
+            lines.append(
+                "Attention: this Mac's recorded identity is not authorized by the current vault."
+            )
+        } else if inventory.currentDeviceID == nil {
+            lines.append(
+                "Attention: this Mac has no recorded enrollment identity for the vault."
+            )
         }
         io.writeStdout(lines.joined(separator: "\n") + "\n")
     }

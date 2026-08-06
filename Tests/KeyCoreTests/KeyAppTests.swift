@@ -332,6 +332,63 @@ struct KeyCLIApplicationTests {
     }
 
     @Test
+    func shareDevicesPrintsAuthenticatedInventoryForPeople() {
+        let inventory = deviceInventoryFixture()
+        let transport = MemoryTransport { request in
+            #expect(request == .share(.devices))
+            return .deviceInventory(inventory)
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: ["share", "devices"]) == EXIT_SUCCESS)
+        #expect(io.stdout == """
+        Devices in the authenticated vault record:
+        Office Mac — owner, active (this Mac)
+          ID: owner-device-id
+        Laptop — member, active
+          ID: member-device-id
+
+        """)
+        #expect(io.stderr.isEmpty)
+    }
+
+    @Test
+    func shareDevicesPrintsStableJSONInventory() throws {
+        let inventory = deviceInventoryFixture()
+        let transport = MemoryTransport { request in
+            #expect(request == .share(.devices))
+            return .deviceInventory(inventory)
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: [
+            "share", "devices", "--json"
+        ]) == EXIT_SUCCESS)
+        #expect(io.stdout == """
+        {"currentDeviceID":"owner-device-id","devices":[{"deviceID":"owner-device-id","displayName":"Office Mac","role":"owner","status":"active"},{"deviceID":"member-device-id","displayName":"Laptop","role":"member","status":"active"}],"mode":"shared","vaultID":"018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"}
+
+        """)
+        let data = try #require(io.stdout.data(using: .utf8))
+        #expect(
+            try JSONDecoder().decode(
+                V3VaultDeviceInventory.self,
+                from: data
+            ) == inventory
+        )
+        #expect(io.stderr.isEmpty)
+    }
+
+    @Test
     func blockedMigrationPreflightPrintsOnlyToStderr() throws {
         let transport = MemoryTransport { request in
             #expect(request == .migrationPreflight)
@@ -1607,4 +1664,26 @@ private extension KeyAppDiagnosticsContext {
             vaultLocationSource: "App Support config (default)"
         )
     }
+}
+
+private func deviceInventoryFixture() -> V3VaultDeviceInventory {
+    V3VaultDeviceInventory(
+        vaultID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
+        mode: .shared,
+        currentDeviceID: "owner-device-id",
+        devices: [
+            V3VaultDeviceSummary(
+                deviceID: "owner-device-id",
+                displayName: "Office Mac",
+                role: .owner,
+                status: .active
+            ),
+            V3VaultDeviceSummary(
+                deviceID: "member-device-id",
+                displayName: "Laptop",
+                role: .member,
+                status: .active
+            )
+        ]
+    )
 }

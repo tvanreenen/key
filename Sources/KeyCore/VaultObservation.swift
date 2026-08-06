@@ -200,6 +200,63 @@ public struct VaultStatus: Codable, Equatable, Sendable {
     }
 }
 
+/// Authenticated, non-secret metadata for one device recorded by a v3 vault.
+public struct V3VaultDeviceSummary: Codable, Equatable, Sendable {
+    public let deviceID: String
+    public let displayName: String
+    public let role: V3DeviceRole
+    public let status: V3DeviceStatus
+
+    public init(
+        deviceID: String,
+        displayName: String,
+        role: V3DeviceRole,
+        status: V3DeviceStatus
+    ) {
+        self.deviceID = deviceID
+        self.displayName = displayName
+        self.role = role
+        self.status = status
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case deviceID
+        case displayName
+        case role
+        case status
+    }
+}
+
+/// Device membership from one exact authenticated vault state.
+///
+/// `currentDeviceID` comes from device-local enrollment metadata. It labels
+/// this Mac for the user but never contributes vault authority.
+public struct V3VaultDeviceInventory: Codable, Equatable, Sendable {
+    public let vaultID: String
+    public let mode: V3VaultMode
+    public let currentDeviceID: String?
+    public let devices: [V3VaultDeviceSummary]
+
+    public init(
+        vaultID: String,
+        mode: V3VaultMode,
+        currentDeviceID: String?,
+        devices: [V3VaultDeviceSummary]
+    ) {
+        self.vaultID = vaultID
+        self.mode = mode
+        self.currentDeviceID = currentDeviceID
+        self.devices = devices
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case vaultID
+        case mode
+        case currentDeviceID
+        case devices
+    }
+}
+
 /// The authenticated ambiguity that requires inspection or recovery.
 public enum VaultConflictKind: String, Codable, Equatable, Sendable {
     case concurrentCreation = "concurrent_creation"

@@ -13,8 +13,8 @@ state.
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | Record alpha.6 qualification and decompose the remaining beta gates into narrow reviewable increments |
-| Next work | Define the supported-provider policy and recovery documentation, then validate realistic migration and rollback copies before beta |
+| Active work | Add authenticated device inspection as the first device-lifecycle increment after alpha.6 |
+| Next work | Generalize enrollment beyond two Macs, then add owner-authorized revocation with vault-key rotation |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -1212,8 +1212,15 @@ formats or transport stacks:
   wrapper for every active device.
 - [x] `ENR-505` Independently verify first trust and select the same exact
   authenticated head on the joining device.
+- [x] `ENR-506` Expose authenticated device names, roles, statuses, stable
+  identifiers, and this Mac's recorded identity through human and JSON CLI
+  output without invoking a private-key operation.
+- [ ] `ENR-507` Generalize owner-approved enrollment beyond the first two
+  Macs.
+- [ ] `ENR-508` Revoke a selected device, rotate the vault key, re-encrypt the
+  vault, and wrap the new key only for the remaining active devices.
 - [x] Reject replay, substitution, wrong-vault, and role confusion.
-- [ ] Add device inspection and revoke/rotate commands.
+- [ ] Add revoke/rotate commands.
 - [ ] Re-encrypt for remaining devices after revocation.
 
 ### Release Track
@@ -1369,9 +1376,9 @@ or establish support for other providers.
 
 ## Immediate Next Action
 
-Merge the alpha.6 qualification record, then divide beta qualification into
-narrow reviewable increments. Begin with the supported-provider policy and
-plain-language recovery limits, followed by realistic migration and rollback
-copies. Revocation, all-devices-lost recovery, and independent security review
-remain explicit gates; alpha.6 must not be presented as stable while those
-boundaries are unresolved.
+Land `ENR-506` as a read-only device-inventory increment. Continue with
+`ENR-507` additional-device enrollment and `ENR-508` revocation plus key
+rotation, then cut alpha.7 for real-device lifecycle testing. Provider policy,
+plain-language recovery limits, realistic migration and rollback copies,
+all-devices-lost recovery, and independent security review remain explicit
+beta or stable gates.

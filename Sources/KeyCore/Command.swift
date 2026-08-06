@@ -25,6 +25,7 @@ public enum ConflictCommand: Equatable, Sendable {
 }
 
 public enum ShareCommand: Equatable, Sendable {
+    case devices(json: Bool)
     case invitations
     case invite(deviceName: String, role: V3DeviceRole)
     case join(invitationID: String, deviceName: String)

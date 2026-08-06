@@ -18,6 +18,7 @@ struct XPCSecurityPolicyTests {
                 versionID: "abc123"
             )
         ]),
+        .share(.devices),
         .share(.invitations),
         .list,
         .migrationPreflight,
@@ -122,6 +123,9 @@ struct XPCSecurityPolicyTests {
         #expect(KeyServiceRequest.list.responseTimeoutSeconds == 30)
         #expect(KeyServiceRequest.vaultStatus.responseTimeoutSeconds == 30)
         #expect(
+            KeyServiceRequest.share(.devices).responseTimeoutSeconds == 30
+        )
+        #expect(
             KeyServiceRequest.resolveConflicts([])
                 .responseTimeoutSeconds == nil
         )
@@ -154,6 +158,7 @@ struct XPCSecurityPolicyTests {
     @Test
     func sharingRequestsRoundTripAndOnlyAcceptanceRestartsTheHelper() throws {
         let requests: [KeyServiceRequest] = [
+            .share(.devices),
             .share(.invite(deviceName: "Office Mac", role: .member)),
             .share(.compare(
                 vaultID: "vault",
@@ -177,7 +182,34 @@ struct XPCSecurityPolicyTests {
         }
         #expect(!requests[0].requiresHelperShutdownAfterSuccess)
         #expect(!requests[1].requiresHelperShutdownAfterSuccess)
-        #expect(requests[2].requiresHelperShutdownAfterSuccess)
+        #expect(!requests[2].requiresHelperShutdownAfterSuccess)
+        #expect(requests[3].requiresHelperShutdownAfterSuccess)
+    }
+
+    @Test
+    func deviceInventoryResponseRoundTripsAcrossXPCEncoding() throws {
+        let response = KeyServiceResponse.deviceInventory(
+            V3VaultDeviceInventory(
+                vaultID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
+                mode: .shared,
+                currentDeviceID: "owner",
+                devices: [
+                    V3VaultDeviceSummary(
+                        deviceID: "owner",
+                        displayName: "Office Mac",
+                        role: .owner,
+                        status: .active
+                    )
+                ]
+            )
+        )
+        let encoded = try JSONEncoder().encode(response)
+        let decoded = try JSONDecoder().decode(
+            KeyServiceResponse.self,
+            from: encoded
+        )
+
+        #expect(decoded == response)
     }
 
     @Test

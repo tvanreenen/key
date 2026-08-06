@@ -1,6 +1,7 @@
 import Foundation
 
 public enum KeyShareRequest: Codable, Equatable, Sendable {
+    case devices
     case invitations
     case invite(deviceName: String, role: V3DeviceRole)
     case join(invitationID: String, deviceName: String)
@@ -48,7 +49,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         switch self {
         case .status, .lock:
             5
-        case .vaultStatus, .listConflicts, .showConflict:
+        case .vaultStatus, .listConflicts, .showConflict, .share(.devices):
             30
         case .unlock, .get, .getConflictValue, .migrationPreflight:
             120
@@ -352,6 +353,7 @@ public struct KeyServiceResponse: Codable, Equatable {
     public let errorCode: KeyServiceErrorCode?
     public let helperStatus: KeyHelperStatus?
     public let vaultStatus: VaultStatus?
+    public let deviceInventory: V3VaultDeviceInventory?
     public let conflicts: [VaultConflictSummary]?
     public let conflict: VaultConflictDetail?
 
@@ -362,6 +364,7 @@ public struct KeyServiceResponse: Codable, Equatable {
         errorCode: KeyServiceErrorCode? = nil,
         helperStatus: KeyHelperStatus? = nil,
         vaultStatus: VaultStatus? = nil,
+        deviceInventory: V3VaultDeviceInventory? = nil,
         conflicts: [VaultConflictSummary]? = nil,
         conflict: VaultConflictDetail? = nil
     ) {
@@ -371,6 +374,7 @@ public struct KeyServiceResponse: Codable, Equatable {
         self.errorCode = errorCode
         self.helperStatus = helperStatus
         self.vaultStatus = vaultStatus
+        self.deviceInventory = deviceInventory
         self.conflicts = conflicts
         self.conflict = conflict
     }
@@ -407,6 +411,17 @@ public struct KeyServiceResponse: Codable, Equatable {
             value: nil,
             errorMessage: nil,
             conflicts: conflicts
+        )
+    }
+
+    public static func deviceInventory(
+        _ inventory: V3VaultDeviceInventory
+    ) -> KeyServiceResponse {
+        KeyServiceResponse(
+            exitCode: EXIT_SUCCESS,
+            value: nil,
+            errorMessage: nil,
+            deviceInventory: inventory
         )
     }
 
