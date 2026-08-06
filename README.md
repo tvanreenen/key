@@ -29,6 +29,16 @@ brew tap tvanreenen/tap
 brew install --cask key
 ```
 
+Prereleases are opt in and use a separate cask:
+
+```bash
+brew install --cask tvanreenen/tap/key@alpha
+```
+
+The stable and alpha casks conflict intentionally. Uninstall the current cask
+before switching channels; vault files and Keychain state are not part of the
+application cask.
+
 Open `Key.app` once after install so it can register Key Agent with macOS before you use the `key` CLI.
 
 ## CLI
@@ -57,9 +67,9 @@ key config get <config-name>            # print a config value
 key config set <config-name> <value>    # update a config value
 key config list                         # list known config values
 key migrate --check                     # check v2 migration readiness without changing the vault
-key migrate --apply                     # explicitly create, verify, and select a read-only v3 copy
+key migrate --apply                     # explicitly create, verify, and select a v3 copy
 key share invitations                   # list available short-lived invitations
-key share invite --name "Office Mac"    # invite the first second device as a member
+key share invite --name "Office Mac"    # invite the first additional device as a member
 key share join <invite> --name "Laptop" # answer one exact invitation on the joining Mac
 key share requests <invite>             # list exact answers on the existing Mac
 key share compare <vault> <invite> [request]
@@ -74,17 +84,25 @@ key version [--json]                    # print the CLI version
 Migration never starts during installation or unlock. `key migrate --apply`
 rechecks the complete version 2 vault, retains every version 2 source file,
 and switches this Mac only after the new version 3 vault has been independently
-reopened. To add the first second Mac, point both Macs at the same synchronized
+reopened. To add the first additional Mac, point both Macs at the same synchronized
 vault directory and use the explicit `key share` ceremony above. Both Macs must
 show the same device names, role, and five-group comparison code before you run
 `approve` and `accept`. Enclave authenticates synchronized bytes but does not
 control provider delivery, so retry discovery after synchronization settles.
 
-This alpha supports one local-to-shared transition only. Adding a third device,
-revocation, role changes, vault-key rotation, and enrollment-mailbox cleanup are
-not enabled yet. Version 3 add, edit, duplicate, rename, and remove are also not
-enabled yet. Later version 2 changes made by another device are not copied into
-the migrated snapshot.
+This alpha can share a local vault with one additional Mac and supports guarded
+writes between those two enrolled Macs. Adding a third device, revocation, role
+changes, vault-key rotation, and enrollment-mailbox cleanup are not enabled
+yet. Later version 2 changes made by another device are not copied into the
+migrated snapshot.
+
+Concurrent changes to different entries merge automatically. Incompatible
+changes to the same entry pause mutations and require an explicit
+`key conflict resolve` choice; unaffected entries remain readable. The file
+provider is transport, not authority. In alpha.6 qualification, iCloud Drive
+safely reported temporary unavailability while delivery lagged, but one
+convergence required a user-initiated provider upload retry. Key does not
+include a `sync` command or guess which provider copy should win.
 
 When a file provider has not finished delivering a newer version 3 vault
 state, `--allow-stale` explicitly permits `get` and `copy` to read the last
