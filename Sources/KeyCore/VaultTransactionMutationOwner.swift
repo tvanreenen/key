@@ -65,6 +65,7 @@ enum VaultTransactionMutationKind: String, Codable, Sendable {
     case moveEntry
     case removeEntry
     case resolveConflict
+    case mergeHeads
     case migrateToV3
     case enrollDevice
     case recoverInterruptedTransaction
@@ -118,5 +119,24 @@ final class VaultTransactionMutationOwner:
                 )
             )
         }
+    }
+}
+
+/// Reuses an operation identity when a higher-level helper boundary already
+/// owns serialization. This prevents transaction components from nesting the
+/// same serial queue while preserving one durable identifier end to end.
+struct DirectVaultTransactionMutationOwner:
+    VaultTransactionMutationOwning
+{
+    let operationID: VaultTransactionOperationID
+
+    func perform<Result>(
+        _ kind: VaultTransactionMutationKind,
+        _ mutation: (VaultTransactionMutationContext) throws -> Result
+    ) throws -> Result {
+        try mutation(VaultTransactionMutationContext(
+            operationID: operationID,
+            kind: kind
+        ))
     }
 }

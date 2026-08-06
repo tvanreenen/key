@@ -111,6 +111,29 @@ func isValidV3EntryName(_ name: String) -> Bool {
         })
 }
 
+func normalizedV3EntryName(_ name: String) throws -> String {
+    let normalized = name.precomposedStringWithCanonicalMapping
+    guard isValidV3EntryName(normalized) else {
+        throw AppError.invalidEntryName(
+            "Entry name '\(name)' is not valid for a version 3 vault."
+        )
+    }
+    return normalized
+}
+
+func v3ManifestEntryPrecedes(
+    _ lhs: V3ManifestEntry,
+    _ rhs: V3ManifestEntry
+) -> Bool {
+    let lhsName = Data(lhs.name.utf8)
+    let rhsName = Data(rhs.name.utf8)
+    return lhsName.lexicographicallyPrecedes(rhsName)
+        || (lhsName == rhsName
+            && Data(lhs.entryID.utf8).lexicographicallyPrecedes(
+                Data(rhs.entryID.utf8)
+            ))
+}
+
 func isV3ControlCharacter(_ scalar: UnicodeScalar) -> Bool {
     scalar.value <= 0x1F || (0x7F...0x9F).contains(scalar.value)
 }

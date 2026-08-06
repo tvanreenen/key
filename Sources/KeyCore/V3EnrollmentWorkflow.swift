@@ -444,14 +444,14 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             throw V3EnrollmentAdoptionError.identityUnavailable
         }
         let current = try currentTrustedState(vaultID: vaultID)
-        let observer = LiveEnrollmentAncestryObserver(
+        let observer = V3LiveManifestAncestryObserver(
             source: source,
             checkpointStore: checkpointStore,
             vaultID: vaultID,
             vaultKey: current.vaultKey
         )
         _ = try V3EnrollmentOwnerApprovalCoordinator(
-            mutationOwner: DirectEnrollmentMutationOwner(
+            mutationOwner: DirectVaultTransactionMutationOwner(
                 operationID: operationID
             ),
             ancestryObserver: observer,
@@ -639,91 +639,5 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
     private struct CurrentTrustedState {
         let trusted: V3TrustedManifest
         let vaultKey: Data
-    }
-}
-
-private struct LiveEnrollmentAncestryObserver:
-    V3ManifestAncestryObserving
-{
-    let source: any V3ImmutableObjectReading
-    let checkpointStore: any V3ManifestCheckpointStoring
-    let vaultID: String
-    let vaultKey: Data
-
-    func observeAncestry() throws -> V3ManifestAncestryObservation {
-        guard let checkpointData = try checkpointStore.loadCheckpoint(
-            vaultID: vaultID
-        ) else {
-            throw VaultUXServiceError.recoveryRequired
-        }
-        let checkpoint: V3ManifestCheckpoint
-        do {
-            checkpoint = try V3ManifestCheckpoint(
-                canonicalBytes: checkpointData
-            )
-        } catch {
-            throw VaultUXServiceError.recoveryRequired
-        }
-        let manifestData: Data
-        switch try source.readManifest(
-            digest: checkpoint.envelopeDigest,
-            maximumBytes: V3ManifestRepositoryLimits.standard
-                .maximumManifestBytes
-        ) {
-        case .available(let data)
-            where Data(SHA256.hash(data: data))
-                == checkpoint.envelopeDigest:
-            manifestData = data
-        case .unavailable:
-            throw VaultUXServiceError.vaultIncomplete
-        case .available, .invalid, .tooLarge:
-            throw VaultUXServiceError.recoveryRequired
-        }
-        let trusted: V3TrustedManifest
-        do {
-            trusted = try V3ManifestReplayProtector(
-                store: checkpointStore
-            ).trustCurrent(
-                manifestData,
-                expectedVaultID: vaultID,
-                vaultKey: vaultKey
-            )
-        } catch is V3ManifestError {
-            throw VaultUXServiceError.recoveryRequired
-        } catch is V3ManifestReplayError {
-            throw VaultUXServiceError.recoveryRequired
-        }
-        let observed = try V3ImmutableObjectRepository(
-            source: source
-        ).observeForPublication(
-            trustedCurrent: trusted,
-            vaultKeys: [vaultKey]
-        )
-        guard observed.classification.status == .ready,
-            let proof = observed.classification.ancestryProof,
-            let usage = observed.resourceUsage
-        else {
-            throw VaultUXServiceError.recoveryRequired
-        }
-        return V3ManifestAncestryObservation(
-            proof: proof,
-            resourceUsage: usage
-        )
-    }
-}
-
-private struct DirectEnrollmentMutationOwner:
-    VaultTransactionMutationOwning
-{
-    let operationID: VaultTransactionOperationID
-
-    func perform<Result>(
-        _ kind: VaultTransactionMutationKind,
-        _ mutation: (VaultTransactionMutationContext) throws -> Result
-    ) throws -> Result {
-        try mutation(VaultTransactionMutationContext(
-            operationID: operationID,
-            kind: kind
-        ))
     }
 }

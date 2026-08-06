@@ -9,14 +9,14 @@ state.
 | Field | Value |
 |---|---|
 | Status | In progress |
-| Production base | `main` at `6785166` (`v0.2.0-alpha.4`) |
+| Production base | `main` at `4828a97` (`v0.2.0-alpha.5`) |
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Current branch | `agent/resume-approved-enrollment` |
+| Current branch | `agent/enable-guarded-v3-writes` |
 | Current PR | Not opened |
-| Active increment | `ENR-506` — Resume exact owner-approved adoption after invitation expiry and delayed provider delivery |
-| Next work | Review and merge `ENR-506`, release `v0.2.0-alpha.5 (10)`, then retry the preserved two-Mac ceremony |
+| Active increment | `MUT-507` — Enable guarded entry writes and explicit conflict-resolution publication for selected v3 vaults |
+| Next work | Review and merge `MUT-507`, then release and validate `v0.2.0-alpha.6 (11)` in both directions between the enrolled Macs |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -121,7 +121,8 @@ security or durability boundary and updates this tracker before it merges.
 | `ENR-503` | Complete; PR #46 | Exchange bounded enrollment messages without trusting the file provider |
 | `ENR-504` | Complete; PR #47 | Approve and publish the owner-authorized local-to-shared transition |
 | `ENR-505` | Complete; PR #48 | Verify first trust, unwrap the exact vault key, select the vault, and expose the read-only CLI flow |
-| `ENR-506` | Implementation in progress | Resume only the exact authenticated owner approval after provider delivery outlives its invitation |
+| `ENR-506` | Complete; PR #49 | Resume only the exact authenticated owner approval after provider delivery outlives its invitation |
+| `MUT-507` | Implementation in progress | Route selected-vault entry mutations and explicit conflict choices through authenticated expected-head publication |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -541,20 +542,18 @@ use their documented lowercase snake-case representations. Exact JSON fixture
 tests protect these field names and values from accidental source-level
 renaming.
 
-The v3 observation and resolution service is intentionally a domain seam in
-the Swift package for now. The shipping Xcode target still uses the v2 service
-because the v3 reader has not yet been activated there, and the v3 writer
-remains disabled. A later runtime-integration increment will supply fresh
-repository snapshots, decrypt selected conflict values, and publish guarded
-resolution manifests through this seam; it should not redesign the CLI
-contract.
+The v3 observation and resolution service remains a domain seam in the Swift
+package. The shipping Xcode target now composes it with the exact read runtime
+and the guarded mutation service whenever device-local configuration selects
+a v3 vault. `KeyServiceHandler` routes those operations explicitly; it never
+falls through to legacy `.secret` storage.
 
-The current `authorizeRead` and `authorizeMutation` calls are policy gates, not
-v3 storage capabilities. Before activating the v3 runtime, integration must
-replace or augment them with a typed operation plan that identifies the exact
-trusted state for a stale read and carries expected authenticated heads into
-publication. A successful policy check alone must never authorize a later
-unbound filesystem operation.
+The `authorizeRead` and `authorizeMutation` calls remain UX policy gates, not
+storage authority. Each actual read carries a typed plan bound to its exact
+authenticated state, and each mutation independently reopens the checkpoint,
+ancestry proof, expected heads, immutable objects, and resource bounds inside
+the helper's serialized publication boundary. A successful policy check alone
+never authorizes a later unbound filesystem operation.
 
 Acceptance gate:
 
@@ -1071,6 +1070,78 @@ Acceptance gate:
   ordinary v3 list/get/copy reads produce the same logical vault without
   enabling any general v3 writer.
 
+#### `MUT-507` — Guarded Shared Entry Writes
+
+Status: implementation in progress on
+`agent/enable-guarded-v3-writes`.
+
+This increment enables the existing everyday entry commands for a selected
+version 3 vault without giving the file provider, a pathname, or a stale local
+view authority to overwrite authenticated state. Version 2 keeps its existing
+implementation. Version 3 receives a dedicated mutation service that begins
+from a freshly authenticated ancestry proof and publishes only immutable entry
+objects plus an authenticated child manifest.
+
+Scope:
+
+- Route add, edit, duplicate, rename, remove, and explicit conflict resolution
+  to the v3 mutation service whenever device-local configuration selects a v3
+  vault. Never fall through to legacy `.secret` file operations.
+- Carry the operation ID created by Key Agent's serial mutation owner into the
+  transaction publisher. The publisher remains responsible for staged
+  recovery intent, entry-first durable publication, final manifest
+  publication, and expected-value checkpoint advancement.
+- Normalize and validate logical names before planning. Additions receive a
+  fresh stable entry UUID at revision 1; edits and renames retain identity and
+  advance revision; duplicate creates a new identity; deletion removes only
+  the manifest record and retains immutable history.
+- Treat `--force` only as explicit destination-overwrite policy for duplicate
+  and rename. It may remove the prior destination from the candidate manifest,
+  but cannot bypass trust, completeness, conflicts, expected heads, resource
+  limits, or recovery checks.
+- When authenticated heads contain independent changes, publish the exact
+  deterministic merge before applying the requested mutation. A head arriving
+  during planning invalidates publication instead of becoming last-writer
+  wins.
+  The merge and requested change are separate durable transactions: if the
+  merge succeeds but the requested change later loses a race or fails, vault
+  content is unchanged and retry starts from the already-merged history.
+- Bind conflict choices to the complete freshly observed head set. Reseal a
+  selected same-entry version at a revision above every parent so a resolution
+  cannot publish a rollback or same-revision substitution. Destination-name
+  collisions retain only the explicitly selected stable entry identity.
+- Attempt exact interrupted-transaction recovery before planning a new
+  mutation. Contradictory, incomplete, oversized, or unauthenticated recovery
+  state remains fail closed.
+
+Out of scope:
+
+- adding a third device, changing roles, revocation, vault-key rotation, or
+  recovery after loss of every enrolled Secure Enclave identity;
+- provider-specific synchronization APIs, automatic background writes,
+  mutable remote references, or silent conflict winners; and
+- immutable-history, enrollment-mailbox, staging-orphan, or retained-v2
+  garbage collection.
+
+Acceptance gate:
+
+- A selected v3 mutation never invokes the v2 entry store and an unselected
+  vault retains the exact v2 behavior.
+- Every successful command reopens a complete authenticated state, seals the
+  intended logical change, publishes referenced entry objects first, publishes
+  the manifest last, and advances only the expected checkpoint.
+- Missing provider objects remain temporary-unavailable; malformed,
+  substituted, wrong-key, rollback, authority, or recovery state never
+  releases plaintext or publishes a candidate.
+- A changed checkpoint or authenticated head set publishes no requested
+  mutation. `--force` cannot weaken this boundary.
+- Independent changes converge through an exact authenticated merge; genuine
+  same-entry or destination conflicts remain paused until every current
+  conflict receives one explicit choice.
+- Regression tests cover every ordinary command, overwrite policy,
+  automatic-merge-before-write, stale-head refusal, interrupted recovery, and
+  conflict-resolution publication.
+
 ### Committed CLI And Conflict Contract
 
 - Existing everyday commands retain their current names and default behavior.
@@ -1244,9 +1315,10 @@ explicit migration rather than another implicit synchronized-key repair.
 | `v0.2.0-alpha.1` | 6 | Withdrawn | Retained release record and version 2 incident baseline; installation assets removed |
 | `v0.2.0-alpha.2` | 7 | Released | Contain unsafe legacy version 2 key adoption and ship the authenticated version 3 reader while version 2 remains the default and every version 3 writer stays disabled |
 | `v0.2.0-alpha.3` | 8 | Released | Add explicit, opt-in local version 2 to version 3 migration and verified bootstrap |
-| `v0.2.0-alpha.4` | 9 | In progress | Add device enrollment and multi-device read-only sharing |
-| `v0.2.0-alpha.5` | 10 | Planned | Enable guarded multi-device writes and conflict resolution |
-| `v0.2.0-beta.1` | 11 | Planned | Complete provider qualification, migration and rollback validation, recovery documentation, signing checks, and the required security-review gates |
+| `v0.2.0-alpha.4` | 9 | Released | Add device enrollment and multi-device read-only sharing |
+| `v0.2.0-alpha.5` | 10 | Released | Resume the exact authenticated owner-approved enrollment after invitation expiry or delayed provider delivery |
+| `v0.2.0-alpha.6` | 11 | Planned | Enable guarded multi-device writes and conflict resolution |
+| `v0.2.0-beta.1` | 12 | Planned | Complete provider qualification, migration and rollback validation, recovery documentation, signing checks, and the required security-review gates |
 
 Urgent fixes may add an intervening prerelease and advance the build counter,
 but they do not redefine the security checkpoint assigned to a version above.
@@ -1264,7 +1336,9 @@ Update this table whenever a checkpoint ships or its scope changes.
 
 ## Immediate Next Action
 
-Review and merge PR #48, then validate the complete installed two-Mac ceremony
-and provider-delivery behavior. Cut `v0.2.0-alpha.4 (9)` only after that
-read-only sharing checkpoint passes release validation; do not begin guarded
-shared-write work before the prerelease is published and verified.
+Complete `MUT-507`, review its guarded-write boundary, and merge it before
+cutting `v0.2.0-alpha.6 (11)`. Validate one disposable write from the owner Mac
+to the enrolled Mac and one in the reverse direction before editing important
+entries. Exercise an intentional same-entry conflict only after the linear
+two-way path passes; do not begin beta qualification until both conflict
+inspection and explicit resolution have been verified on installed builds.

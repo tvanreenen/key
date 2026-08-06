@@ -82,7 +82,7 @@ struct V3AuthenticatedReadPlanner: Sendable {
         classification: V3VaultRepositoryClassification,
         trustedCurrent: V3TrustedManifest
     ) throws -> V3AuthenticatedReadPlan {
-        let name = try normalizedReadName(name)
+        let name = try normalizedV3EntryName(name)
         let state = try effectiveReadState(
             allowStale: allowStale,
             classification: classification,
@@ -295,25 +295,9 @@ private func normalizedHeads(
     }
 }
 
-private func normalizedReadName(_ name: String) throws -> String {
-    let normalized = name.precomposedStringWithCanonicalMapping
-    guard isValidV3EntryName(normalized) else {
-        throw AppError.invalidEntryName(
-            "Entry name '\(name)' is not valid for a version 3 vault."
-        )
-    }
-    return normalized
-}
-
 private func manifestEntryPrecedesForRead(
     _ lhs: V3ManifestEntry,
     _ rhs: V3ManifestEntry
 ) -> Bool {
-    let lhsName = Data(lhs.name.utf8)
-    let rhsName = Data(rhs.name.utf8)
-    return lhsName.lexicographicallyPrecedes(rhsName)
-        || (lhsName == rhsName
-            && Data(lhs.entryID.utf8).lexicographicallyPrecedes(
-                Data(rhs.entryID.utf8)
-            ))
+    v3ManifestEntryPrecedes(lhs, rhs)
 }

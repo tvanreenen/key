@@ -1,14 +1,15 @@
 import CryptoKit
 import Foundation
 
-private struct V3ReadRuntimeState: Sendable {
+struct V3VaultRuntimeState: Sendable {
     let trustedCurrent: V3TrustedManifest
     let classification: V3VaultRepositoryClassification
+    let vaultKey: Data
 }
 
 /// Composes checkpoint trust, repository discovery, read planning, and exact
 /// immutable-object execution for one device-selected v3 vault.
-private struct V3ReadRuntimeContext: Sendable {
+struct V3ReadRuntimeContext: Sendable {
     typealias VaultKeyProvider = @Sendable (_ reason: String) throws -> Data
 
     let vaultID: String
@@ -150,8 +151,13 @@ private struct V3ReadRuntimeContext: Sendable {
         ).execute(plan)
     }
 
-    private func loadState(reason: String) throws -> V3ReadRuntimeState {
-        let checkpoint = try currentCheckpoint()
+    func loadState(reason: String) throws -> V3VaultRuntimeState {
+        let checkpoint: V3ManifestCheckpoint
+        do {
+            checkpoint = try currentCheckpoint()
+        } catch is V3ManifestReplayError {
+            throw VaultUXServiceError.recoveryRequired
+        }
         let manifestData = try checkpointManifestData(checkpoint)
         let vaultKey = try vaultKeyProvider(reason)
         let trustedCurrent: V3TrustedManifest
@@ -170,9 +176,10 @@ private struct V3ReadRuntimeContext: Sendable {
             trustedCurrent: trustedCurrent,
             vaultKeys: [vaultKey]
         )
-        return V3ReadRuntimeState(
+        return V3VaultRuntimeState(
             trustedCurrent: trustedCurrent,
-            classification: classification
+            classification: classification,
+            vaultKey: vaultKey
         )
     }
 

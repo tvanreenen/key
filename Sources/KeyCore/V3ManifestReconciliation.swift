@@ -425,9 +425,7 @@ private func manifestEntryPrecedesForReconciliation(
     _ lhs: V3ManifestEntry,
     _ rhs: V3ManifestEntry
 ) -> Bool {
-    utf8PrecedesForReconciliation(lhs.name, rhs.name)
-        || (lhs.name == rhs.name
-            && utf8PrecedesForReconciliation(lhs.entryID, rhs.entryID))
+    v3ManifestEntryPrecedes(lhs, rhs)
 }
 
 private func utf8PrecedesForReconciliation(

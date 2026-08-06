@@ -55,7 +55,7 @@ public enum CLIParser {
       config set <config-name> <value>   Update a config value.
       config list                        List known config values.
       migrate --check                    Check v2 migration readiness without changing the vault.
-      migrate --apply                    Create and select a verified, read-only v3 copy on this Mac.
+      migrate --apply                    Create and select a verified v3 copy on this Mac.
       status [--json] [--verbose]        Explain vault health without changing it.
       conflict list [--json]             List unresolved content conflicts.
       conflict show <id> [--json]        Show authenticated versions of a conflict.
@@ -88,7 +88,7 @@ public enum CLIParser {
     Options:
       --force  Skip overwrite or removal confirmation.
       --check  Run the read-only v2 migration preflight.
-      --apply  Explicitly create and select a read-only local v3 copy.
+      --apply  Explicitly create and select a verified local v3 copy.
       --json   Print supported diagnostics as stable JSON.
       --verbose  Include authenticated version details in human-readable status.
       --allow-stale  Read the last complete trusted version when newer transport is incomplete.
