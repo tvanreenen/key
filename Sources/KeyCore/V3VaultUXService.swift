@@ -6,6 +6,60 @@ struct V3ResolvedConflictSelection: Equatable, Sendable {
     let selectedEntry: V3ManifestEntry?
 }
 
+struct V3ConflictResolutionPlan: Equatable, Sendable {
+    let selections: [V3ResolvedConflictSelection]
+    let expectedHeads: [V3VaultHead]
+}
+
+/// Converts one complete, freshly observed CLI choice set into internal
+/// authenticated selectors. It performs no decryption or publication.
+struct V3ConflictResolutionPlanner: Sendable {
+    func plan(
+        _ resolutions: [VaultConflictResolution],
+        snapshot: V3VaultUXSnapshot
+    ) throws -> V3ConflictResolutionPlan {
+        guard snapshot.conflicts.allSatisfy({
+            $0.summary.kind.resolutionPolicy == .chooseVersion
+        }) else {
+            throw AppError.operationRefused(
+                "A revision rollback cannot be accepted as an ordinary content resolution."
+            )
+        }
+        guard snapshot.status.health == .contentConflicted else {
+            throw VaultUXServiceError.expectedHeadsChanged
+        }
+
+        let resolutionIDs = resolutions.map(\.conflictID)
+        guard Set(resolutionIDs).count == resolutions.count,
+              Set(resolutionIDs) == Set(snapshot.selections.keys)
+        else {
+            throw AppError.operationRefused(
+                "Resolve every current conflict exactly once. Run `key conflict list` and provide one <conflict-id>=<version-id> choice for each result."
+            )
+        }
+
+        let selected = try resolutions.map { resolution in
+            guard let selection = snapshot.selections[
+                resolution.conflictID
+            ] else {
+                throw VaultUXServiceError.expectedHeadsChanged
+            }
+            guard let entry = selection.versions[resolution.versionID] else {
+                throw VaultUXServiceError.conflictVersionNotFound
+            }
+            return V3ResolvedConflictSelection(
+                conflictID: resolution.conflictID,
+                entryID: selection.entryID,
+                selectedEntry: entry
+            )
+        }
+        return V3ConflictResolutionPlan(
+            selections: selected,
+            expectedHeads: snapshot.expectedHeads
+        )
+    }
+}
+
 /// Binds CLI conflict actions to a freshly authenticated repository snapshot.
 ///
 /// The service never keeps a mutable "current conflict" token. Every command
@@ -125,41 +179,10 @@ struct V3VaultUXService: VaultUXServicing {
         _ resolutions: [VaultConflictResolution]
     ) throws {
         let snapshot = try snapshotProvider()
-        guard snapshot.conflicts.allSatisfy({
-            $0.summary.kind.resolutionPolicy == .chooseVersion
-        }) else {
-            throw AppError.operationRefused(
-                "A revision rollback cannot be accepted as an ordinary content resolution."
-            )
-        }
-        guard snapshot.status.health == .contentConflicted else {
-            throw VaultUXServiceError.expectedHeadsChanged
-        }
-
-        let resolutionIDs = resolutions.map(\.conflictID)
-        guard Set(resolutionIDs).count == resolutions.count,
-              Set(resolutionIDs) == Set(snapshot.selections.keys)
-        else {
-            throw AppError.operationRefused(
-                "Resolve every current conflict exactly once. Run `key conflict list` and provide one <conflict-id>=<version-id> choice for each result."
-            )
-        }
-
-        let selected = try resolutions.map { resolution in
-            guard let selection = snapshot.selections[
-                resolution.conflictID
-            ] else {
-                throw VaultUXServiceError.expectedHeadsChanged
-            }
-            guard let entry = selection.versions[resolution.versionID] else {
-                throw VaultUXServiceError.conflictVersionNotFound
-            }
-            return V3ResolvedConflictSelection(
-                conflictID: resolution.conflictID,
-                entryID: selection.entryID,
-                selectedEntry: entry
-            )
-        }
-        try resolutionPublisher(selected, snapshot.expectedHeads)
+        let plan = try V3ConflictResolutionPlanner().plan(
+            resolutions,
+            snapshot: snapshot
+        )
+        try resolutionPublisher(plan.selections, plan.expectedHeads)
     }
 }

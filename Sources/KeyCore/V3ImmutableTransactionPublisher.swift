@@ -9,7 +9,9 @@ enum V3ImmutableTransactionError: Error, Equatable, LocalizedError {
     case invalidStagedEntry
     case objectTooLarge
     case referencedEntryUnavailable(entryID: String, digest: String)
+    case referencedEntryInvalid(entryID: String, digest: String)
     case publishedManifestUnavailable(digest: String)
+    case publishedManifestInvalid(digest: String)
     case expectedHeadsChanged
 
     var errorDescription: String? {
@@ -27,9 +29,13 @@ enum V3ImmutableTransactionError: Error, Equatable, LocalizedError {
         case .objectTooLarge:
             "The version 3 transaction would exceed a repository resource limit."
         case let .referencedEntryUnavailable(entryID, digest):
-            "The candidate manifest references unavailable entry '\(entryID)' at digest '\(digest)'."
+            "The candidate manifest references entry '\(entryID)' at digest '\(digest)', but its bytes are not available yet."
+        case let .referencedEntryInvalid(entryID, digest):
+            "The candidate manifest references invalid entry '\(entryID)' at digest '\(digest)'."
         case let .publishedManifestUnavailable(digest):
-            "The published version 3 manifest is unavailable or invalid at digest '\(digest)'."
+            "The published version 3 manifest is not available yet at digest '\(digest)'."
+        case let .publishedManifestInvalid(digest):
+            "The published version 3 manifest is invalid at digest '\(digest)'."
         case .expectedHeadsChanged:
             "The authenticated vault heads changed while the transaction was being staged."
         }
@@ -261,7 +267,7 @@ struct V3ImmutableTransactionPublisher: Sendable {
         else {
             throw V3ImmutableTransactionError.objectTooLarge
         }
-        guard reconciliation.canPublishAutomatically else {
+        guard reconciliation.canPublish(kind: request.kind) else {
             throw V3ImmutableTransactionError.unresolvedConflict
         }
         let candidate = try authenticator.verify(
@@ -281,7 +287,8 @@ struct V3ImmutableTransactionPublisher: Sendable {
         }
         try validator.requirePermittedCandidate(
             candidate,
-            reconciliation: reconciliation
+            reconciliation: reconciliation,
+            kind: request.kind
         )
 
         let stagedEntries = try validator.validateStagedEntries(
@@ -563,11 +570,15 @@ struct V3ImmutableTransactionPublisher: Sendable {
 }
 
 private extension V3ManifestReconciliationResult {
-    var canPublishAutomatically: Bool {
+    func canPublish(kind: VaultTransactionMutationKind) -> Bool {
         switch self {
-        case .noMergeRequired, .automaticMerge:
-            true
-        case .contentConflict, .securityConflict, .historyConflict:
+        case .noMergeRequired:
+            kind != .mergeHeads && kind != .resolveConflict
+        case .automaticMerge:
+            kind == .mergeHeads
+        case .contentConflict:
+            kind == .resolveConflict
+        case .securityConflict, .historyConflict:
             false
         }
     }

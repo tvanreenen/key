@@ -544,7 +544,7 @@ struct V3ImmutableTransactionPublisherTests {
 
         let trusted = try publisher.publish(
             V3ImmutableTransactionRequest(
-                kind: .editEntry,
+                kind: .mergeHeads,
                 candidateManifestData: candidate.data,
                 stagedEntries: [],
                 candidateVaultKey: Self.vaultKey
@@ -924,6 +924,59 @@ struct V3ImmutableTransactionPublisherTests {
     }
 
     @Test
+    func invalidExistingEntryIsNotReportedAsTransportDelay() throws {
+        let fixture = Fixture()
+        let sealed = try fixture.sealedEntry(
+            id: Self.entryA,
+            name: "account/existing",
+            revision: 1,
+            plaintext: "secret"
+        )
+        let record = fixture.record(for: sealed)
+        let base = try fixture.genesis(entries: [record])
+        let proof = try fixture.proof(
+            checkpoint: base.verified,
+            manifests: [base.verified],
+            heads: [base.verified]
+        )
+        let candidate = try fixture.child(
+            parents: [base.verified],
+            entries: [record]
+        )
+        let digest = try #require(Base64URL.decodeCanonical(
+            record.ciphertextDigest
+        ))
+        let objectStore = RecordingObjectStore(entries: [
+            TestEntryKey(entryID: Self.entryA, digest: digest):
+                Data("substituted".utf8)
+        ])
+        let publisher = fixture.publisher(
+            observer: ProofObserver([proof]),
+            objectStore: objectStore,
+            checkpointStore: MemoryCheckpointStore(
+                checkpoint: proof.checkpoint
+            )
+        )
+
+        #expect(throws: V3ImmutableTransactionError.referencedEntryInvalid(
+            entryID: Self.entryA,
+            digest: record.ciphertextDigest
+        )) {
+            _ = try publisher.publish(
+                V3ImmutableTransactionRequest(
+                    kind: .editEntry,
+                    candidateManifestData: candidate.data,
+                    stagedEntries: [],
+                    candidateVaultKey: Self.vaultKey
+                )
+            )
+        }
+        #expect(objectStore.events == [
+            "read-entry:\(Self.entryA)"
+        ])
+    }
+
+    @Test
     func exactAutomaticMergeCanPublishWithoutResealingEntries() throws {
         let fixture = Fixture()
         let base = try fixture.genesis()
@@ -978,7 +1031,7 @@ struct V3ImmutableTransactionPublisherTests {
 
         _ = try publisher.publish(
             V3ImmutableTransactionRequest(
-                kind: .editEntry,
+                kind: .mergeHeads,
                 candidateManifestData: candidate.data,
                 stagedEntries: [],
                 candidateVaultKey: Self.vaultKey
@@ -1044,7 +1097,7 @@ struct V3ImmutableTransactionPublisherTests {
         ) {
             _ = try publisher.publish(
                 V3ImmutableTransactionRequest(
-                    kind: .editEntry,
+                    kind: .mergeHeads,
                     candidateManifestData: incompleteMerge.data,
                     stagedEntries: [],
                     candidateVaultKey: Self.vaultKey

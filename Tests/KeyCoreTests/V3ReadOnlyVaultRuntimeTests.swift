@@ -51,7 +51,7 @@ struct V3ReadOnlyVaultRuntimeTests {
             vaultKeyProvider: keys.load
         )
 
-        #expect(throws: V3ManifestReplayError.checkpointNotFound) {
+        #expect(throws: VaultUXServiceError.recoveryRequired) {
             try missingCheckpoint.read(
                 name: "mail/personal",
                 allowStale: false
@@ -68,7 +68,7 @@ struct V3ReadOnlyVaultRuntimeTests {
             ),
             vaultKeyProvider: keys.load
         )
-        #expect(throws: V3ManifestReplayError.vaultMismatch) {
+        #expect(throws: VaultUXServiceError.recoveryRequired) {
             try wrongSelection.status()
         }
         #expect(keys.callCount == 0)

@@ -141,17 +141,30 @@ struct V3ImmutableTransactionValidator: Sendable {
 
     func requirePermittedCandidate(
         _ candidate: V3VerifiedManifest,
-        reconciliation: V3ManifestReconciliationResult
+        reconciliation: V3ManifestReconciliationResult,
+        kind: VaultTransactionMutationKind
     ) throws {
         switch reconciliation {
         case .noMergeRequired:
-            return
-        case let .automaticMerge(plan):
-            guard candidate.envelope.content == plan.content else {
+            guard kind != .mergeHeads,
+                  kind != .resolveConflict
+            else {
                 throw V3ImmutableTransactionError
                     .candidateDoesNotMatchAutomaticMerge
             }
-        case .contentConflict, .securityConflict, .historyConflict:
+            return
+        case let .automaticMerge(plan):
+            guard kind == .mergeHeads,
+                  candidate.envelope.content == plan.content
+            else {
+                throw V3ImmutableTransactionError
+                    .candidateDoesNotMatchAutomaticMerge
+            }
+        case .contentConflict:
+            guard kind == .resolveConflict else {
+                throw V3ImmutableTransactionError.unresolvedConflict
+            }
+        case .securityConflict, .historyConflict:
             throw V3ImmutableTransactionError.unresolvedConflict
         }
     }
@@ -215,15 +228,25 @@ struct V3ImmutableTransactionValidator: Sendable {
             digest: key.digest,
             maximumBytes: limits.maximumEntryBytes
         )
-        guard case let .available(data) = result,
-              Data(SHA256.hash(data: data)) == key.digest,
+        guard case let .available(data) = result else {
+            if case .unavailable = result {
+                throw V3ImmutableTransactionError.referencedEntryUnavailable(
+                    entryID: entry.entryID,
+                    digest: entry.ciphertextDigest
+                )
+            }
+            throw V3ImmutableTransactionError.referencedEntryInvalid(
+                entryID: entry.entryID,
+                digest: entry.ciphertextDigest
+            )
+        }
+        guard Data(SHA256.hash(data: data)) == key.digest,
               let parsed = try? entryCipher.parse(data),
               parsed.context == (try? V3EntryAuthenticationContext(
                   vaultID: vaultID,
                   entry: entry
-              ))
-        else {
-            throw V3ImmutableTransactionError.referencedEntryUnavailable(
+              )) else {
+            throw V3ImmutableTransactionError.referencedEntryInvalid(
                 entryID: entry.entryID,
                 digest: entry.ciphertextDigest
             )
@@ -238,10 +261,18 @@ struct V3ImmutableTransactionValidator: Sendable {
             digest: candidate.envelopeDigest,
             maximumBytes: limits.maximumManifestBytes
         )
-        guard case let .available(data) = result,
-              data == candidate.envelope.canonicalBytes
-        else {
-            throw V3ImmutableTransactionError.publishedManifestUnavailable(
+        guard case let .available(data) = result else {
+            if case .unavailable = result {
+                throw V3ImmutableTransactionError.publishedManifestUnavailable(
+                    digest: Base64URL.encode(candidate.envelopeDigest)
+                )
+            }
+            throw V3ImmutableTransactionError.publishedManifestInvalid(
+                digest: Base64URL.encode(candidate.envelopeDigest)
+            )
+        }
+        guard data == candidate.envelope.canonicalBytes else {
+            throw V3ImmutableTransactionError.publishedManifestInvalid(
                 digest: Base64URL.encode(candidate.envelopeDigest)
             )
         }

@@ -83,6 +83,36 @@ struct V3EnrollmentOwnerTransitionTests {
     }
 
     @Test
+    func ordinaryCandidateBuilderPreservesSharedAuthorityExactly() throws {
+        let fixture = try Fixture()
+        let shared = try V3EnrollmentOwnerTransitionBuilder().build(
+            state: fixture.inviterState,
+            parent: fixture.parent,
+            vaultKey: Self.vaultKey,
+            inviterIdentity: fixture.inviter,
+            authorizationReason: "Approve the compared device."
+        )
+        let child = try V3ManifestCandidateBuilder().build(
+            content: V3ManifestContent(
+                parents: [Base64URL.encode(
+                    shared.verifiedManifest.envelopeDigest
+                )],
+                manifest: shared.verifiedManifest.envelope.content.manifest
+            ),
+            vaultKey: Self.vaultKey,
+            trustAnchor: .verifiedParents([
+                shared.verifiedManifest
+            ])
+        )
+
+        #expect(
+            child.verified.envelope.content.manifest
+                == shared.verifiedManifest.envelope.content.manifest
+        )
+        #expect(child.verified.envelope.authorizations.isEmpty)
+    }
+
+    @Test
     func preparedApprovalRebuildsTheExactCandidateWithoutResigning() throws {
         let fixture = try Fixture()
         let builder = V3EnrollmentOwnerTransitionBuilder()

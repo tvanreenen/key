@@ -234,7 +234,8 @@ struct V3InterruptedTransactionRecoverer: Sendable {
         let reconciliation = try reconciler.reconcile(expectedProof)
         try validator.requirePermittedCandidate(
             candidate,
-            reconciliation: reconciliation
+            reconciliation: reconciliation,
+            kind: intent.kind
         )
 
         guard let recoveryEntries = try validateRecoveryEntries(

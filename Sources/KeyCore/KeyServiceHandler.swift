@@ -14,6 +14,7 @@ public final class KeyServiceHandler {
     private let enrollmentService: (any V3EnrollmentWorkflowServicing)?
     private let vaultUXService: any VaultUXServicing
     private let vaultReader: (any VaultReadServicing)?
+    private let vaultMutator: (any VaultMutationServicing)?
     private let configuredVaultID: String?
     private let requestQueue = DispatchQueue(
         label: "work.tvr.key.service-handler.requests",
@@ -43,6 +44,7 @@ public final class KeyServiceHandler {
             enrollmentService: nil,
             vaultUXService: V2VaultUXService(entryStore: entryStore),
             vaultReader: nil,
+            vaultMutator: nil,
             configuredVaultID: nil
         )
     }
@@ -59,6 +61,7 @@ public final class KeyServiceHandler {
         enrollmentService: (any V3EnrollmentWorkflowServicing)? = nil,
         vaultUXService: (any VaultUXServicing)? = nil,
         vaultReader: (any VaultReadServicing)? = nil,
+        vaultMutator: (any VaultMutationServicing)? = nil,
         configuredVaultID: String? = nil
     ) {
         self.keyStore = keyStore
@@ -72,6 +75,7 @@ public final class KeyServiceHandler {
         self.vaultUXService = vaultUXService
             ?? V2VaultUXService(entryStore: entryStore)
         self.vaultReader = vaultReader
+        self.vaultMutator = vaultMutator
         self.configuredVaultID = configuredVaultID
         self.currentKeychainMode = keychainMode
     }
@@ -90,8 +94,8 @@ public final class KeyServiceHandler {
 
     /// Composes the helper runtime selected by device-local configuration.
     ///
-    /// A missing vault ID retains v2. A configured vault ID enables only the
-    /// read-only v3 adapter and never creates a replacement key.
+    /// A missing vault ID retains v2. A configured vault ID enables the v3
+    /// runtime and never creates a replacement key.
     public static func live(
         keyStore: VaultKeyStoring,
         keyConfiguration: KeyConfiguration,
@@ -160,10 +164,15 @@ public final class KeyServiceHandler {
         let rootHandle = try VaultRootDirectoryHandle(
             opening: keyConfiguration.vaultDirectoryURL
         )
-        let runtime = V3ReadOnlyVaultRuntime(
+        let checkpointStore = V3ManifestCheckpointKeychainStore(
+            configuration: runtimeConfiguration
+        )
+        let runtime = V3VaultRuntime(
             rootHandle: rootHandle,
             vaultID: vaultID,
-            checkpointStore: V3ManifestCheckpointKeychainStore(
+            checkpointStore: checkpointStore,
+            recoveryAnchorStore:
+                V3ImmutableTransactionRecoveryAnchorKeychainStore(
                 configuration: runtimeConfiguration
             ),
             vaultKeyProvider: { reason in
@@ -191,6 +200,7 @@ public final class KeyServiceHandler {
             enrollmentService: enrollmentService,
             vaultUXService: runtime,
             vaultReader: runtime,
+            vaultMutator: runtime,
             configuredVaultID: vaultID
         )
     }
@@ -287,7 +297,19 @@ public final class KeyServiceHandler {
                     )
                 )
             case let .resolveConflicts(resolutions):
-                try vaultUXService.resolve(resolutions)
+                if let vaultMutator {
+                    guard let mutationContext else {
+                        throw AppError.operationRefused(
+                            "Conflict resolution requires the helper's serialized mutation boundary."
+                        )
+                    }
+                    try vaultMutator.resolve(
+                        resolutions,
+                        operationID: mutationContext.operationID
+                    )
+                } else {
+                    try vaultUXService.resolve(resolutions)
+                }
                 return .success()
             case let .share(action):
                 guard let enrollmentService else {
@@ -366,19 +388,77 @@ public final class KeyServiceHandler {
                 let decrypted = try decryptSecret(encrypted, named: name, keyData: keyData)
                 return .success(try renderValue(for: encrypted.type, decryptedValue: decrypted))
             case let .addManual(name, secret, type):
-                try storeAddedSecret(secret, as: name, type: type)
+                if let vaultMutator {
+                    try vaultMutator.add(
+                        name: name,
+                        secret: secret,
+                        type: type,
+                        operationID: try requiredOperationID(
+                            mutationContext,
+                            kind: .addEntry
+                        )
+                    )
+                } else {
+                    try storeAddedSecret(secret, as: name, type: type)
+                }
                 return .success()
             case let .editManual(name, secret, type):
-                try storeEditedSecret(secret, as: name, type: type)
+                if let vaultMutator {
+                    try vaultMutator.edit(
+                        name: name,
+                        secret: secret,
+                        type: type,
+                        operationID: try requiredOperationID(
+                            mutationContext,
+                            kind: .editEntry
+                        )
+                    )
+                } else {
+                    try storeEditedSecret(secret, as: name, type: type)
+                }
                 return .success()
             case let .copyEntry(source, destination, force):
-                try entryStore.copyEntry(from: source, to: destination, overwrite: force)
+                if let vaultMutator {
+                    try vaultMutator.copy(
+                        source: source,
+                        destination: destination,
+                        overwrite: force,
+                        operationID: try requiredOperationID(
+                            mutationContext,
+                            kind: .copyEntry
+                        )
+                    )
+                } else {
+                    try entryStore.copyEntry(from: source, to: destination, overwrite: force)
+                }
                 return .success()
             case let .moveEntry(source, destination, force):
-                try entryStore.moveEntry(from: source, to: destination, overwrite: force)
+                if let vaultMutator {
+                    try vaultMutator.move(
+                        source: source,
+                        destination: destination,
+                        overwrite: force,
+                        operationID: try requiredOperationID(
+                            mutationContext,
+                            kind: .moveEntry
+                        )
+                    )
+                } else {
+                    try entryStore.moveEntry(from: source, to: destination, overwrite: force)
+                }
                 return .success()
             case let .removeEntry(name):
-                try entryStore.removeEntry(name)
+                if let vaultMutator {
+                    try vaultMutator.remove(
+                        name: name,
+                        operationID: try requiredOperationID(
+                            mutationContext,
+                            kind: .removeEntry
+                        )
+                    )
+                } else {
+                    try entryStore.removeEntry(name)
+                }
                 return .success()
             }
         } catch let error as AppError {
@@ -464,6 +544,18 @@ public final class KeyServiceHandler {
                 operationID: mutationContext.operationID
             )
         }
+    }
+
+    private func requiredOperationID(
+        _ context: VaultTransactionMutationContext?,
+        kind: VaultTransactionMutationKind
+    ) throws -> VaultTransactionOperationID {
+        guard let context, context.kind == kind else {
+            throw AppError.operationRefused(
+                "Version 3 publication requires the helper's serialized mutation boundary."
+            )
+        }
+        return context.operationID
     }
 
     private func verifyConfiguredVaultRoot(

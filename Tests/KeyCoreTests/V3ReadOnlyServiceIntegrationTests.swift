@@ -57,7 +57,7 @@ struct V3ReadOnlyServiceIntegrationTests {
     }
 
     @Test
-    func shippingFactorySelectsReadOnlyV3WithoutTouchingKeyState() throws {
+    func shippingFactoryRoutesV3MutationWithoutTouchingLegacyKeyState() throws {
         let home = temporaryV3ServiceDirectory()
         defer { try? FileManager.default.removeItem(at: home) }
         let root = home.appendingPathComponent(
@@ -93,10 +93,60 @@ struct V3ReadOnlyServiceIntegrationTests {
             secret: "value",
             type: .secret
         ))
-        #expect(mutation.errorCode == .operationRefused)
+        #expect(mutation.errorCode == .serviceFailure)
         #expect(try EntryStore(rootURL: root).listEntries().isEmpty)
         #expect(keys.createIfMissingValues.isEmpty)
         #expect(keys.storeCount == 0)
+    }
+
+    @Test
+    func selectedV3RoutesEveryMutationAwayFromLegacyEntryStore() throws {
+        let root = temporaryV3ServiceDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let mutator = RecordingV3VaultMutator()
+        let handler = KeyServiceHandler(
+            keyStore: RecordingV3VaultKeyStore(),
+            entryStore: EntryStore(rootURL: root),
+            mutationOwner: VaultTransactionMutationOwner(),
+            vaultUXService: WritableV3UXService(),
+            vaultReader: RecordingV3VaultReader(),
+            vaultMutator: mutator,
+            configuredVaultID:
+                "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
+        )
+
+        #expect(handler.handle(.addManual(
+            name: "added",
+            secret: "one",
+            type: .secret
+        )) == .success())
+        #expect(handler.handle(.editManual(
+            name: "added",
+            secret: "two",
+            type: .secret
+        )) == .success())
+        #expect(handler.handle(.copyEntry(
+            source: "added",
+            destination: "copied",
+            force: false
+        )) == .success())
+        #expect(handler.handle(.moveEntry(
+            source: "copied",
+            destination: "moved",
+            force: true
+        )) == .success())
+        #expect(handler.handle(.removeEntry(name: "moved")) == .success())
+        #expect(handler.handle(.resolveConflicts([])) == .success())
+
+        #expect(mutator.kinds == [
+            .addEntry,
+            .editEntry,
+            .copyEntry,
+            .moveEntry,
+            .removeEntry,
+            .resolveConflict
+        ])
+        #expect(try EntryStore(rootURL: root).listEntries().isEmpty)
     }
 
     @Test
@@ -294,6 +344,101 @@ private struct ReadOnlyV3UXService: VaultUXServicing {
         throw AppError.operationRefused(
             "Version 3 vault writes are not enabled."
         )
+    }
+}
+
+private struct WritableV3UXService: VaultUXServicing {
+    func status() throws -> VaultStatus {
+        VaultStatus(
+            format: .version3,
+            health: .ready,
+            entries: .effective(0)
+        )
+    }
+
+    func authorizeRead(name _: String, allowStale _: Bool) throws {}
+    func authorizeMutation() throws {}
+    func conflicts() throws -> [VaultConflictSummary] { [] }
+
+    func conflict(id _: String) throws -> VaultConflictDetail {
+        throw VaultUXServiceError.conflictNotFound
+    }
+
+    func conflictValue(
+        id _: String,
+        versionID _: String
+    ) throws -> String {
+        throw VaultUXServiceError.conflictVersionNotFound
+    }
+
+    func resolve(_: [VaultConflictResolution]) throws {}
+}
+
+private final class RecordingV3VaultMutator:
+    VaultMutationServicing,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var recordedKinds: [VaultTransactionMutationKind] = []
+
+    var kinds: [VaultTransactionMutationKind] {
+        lock.withLock { recordedKinds }
+    }
+
+    func add(
+        name _: String,
+        secret _: String,
+        type _: SecretEntryType,
+        operationID _: VaultTransactionOperationID
+    ) throws {
+        record(.addEntry)
+    }
+
+    func edit(
+        name _: String,
+        secret _: String,
+        type _: SecretEntryType,
+        operationID _: VaultTransactionOperationID
+    ) throws {
+        record(.editEntry)
+    }
+
+    func copy(
+        source _: String,
+        destination _: String,
+        overwrite _: Bool,
+        operationID _: VaultTransactionOperationID
+    ) throws {
+        record(.copyEntry)
+    }
+
+    func move(
+        source _: String,
+        destination _: String,
+        overwrite _: Bool,
+        operationID _: VaultTransactionOperationID
+    ) throws {
+        record(.moveEntry)
+    }
+
+    func remove(
+        name _: String,
+        operationID _: VaultTransactionOperationID
+    ) throws {
+        record(.removeEntry)
+    }
+
+    func resolve(
+        _: [VaultConflictResolution],
+        operationID _: VaultTransactionOperationID
+    ) throws {
+        record(.resolveConflict)
+    }
+
+    private func record(_ kind: VaultTransactionMutationKind) {
+        lock.withLock {
+            recordedKinds.append(kind)
+        }
     }
 }
 

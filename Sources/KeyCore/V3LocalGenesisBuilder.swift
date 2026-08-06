@@ -81,13 +81,10 @@ struct V3LocalGenesisBuilder: Sendable {
         }
 
         entries.sort {
-            Data($0.manifestEntry.name.utf8).lexicographicallyPrecedes(
-                Data($1.manifestEntry.name.utf8)
-            ) || ($0.manifestEntry.name == $1.manifestEntry.name
-                && Data($0.manifestEntry.entryID.utf8)
-                    .lexicographicallyPrecedes(
-                        Data($1.manifestEntry.entryID.utf8)
-                    ))
+            v3ManifestEntryPrecedes(
+                $0.manifestEntry,
+                $1.manifestEntry
+            )
         }
 
         let entryValues = entries.map { entry in
