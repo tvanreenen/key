@@ -14,7 +14,7 @@ enum V3EnrollmentOwnerApprovalError:
     var errorDescription: String? {
         switch self {
         case .invalidRepositoryState:
-            "Owner approval requires the exact complete local vault head named by the invitation."
+            "Owner approval requires the exact complete vault head named by the invitation."
         case .objectTooLarge:
             "The owner-authorized enrollment manifest exceeds a repository resource limit."
         case .stagedManifestUnavailable:
@@ -50,7 +50,7 @@ private struct V3NoopEnrollmentOwnerApprovalPhaseObserver:
     ) throws {}
 }
 
-/// Publishes the exact owner-approved local-to-shared transition.
+/// Publishes one exact owner-approved device-membership transition.
 ///
 /// Only one immutable manifest is added, so an interruption always leaves the
 /// old checkpoint or the complete new checkpoint. The device-local approval
@@ -154,7 +154,8 @@ struct V3EnrollmentOwnerApprovalCoordinator: Sendable {
                 vaultKey: vaultKey,
                 approval: approval
             )
-            if checkpointDescends(
+            if manifestDescends(
+                initialObservation.proof.checkpoint.envelopeDigest,
                 from: candidate.verifiedManifest.envelopeDigest,
                 in: initialObservation.proof
             ) {
@@ -193,9 +194,11 @@ struct V3EnrollmentOwnerApprovalCoordinator: Sendable {
             )
         }
 
-        try requireExactParentState(
+        try requireApprovalPublicationState(
             initialObservation.proof,
-            parentDigest: parentDigest
+            parentDigest: parentDigest,
+            candidateDigest: candidate.verifiedManifest.envelopeDigest,
+            candidateAlreadyPublished: candidateAlreadyPublished
         )
         try requireWithinLimits(
             candidate,
@@ -244,15 +247,17 @@ struct V3EnrollmentOwnerApprovalCoordinator: Sendable {
         else {
             throw V3EnrollmentOwnerApprovalError.invalidRepositoryState
         }
-        try requireExactParentState(
-            recheckedObservation.proof,
-            parentDigest: parentDigest
-        )
         if resumedPreparedApproval, !candidateAlreadyPublished {
             candidateAlreadyPublished = try isCandidateAlreadyPublished(
                 candidate
             )
         }
+        try requireApprovalPublicationState(
+            recheckedObservation.proof,
+            parentDigest: parentDigest,
+            candidateDigest: candidate.verifiedManifest.envelopeDigest,
+            candidateAlreadyPublished: candidateAlreadyPublished
+        )
         try requireWithinLimits(
             candidate,
             observation: recheckedObservation,
@@ -319,7 +324,8 @@ struct V3EnrollmentOwnerApprovalCoordinator: Sendable {
         operationID: VaultTransactionOperationID
     ) throws -> V3TrustedManifest {
         guard
-            checkpointDescends(
+            manifestDescends(
+                proof.checkpoint.envelopeDigest,
                 from: candidate.verifiedManifest.envelopeDigest,
                 in: proof
             ),
@@ -346,8 +352,9 @@ struct V3EnrollmentOwnerApprovalCoordinator: Sendable {
         )
     }
 
-    private func checkpointDescends(
-        from candidateDigest: Data,
+    private func manifestDescends(
+        _ descendantDigest: Data,
+        from ancestorDigest: Data,
         in proof: V3ManifestAncestryProof
     ) -> Bool {
         var manifestsByDigest: [Data: V3VerifiedManifest] = [:]
@@ -361,10 +368,10 @@ struct V3EnrollmentOwnerApprovalCoordinator: Sendable {
                 return false
             }
         }
-        var pending = [proof.checkpoint.envelopeDigest]
+        var pending = [descendantDigest]
         var visited: Set<Data> = []
         while let digest = pending.popLast() {
-            if digest == candidateDigest {
+            if digest == ancestorDigest {
                 return true
             }
             guard visited.insert(digest).inserted,
@@ -409,10 +416,44 @@ struct V3EnrollmentOwnerApprovalCoordinator: Sendable {
         _ proof: V3ManifestAncestryProof,
         parentDigest: Data
     ) throws {
-        guard proof.checkpoint.envelopeDigest == parentDigest,
-            proof.heads.count == 1,
+        guard proof.heads.count == 1,
             proof.heads[0].envelopeDigest == parentDigest,
-            proof.heads[0].envelope.content.manifest.mode == .local
+            manifestDescends(
+                parentDigest,
+                from: proof.checkpoint.envelopeDigest,
+                in: proof
+            )
+        else {
+            throw V3EnrollmentOwnerApprovalError.invalidRepositoryState
+        }
+    }
+
+    private func requireApprovalPublicationState(
+        _ proof: V3ManifestAncestryProof,
+        parentDigest: Data,
+        candidateDigest: Data,
+        candidateAlreadyPublished: Bool
+    ) throws {
+        guard manifestDescends(
+            parentDigest,
+            from: proof.checkpoint.envelopeDigest,
+            in: proof
+        ) else {
+            throw V3EnrollmentOwnerApprovalError.invalidRepositoryState
+        }
+        if proof.heads.count == 1,
+           proof.heads[0].envelopeDigest == parentDigest {
+            return
+        }
+        guard candidateAlreadyPublished,
+              !proof.heads.isEmpty,
+              proof.heads.allSatisfy({
+                  manifestDescends(
+                      $0.envelopeDigest,
+                      from: candidateDigest,
+                      in: proof
+                  )
+              })
         else {
             throw V3EnrollmentOwnerApprovalError.invalidRepositoryState
         }
@@ -425,6 +466,10 @@ struct V3EnrollmentOwnerApprovalCoordinator: Sendable {
     ) throws {
         let usage = observation.resourceUsage
         let additionalManifestObjects = candidateAlreadyPublished ? 0 : 1
+        let candidateAlreadyInProof = observation.proof.manifests.contains {
+            $0.envelopeDigest == candidate.verifiedManifest.envelopeDigest
+        }
+        let additionalHistoryDepth = candidateAlreadyInProof ? 0 : 1
         let additionalManifestBytes =
             candidateAlreadyPublished
             ? 0
@@ -434,7 +479,9 @@ struct V3EnrollmentOwnerApprovalCoordinator: Sendable {
             usage.manifestObjectCount
                 <= limits.maximumManifestObjects
                 - additionalManifestObjects,
-            usage.maximumHistoryDepth < limits.maximumHistoryDepth,
+            limits.maximumHistoryDepth >= additionalHistoryDepth,
+            usage.maximumHistoryDepth
+                <= limits.maximumHistoryDepth - additionalHistoryDepth,
             usage.totalManifestBytes >= 0,
             usage.totalManifestBytes
                 <= limits.maximumTotalManifestBytes

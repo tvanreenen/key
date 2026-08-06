@@ -363,6 +363,92 @@ struct V3EnrollmentAdoptionTests {
         #expect(selection.selectedVaultID == Self.vaultID)
         #expect(fixture.keyStore.storeCount == 1)
     }
+
+    @Test
+    func additionalDeviceAuthenticatesAndAdoptsTheExpandedRoster() throws {
+        let fixture = try AdditionalAdoptionFixture()
+        let selection = AdoptionSelection()
+
+        let report = try fixture.service(selection: selection).adopt(
+            vaultID: Self.vaultID,
+            invitationDigest: fixture.invitation.digest,
+            approvedTranscriptDigest: fixture.transcript.digest,
+            at: Self.activeTime,
+            operationID: VaultTransactionOperationID()
+        )
+
+        #expect(report.deviceName == "Travel Mac")
+        #expect(report.role == .member)
+        #expect(fixture.keyStore.localKeyData == Self.vaultKey)
+        #expect(selection.selectedVaultID == Self.vaultID)
+        #expect(
+            try V3ManifestCheckpoint(
+                canonicalBytes: #require(fixture.checkpointStore.checkpoint)
+            ).envelopeDigest == fixture.candidate.verifiedManifest.envelopeDigest
+        )
+        #expect(
+            fixture.candidate.verifiedManifest.envelope.content.manifest
+                .devices.count == 3
+        )
+    }
+
+    @Test
+    func sharedVaultInvitationsRequireThisMacToBeAnActiveOwner() throws {
+        let fixture = try AdditionalAdoptionFixture()
+        fixture.checkpointStore.checkpoint = try V3ManifestCheckpoint(
+            verifiedManifest: fixture.candidate.verifiedManifest
+        ).canonicalBytes
+        fixture.keyStore.localKeyData = Self.vaultKey
+
+        let ownerRecords = AdoptionIdentityRecordStore()
+        let ownerManager = V3EnrollmentDeviceIdentityManager(
+            recordStore: ownerRecords,
+            keyOperations: AdoptionDeviceKeyOperations(
+                signingScalar: 0x21,
+                wrappingScalar: 0x22
+            )
+        )
+        _ = try ownerManager.createIdentity(
+            vaultID: Self.vaultID,
+            displayName: "Existing Mac",
+            reason: "Record owner identity."
+        )
+        let ownerMailbox = WorkflowEnrollmentMailbox()
+        let ownerService = fixture.workflowService(
+            identityManager: ownerManager,
+            mailbox: ownerMailbox
+        )
+
+        let invitation = try ownerService.createInvitation(
+            deviceName: "Existing Mac",
+            role: .member,
+            at: Self.activeTime
+        )
+
+        #expect(invitation.contains("Enrollment invitation created."))
+        #expect(ownerMailbox.publishedInvitations.count == 1)
+
+        let memberRecords = AdoptionIdentityRecordStore()
+        let memberManager = V3EnrollmentDeviceIdentityManager(
+            recordStore: memberRecords,
+            keyOperations: AdoptionDeviceKeyOperations()
+        )
+        _ = try memberManager.createIdentity(
+            vaultID: Self.vaultID,
+            displayName: "Joining Mac",
+            reason: "Record member identity."
+        )
+        #expect(throws: AppError.self) {
+            try fixture.workflowService(
+                identityManager: memberManager,
+                mailbox: WorkflowEnrollmentMailbox()
+            ).createInvitation(
+                deviceName: "Joining Mac",
+                role: .member,
+                at: Self.activeTime
+            )
+        }
+    }
 }
 
 private struct Fixture {
@@ -489,6 +575,201 @@ private struct Fixture {
             },
             limits: limits,
             phaseObserver: phases
+        )
+    }
+}
+
+private struct AdditionalAdoptionFixture {
+    let invitation: V3EnrollmentInvitation
+    let transcript: V3EnrollmentTranscript
+    let candidate: V3EnrollmentOwnerTransitionCandidate
+    let source: AdoptionSource
+    let stateStore: AdoptionStateStore
+    let checkpointStore = AdoptionCheckpointStore()
+    let keyStore = MemoryVaultKeyStore()
+    let identityManager: V3EnrollmentDeviceIdentityManager
+
+    init() throws {
+        let genesis = try V3LocalGenesisBuilder().build(
+            vaultID: V3EnrollmentAdoptionTests.vaultID,
+            entryIDs: [],
+            sourceEntries: [],
+            vaultKey: V3EnrollmentAdoptionTests.vaultKey
+        ).verifiedManifest
+        let owner = try AdoptionSigner(
+            vaultID: V3EnrollmentAdoptionTests.vaultID,
+            displayName: "Existing Mac",
+            signingScalar: 0x21,
+            wrappingScalar: 0x22
+        )
+        let second = try AdoptionSigner(
+            vaultID: V3EnrollmentAdoptionTests.vaultID,
+            displayName: "Joining Mac",
+            signingScalar: 0x31,
+            wrappingScalar: 0x32
+        )
+        let authenticator = V3EnrollmentMessageAuthenticator()
+        let firstInvitation = try V3EnrollmentInvitation(
+            vaultID: V3EnrollmentAdoptionTests.vaultID,
+            parentManifestDigest: genesis.envelopeDigest,
+            invitingDevice: owner.publicIdentity,
+            invitedRole: .member,
+            nonce: Data(repeating: 0x41, count: 32),
+            expiresAt: V3EnrollmentAdoptionTests.activeTime + 300
+        )
+        let signedFirstInvitation = try authenticator.sign(
+            firstInvitation,
+            using: owner,
+            reason: "Create first invitation."
+        )
+        let verifiedFirstInvitation = try authenticator.verify(
+            signedFirstInvitation
+        )
+        let firstRequest = try V3EnrollmentJoinRequest(
+            invitationDigest: firstInvitation.digest,
+            joiningDevice: second.publicIdentity,
+            nonce: Data(repeating: 0x42, count: 32)
+        )
+        let signedFirstRequest = try authenticator.sign(
+            firstRequest,
+            answering: verifiedFirstInvitation,
+            using: second,
+            reason: "Answer first invitation."
+        )
+        let firstState = try V3EnrollmentCeremonyState(
+            vaultID: V3EnrollmentAdoptionTests.vaultID,
+            invitationDigest: firstInvitation.digest,
+            role: .inviter,
+            phase: .awaitingComparison,
+            signedInvitation: signedFirstInvitation,
+            signedJoinRequest: signedFirstRequest
+        )
+        let shared = try V3EnrollmentOwnerTransitionBuilder().build(
+            state: firstState,
+            parent: genesis,
+            vaultKey: V3EnrollmentAdoptionTests.vaultKey,
+            inviterIdentity: owner,
+            authorizationReason: "Approve first enrollment."
+        )
+
+        let recordStore = AdoptionIdentityRecordStore()
+        identityManager = V3EnrollmentDeviceIdentityManager(
+            recordStore: recordStore,
+            keyOperations: AdoptionDeviceKeyOperations(
+                signingScalar: 0x41,
+                wrappingScalar: 0x42
+            )
+        )
+        let third = try identityManager.createIdentity(
+            vaultID: V3EnrollmentAdoptionTests.vaultID,
+            displayName: "Travel Mac",
+            reason: "Create third identity."
+        )
+        invitation = try V3EnrollmentInvitation(
+            vaultID: V3EnrollmentAdoptionTests.vaultID,
+            parentManifestDigest: shared.verifiedManifest.envelopeDigest,
+            invitingDevice: owner.publicIdentity,
+            invitedRole: .member,
+            nonce: Data(repeating: 0x51, count: 32),
+            expiresAt: V3EnrollmentAdoptionTests.activeTime + 300
+        )
+        let signedInvitation = try authenticator.sign(
+            invitation,
+            using: owner,
+            reason: "Create third-device invitation."
+        )
+        let verifiedInvitation = try authenticator.verify(signedInvitation)
+        let request = try V3EnrollmentJoinRequest(
+            invitationDigest: invitation.digest,
+            joiningDevice: third.publicIdentity,
+            nonce: Data(repeating: 0x52, count: 32)
+        )
+        let signedRequest = try authenticator.sign(
+            request,
+            answering: verifiedInvitation,
+            using: third,
+            reason: "Answer third-device invitation."
+        )
+        transcript = try V3EnrollmentTranscript(
+            invitation: invitation,
+            joinRequest: request
+        )
+        let ownerState = try V3EnrollmentCeremonyState(
+            vaultID: V3EnrollmentAdoptionTests.vaultID,
+            invitationDigest: invitation.digest,
+            role: .inviter,
+            phase: .awaitingComparison,
+            signedInvitation: signedInvitation,
+            signedJoinRequest: signedRequest
+        )
+        candidate = try V3EnrollmentOwnerTransitionBuilder().build(
+            state: ownerState,
+            parent: shared.verifiedManifest,
+            vaultKey: V3EnrollmentAdoptionTests.vaultKey,
+            inviterIdentity: owner,
+            authorizationReason: "Approve third enrollment."
+        )
+        source = AdoptionSource(manifests: [
+            genesis.envelopeDigest: genesis.envelope.canonicalBytes,
+            shared.verifiedManifest.envelopeDigest: shared.manifestData,
+            candidate.verifiedManifest.envelopeDigest:
+                candidate.manifestData,
+        ])
+        let joinerState = try V3EnrollmentCeremonyState(
+            vaultID: V3EnrollmentAdoptionTests.vaultID,
+            invitationDigest: invitation.digest,
+            role: .joiner,
+            phase: .awaitingComparison,
+            signedInvitation: signedInvitation,
+            signedJoinRequest: signedRequest
+        )
+        stateStore = AdoptionStateStore(state: joinerState)
+    }
+
+    func service(
+        selection: AdoptionSelection = AdoptionSelection()
+    ) -> V3EnrollmentAdoptionService {
+        V3EnrollmentAdoptionService(
+            source: source,
+            checkpointStore: checkpointStore,
+            exchange: V3EnrollmentExchangeCoordinator(
+                mailbox: AdoptionEmptyMailbox(),
+                stateStore: stateStore
+            ),
+            identityManager: identityManager,
+            vaultKeyStore: keyStore,
+            keychainMode: .local,
+            selectVault: { vaultID in
+                try selection.select(vaultID)
+            },
+            verifyRuntime: { vaultID in
+                #expect(vaultID == V3EnrollmentAdoptionTests.vaultID)
+                #expect(
+                    keyStore.localKeyData
+                        == V3EnrollmentAdoptionTests.vaultKey
+                )
+            }
+        )
+    }
+
+    func workflowService(
+        identityManager: V3EnrollmentDeviceIdentityManager,
+        mailbox: WorkflowEnrollmentMailbox
+    ) -> V3EnrollmentWorkflowService {
+        V3EnrollmentWorkflowService(
+            selectedVaultID: V3EnrollmentAdoptionTests.vaultID,
+            source: source,
+            objectStore: source,
+            checkpointStore: checkpointStore,
+            exchange: V3EnrollmentExchangeCoordinator(
+                mailbox: mailbox,
+                stateStore: EmptyWorkflowEnrollmentStateStore()
+            ),
+            identityManager: identityManager,
+            vaultKeyStore: keyStore,
+            keychainMode: .local,
+            selectVault: { _ in },
+            verifyRuntime: { _ in }
         )
     }
 }
@@ -671,16 +952,27 @@ private struct AdoptionDeviceKeyOperations:
     V3EnrollmentDeviceKeyOperating,
     Sendable
 {
+    let signingScalar: UInt8
+    let wrappingScalar: UInt8
+
+    init(
+        signingScalar: UInt8 = 0x31,
+        wrappingScalar: UInt8 = 0x32
+    ) {
+        self.signingScalar = signingScalar
+        self.wrappingScalar = wrappingScalar
+    }
+
     var isAvailable: Bool { true }
 
     func generateDeviceKeys(
         reason _: String
     ) throws -> V3EnrollmentGeneratedDeviceKeys {
         let signing = try P256.Signing.PrivateKey(
-            rawRepresentation: privateBytes(0x31)
+            rawRepresentation: privateBytes(signingScalar)
         )
         let wrapping = try P256.KeyAgreement.PrivateKey(
-            rawRepresentation: privateBytes(0x32)
+            rawRepresentation: privateBytes(wrappingScalar)
         )
         return V3EnrollmentGeneratedDeviceKeys(
             signingPublicKey: signing.publicKey.x963Representation,
@@ -804,6 +1096,68 @@ private struct AdoptionEmptyMailbox: V3EnrollmentMailboxStoring {
         _: Data,
         invitationDigest _: Data
     ) throws {}
+}
+
+private final class WorkflowEnrollmentMailbox:
+    V3EnrollmentMailboxStoring,
+    @unchecked Sendable
+{
+    var publishedInvitations: [Data] = []
+
+    func invitationDigests(
+        maximumCount _: Int
+    ) throws -> V3EnrollmentMailboxListing {
+        .available(digests: [], objectCount: 0)
+    }
+
+    func readInvitation(
+        digest _: Data
+    ) throws -> V3RepositoryObjectRead { .unavailable }
+
+    func publishInvitation(_ bytes: Data) throws {
+        publishedInvitations.append(bytes)
+    }
+
+    func joinRequestDigests(
+        invitationDigest _: Data,
+        maximumCount _: Int
+    ) throws -> V3EnrollmentMailboxListing {
+        .available(digests: [], objectCount: 0)
+    }
+
+    func readJoinRequest(
+        invitationDigest _: Data,
+        joinRequestDigest _: Data
+    ) throws -> V3RepositoryObjectRead { .unavailable }
+
+    func publishJoinRequest(
+        _: Data,
+        invitationDigest _: Data
+    ) throws {}
+}
+
+private final class EmptyWorkflowEnrollmentStateStore:
+    V3EnrollmentCeremonyStateStoring,
+    @unchecked Sendable
+{
+    var state: Data?
+
+    func loadState(
+        vaultID _: String,
+        invitationDigest _: Data
+    ) throws -> Data? { state }
+
+    func replaceState(
+        _ state: Data,
+        expectedState: Data?,
+        vaultID _: String,
+        invitationDigest _: Data
+    ) throws {
+        guard self.state == expectedState else {
+            throw V3EnrollmentCeremonyStateError.conflict
+        }
+        self.state = state
+    }
 }
 
 private func privateBytes(_ scalar: UInt8) -> Data {

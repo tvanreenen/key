@@ -46,7 +46,7 @@ struct V3EnrollmentAdoptionReport: Equatable, Sendable {
             "Enrollment completed.",
             "This Mac (\(deviceName)) is now an active \(role.rawValue) of version 3 vault '\(vaultID)'.",
             "The approved vault key is stored locally and the exact shared manifest is trusted on this Mac.",
-            "Version 3 remains read-only in this release; ordinary list, get, and copy reads are available."
+            "Ordinary version 3 vault commands are now available on this Mac."
         ].joined(separator: "\n") + "\n"
     }
 }
@@ -327,12 +327,31 @@ private struct V3EnrollmentFirstTrustVerifier: Sendable {
         )
         let parent: V3VerifiedManifest
         do {
-            parent = try authenticator.reopenCheckpointAncestor(
-                parentData,
-                expectedVaultID: transcript.invitation.vaultID,
-                expectedDigest: transcript.invitation.parentManifestDigest
-            )
-            let verified = try authenticator.verifyLocalToSharedEnrollment(
+            let parsedParent = try authenticator.parse(parentData)
+            if parsedParent.content.manifest.mode == .local {
+                parent = try authenticator.reopenCheckpointAncestor(
+                    parentData,
+                    expectedVaultID: transcript.invitation.vaultID,
+                    expectedDigest: transcript.invitation
+                        .parentManifestDigest
+                )
+            } else {
+                let authenticated = try authenticator
+                    .authenticateForRepositoryDiscovery(
+                        parentData,
+                        vaultKey: vaultKey
+                    )
+                guard authenticated.envelopeDigest
+                        == transcript.invitation.parentManifestDigest
+                else {
+                    throw V3EnrollmentAdoptionError.invalidApproval
+                }
+                parent = V3VerifiedManifest(
+                    envelope: authenticated.envelope,
+                    envelopeDigest: authenticated.envelopeDigest
+                )
+            }
+            let verified = try authenticator.verifyOwnerApprovedEnrollment(
                 candidate.data,
                 vaultKey: vaultKey,
                 parent: parent,
@@ -367,20 +386,14 @@ private struct V3EnrollmentFirstTrustVerifier: Sendable {
             throw V3EnrollmentAdoptionError.invalidApproval
         }
 
-        let expectedDevices = [
-            manifestDevice(
-                transcript.invitation.invitingDevice,
-                role: .owner
-            ),
-            manifestDevice(
-                transcript.joinRequest.joiningDevice,
-                role: transcript.invitation.invitedRole
-            ),
-        ].sorted {
-            Data($0.deviceID.utf8).lexicographicallyPrecedes(
-                Data($1.deviceID.utf8)
-            )
-        }
+        let expectedInviter = manifestDevice(
+            transcript.invitation.invitingDevice,
+            role: .owner
+        )
+        let expectedJoiner = manifestDevice(
+            transcript.joinRequest.joiningDevice,
+            role: transcript.invitation.invitedRole
+        )
         let parent = Base64URL.encode(
             transcript.invitation.parentManifestDigest
         )
@@ -409,17 +422,18 @@ private struct V3EnrollmentFirstTrustVerifier: Sendable {
             guard envelope.content.parents == [parent],
                 body.vaultID == transcript.invitation.vaultID,
                 body.mode == .shared,
-                body.devices == expectedDevices,
-                body.wrappedKeys.map({ $0.deviceID })
-                    == expectedDevices.map({ $0.deviceID }),
+                body.devices.contains(expectedInviter),
+                body.devices.contains(expectedJoiner),
+                body.wrappedKeys.filter({
+                    $0.deviceID == expectedJoiner.deviceID
+                }).count == 1,
                 envelope.authorizations.count == 1,
                 envelope.authorizations[0].signerDeviceID
                     == transcript.invitation.invitingDevice.deviceID
             else {
                 continue
             }
-            guard (try? authenticator
-                .verifyLocalToSharedEnrollmentAuthorization(
+            guard (try? authenticator.verifyEnrollmentAuthorization(
                     envelope,
                     transcript: transcript
                 )) != nil

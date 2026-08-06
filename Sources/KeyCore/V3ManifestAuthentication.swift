@@ -299,13 +299,41 @@ public struct V3ManifestAuthenticator: Sendable {
         )
     }
 
-    /// Checks the compared inviter's signature before the joining device
-    /// performs a user-present Secure Enclave unwrap.
-    ///
-    /// This is only a candidate filter. It does not authenticate the manifest
-    /// HMAC, establish ancestry, or grant trust; the complete enrollment
-    /// verifier must still run after the exact vault key is recovered.
-    func verifyLocalToSharedEnrollmentAuthorization(
+    /// Verifies the exact owner-approved enrollment represented by a compared
+    /// transcript. The first enrolled peer uses the narrow local-to-shared
+    /// exception; later peers use the ordinary owner-authorized shared
+    /// authority transition plus an exact one-device delta.
+    func verifyOwnerApprovedEnrollment(
+        _ candidateData: Data,
+        vaultKey: Data,
+        parent: V3VerifiedManifest,
+        transcript: V3EnrollmentTranscript
+    ) throws -> V3VerifiedManifest {
+        if parent.envelope.content.manifest.mode == .local {
+            return try verifyLocalToSharedEnrollment(
+                candidateData,
+                vaultKey: vaultKey,
+                parent: parent,
+                transcript: transcript
+            )
+        }
+        let verified = try verify(
+            candidateData,
+            vaultKey: vaultKey,
+            trustAnchor: .verifiedParents([parent])
+        )
+        try validateSharedDeviceEnrollmentTransition(
+            verified.envelope,
+            parent: parent.envelope,
+            transcript: transcript
+        )
+        return verified
+    }
+
+    /// Verifies the compared inviter's signature without granting the
+    /// candidate trust. Candidate discovery uses this to avoid prompting for
+    /// a wrapped vault key from unauthenticated provider input.
+    func verifyEnrollmentAuthorization(
         _ candidate: V3ManifestEnvelope,
         transcript: V3EnrollmentTranscript
     ) throws {
@@ -315,13 +343,79 @@ public struct V3ManifestAuthenticator: Sendable {
         else {
             throw V3ManifestError.authorizationFailed
         }
-        try verifyEnrollmentAuthorization(
-            candidate.authorizations[0],
-            identity: transcript.invitation.invitingDevice,
-            input: Self.authenticationInput(
-                for: candidate.canonicalContentBytes
-            )
+        let input = Self.authenticationInput(
+            for: candidate.canonicalContentBytes
         )
+        do {
+            try verifyEnrollmentAuthorization(
+                candidate.authorizations[0],
+                identity: transcript.invitation.invitingDevice,
+                input: input
+            )
+        } catch {
+            try verifyManifestStyleEnrollmentAuthorization(
+                candidate.authorizations[0],
+                identity: transcript.invitation.invitingDevice,
+                input: input
+            )
+        }
+    }
+
+    private func validateSharedDeviceEnrollmentTransition(
+        _ candidate: V3ManifestEnvelope,
+        parent: V3ManifestEnvelope,
+        transcript: V3EnrollmentTranscript
+    ) throws {
+        let invitation = transcript.invitation
+        let joinRequest = transcript.joinRequest
+        let parentBody = parent.content.manifest
+        let candidateBody = candidate.content.manifest
+        guard parentBody.mode == .shared,
+              candidateBody.mode == .shared,
+              invitation.vaultID == parentBody.vaultID,
+              invitation.parentManifestDigest
+                == Data(SHA256.hash(data: parent.canonicalBytes)),
+              candidateBody.vaultID == parentBody.vaultID,
+              candidateBody.keyID == parentBody.keyID,
+              candidateBody.entries == parentBody.entries,
+              let inviter = parentBody.devices.first(where: {
+                  $0.deviceID == invitation.invitingDevice.deviceID
+              }),
+              inviter.role == .owner,
+              inviter.status == .active,
+              invitation.invitingDevice.matchesManifestDevice(inviter),
+              !parentBody.devices.contains(where: {
+                  $0.deviceID == joinRequest.joiningDevice.deviceID
+              }),
+              joinRequest.joiningDevice.usesDistinctKeys(
+                  from: parentBody.devices
+              )
+        else {
+            throw V3ManifestError.authorizationFailed
+        }
+
+        let joiningDevice = enrollmentManifestDevice(
+            joinRequest.joiningDevice,
+            role: invitation.invitedRole
+        )
+        let expectedDevices = (parentBody.devices + [joiningDevice]).sorted {
+            utf8Precedes($0.deviceID, $1.deviceID)
+        }
+        guard candidateBody.devices == expectedDevices,
+              candidateBody.wrappedKeys.count
+                == parentBody.wrappedKeys.count + 1,
+              parentBody.wrappedKeys.allSatisfy({ existing in
+                  candidateBody.wrappedKeys.contains(existing)
+              }),
+              candidateBody.wrappedKeys.contains(where: {
+                  $0.deviceID == joiningDevice.deviceID
+              }),
+              candidate.authorizations.count == 1,
+              candidate.authorizations[0].signerDeviceID
+                == invitation.invitingDevice.deviceID
+        else {
+            throw V3ManifestError.authorizationFailed
+        }
     }
 
     private func validateParentSet(
@@ -748,6 +842,39 @@ public struct V3ManifestAuthenticator: Sendable {
             )
             let digest = Data(SHA256.hash(data: input))
             guard publicKey.isValidSignature(signature, for: digest) else {
+                throw V3ManifestError.authorizationFailed
+            }
+        } catch let error as V3ManifestError {
+            throw error
+        } catch {
+            throw V3ManifestError.authorizationFailed
+        }
+    }
+
+    private func verifyManifestStyleEnrollmentAuthorization(
+        _ authorization: V3ManifestAuthorization,
+        identity: V3EnrollmentDeviceIdentity,
+        input: Data
+    ) throws {
+        let signatureBytes = try decodeBase64URL(
+            authorization.signature,
+            expectedByteCount: 64,
+            error: .authorizationFailed
+        )
+        guard V3P256Signature.isCanonical(signatureBytes) else {
+            throw V3ManifestError.authorizationFailed
+        }
+        do {
+            let publicKey = try P256.Signing.PublicKey(
+                x963Representation: identity.signingPublicKey
+            )
+            let signature = try P256.Signing.ECDSASignature(
+                rawRepresentation: signatureBytes
+            )
+            guard publicKey.isValidSignature(
+                signature,
+                for: SHA256.hash(data: input)
+            ) else {
                 throw V3ManifestError.authorizationFailed
             }
         } catch let error as V3ManifestError {
