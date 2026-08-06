@@ -10,6 +10,7 @@ enum V3EnrollmentOwnerTransitionError:
     case invalidCeremony
     case parentMismatch
     case inviterIdentityMismatch
+    case joiningIdentityConflict
     case invalidVaultKey
     case invalidAuthorization
 
@@ -18,9 +19,11 @@ enum V3EnrollmentOwnerTransitionError:
         case .invalidCeremony:
             "Owner approval requires one complete authenticated enrollment transcript."
         case .parentMismatch:
-            "The enrollment invitation no longer names the exact trusted local vault head."
+            "The enrollment invitation no longer names the exact trusted vault head."
         case .inviterIdentityMismatch:
             "The approving Secure Enclave identity does not match the inviting device."
+        case .joiningIdentityConflict:
+            "The joining identity is already enrolled or reuses an existing device key."
         case .invalidVaultKey:
             "The enrollment vault key does not match the trusted parent manifest."
         case .invalidAuthorization:
@@ -56,11 +59,11 @@ struct V3EnrollmentPreparedOwnerApproval: Equatable, Sendable {
         candidateManifestDigest: Data
     ) throws {
         guard transcriptDigest.count == 32,
-            wrappedKeys.count == 2,
+            (1 ... 2).contains(wrappedKeys.count),
             wrappedKeys.map(\.deviceID)
                 == wrappedKeys.map(\.deviceID)
                 .sorted(by: enrollmentUTF8Precedes),
-            Set(wrappedKeys.map(\.deviceID)).count == 2,
+            Set(wrappedKeys.map(\.deviceID)).count == wrappedKeys.count,
             wrappedKeys.allSatisfy({ wrappedKey in
                 guard
                     let bytes = Base64URL.decodeCanonical(
@@ -193,8 +196,8 @@ struct V3EnrollmentPreparedOwnerApproval: Equatable, Sendable {
     }
 }
 
-/// Pure construction of the first shared manifest from one exact local head
-/// and one independently compared enrollment transcript.
+/// Pure construction of one owner-approved membership addition from an exact
+/// vault head and independently compared enrollment transcript.
 struct V3EnrollmentOwnerTransitionBuilder: Sendable {
     private let wrapper: any V3EnrollmentVaultKeyWrapping
     private let authenticator: V3ManifestAuthenticator
@@ -233,10 +236,7 @@ struct V3EnrollmentOwnerTransitionBuilder: Sendable {
         let invitation = transcript.invitation
         let joinRequest = transcript.joinRequest
         let parentBody = parent.envelope.content.manifest
-        guard parentBody.mode == .local,
-            parentBody.devices.isEmpty,
-            parentBody.wrappedKeys.isEmpty,
-            invitation.vaultID == parentBody.vaultID,
+        guard invitation.vaultID == parentBody.vaultID,
             invitation.parentManifestDigest == parent.envelopeDigest
         else {
             throw V3EnrollmentOwnerTransitionError.parentMismatch
@@ -256,34 +256,62 @@ struct V3EnrollmentOwnerTransitionBuilder: Sendable {
             throw V3EnrollmentOwnerTransitionError.invalidVaultKey
         }
 
-        let devices = [
-            enrollmentTransitionDevice(
-                invitation.invitingDevice,
-                role: .owner
-            ),
-            enrollmentTransitionDevice(
-                joinRequest.joiningDevice,
-                role: invitation.invitedRole
-            ),
-        ].sorted {
-            enrollmentUTF8Precedes($0.deviceID, $1.deviceID)
-        }
-        let identities = [
-            invitation.invitingDevice,
+        let joiningDevice = enrollmentTransitionDevice(
             joinRequest.joiningDevice,
-        ]
-        let wrappedKeys = try devices.map { device in
-            guard
-                let identity = identities.first(where: {
-                    $0.deviceID == device.deviceID
-                })
+            role: invitation.invitedRole
+        )
+        let devices: [V3ManifestDevice]
+        let identitiesToWrap: [V3EnrollmentDeviceIdentity]
+        switch parentBody.mode {
+        case .local:
+            guard parentBody.devices.isEmpty,
+                  parentBody.wrappedKeys.isEmpty
             else {
-                throw V3EnrollmentOwnerTransitionError.invalidCeremony
+                throw V3EnrollmentOwnerTransitionError.parentMismatch
             }
+            devices = [
+                enrollmentTransitionDevice(
+                    invitation.invitingDevice,
+                    role: .owner
+                ),
+                joiningDevice,
+            ].sorted {
+                enrollmentUTF8Precedes($0.deviceID, $1.deviceID)
+            }
+            identitiesToWrap = [
+                invitation.invitingDevice,
+                joinRequest.joiningDevice,
+            ]
+        case .shared:
+            guard let inviter = parentBody.devices.first(where: {
+                $0.deviceID == invitation.invitingDevice.deviceID
+            }),
+                  inviter.role == .owner,
+                  inviter.status == .active,
+                  invitation.invitingDevice.matchesManifestDevice(inviter)
+            else {
+                throw V3EnrollmentOwnerTransitionError
+                    .inviterIdentityMismatch
+            }
+            guard !parentBody.devices.contains(where: {
+                $0.deviceID == joiningDevice.deviceID
+            }),
+            joinRequest.joiningDevice.usesDistinctKeys(
+                from: parentBody.devices
+            ) else {
+                throw V3EnrollmentOwnerTransitionError
+                    .joiningIdentityConflict
+            }
+            devices = (parentBody.devices + [joiningDevice]).sorted {
+                enrollmentUTF8Precedes($0.deviceID, $1.deviceID)
+            }
+            identitiesToWrap = [joinRequest.joiningDevice]
+        }
+        let newWrappedKeys = try identitiesToWrap.map { identity in
             let context = try V3EnrollmentVaultKeyWrapContext(
                 vaultID: parentBody.vaultID,
                 keyID: parentBody.keyID,
-                recipientDeviceID: device.deviceID,
+                recipientDeviceID: identity.deviceID,
                 transcriptDigest: transcript.digest
             )
             let ciphertext = try wrapper.wrap(
@@ -295,9 +323,18 @@ struct V3EnrollmentOwnerTransitionBuilder: Sendable {
                 combinedBytes: ciphertext
             )
             return V3WrappedKey(
-                deviceID: device.deviceID,
+                deviceID: identity.deviceID,
                 ciphertext: Base64URL.encode(ciphertext)
             )
+        }.sorted {
+            enrollmentUTF8Precedes($0.deviceID, $1.deviceID)
+        }
+        let wrappedKeys = (
+            parentBody.mode == .local
+                ? newWrappedKeys
+                : parentBody.wrappedKeys + newWrappedKeys
+        ).sorted {
+            enrollmentUTF8Precedes($0.deviceID, $1.deviceID)
         }
         let body = V3ManifestBody(
             vaultID: parentBody.vaultID,
@@ -319,12 +356,15 @@ struct V3EnrollmentOwnerTransitionBuilder: Sendable {
                 vaultID: body.vaultID,
                 vaultKey: vaultKey
             )
-        let authorizationInput = Data(
-            SHA256.hash(
-                data: V3ManifestAuthenticator.authenticationInput(
-                    for: canonicalContent
-                )
-            ))
+        let manifestInput = V3ManifestAuthenticator.authenticationInput(
+            for: canonicalContent
+        )
+        // The first local-to-shared transition retains its released
+        // transcript-specific signature convention. Later shared authority
+        // changes use the ordinary manifest authorization convention.
+        let authorizationInput = parentBody.mode == .local
+            ? Data(SHA256.hash(data: manifestInput))
+            : manifestInput
         let authorizationSignature: Data
         do {
             authorizationSignature = try V3P256Signature.canonicalize(
@@ -360,7 +400,7 @@ struct V3EnrollmentOwnerTransitionBuilder: Sendable {
                     .array([enrollmentAuthorizationValue(authorization)])
                 ),
             ]))
-        let verified = try authenticator.verifyLocalToSharedEnrollment(
+        let verified = try authenticator.verifyOwnerApprovedEnrollment(
             manifestData,
             vaultKey: vaultKey,
             parent: parent,
@@ -368,7 +408,7 @@ struct V3EnrollmentOwnerTransitionBuilder: Sendable {
         )
         let approval = try V3EnrollmentPreparedOwnerApproval(
             transcriptDigest: transcript.digest,
-            wrappedKeys: wrappedKeys,
+            wrappedKeys: newWrappedKeys,
             authorization: authorization,
             candidateManifestDigest: verified.envelopeDigest
         )
@@ -401,8 +441,7 @@ struct V3EnrollmentOwnerTransitionBuilder: Sendable {
         let invitation = transcript.invitation
         let joinRequest = transcript.joinRequest
         let parentBody = parent.envelope.content.manifest
-        guard parentBody.mode == .local,
-            invitation.vaultID == parentBody.vaultID,
+        guard invitation.vaultID == parentBody.vaultID,
             invitation.parentManifestDigest == parent.envelopeDigest,
             vaultKey.count == 32,
             (try? V3VaultKeyID.derive(
@@ -413,21 +452,63 @@ struct V3EnrollmentOwnerTransitionBuilder: Sendable {
             throw V3EnrollmentOwnerTransitionError.parentMismatch
         }
 
-        let devices = [
-            enrollmentTransitionDevice(
-                invitation.invitingDevice,
-                role: .owner
-            ),
-            enrollmentTransitionDevice(
-                joinRequest.joiningDevice,
-                role: invitation.invitedRole
-            ),
-        ].sorted {
-            enrollmentUTF8Precedes($0.deviceID, $1.deviceID)
+        let joiningDevice = enrollmentTransitionDevice(
+            joinRequest.joiningDevice,
+            role: invitation.invitedRole
+        )
+        let devices: [V3ManifestDevice]
+        let expectedWrappedDeviceIDs: [String]
+        let wrappedKeys: [V3WrappedKey]
+        switch parentBody.mode {
+        case .local:
+            guard parentBody.devices.isEmpty,
+                  parentBody.wrappedKeys.isEmpty
+            else {
+                throw V3EnrollmentOwnerTransitionError.parentMismatch
+            }
+            devices = [
+                enrollmentTransitionDevice(
+                    invitation.invitingDevice,
+                    role: .owner
+                ),
+                joiningDevice,
+            ].sorted {
+                enrollmentUTF8Precedes($0.deviceID, $1.deviceID)
+            }
+            expectedWrappedDeviceIDs = devices.map(\.deviceID)
+            wrappedKeys = approval.wrappedKeys
+        case .shared:
+            guard let inviter = parentBody.devices.first(where: {
+                $0.deviceID == invitation.invitingDevice.deviceID
+            }),
+                  inviter.role == .owner,
+                  inviter.status == .active,
+                  invitation.invitingDevice.matchesManifestDevice(inviter)
+            else {
+                throw V3EnrollmentOwnerTransitionError.parentMismatch
+            }
+            guard !parentBody.devices.contains(where: {
+                $0.deviceID == joiningDevice.deviceID
+            }),
+            joinRequest.joiningDevice.usesDistinctKeys(
+                from: parentBody.devices
+            ) else {
+                throw V3EnrollmentOwnerTransitionError
+                    .joiningIdentityConflict
+            }
+            devices = (parentBody.devices + [joiningDevice]).sorted {
+                enrollmentUTF8Precedes($0.deviceID, $1.deviceID)
+            }
+            expectedWrappedDeviceIDs = [joiningDevice.deviceID]
+            wrappedKeys = (
+                parentBody.wrappedKeys + approval.wrappedKeys
+            ).sorted {
+                enrollmentUTF8Precedes($0.deviceID, $1.deviceID)
+            }
         }
         guard
             approval.wrappedKeys.map(\.deviceID)
-                == devices.map(\.deviceID),
+                == expectedWrappedDeviceIDs,
             approval.authorization.signerDeviceID
                 == invitation.invitingDevice.deviceID
         else {
@@ -438,7 +519,7 @@ struct V3EnrollmentOwnerTransitionBuilder: Sendable {
             mode: .shared,
             keyID: parentBody.keyID,
             devices: devices,
-            wrappedKeys: approval.wrappedKeys,
+            wrappedKeys: wrappedKeys,
             entries: parentBody.entries
         )
         let content = enrollmentManifestContentValue(
@@ -483,7 +564,7 @@ struct V3EnrollmentOwnerTransitionBuilder: Sendable {
         else {
             throw V3EnrollmentOwnerTransitionError.invalidAuthorization
         }
-        let verified = try authenticator.verifyLocalToSharedEnrollment(
+        let verified = try authenticator.verifyOwnerApprovedEnrollment(
             manifestData,
             vaultKey: vaultKey,
             parent: parent,

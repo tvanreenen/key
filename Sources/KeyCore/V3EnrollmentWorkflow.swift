@@ -294,16 +294,33 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             vaultID: vaultID,
             reason: "Unlock version 3 vault to create an enrollment invitation."
         )
-        guard current.effective.envelope.content.manifest.mode == .local else {
-            throw AppError.operationRefused(
-                "This release can enroll only the first second device. Adding another device to an already shared vault is not enabled yet."
+        let parentBody = current.effective.envelope.content.manifest
+        let identity: any V3EnrollmentMessageSigning
+        switch parentBody.mode {
+        case .local:
+            identity = try loadOrCreateIdentity(
+                vaultID: vaultID,
+                deviceName: deviceName,
+                reason: "Create this Mac's enrollment identity."
             )
+        case .shared:
+            guard let existing = try identityManager.loadIdentity(
+                vaultID: vaultID,
+                reason: "Load this Mac's enrollment identity."
+            ), existing.publicIdentity.displayName == deviceName,
+               let inviter = parentBody.devices.first(where: {
+                   $0.deviceID == existing.publicIdentity.deviceID
+               }),
+               inviter.role == .owner,
+               inviter.status == .active,
+               existing.publicIdentity.matchesManifestDevice(inviter)
+            else {
+                throw AppError.operationRefused(
+                    "Only an active owner recorded by the current vault can invite another Mac. Use this Mac's existing device name."
+                )
+            }
+            identity = existing
         }
-        let identity = try loadOrCreateIdentity(
-            vaultID: vaultID,
-            deviceName: deviceName,
-            reason: "Create this Mac's enrollment identity."
-        )
         guard unixTime <= UInt64.max - Self.invitationLifetime else {
             throw V3EnrollmentProtocolError.invalidFormat
         }

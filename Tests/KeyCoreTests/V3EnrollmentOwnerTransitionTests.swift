@@ -83,6 +83,148 @@ struct V3EnrollmentOwnerTransitionTests {
     }
 
     @Test
+    func addsOneComparedDeviceToAnExistingSharedVault() throws {
+        let fixture = try Fixture()
+        let builder = V3EnrollmentOwnerTransitionBuilder()
+        let shared = try builder.build(
+            state: fixture.inviterState,
+            parent: fixture.parent,
+            vaultKey: Self.vaultKey,
+            inviterIdentity: fixture.inviter,
+            authorizationReason: "Approve the second device."
+        )
+        let third = try SoftwareEnrollmentSigner(
+            vaultID: Self.vaultID,
+            displayName: "Travel Mac",
+            signingScalar: 0x41,
+            wrappingScalar: 0x42
+        )
+        let enrollment = try AdditionalEnrollmentFixture(
+            parent: shared.verifiedManifest,
+            inviter: fixture.inviter,
+            joiner: third,
+            role: .owner
+        )
+
+        let candidate = try builder.build(
+            state: enrollment.inviterState,
+            parent: shared.verifiedManifest,
+            vaultKey: Self.vaultKey,
+            inviterIdentity: fixture.inviter,
+            authorizationReason: "Approve the third device."
+        )
+        let parentBody = shared.verifiedManifest.envelope.content.manifest
+        let body = candidate.verifiedManifest.envelope.content.manifest
+
+        #expect(body.devices.count == parentBody.devices.count + 1)
+        #expect(body.devices.contains(where: {
+            $0.deviceID == third.publicIdentity.deviceID
+                && $0.role == .owner
+                && $0.status == .active
+        }))
+        #expect(parentBody.devices.allSatisfy(body.devices.contains))
+        #expect(body.wrappedKeys.count == parentBody.wrappedKeys.count + 1)
+        #expect(parentBody.wrappedKeys.allSatisfy(body.wrappedKeys.contains))
+        #expect(candidate.approval.wrappedKeys.count == 1)
+        #expect(
+            candidate.approval.wrappedKeys[0].deviceID
+                == third.publicIdentity.deviceID
+        )
+        #expect(body.entries == parentBody.entries)
+
+        let wrapped = try #require(candidate.approval.wrappedKeys.first)
+        let ciphertext = try #require(
+            Base64URL.decodeCanonical(wrapped.ciphertext)
+        )
+        let context = try V3EnrollmentVaultKeyWrapContext(
+            vaultID: Self.vaultID,
+            keyID: fixture.keyID,
+            recipientDeviceID: third.publicIdentity.deviceID,
+            transcriptDigest: enrollment.transcript.digest
+        )
+        #expect(
+            try openWrappedVaultKey(
+                ciphertext,
+                recipient: third.wrappingPrivateKey,
+                context: context
+            ) == Self.vaultKey
+        )
+
+        let preparedState = try V3EnrollmentCeremonyState(
+            vaultID: Self.vaultID,
+            invitationDigest: enrollment.invitation.digest,
+            role: .inviter,
+            phase: .publishingApproval,
+            signedInvitation: enrollment.signedInvitation,
+            signedJoinRequest: enrollment.signedJoinRequest,
+            ownerApproval: candidate.approval
+        )
+        let rebuilt = try builder.rebuild(
+            state: preparedState,
+            parent: shared.verifiedManifest,
+            vaultKey: Self.vaultKey,
+            approval: candidate.approval
+        )
+        #expect(rebuilt == candidate)
+    }
+
+    @Test
+    func sharedEnrollmentRejectsMembersAndExistingDevices() throws {
+        let fixture = try Fixture()
+        let builder = V3EnrollmentOwnerTransitionBuilder()
+        let shared = try builder.build(
+            state: fixture.inviterState,
+            parent: fixture.parent,
+            vaultKey: Self.vaultKey,
+            inviterIdentity: fixture.inviter,
+            authorizationReason: "Approve the second device."
+        )
+        let third = try SoftwareEnrollmentSigner(
+            vaultID: Self.vaultID,
+            displayName: "Travel Mac",
+            signingScalar: 0x41,
+            wrappingScalar: 0x42
+        )
+        let memberEnrollment = try AdditionalEnrollmentFixture(
+            parent: shared.verifiedManifest,
+            inviter: fixture.joiner,
+            joiner: third,
+            role: .member
+        )
+        #expect(
+            throws: V3EnrollmentOwnerTransitionError
+                .inviterIdentityMismatch
+        ) {
+            try builder.build(
+                state: memberEnrollment.inviterState,
+                parent: shared.verifiedManifest,
+                vaultKey: Self.vaultKey,
+                inviterIdentity: fixture.joiner,
+                authorizationReason: "A member cannot approve enrollment."
+            )
+        }
+
+        let duplicateEnrollment = try AdditionalEnrollmentFixture(
+            parent: shared.verifiedManifest,
+            inviter: fixture.inviter,
+            joiner: fixture.joiner,
+            role: .member
+        )
+        #expect(
+            throws: V3EnrollmentOwnerTransitionError
+                .joiningIdentityConflict
+        ) {
+            try builder.build(
+                state: duplicateEnrollment.inviterState,
+                parent: shared.verifiedManifest,
+                vaultKey: Self.vaultKey,
+                inviterIdentity: fixture.inviter,
+                authorizationReason: "Do not enroll an existing device."
+            )
+        }
+    }
+
+    @Test
     func ordinaryCandidateBuilderPreservesSharedAuthorityExactly() throws {
         let fixture = try Fixture()
         let shared = try V3EnrollmentOwnerTransitionBuilder().build(
@@ -416,6 +558,175 @@ struct V3EnrollmentOwnerTransitionTests {
             ).phase == .consumed
         )
     }
+
+    @Test
+    func sharedEnrollmentRetryAdvancesPastAnAlreadyPublishedCandidate() throws {
+        let fixture = try Fixture()
+        let builder = V3EnrollmentOwnerTransitionBuilder()
+        let shared = try builder.build(
+            state: fixture.inviterState,
+            parent: fixture.parent,
+            vaultKey: Self.vaultKey,
+            inviterIdentity: fixture.inviter,
+            authorizationReason: "Approve the second device."
+        )
+        let third = try SoftwareEnrollmentSigner(
+            vaultID: Self.vaultID,
+            displayName: "Travel Mac",
+            signingScalar: 0x41,
+            wrappingScalar: 0x42
+        )
+        let enrollment = try AdditionalEnrollmentFixture(
+            parent: shared.verifiedManifest,
+            inviter: fixture.inviter,
+            joiner: third,
+            role: .member
+        )
+        let candidate = try builder.build(
+            state: enrollment.inviterState,
+            parent: shared.verifiedManifest,
+            vaultKey: Self.vaultKey,
+            inviterIdentity: fixture.inviter,
+            authorizationReason: "Approve the third device."
+        )
+        let preparedState = try V3EnrollmentCeremonyState(
+            vaultID: Self.vaultID,
+            invitationDigest: enrollment.invitation.digest,
+            role: .inviter,
+            phase: .publishingApproval,
+            signedInvitation: enrollment.signedInvitation,
+            signedJoinRequest: enrollment.signedJoinRequest,
+            ownerApproval: candidate.approval
+        )
+        let stateStore = MemoryOwnerApprovalStateStore(
+            state: preparedState
+        )
+        let proof = V3ManifestAncestryProof(
+            checkpoint: try V3ManifestCheckpoint(
+                verifiedManifest: shared.verifiedManifest
+            ),
+            manifests: [
+                shared.verifiedManifest,
+                candidate.verifiedManifest,
+            ],
+            heads: [candidate.verifiedManifest]
+        )
+        let observation = fixture.observation(proof: proof)
+        let objectStore = MemoryOwnerApprovalObjectStore(
+            publishedManifest: candidate.manifestData,
+            digest: candidate.verifiedManifest.envelopeDigest
+        )
+        let checkpointStore = MemoryOwnerApprovalCheckpointStore(
+            checkpoint: proof.checkpoint.canonicalBytes
+        )
+        let coordinator = V3EnrollmentOwnerApprovalCoordinator(
+            mutationOwner: DirectOwnerApprovalMutationOwner(),
+            ancestryObserver: SequenceOwnerApprovalObserver([
+                observation, observation,
+            ]),
+            objectStore: objectStore,
+            checkpointStore: checkpointStore,
+            exchange: V3EnrollmentExchangeCoordinator(
+                mailbox: EmptyEnrollmentMailbox(),
+                stateStore: stateStore
+            )
+        )
+
+        let trusted = try coordinator.approve(
+            vaultID: Self.vaultID,
+            invitationDigest: enrollment.invitation.digest,
+            approvedTranscriptDigest: enrollment.transcript.digest,
+            vaultKey: Self.vaultKey,
+            inviterIdentity: fixture.inviter,
+            at: enrollment.invitation.expiresAt + 1,
+            authorizationReason: "This retry must not sign again."
+        )
+
+        #expect(trusted.verifiedManifest == candidate.verifiedManifest)
+        #expect(checkpointStore.checkpoint == trusted.checkpoint.canonicalBytes)
+        #expect(
+            try V3EnrollmentCeremonyState(
+                canonicalBytes: stateStore.state
+            ).phase == .consumed
+        )
+    }
+
+    @Test
+    func sharedEnrollmentCanApproveTheAuthenticatedHeadBeyondCheckpoint() throws {
+        let fixture = try Fixture()
+        let builder = V3EnrollmentOwnerTransitionBuilder()
+        let shared = try builder.build(
+            state: fixture.inviterState,
+            parent: fixture.parent,
+            vaultKey: Self.vaultKey,
+            inviterIdentity: fixture.inviter,
+            authorizationReason: "Approve the second device."
+        )
+        let authenticatedHead = try V3ManifestCandidateBuilder().build(
+            content: V3ManifestContent(
+                parents: [Base64URL.encode(
+                    shared.verifiedManifest.envelopeDigest
+                )],
+                manifest: shared.verifiedManifest.envelope.content.manifest
+            ),
+            vaultKey: Self.vaultKey,
+            trustAnchor: .verifiedParents([shared.verifiedManifest])
+        ).verified
+        let third = try SoftwareEnrollmentSigner(
+            vaultID: Self.vaultID,
+            displayName: "Travel Mac",
+            signingScalar: 0x41,
+            wrappingScalar: 0x42
+        )
+        let enrollment = try AdditionalEnrollmentFixture(
+            parent: authenticatedHead,
+            inviter: fixture.inviter,
+            joiner: third,
+            role: .member
+        )
+        let stateStore = MemoryOwnerApprovalStateStore(
+            state: enrollment.inviterState
+        )
+        let proof = V3ManifestAncestryProof(
+            checkpoint: try V3ManifestCheckpoint(
+                verifiedManifest: shared.verifiedManifest
+            ),
+            manifests: [shared.verifiedManifest, authenticatedHead],
+            heads: [authenticatedHead]
+        )
+        let observation = fixture.observation(proof: proof)
+        let checkpointStore = MemoryOwnerApprovalCheckpointStore(
+            checkpoint: proof.checkpoint.canonicalBytes
+        )
+        let coordinator = V3EnrollmentOwnerApprovalCoordinator(
+            mutationOwner: DirectOwnerApprovalMutationOwner(),
+            ancestryObserver: SequenceOwnerApprovalObserver([
+                observation, observation,
+            ]),
+            objectStore: MemoryOwnerApprovalObjectStore(),
+            checkpointStore: checkpointStore,
+            exchange: V3EnrollmentExchangeCoordinator(
+                mailbox: EmptyEnrollmentMailbox(),
+                stateStore: stateStore
+            )
+        )
+
+        let trusted = try coordinator.approve(
+            vaultID: Self.vaultID,
+            invitationDigest: enrollment.invitation.digest,
+            approvedTranscriptDigest: enrollment.transcript.digest,
+            vaultKey: Self.vaultKey,
+            inviterIdentity: fixture.inviter,
+            at: Self.activeTime,
+            authorizationReason: "Approve the authenticated current head."
+        )
+
+        #expect(
+            trusted.envelope.content.parents
+                == [Base64URL.encode(authenticatedHead.envelopeDigest)]
+        )
+        #expect(checkpointStore.checkpoint == trusted.checkpoint.canonicalBytes)
+    }
 }
 
 private struct Fixture {
@@ -577,6 +888,60 @@ private struct Fixture {
             trustAnchor: .verifiedParents([
                 candidate.verifiedManifest
             ])
+        )
+    }
+}
+
+private struct AdditionalEnrollmentFixture {
+    let invitation: V3EnrollmentInvitation
+    let signedInvitation: V3SignedEnrollmentInvitation
+    let signedJoinRequest: V3SignedEnrollmentJoinRequest
+    let transcript: V3EnrollmentTranscript
+    let inviterState: V3EnrollmentCeremonyState
+
+    init(
+        parent: V3VerifiedManifest,
+        inviter: SoftwareEnrollmentSigner,
+        joiner: SoftwareEnrollmentSigner,
+        role: V3DeviceRole
+    ) throws {
+        invitation = try V3EnrollmentInvitation(
+            vaultID: V3EnrollmentOwnerTransitionTests.vaultID,
+            parentManifestDigest: parent.envelopeDigest,
+            invitingDevice: inviter.publicIdentity,
+            invitedRole: role,
+            nonce: Data(repeating: 0x51, count: 32),
+            expiresAt: V3EnrollmentOwnerTransitionTests.activeTime + 300
+        )
+        let authenticator = V3EnrollmentMessageAuthenticator()
+        signedInvitation = try authenticator.sign(
+            invitation,
+            using: inviter,
+            reason: "Create another invitation."
+        )
+        let verifiedInvitation = try authenticator.verify(signedInvitation)
+        let request = try V3EnrollmentJoinRequest(
+            invitationDigest: invitation.digest,
+            joiningDevice: joiner.publicIdentity,
+            nonce: Data(repeating: 0x52, count: 32)
+        )
+        signedJoinRequest = try authenticator.sign(
+            request,
+            answering: verifiedInvitation,
+            using: joiner,
+            reason: "Join the shared vault."
+        )
+        transcript = try V3EnrollmentTranscript(
+            invitation: invitation,
+            joinRequest: request
+        )
+        inviterState = try V3EnrollmentCeremonyState(
+            vaultID: V3EnrollmentOwnerTransitionTests.vaultID,
+            invitationDigest: invitation.digest,
+            role: .inviter,
+            phase: .awaitingComparison,
+            signedInvitation: signedInvitation,
+            signedJoinRequest: signedJoinRequest
         )
     }
 }

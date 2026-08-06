@@ -123,6 +123,28 @@ struct V3EnrollmentDeviceIdentity: Equatable, Sendable {
     }
 }
 
+extension V3EnrollmentDeviceIdentity {
+    func matchesManifestDevice(_ device: V3ManifestDevice) -> Bool {
+        device.deviceID == deviceID
+            && device.displayName == displayName
+            && device.signingPublicKey.value
+                == Base64URL.encode(signingPublicKey)
+            && device.wrappingPublicKey.value
+                == Base64URL.encode(wrappingPublicKey)
+    }
+
+    func usesDistinctKeys(from devices: [V3ManifestDevice]) -> Bool {
+        let encodedSigningKey = Base64URL.encode(signingPublicKey)
+        let encodedWrappingKey = Base64URL.encode(wrappingPublicKey)
+        return devices.allSatisfy { device in
+            device.signingPublicKey.value != encodedSigningKey
+                && device.wrappingPublicKey.value != encodedWrappingKey
+                && device.signingPublicKey.value != encodedWrappingKey
+                && device.wrappingPublicKey.value != encodedSigningKey
+        }
+    }
+}
+
 /// One short-lived invitation created by a device that currently trusts the
 /// exact parent manifest named here.
 struct V3EnrollmentInvitation: Equatable, Sendable {

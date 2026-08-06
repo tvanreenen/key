@@ -13,8 +13,8 @@ state.
 | Selected architecture | Authenticated, content-addressed manifest history |
 | Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | Add authenticated device inspection as the first device-lifecycle increment after alpha.6 |
-| Next work | Generalize enrollment beyond two Macs, then add owner-authorized revocation with vault-key rotation |
+| Active work | Generalize owner-approved enrollment beyond the first two Macs |
+| Next work | Add owner-authorized revocation with vault-key rotation, then qualify alpha.7 |
 
 Local-only mode remains the default. Multi-device sharing MUST remain
 unavailable or explicitly experimental until every release gate below passes.
@@ -119,8 +119,10 @@ security or durability boundary and updates this tracker before it merges.
 | `ENR-503` | Complete; PR #46 | Exchange bounded enrollment messages without trusting the file provider |
 | `ENR-504` | Complete; PR #47 | Approve and publish the owner-authorized local-to-shared transition |
 | `ENR-505` | Complete; PR #48 | Verify first trust, unwrap the exact vault key, select the vault, and expose the read-only CLI flow |
-| `ENR-506` | Complete; PR #49 | Resume only the exact authenticated owner approval after provider delivery outlives its invitation |
+| `ENR-505A` | Complete; PR #49 | Resume only the exact authenticated owner approval after provider delivery outlives its invitation |
 | `MUT-507` | Complete; PR #50 | Route selected-vault entry mutations and explicit conflict choices through authenticated expected-head publication |
+| `ENR-506` | Complete; PR #52 | Inspect authenticated device membership without invoking private-key operations |
+| `ENR-507` | Implementation complete; PR pending | Enroll additional devices through the same owner-approved comparison ceremony |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -1034,11 +1036,11 @@ Scope:
   wrong-identity, or conflicting local trust state to recovery-required exit
   code 6. Enrollment never prints secret plaintext.
 
-Current caveats:
+Historical caveats at the end of `ENR-505`:
 
-- This release enrolls the first second device only. Adding a third device,
-  changing a role, revoking a device, or rotating the vault key remains out of
-  scope.
+- That increment could add only the first peer to a local vault. `ENR-507`
+  generalizes the same ceremony to third and later devices; role changes,
+  revocation, and key rotation remain separate work.
 - Both Macs must point at copies of the same file-provider-backed vault root.
   Enclave authenticates what arrives but does not control provider delivery;
   a missing invitation, request, parent, or approval should be retried after
@@ -1046,9 +1048,9 @@ Current caveats:
 - The provider mailbox and retained version 2 files are not cleaned up by this
   ceremony. They grant no authority, but cleanup needs a separate explicit
   policy.
-- The selected shared v3 vault remains read-only in alpha.4. List, get, copy,
-  status, and conflict inspection are available; ordinary entry and authority
-  mutations stay disabled.
+- The selected shared v3 vault was read-only in alpha.4. Guarded entry writes
+  were enabled and qualified in alpha.6; authority changes remain explicit
+  enrollment or revocation operations.
 - Loss of every enrolled Secure Enclave identity still has no recovery path.
   That unresolved policy remains a release gate and must be plainly documented
   before a stable release.
@@ -1071,6 +1073,70 @@ Acceptance gate:
 - After success, both devices trust the same authenticated shared manifest and
   ordinary v3 list/get/copy reads produce the same logical vault without
   enabling any general v3 writer.
+
+#### `ENR-507` — Additional-Device Enrollment
+
+Status: implementation complete on `agent/enroll-additional-v3-devices`; PR
+pending.
+
+This increment allows an existing shared vault to add a third or later Mac
+through the same explicit invitation, device comparison, owner approval, and
+joining-device acceptance ceremony used for the first peer. It does not add a
+second enrollment protocol or weaken the exact-parent rule.
+
+Scope:
+
+- Permit invitation creation from a complete single authenticated shared head
+  only when this Mac's recorded Secure Enclave identity exactly matches an
+  active owner in that head.
+- Bind the invitation to that exact head. A content change before a new
+  approval makes the invitation stale instead of silently rebasing authority.
+- Preserve every existing device, wrapped key, entry record, vault ID, and key
+  ID exactly. Add one compared active device with the requested role and one
+  new vault-key wrapper addressed to its distinct P-256 wrapping key.
+- Reject an already enrolled identity and any joining identity that reuses an
+  existing signing or wrapping key.
+- Use the ordinary shared-manifest owner-authorization convention for the new
+  authority change while retaining the released first-enrollment signature
+  convention for existing local-to-shared ceremonies.
+- Persist only the newly randomized wrapper, owner signature, transcript
+  digest, and candidate digest for retry. Reconstruct existing wrappers from
+  the exact parent rather than duplicating them in device-local ceremony state.
+- Allow a prepared retry to recognize the exact candidate or its authenticated
+  descendants after provider publication. A new approval may start from the
+  sole authenticated head even when the local checkpoint is an older ancestor;
+  checkpoint replacement remains bound to that exact observed state and
+  refuses unrelated heads.
+- On the joining Mac, filter candidates by the compared owner's signature
+  before requesting Secure Enclave unwrap, authenticate an existing shared
+  parent with the recovered vault key, verify the exact one-device authority
+  delta, authenticate the shipping runtime, and select the vault last.
+- Keep all existing CLI ceremony commands and comparison-code behavior. After
+  acceptance, `key share devices` shows the expanded authenticated roster.
+
+Out of scope:
+
+- changing an existing device's role or display name;
+- revoking a device or removing its historical wrapper;
+- rotating the vault key or re-encrypting entries;
+- automatically rebasing a ceremony across concurrent vault changes; and
+- provider mailbox or immutable-history garbage collection.
+
+Acceptance gate:
+
+- An active owner can enroll a third or later distinct device as the exact role
+  recorded in the compared transcript; a member cannot create an authoritative
+  enrollment transition.
+- The candidate contains every parent device, wrapper, and entry unchanged,
+  plus exactly one active device and one wrapper for the joining identity.
+- The joining device unwraps only its transcript-bound wrapper, authenticates
+  both the shared parent and approved child, and changes no local trust before
+  those checks pass.
+- Missing, stale, ambiguous, malformed, substituted, duplicate-identity,
+  key-reuse, wrong-owner, wrong-parent, and interrupted states fail closed or
+  resume only the exact prepared candidate.
+- First two-device enrollment remains byte-compatible and continues to pass
+  its existing regression suite.
 
 #### `MUT-507` — Guarded Shared Entry Writes
 
@@ -1215,7 +1281,7 @@ formats or transport stacks:
 - [x] `ENR-506` Expose authenticated device names, roles, statuses, stable
   identifiers, and this Mac's recorded identity through human and JSON CLI
   output without invoking a private-key operation.
-- [ ] `ENR-507` Generalize owner-approved enrollment beyond the first two
+- [x] `ENR-507` Generalize owner-approved enrollment beyond the first two
   Macs.
 - [ ] `ENR-508` Revoke a selected device, rotate the vault key, re-encrypt the
   vault, and wrap the new key only for the remaining active devices.
@@ -1376,9 +1442,10 @@ or establish support for other providers.
 
 ## Immediate Next Action
 
-Land `ENR-506` as a read-only device-inventory increment. Continue with
-`ENR-507` additional-device enrollment and `ENR-508` revocation plus key
-rotation, then cut alpha.7 for real-device lifecycle testing. Provider policy,
-plain-language recovery limits, realistic migration and rollback copies,
-all-devices-lost recovery, and independent security review remain explicit
-beta or stable gates.
+Land `ENR-507` additional-device enrollment, then implement `ENR-508`
+owner-authorized revocation, vault-key rotation, entry re-encryption, and key
+redistribution to the remaining active devices. Cut alpha.7 only after both
+device-lifecycle increments merge so real-device testing can exercise adding
+and removing devices together. Provider policy, plain-language recovery
+limits, realistic migration and rollback copies, all-devices-lost recovery,
+and independent security review remain explicit beta or stable gates.
