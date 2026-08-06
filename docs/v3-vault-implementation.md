@@ -8,16 +8,17 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-alpha.6` released and two-device qualification complete; beta gates remain open |
+| Status | `v0.2.0-alpha.6` released; additional-device enrollment merged in PR #53; permanent key-profile design in progress |
 | Latest release | `v0.2.0-alpha.6 (11)` at `e02c76c` |
-| Selected architecture | Authenticated, content-addressed manifest history |
-| Format specification | [Version 3 vault storage format](v3-vault-storage-format.md) |
+| Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
+| Permanent key architecture | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
+| Current prerelease format | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | Generalize owner-approved enrollment beyond the first two Macs |
-| Next work | Add owner-authorized revocation with vault-key rotation, then qualify alpha.7 |
+| Active work | `ARCH-508` finalize the permanent device-wrapped key profile and breaking-alpha plan |
+| Next work | `KEY-509` implement one-device genesis, durable HPKE wrappers, local manifest caching, and session-only unlock |
 
-Local-only mode remains the default. Multi-device sharing MUST remain
-unavailable or explicitly experimental until every release gate below passes.
+The current local/shared alpha profile remains prerelease-only. The permanent
+profile MUST not ship as stable until every release gate below passes.
 
 ## Security And Durability Invariants
 
@@ -37,6 +38,12 @@ unavailable or explicitly experimental until every release gate below passes.
   never a mixed-key vault.
 - [x] `INV-09` Every filesystem effect remains beneath the opened vault root.
 - [ ] `INV-10` Loss of all enrolled devices has an explicit recovery outcome.
+- [ ] `INV-11` A raw v3 vault key exists only in an unlocked Key Agent session
+  and is never persisted or synchronized.
+- [ ] `INV-12` Every membership change creates a fresh key and re-encrypts the
+  complete current snapshot.
+- [ ] `INV-13` Every vault has one authenticated device roster and durable
+  device wrapper from genesis; there is no local-to-shared trust exception.
 
 ## PR Sequence
 
@@ -122,7 +129,12 @@ security or durability boundary and updates this tracker before it merges.
 | `ENR-505A` | Complete; PR #49 | Resume only the exact authenticated owner approval after provider delivery outlives its invitation |
 | `MUT-507` | Complete; PR #50 | Route selected-vault entry mutations and explicit conflict choices through authenticated expected-head publication |
 | `ENR-506` | Complete; PR #52 | Inspect authenticated device membership without invoking private-key operations |
-| `ENR-507` | Implementation complete; PR pending | Enroll additional devices through the same owner-approved comparison ceremony |
+| `ENR-507` | Complete; PR #53 | Enroll additional devices through the same owner-approved comparison ceremony |
+| `ARCH-508` | Design complete; PR pending | Select the permanent device-wrapped, session-only key profile, macOS 14 floor, and breaking-alpha path |
+| `KEY-509` | Planned | Create one-device genesis, durable HPKE wrappers, a local checkpoint-manifest cache, and wrapper-backed session unlock |
+| `ENR-510` | Planned | Unify first and later enrollment as key-rotating roster additions and remove the local-to-shared exception |
+| `ENR-511` | Planned | Revoke devices, rotate the key, re-encrypt the current snapshot, and catch remaining devices up safely |
+| `REC-512` | Planned | Add the single offline recovery kit and qualify destructive-loss behavior |
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -1076,8 +1088,7 @@ Acceptance gate:
 
 #### `ENR-507` — Additional-Device Enrollment
 
-Status: implementation complete on `agent/enroll-additional-v3-devices`; PR
-pending.
+Status: complete; squash-merged as `38c4db2` in PR #53.
 
 This increment allows an existing shared vault to add a third or later Mac
 through the same explicit invitation, device comparison, owner approval, and
@@ -1283,15 +1294,26 @@ formats or transport stacks:
   output without invoking a private-key operation.
 - [x] `ENR-507` Generalize owner-approved enrollment beyond the first two
   Macs.
-- [ ] `ENR-508` Revoke a selected device, rotate the vault key, re-encrypt the
-  vault, and wrap the new key only for the remaining active devices.
+- [x] `ARCH-508` Select the permanent device-wrapped, session-only key model
+  and the deliberate breaking-alpha transition.
+- [ ] `KEY-509` Replace persistent raw v3 keys and the local/shared split with
+  one-device genesis, durable HPKE wrappers, an exact local manifest cache,
+  and wrapper-backed session unlock.
+- [ ] `ENR-510` Rotate the key and re-encrypt the current snapshot when adding
+  a device; remove the local-to-shared exception.
+- [ ] `ENR-511` Revoke a selected device, rotate the vault key, re-encrypt the
+  current snapshot, and wrap the new key only for remaining active devices.
+- [ ] `REC-512` Add the single offline recovery kit and recovery-authorized
+  replacement transition.
 - [x] Reject replay, substitution, wrong-vault, and role confusion.
 - [ ] Add revoke/rotate commands.
-- [ ] Re-encrypt for remaining devices after revocation.
+- [ ] Re-encrypt on every membership change.
 
 ### Release Track
 
-- [ ] Decide and test the all-devices-lost policy.
+- [x] Decide the all-devices-lost policy: one optional, strongly recommended
+  offline recovery kit; explicit permanent loss when declined.
+- [ ] Implement and test the recovery kit and permanent-loss behavior.
 - [ ] Add doctor, transaction, recovery, and device diagnostics.
 - [x] Add conflict diagnostics, stable JSON status output, and machine-readable
   exit codes.
@@ -1305,7 +1327,7 @@ formats or transport stacks:
 | `DEC-000` | Accepted | Use authenticated immutable manifest history and one serialized transaction owner. |
 | `DEC-001` | Accepted | Require a derived-key HMAC on every manifest and a parent-owner Secure Enclave signature on authority-changing transitions. Use separate signing and wrapping keys. |
 | `DEC-002` | Accepted | Use exact authenticated heads for mutation safety. Automatically reconcile independent path changes, preserve every concurrent value, and require explicit resolution only for genuinely incompatible changes. |
-| `DEC-003` | Open | Define recovery when every enrolled device is lost. |
+| `DEC-003` | Superseded by `DEC-033` | Define recovery when every enrolled device is lost. |
 | `DEC-004` | Open | Define supported providers and required atomic commit semantics. |
 | `DEC-005` | Accepted | Make vault-root configuration changes helper-owned through the authenticated full-CLI XPC channel. Serialize the change after in-flight handler work, persist it, invalidate the warm key session, refuse later work from the stale handler, and shut the helper down after its successful reply. Re-read the configured root before other requests and fail closed if the file was changed or removed out of band. |
 | `DEC-006` | Accepted | Give the CLI full authority and the utility status/lock authority on separate authenticated endpoints. |
@@ -1315,7 +1337,7 @@ formats or transport stacks:
 | `DEC-010` | Accepted | Keep v3 entry parsing explicitly untrusted. Before releasing plaintext, require the authenticated manifest digest and manifest-derived context to match the canonical file, then open AES-256-GCM with the exact typed associated data and require UTF-8 plaintext. |
 | `DEC-011` | Accepted | Implement v3 copy and rename as authenticated decrypt-and-reseal operations. Copy creates a fresh logical entry at revision 1; rename preserves the logical entry ID and advances its revision. Both preserve exact valid UTF-8 plaintext bytes, type, and exact key ID and require a fresh nonce. |
 | `DEC-012` | Accepted | Treat authentication and freshness as separate gates. Persist one exact vault ID and manifest-envelope digest in the non-synchronizing device-local Keychain; advance it under the serialized helper mutation owner with an expected-checkpoint guard only after verifying authenticated ancestry. Require the freshness-approved manifest type for entry open, copy, and rename. |
-| `DEC-013` | Accepted | Keep local manifests free of device-membership and wrapped-key records. Require shared manifests to retain at least one active owner and exactly one exact-current-key wrapper for every active device, with no wrapper for a revoked or unknown device. Defer membership-transition ceremonies to enrollment and revocation work. |
+| `DEC-013` | Superseded by `DEC-028` | Keep local manifests free of device-membership and wrapped-key records. Require shared manifests to retain at least one active owner and exactly one exact-current-key wrapper for every active device, with no wrapper for a revoked or unknown device. Defer membership-transition ceremonies to enrollment and revocation work. |
 | `DEC-014` | Accepted | Make migration opt-in. Ship `key migrate --check` as a helper-owned, read-only v2 compatibility and decryptability check. A later writer must stage and verify v3 beside the untouched v2 source, select it only through an authenticated-head commit and device-local checkpoint transition, and retain v2 until verified reopen and explicit cleanup. |
 | `DEC-015` | Accepted | Treat the unreleased prototype as a migration exclusion, not a permanent runtime compatibility mode. `key migrate --check` refuses the exact root-level `.key-vault.json` marker before loading a key, while ordinary v2 reads remain unchanged and the strict v3 parser rejects prototype JSON. |
 | `DEC-016` | Accepted | Establish vault-root authority by opening the configured file URL once through Swift System's `FileDescriptor` with directory-only, no-follow, and close-on-exec semantics. Retain that descriptor and its device/inode identity for the lifetime of the filesystem session; later contained operations must resolve relative to the descriptor instead of trusting the configured path again. |
@@ -1329,7 +1351,14 @@ formats or transport stacks:
 | `DEC-024` | Accepted | Store immutable manifest and entry objects under lowercase hexadecimal SHA-256 filenames so content addressing remains collision-safe on case-insensitive providers. Discover history read-only from the exact device-local checkpoint, reopen its digest-linked ancestors, fully authenticate forward descendants, and expose a typed ancestry proof only when every referenced object is complete and valid. Treat missing or dataless provider objects as incomplete transport, referenced invalid objects or exhausted bounds as recovery-required state, and unrelated invalid objects as non-authoritative noise. |
 | `DEC-025` | Accepted | Reconcile complete authenticated history by stable entry ID against one unique nearest common ancestor. Automatically combine zero or one valid advancing change per entry across any number of heads, but preserve revision rollback, same-revision substitution, edit/edit, delete/edit, rename-plus-edit, conflicting rename, destination, security-state, and criss-cross-base ambiguity as typed conflicts. Enforce revision monotonicity again when authenticating a parent-to-child transition; a merge may reuse only an exact, unambiguous highest parent revision. Treat rename-plus-edit conservatively because opaque ciphertext resealed under name-bound AAD cannot prove that the rename branch preserved the ancestor value. |
 | `DEC-026` | Accepted | Publish a v3 transaction only inside the serialized mutation owner. Stage canonical immutable entry and manifest bytes under a local operation ID, recheck the exact authenticated checkpoint and head set, publish entries through exclusive digest-path renames, reopen every referenced entry, publish and reopen the manifest last, then advance the device-local checkpoint with an expected-value guard. Staging has no authority and remains available for later recovery. A remote head arriving after the final recheck creates an ordinary immutable branch rather than overwriting either history. |
-| `DEC-027` | Accepted | Complete first trust through an explicit digest-selected, independently compared two-device ceremony. Filter synchronized candidates by the exact transcript and inviter signature before Secure Enclave unwrap, bind the exact recipient and key identity into authenticated wrap context, rerun the narrow local-to-shared verifier with the recovered key, install only absent-or-identical local key and checkpoint state, authenticate through the shipping reader, and write the device-local `vault_id` last. Treat consumed joiner state as an exact retry marker rather than provider authority. |
+| `DEC-027` | Superseded in part by `DEC-028`–`DEC-034` | Complete first trust through an explicit digest-selected, independently compared two-device ceremony. Filter synchronized candidates by the exact transcript and inviter signature before Secure Enclave unwrap, bind the exact recipient and key identity into authenticated wrap context, rerun the narrow local-to-shared verifier with the recovered key, install only absent-or-identical local key and checkpoint state, authenticate through the shipping reader, and write the device-local `vault_id` last. Treat consumed joiner state as an exact retry marker rather than provider authority. The comparison and select-last guarantees remain; persistent raw-key installation and the local-to-shared exception do not. |
+| `DEC-028` | Accepted | Use one device-managed vault profile from genesis. A new vault begins with one active owner and one durable current-key wrapper; first and later enrollment use the same roster-addition transition. |
+| `DEC-029` | Accepted | Never persist or synchronize a raw v3 vault key. Store only device-bound Secure Enclave key representations, exact checkpoint trust, a digest-verified manifest cache, and bounded local workflow state. Keep the opened vault key only in Key Agent's short-lived memory session. |
+| `DEC-030` | Accepted | Replace the prerelease custom wrapper with RFC 9180 HPKE through CryptoKit using P-256, HKDF-SHA256, and AES-GCM. Bind a self-contained canonical wrapper context to the vault ID, exact key ID, random authority-transition ID, recipient device ID, format, version, and suite. Raise the minimum deployment target from macOS 13 to macOS 14, where CryptoKit HPKE and its Secure Enclave P-256 conformance become available, instead of retaining a custom cryptographic fallback. |
+| `DEC-031` | Accepted | Rotate the vault key and re-encrypt the complete current snapshot on every device-roster addition or removal. Preserve logical entry revisions during a pure owner-authorized reseal, while ordinary same-revision substitution remains invalid. |
+| `DEC-032` | Accepted | Cache the exact checkpoint manifest in device-local Key-owned storage so routine unlock does not depend on provider hydration. The cache carries no authority unless its SHA-256 digest and vault ID match the non-synchronizing device-local checkpoint. |
+| `DEC-033` | Accepted | Offer one optional, strongly recommended offline recovery kit. Authenticate a special recovery public identity, store only its encrypted private material with the vault, keep the random 256-bit recovery secret offline, and require recovery to enroll a new Secure Enclave owner, rotate the key, revoke lost devices, and replace the kit. Declining recovery means permanent loss when every owner is unavailable. |
+| `DEC-034` | Accepted | Treat the current local/shared raw-key alpha profile as intentionally replaceable prerelease state. Give the permanent profile an unambiguous required discriminator, clearly refuse old alpha state, support explicit reset/remigration where possible, and retain no indefinite dual cryptographic reader or writer. |
 
 ## Validation Matrix
 
@@ -1347,6 +1376,15 @@ formats or transport stacks:
 - [x] Component-by-component relative resolution, traversal rejection, symlink rejection, and terminal-type tests.
 - [x] Vault-key ID derivation, substitution, and cross-vault separation tests.
 - [x] Enrollment and key-identity replay tests.
+- [ ] CryptoKit HPKE interoperability and exact wrapper-context vectors.
+- [ ] One-device genesis and wrapper-only unlock tests proving no raw v3 key
+  survives lock or helper restart.
+- [ ] Membership-addition and revocation tests proving new devices cannot open
+  prior epochs and revoked devices cannot open the new current snapshot.
+- [ ] Offline multi-epoch catch-up, missing-transition, and competing-rotation
+  tests.
+- [ ] Recovery-kit creation, use, replacement, wrong-code, substitution, and
+  all-devices-lost tests.
 - [x] Installed XPC tests for intended and unintended signing identities.
 - [ ] Mutation/key-transition concurrency tests.
 - [x] Transaction fault injection at every phase.
@@ -1430,7 +1468,7 @@ authenticated convergence. This qualifies iCloud Drive for the current alpha
 smoke-test scope; it does not turn provider timing into a Key correctness input
 or establish support for other providers.
 
-- [ ] All ten invariants pass.
+- [ ] All security and durability invariants pass.
 - [x] The v3 reader ships before any v3 writer is enabled.
 - [ ] Local APFS and every supported sync provider pass commit/conflict tests.
 - [x] Protected writes pass in the release environment.
@@ -1442,10 +1480,16 @@ or establish support for other providers.
 
 ## Immediate Next Action
 
-Land `ENR-507` additional-device enrollment, then implement `ENR-508`
-owner-authorized revocation, vault-key rotation, entry re-encryption, and key
-redistribution to the remaining active devices. Cut alpha.7 only after both
-device-lifecycle increments merge so real-device testing can exercise adding
-and removing devices together. Provider policy, plain-language recovery
-limits, realistic migration and rollback copies, all-devices-lost recovery,
-and independent security review remain explicit beta or stable gates.
+Review and land `ARCH-508`, then implement `KEY-509` one-device genesis,
+durable CryptoKit HPKE wrappers, the exact local checkpoint-manifest cache, and
+session-only vault-key unlock. Follow with `ENR-510` to move first and later
+enrollment onto one key-rotating roster-addition transition and remove the
+local-to-shared compatibility exception.
+
+Cut alpha.7 only after the permanent profile unlocks and enrolls successfully
+across physical Macs without persisting a raw vault key. Implement `ENR-511`
+revocation and `REC-512` offline recovery next, then cut alpha.8 only after
+enrollment, revocation, multi-epoch catch-up, recovery, restart, and provider
+delay tests pass on multiple physical Macs. Provider qualification, realistic
+migration and rollback copies, and independent security review remain beta or
+stable gates.

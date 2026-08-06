@@ -3,6 +3,14 @@
 Status: shipping version 3 specification through guarded two-device writes and
 explicit conflict resolution in `v0.2.0-alpha.6`.
 
+This is the current prerelease profile, not the selected permanent key
+profile. [`ARCH-508`](v3-device-wrapped-key-architecture.md) intentionally
+replaces persistent raw vault-key storage, separate local/shared modes, the
+custom wrapper construction, and the first-peer authorization exception before
+stable release. New key-lifecycle work must follow that architecture and then
+update this normative specification and its schemas as each format increment
+lands.
+
 This document defines the current data model and canonical encoding
 for the version 3 vault manifest body, authenticated manifest envelope, and
 encrypted entry files. The envelope uses layered symmetric authentication and
