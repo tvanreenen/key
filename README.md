@@ -57,11 +57,16 @@ key version [--json]                    # print the CLI version
 ## Coming in 0.2.0: secure multi-device vaults
 
 Version 0.2.0 brings secure multi-device vaults to Key without giving up the
-file-based model. You keep the encrypted vault in a folder you control and
-explicitly approve each Mac that can open it. A compatible file-sync service
-handles delivery while Key authenticates the vault's history. Independent
-edits merge automatically; genuine conflicts are preserved for you to resolve
-instead of being silently overwritten.
+file-based model. You keep the encrypted vault in a folder you control, and
+each Mac must be explicitly approved with keys bound to its Secure Enclave.
+Your file-sync service carries encrypted, authenticated history, but it never
+receives the vault key or the authority to enroll a device, silently roll back
+trusted state, or choose a conflict winner.
+
+Each Mac advances only from the exact vault state it already trusts. Missing,
+substituted, rolled-back, or conflicting files therefore fail closed instead
+of quietly becoming your vault. Independent edits still merge automatically;
+genuine conflicts are preserved for you to inspect and resolve.
 
 An opt-in alpha is available now:
 
