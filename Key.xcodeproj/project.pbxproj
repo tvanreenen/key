@@ -84,6 +84,7 @@
 		A5400001A5400001A5400001 /* V3InterruptedTransactionRecoverer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5400002A5400002A5400002 /* V3InterruptedTransactionRecoverer.swift */; };
 		A5410001A5410001A5410001 /* V3VaultKeyHPKE.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5410002A5410002A5410002 /* V3VaultKeyHPKE.swift */; };
 		A5420001A5420001A5420001 /* V3DeviceWrappedManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5420002A5420002A5420002 /* V3DeviceWrappedManifest.swift */; };
+		A5430001A5430001A5430001 /* V3DeviceWrappedGenesisBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5430002A5430002A5430002 /* V3DeviceWrappedGenesisBuilder.swift */; };
 		A5000011A5000011A5000011 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000012A5000012A5000012 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000013A5000013A5000013 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
@@ -223,6 +224,7 @@
 		A5400002A5400002A5400002 /* V3InterruptedTransactionRecoverer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3InterruptedTransactionRecoverer.swift; sourceTree = "<group>"; };
 		A5410002A5410002A5410002 /* V3VaultKeyHPKE.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3VaultKeyHPKE.swift; sourceTree = "<group>"; };
 		A5420002A5420002A5420002 /* V3DeviceWrappedManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedManifest.swift; sourceTree = "<group>"; };
+		A5430002A5430002A5430002 /* V3DeviceWrappedGenesisBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedGenesisBuilder.swift; sourceTree = "<group>"; };
 		A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libJSONCanonicalization.a; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -333,6 +335,7 @@
 				A5400002A5400002A5400002 /* V3InterruptedTransactionRecoverer.swift */,
 				A5410002A5410002A5410002 /* V3VaultKeyHPKE.swift */,
 				A5420002A5420002A5420002 /* V3DeviceWrappedManifest.swift */,
+				A5430002A5430002A5430002 /* V3DeviceWrappedGenesisBuilder.swift */,
 				A4090012A4090012A4090012 /* VaultUXService.swift */,
 				A4010002A4010002A4010002 /* VaultTransactionMutationOwner.swift */,
 				B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */,
@@ -708,6 +711,7 @@
 				A5400001A5400001A5400001 /* V3InterruptedTransactionRecoverer.swift in Sources */,
 				A5410001A5410001A5410001 /* V3VaultKeyHPKE.swift in Sources */,
 				A5420001A5420001A5420001 /* V3DeviceWrappedManifest.swift in Sources */,
+				A5430001A5430001A5430001 /* V3DeviceWrappedGenesisBuilder.swift in Sources */,
 				A4090011A4090011A4090011 /* VaultUXService.swift in Sources */,
 				A4010001A4010001A4010001 /* VaultTransactionMutationOwner.swift in Sources */,
 				2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */,
