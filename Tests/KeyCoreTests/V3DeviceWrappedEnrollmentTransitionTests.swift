@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import JSONCanonicalization
 import Testing
 
 @testable import KeyCore
@@ -134,12 +135,25 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
             at: Self.approvalTime,
             authorizationReason: "Approve the next compared Mac."
         )
+        let validated = try V3DeviceWrappedEnrollmentTransitionValidator()
+            .validate(
+                later,
+                parent: laterBase,
+                currentEntries: laterEntries,
+                currentVaultKey: Self.nextKey,
+                nextVaultKey: Self.laterKey,
+                state: laterCeremony.state,
+                localIdentity: fixture.owner,
+                at: Self.approvalTime,
+                unwrapReason: "Verify the inviting Mac's new wrapper."
+            )
 
         #expect(later.body.devices.count == 3)
         #expect(later.body.wrappedKeys.count == 3)
         #expect(later.body.devices.filter({ $0.role == .owner }).count == 2)
         #expect(later.body.entries.map(\.revision) == [1])
         #expect(later.body.entries.allSatisfy({ $0.keyID == later.body.keyID }))
+        #expect(validated.candidate.body == later.body)
         try Self.requireWrapperOpens(
             later,
             recipient: fixture.owner,
@@ -317,6 +331,287 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         }
     }
 
+    @Test
+    func validatorAcceptsTheExactCompleteTransition() throws {
+        let fixture = try Fixture()
+        let ceremony = try fixture.ceremony(
+            parentDigest: fixture.base.checkpoint.envelopeDigest,
+            joiner: fixture.firstJoiner,
+            role: .member,
+            nonce: 0x70
+        )
+        let candidate = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
+            from: fixture.base,
+            currentEntries: fixture.currentEntries,
+            state: ceremony.state,
+            currentVaultKey: Self.currentKey,
+            nextVaultKey: Self.nextKey,
+            authorityTransitionID: Self.firstEnrollmentTransitionID,
+            owner: fixture.owner,
+            at: Self.approvalTime,
+            authorizationReason: "Approve the compared Mac."
+        )
+
+        let validated = try V3DeviceWrappedEnrollmentTransitionValidator()
+            .validate(
+                candidate,
+                parent: fixture.base,
+                currentEntries: fixture.currentEntries,
+                currentVaultKey: Self.currentKey,
+                nextVaultKey: Self.nextKey,
+                state: ceremony.state,
+                localIdentity: fixture.owner,
+                at: Self.approvalTime,
+                unwrapReason: "Verify the inviting Mac's new wrapper."
+            )
+
+        #expect(validated.parent == fixture.base.envelope)
+        #expect(validated.candidate.body == candidate.body)
+        #expect(validated.manifestDigest == candidate.manifestDigest)
+        #expect(validated.stagedEntries.count == 1)
+    }
+
+    @Test
+    func validatorRejectsAResealWithDifferentPlaintext() throws {
+        let fixture = try Fixture()
+        let ceremony = try fixture.ceremony(
+            parentDigest: fixture.base.checkpoint.envelopeDigest,
+            joiner: fixture.firstJoiner,
+            role: .member,
+            nonce: 0x71
+        )
+        let candidate = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
+            from: fixture.base,
+            currentEntries: fixture.currentEntries,
+            state: ceremony.state,
+            currentVaultKey: Self.currentKey,
+            nextVaultKey: Self.nextKey,
+            authorityTransitionID: Self.firstEnrollmentTransitionID,
+            owner: fixture.owner,
+            at: Self.approvalTime,
+            authorizationReason: "Approve the compared Mac."
+        )
+        let staged = try #require(candidate.stagedEntries.first)
+        let substituted = try V3EntryCipher().seal(
+            "different plaintext",
+            context: staged.context,
+            vaultKey: Self.nextKey
+        )
+        let originalEntry = try #require(candidate.body.entries.first)
+        let substitutedEntry = V3ManifestEntry(
+            entryID: originalEntry.entryID,
+            name: originalEntry.name,
+            type: originalEntry.type,
+            revision: originalEntry.revision,
+            keyID: originalEntry.keyID,
+            ciphertextDigest: substituted.ciphertextDigest
+        )
+        let alteredBody = try V3DeviceWrappedManifestBody(
+            vaultID: candidate.body.vaultID,
+            keyID: candidate.body.keyID,
+            authorityTransitionID: candidate.body.authorityTransitionID,
+            devices: candidate.body.devices,
+            wrappedKeys: candidate.body.wrappedKeys,
+            entries: [substitutedEntry]
+        )
+        let altered = try Self.authorizedCandidate(
+            basedOn: candidate,
+            body: alteredBody,
+            stagedEntries: [substituted],
+            vaultKey: Self.nextKey,
+            signer: fixture.owner
+        )
+
+        #expect(
+            throws: V3DeviceWrappedEnrollmentValidationError
+                .invalidStagedEntry
+        ) {
+            try V3DeviceWrappedEnrollmentTransitionValidator().validate(
+                altered,
+                parent: fixture.base,
+                currentEntries: fixture.currentEntries,
+                currentVaultKey: Self.currentKey,
+                nextVaultKey: Self.nextKey,
+                state: ceremony.state,
+                localIdentity: fixture.owner,
+                at: Self.approvalTime,
+                unwrapReason: "Verify the inviting Mac's new wrapper."
+            )
+        }
+    }
+
+    @Test
+    func validatorRejectsAuthorizationFromANonOwner() throws {
+        let fixture = try Fixture()
+        let ceremony = try fixture.ceremony(
+            parentDigest: fixture.base.checkpoint.envelopeDigest,
+            joiner: fixture.firstJoiner,
+            role: .member,
+            nonce: 0x72
+        )
+        let candidate = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
+            from: fixture.base,
+            currentEntries: fixture.currentEntries,
+            state: ceremony.state,
+            currentVaultKey: Self.currentKey,
+            nextVaultKey: Self.nextKey,
+            authorityTransitionID: Self.firstEnrollmentTransitionID,
+            owner: fixture.owner,
+            at: Self.approvalTime,
+            authorizationReason: "Approve the compared Mac."
+        )
+        let altered = try Self.authorizedCandidate(
+            basedOn: candidate,
+            body: candidate.body,
+            stagedEntries: candidate.stagedEntries,
+            vaultKey: Self.nextKey,
+            signer: fixture.firstJoiner
+        )
+
+        #expect(
+            throws: V3DeviceWrappedEnrollmentValidationError
+                .invalidOwnerAuthorization
+        ) {
+            try V3DeviceWrappedEnrollmentTransitionValidator().validate(
+                altered,
+                parent: fixture.base,
+                currentEntries: fixture.currentEntries,
+                currentVaultKey: Self.currentKey,
+                nextVaultKey: Self.nextKey,
+                state: ceremony.state,
+                localIdentity: fixture.owner,
+                at: Self.approvalTime,
+                unwrapReason: "Verify the inviting Mac's new wrapper."
+            )
+        }
+    }
+
+    @Test
+    func validatorRejectsADeviceOtherThanTheComparedJoiner() throws {
+        let fixture = try Fixture()
+        let firstCeremony = try fixture.ceremony(
+            parentDigest: fixture.base.checkpoint.envelopeDigest,
+            joiner: fixture.firstJoiner,
+            role: .member,
+            nonce: 0x73
+        )
+        let candidate = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
+            from: fixture.base,
+            currentEntries: fixture.currentEntries,
+            state: firstCeremony.state,
+            currentVaultKey: Self.currentKey,
+            nextVaultKey: Self.nextKey,
+            authorityTransitionID: Self.firstEnrollmentTransitionID,
+            owner: fixture.owner,
+            at: Self.approvalTime,
+            authorizationReason: "Approve the compared Mac."
+        )
+        let otherCeremony = try fixture.ceremony(
+            parentDigest: fixture.base.checkpoint.envelopeDigest,
+            joiner: fixture.secondJoiner,
+            role: .owner,
+            nonce: 0x74
+        )
+        let relabeled = V3DeviceWrappedEnrollmentTransitionCandidate(
+            expectedCheckpoint: candidate.expectedCheckpoint,
+            body: candidate.body,
+            manifestData: candidate.manifestData,
+            manifestDigest: candidate.manifestDigest,
+            stagedEntries: candidate.stagedEntries,
+            transcriptDigest: otherCeremony.transcript.digest
+        )
+
+        #expect(
+            throws: V3DeviceWrappedEnrollmentValidationError
+                .invalidTransition
+        ) {
+            try V3DeviceWrappedEnrollmentTransitionValidator().validate(
+                relabeled,
+                parent: fixture.base,
+                currentEntries: fixture.currentEntries,
+                currentVaultKey: Self.currentKey,
+                nextVaultKey: Self.nextKey,
+                state: otherCeremony.state,
+                localIdentity: fixture.owner,
+                at: Self.approvalTime,
+                unwrapReason: "Verify the inviting Mac's new wrapper."
+            )
+        }
+    }
+
+    @Test
+    func validatorRejectsAnOwnerWrapperForTheWrongKey() throws {
+        let fixture = try Fixture()
+        let ceremony = try fixture.ceremony(
+            parentDigest: fixture.base.checkpoint.envelopeDigest,
+            joiner: fixture.firstJoiner,
+            role: .member,
+            nonce: 0x75
+        )
+        let candidate = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
+            from: fixture.base,
+            currentEntries: fixture.currentEntries,
+            state: ceremony.state,
+            currentVaultKey: Self.currentKey,
+            nextVaultKey: Self.nextKey,
+            authorityTransitionID: Self.firstEnrollmentTransitionID,
+            owner: fixture.owner,
+            at: Self.approvalTime,
+            authorizationReason: "Approve the compared Mac."
+        )
+        let ownerID = fixture.owner.publicIdentity.deviceID
+        let context = try V3VaultKeyHPKEContext(
+            vaultID: candidate.body.vaultID,
+            keyID: candidate.body.keyID,
+            authorityTransitionID: candidate.body.authorityTransitionID,
+            recipientDeviceID: ownerID
+        )
+        let wrongWrapper = try V3DeviceWrappedManifestKey(
+            recipientDeviceID: ownerID,
+            wrappedKey: V3VaultKeyHPKE().wrap(
+                vaultKey: Data(repeating: 0xEE, count: 32),
+                recipientPublicKey:
+                    fixture.owner.publicIdentity.wrappingPublicKey,
+                context: context
+            )
+        )
+        let wrappers = candidate.body.wrappedKeys.map {
+            $0.recipientDeviceID == ownerID ? wrongWrapper : $0
+        }
+        let alteredBody = try V3DeviceWrappedManifestBody(
+            vaultID: candidate.body.vaultID,
+            keyID: candidate.body.keyID,
+            authorityTransitionID: candidate.body.authorityTransitionID,
+            devices: candidate.body.devices,
+            wrappedKeys: wrappers,
+            entries: candidate.body.entries
+        )
+        let altered = try Self.authorizedCandidate(
+            basedOn: candidate,
+            body: alteredBody,
+            stagedEntries: candidate.stagedEntries,
+            vaultKey: Self.nextKey,
+            signer: fixture.owner
+        )
+
+        #expect(
+            throws: V3DeviceWrappedEnrollmentValidationError
+                .localWrapperInvalid
+        ) {
+            try V3DeviceWrappedEnrollmentTransitionValidator().validate(
+                altered,
+                parent: fixture.base,
+                currentEntries: fixture.currentEntries,
+                currentVaultKey: Self.currentKey,
+                nextVaultKey: Self.nextKey,
+                state: ceremony.state,
+                localIdentity: fixture.owner,
+                at: Self.approvalTime,
+                unwrapReason: "Verify the inviting Mac's new wrapper."
+            )
+        }
+    }
+
     private static func trustedCheckpoint(
         for candidate: V3DeviceWrappedEnrollmentTransitionCandidate
     ) throws -> V3DeviceWrappedTrustedCheckpoint {
@@ -328,6 +623,63 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
             envelope: try V3DeviceWrappedManifestEnvelopeCodec().parse(
                 candidate.manifestData
             )
+        )
+    }
+
+    private static func authorizedCandidate(
+        basedOn candidate: V3DeviceWrappedEnrollmentTransitionCandidate,
+        body: V3DeviceWrappedManifestBody,
+        stagedEntries: [V3EncryptedEntry],
+        vaultKey: Data,
+        signer: SoftwareDevice
+    ) throws -> V3DeviceWrappedEnrollmentTransitionCandidate {
+        let content = CanonicalJSONValue.object([
+            (
+                "parents",
+                .array([.string(Base64URL.encode(
+                    candidate.expectedCheckpoint.envelopeDigest
+                ))])
+            ),
+            ("manifest", body.canonicalValue),
+        ])
+        let canonicalContent = CanonicalJSON.encode(content)
+        let tag = try V3ManifestAuthenticator.authenticationTag(
+            canonicalContent: canonicalContent,
+            vaultID: body.vaultID,
+            vaultKey: vaultKey
+        )
+        let signature = try V3P256Signature.canonicalize(
+            signer.signature(
+                for: V3ManifestAuthenticator.authenticationInput(
+                    for: canonicalContent
+                ),
+                reason: "Create a validator test candidate."
+            )
+        )
+        let manifestData = CanonicalJSON.encode(.object([
+            ("format", .string("key-vault-manifest-envelope")),
+            ("version", .integer(3)),
+            ("content", content),
+            ("authentication", .object([
+                ("algorithm", .string("HKDF-SHA256+HMAC-SHA256")),
+                ("tag", .string(Base64URL.encode(tag))),
+            ])),
+            ("authorizations", .array([.object([
+                ("algorithm", .string("P-256-ECDSA-SHA256")),
+                (
+                    "signerDeviceID",
+                    .string(signer.publicIdentity.deviceID)
+                ),
+                ("signature", .string(Base64URL.encode(signature))),
+            ])])),
+        ]))
+        return V3DeviceWrappedEnrollmentTransitionCandidate(
+            expectedCheckpoint: candidate.expectedCheckpoint,
+            body: body,
+            manifestData: manifestData,
+            manifestDigest: Data(SHA256.hash(data: manifestData)),
+            stagedEntries: stagedEntries,
+            transcriptDigest: candidate.transcriptDigest
         )
     }
 
@@ -489,7 +841,10 @@ private struct Fixture {
     }
 }
 
-private struct SoftwareDevice: V3EnrollmentMessageSigning {
+private struct SoftwareDevice:
+    V3EnrollmentMessageSigning,
+    V3DeviceWrappedVaultKeyUnwrapping
+{
     let vaultID = V3DeviceWrappedEnrollmentTransitionTests.vaultID
     let publicIdentity: V3EnrollmentDeviceIdentity
     let signingPrivateKey: P256.Signing.PrivateKey
@@ -515,6 +870,18 @@ private struct SoftwareDevice: V3EnrollmentMessageSigning {
 
     func signature(for input: Data, reason _: String) throws -> Data {
         try signingPrivateKey.signature(for: input).rawRepresentation
+    }
+
+    func unwrapDeviceWrappedVaultKey(
+        _ wrappedKey: V3HPKEWrappedVaultKey,
+        context: V3VaultKeyHPKEContext,
+        reason _: String
+    ) throws -> Data {
+        try V3VaultKeyHPKE().unwrap(
+            wrappedKey,
+            recipientPrivateKey: wrappingPrivateKey,
+            context: context
+        )
     }
 }
 
