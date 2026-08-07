@@ -2,8 +2,9 @@
 
 Status: selected permanent design during the `0.2.0` alpha series. The
 `KEY-509` manifest, HPKE, one-device genesis, local cache, session unlock, and
-durable content-publication foundations are implemented; shipping integration
-and physical-device qualification remain pending.
+durable content-publication runtime are implemented and connected to the
+shipping helper on the current implementation branch. Review and
+physical-device qualification remain pending.
 
 This document defines the intended final key-management model for version 3
 vaults. It replaces the prerelease design in which the raw vault key is stored
@@ -348,13 +349,18 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 
 ### `KEY-509` — Device-wrapped genesis and session unlock
 
-- Specify and validate the exact permanent manifest, wrapper, and local-cache
-  schemas before enabling a permanent-profile writer.
-- Create every vault with one owner and one durable HPKE wrapper.
-- Add the exact local checkpoint-manifest cache.
-- Open wrappers into helper memory and remove persistent raw v3 vault-key
+- [x] Specify and validate the exact permanent manifest, wrapper, and
+  local-cache schemas before enabling a permanent-profile writer.
+- [x] Create every vault with one owner and one durable HPKE wrapper.
+- [x] Add the exact local checkpoint-manifest cache.
+- [x] Open wrappers into helper memory and remove persistent raw v3 vault-key
   storage.
-- Detect and refuse the older alpha profile with actionable recovery guidance.
+- [x] Connect explicit migration, reads, and ordinary content writes to the
+  shipping helper without falling through to version 2 storage.
+- [x] Detect and refuse the older alpha profile with actionable recovery
+  guidance.
+- [ ] Qualify lock, helper restart, and the installed permanent runtime on a
+  physical Mac before releasing it.
 
 ### `ENR-510` — Unified enrollment and key epochs
 
