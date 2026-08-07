@@ -109,7 +109,7 @@ struct V3ReadOnlyServiceIntegrationTests {
             secret: "value",
             type: .secret
         ))
-        #expect(mutation.errorCode == .operationRefused)
+        #expect(mutation.errorCode == .recoveryRequired)
         #expect(try EntryStore(rootURL: root).listEntries().isEmpty)
         #expect(keys.createIfMissingValues.isEmpty)
         #expect(keys.storeCount == 0)

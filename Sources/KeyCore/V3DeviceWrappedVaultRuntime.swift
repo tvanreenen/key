@@ -2,16 +2,18 @@ import Foundation
 
 /// Shipping adapter for the permanent device-wrapped version 3 profile.
 ///
-/// This boundary keeps profile-specific unlock errors and session ownership
-/// out of `KeyServiceHandler`. Ordinary writes remain deliberately absent
-/// until the permanent mutation service is connected in a later increment.
+/// This boundary keeps profile-specific unlock errors, session ownership, and
+/// permanent-profile mutation composition out of `KeyServiceHandler`.
 struct V3DeviceWrappedVaultRuntime:
     VaultReadServicing,
+    VaultMutationServicing,
     VaultUXServicing,
     VaultSessionServicing,
     Sendable
 {
     private let runtime: any VaultReadServicing & VaultUXServicing
+    private let mutationService:
+        (any V3DeviceWrappedVaultMutationServicing)?
     private let session: V3DeviceWrappedVaultKeySessionStore
     private let lockSession: @Sendable () -> Void
 
@@ -19,27 +21,37 @@ struct V3DeviceWrappedVaultRuntime:
         rootHandle: VaultRootDirectoryHandle,
         vaultID: String,
         checkpointStore: any V3ManifestCheckpointStoring,
+        recoveryAnchorStore:
+            any V3ImmutableTransactionRecoveryAnchorStoring,
         cache: any V3CheckpointManifestCaching,
         identityLoader: any V3DeviceWrappedIdentityLoading,
         session: V3DeviceWrappedVaultKeySessionStore =
             V3DeviceWrappedVaultKeySessionStore()
     ) {
-        let source = V3FilesystemImmutableObjectSource(
+        let objectStore = V3FilesystemTransactionArtifactStore(
             rootHandle: rootHandle
         )
         let unlockRuntime = V3DeviceWrappedVaultUnlockRuntime(
             vaultID: vaultID,
             checkpointStore: checkpointStore,
-            source: source,
+            source: objectStore,
             cache: cache,
             identityLoader: identityLoader,
             session: session
         )
+        let mutationService = V3DeviceWrappedVaultMutationService(
+            stateLoader: unlockRuntime,
+            objectStore: objectStore,
+            checkpointStore: checkpointStore,
+            recoveryAnchorStore: recoveryAnchorStore,
+            cache: cache
+        )
         self.init(
             runtime: V3DeviceWrappedReadOnlyVaultRuntime(
-                source: source,
+                source: objectStore,
                 unlockRuntime: unlockRuntime
             ),
+            mutationService: mutationService,
             session: session,
             lockSession: {
                 unlockRuntime.lock()
@@ -49,10 +61,13 @@ struct V3DeviceWrappedVaultRuntime:
 
     init(
         runtime: any VaultReadServicing & VaultUXServicing,
+        mutationService:
+            (any V3DeviceWrappedVaultMutationServicing)? = nil,
         session: V3DeviceWrappedVaultKeySessionStore,
         lockSession: @escaping @Sendable () -> Void
     ) {
         self.runtime = runtime
+        self.mutationService = mutationService
         self.session = session
         self.lockSession = lockSession
     }
@@ -94,7 +109,13 @@ struct V3DeviceWrappedVaultRuntime:
     }
 
     func authorizeMutation() throws {
-        try runtime.authorizeMutation()
+        try translatingUnlockErrors {
+            if let mutationService {
+                try mutationService.authorizeMutation()
+            } else {
+                try runtime.authorizeMutation()
+            }
+        }
     }
 
     func conflicts() throws -> [VaultConflictSummary] {
@@ -122,6 +143,88 @@ struct V3DeviceWrappedVaultRuntime:
         try runtime.resolve(resolutions)
     }
 
+    func add(
+        name: String,
+        secret: String,
+        type: SecretEntryType,
+        operationID: VaultTransactionOperationID
+    ) throws {
+        try withMutationService {
+            try $0.add(
+                name: name,
+                secret: secret,
+                type: type,
+                operationID: operationID
+            )
+        }
+    }
+
+    func edit(
+        name: String,
+        secret: String,
+        type: SecretEntryType,
+        operationID: VaultTransactionOperationID
+    ) throws {
+        try withMutationService {
+            try $0.edit(
+                name: name,
+                secret: secret,
+                type: type,
+                operationID: operationID
+            )
+        }
+    }
+
+    func copy(
+        source: String,
+        destination: String,
+        overwrite: Bool,
+        operationID: VaultTransactionOperationID
+    ) throws {
+        try withMutationService {
+            try $0.copy(
+                source: source,
+                destination: destination,
+                overwrite: overwrite,
+                operationID: operationID
+            )
+        }
+    }
+
+    func move(
+        source: String,
+        destination: String,
+        overwrite: Bool,
+        operationID: VaultTransactionOperationID
+    ) throws {
+        try withMutationService {
+            try $0.move(
+                source: source,
+                destination: destination,
+                overwrite: overwrite,
+                operationID: operationID
+            )
+        }
+    }
+
+    func remove(
+        name: String,
+        operationID: VaultTransactionOperationID
+    ) throws {
+        try withMutationService {
+            try $0.remove(name: name, operationID: operationID)
+        }
+    }
+
+    func resolve(
+        _ resolutions: [VaultConflictResolution],
+        operationID: VaultTransactionOperationID
+    ) throws {
+        try withMutationService {
+            try $0.resolve(resolutions, operationID: operationID)
+        }
+    }
+
     func lock() {
         lockSession()
     }
@@ -137,6 +240,20 @@ struct V3DeviceWrappedVaultRuntime:
             return try operation()
         } catch let error as V3DeviceWrappedVaultUnlockRuntimeError {
             throw serviceError(for: error)
+        }
+    }
+
+    private func withMutationService<Result>(
+        _ operation:
+            (any V3DeviceWrappedVaultMutationServicing) throws -> Result
+    ) throws -> Result {
+        guard let mutationService else {
+            throw AppError.operationRefused(
+                "Permanent version 3 vault writes are not enabled."
+            )
+        }
+        return try translatingUnlockErrors {
+            try operation(mutationService)
         }
     }
 

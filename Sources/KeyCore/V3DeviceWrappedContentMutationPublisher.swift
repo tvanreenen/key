@@ -10,6 +10,18 @@ private struct V3DeviceWrappedNoopTransactionPhaseObserver:
     ) throws {}
 }
 
+protocol V3DeviceWrappedContentMutationPublishing: Sendable {
+    func publish(
+        _ candidate: V3DeviceWrappedContentMutationCandidate,
+        vaultKey: Data
+    ) throws -> V3DeviceWrappedTrustedCheckpoint
+
+    func recoverInterruptedTransaction(
+        vaultID: String,
+        vaultKey: Data
+    ) throws -> V3ImmutableTransactionRecoveryOutcome
+}
+
 /// Durably publishes one already-planned permanent-profile content mutation.
 ///
 /// The helper mutation owner supplies serialization and the operation ID. The
@@ -359,3 +371,7 @@ struct V3DeviceWrappedContentMutationPublisher: Sendable {
         )
     }
 }
+
+extension V3DeviceWrappedContentMutationPublisher:
+    V3DeviceWrappedContentMutationPublishing
+{}

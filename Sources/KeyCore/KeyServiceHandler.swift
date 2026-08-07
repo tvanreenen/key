@@ -153,6 +153,10 @@ public final class KeyServiceHandler {
             rootHandle: rootHandle,
             vaultID: vaultID,
             checkpointStore: checkpointStore,
+            recoveryAnchorStore:
+                V3ImmutableTransactionRecoveryAnchorKeychainStore(
+                    configuration: runtimeConfiguration
+                ),
             cache: try makeV3CheckpointManifestCache(
                 keyConfiguration: keyConfiguration
             ),
@@ -172,6 +176,7 @@ public final class KeyServiceHandler {
             mutationOwner: VaultTransactionMutationOwner(),
             vaultUXService: runtime,
             vaultReader: runtime,
+            vaultMutator: runtime,
             vaultSession: runtime,
             configuredVaultID: vaultID
         )

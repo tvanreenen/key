@@ -242,7 +242,7 @@ struct V3DeviceWrappedReadOnlyVaultRuntime:
     }
 }
 
-private enum V3DeviceWrappedCheckpointContentValidation {
+enum V3DeviceWrappedCheckpointContentValidation {
     case ready
     case incomplete
     case invalid
@@ -251,7 +251,7 @@ private enum V3DeviceWrappedCheckpointContentValidation {
 
 /// Validates the bounded encrypted-object closure of one authenticated
 /// permanent-profile checkpoint without opening plaintext.
-private struct V3DeviceWrappedCheckpointContentValidator: Sendable {
+struct V3DeviceWrappedCheckpointContentValidator: Sendable {
     private struct ReferenceKey: Hashable, Sendable {
         let entryID: String
         let digest: Data
