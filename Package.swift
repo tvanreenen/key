@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "key",
     platforms: [
-        .macOS(.v13)
+        .macOS(.v14)
     ],
     products: [
         .library(name: "KeyCore", targets: ["KeyCore"]),

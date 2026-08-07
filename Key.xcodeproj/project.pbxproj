@@ -82,6 +82,7 @@
 		A5380001A5380001A5380001 /* V3ImmutableTransactionRecoveryIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5380002A5380002A5380002 /* V3ImmutableTransactionRecoveryIntent.swift */; };
 		A5390001A5390001A5390001 /* V3ImmutableTransactionValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5390002A5390002A5390002 /* V3ImmutableTransactionValidation.swift */; };
 		A5400001A5400001A5400001 /* V3InterruptedTransactionRecoverer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5400002A5400002A5400002 /* V3InterruptedTransactionRecoverer.swift */; };
+		A5410001A5410001A5410001 /* V3VaultKeyHPKE.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5410002A5410002A5410002 /* V3VaultKeyHPKE.swift */; };
 		A5000011A5000011A5000011 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000012A5000012A5000012 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000013A5000013A5000013 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
@@ -219,6 +220,7 @@
 		A5380002A5380002A5380002 /* V3ImmutableTransactionRecoveryIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ImmutableTransactionRecoveryIntent.swift; sourceTree = "<group>"; };
 		A5390002A5390002A5390002 /* V3ImmutableTransactionValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ImmutableTransactionValidation.swift; sourceTree = "<group>"; };
 		A5400002A5400002A5400002 /* V3InterruptedTransactionRecoverer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3InterruptedTransactionRecoverer.swift; sourceTree = "<group>"; };
+		A5410002A5410002A5410002 /* V3VaultKeyHPKE.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3VaultKeyHPKE.swift; sourceTree = "<group>"; };
 		A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libJSONCanonicalization.a; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -327,6 +329,7 @@
 				A5380002A5380002A5380002 /* V3ImmutableTransactionRecoveryIntent.swift */,
 				A5390002A5390002A5390002 /* V3ImmutableTransactionValidation.swift */,
 				A5400002A5400002A5400002 /* V3InterruptedTransactionRecoverer.swift */,
+				A5410002A5410002A5410002 /* V3VaultKeyHPKE.swift */,
 				A4090012A4090012A4090012 /* VaultUXService.swift */,
 				A4010002A4010002A4010002 /* VaultTransactionMutationOwner.swift */,
 				B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */,
@@ -700,6 +703,7 @@
 				A5380001A5380001A5380001 /* V3ImmutableTransactionRecoveryIntent.swift in Sources */,
 				A5390001A5390001A5390001 /* V3ImmutableTransactionValidation.swift in Sources */,
 				A5400001A5400001A5400001 /* V3InterruptedTransactionRecoverer.swift in Sources */,
+				A5410001A5410001A5410001 /* V3VaultKeyHPKE.swift in Sources */,
 				A4090011A4090011A4090011 /* VaultUXService.swift in Sources */,
 				A4010001A4010001A4010001 /* VaultTransactionMutationOwner.swift in Sources */,
 				2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */,
@@ -868,7 +872,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.2.0-alpha.6;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -1004,7 +1008,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.2.0-alpha.6;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
