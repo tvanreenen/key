@@ -1,7 +1,9 @@
 # Version 3 Device-Wrapped Key Architecture
 
-Status: selected permanent design during the `0.2.0` alpha series; implementation
-is pending.
+Status: selected permanent design during the `0.2.0` alpha series. The
+`KEY-509` manifest, HPKE, one-device genesis, local cache, session unlock, and
+durable content-publication foundations are implemented; shipping integration
+and physical-device qualification remain pending.
 
 This document defines the intended final key-management model for version 3
 vaults. It replaces the prerelease design in which the raw vault key is stored

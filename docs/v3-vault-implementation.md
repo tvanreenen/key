@@ -8,14 +8,14 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-alpha.6` released; additional-device enrollment merged in PR #53; permanent key-profile design in progress |
+| Status | `v0.2.0-alpha.6` released; permanent `KEY-509` foundations implemented; shipping integration and qualification pending |
 | Latest release | `v0.2.0-alpha.6 (11)` at `e02c76c` |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
 | Permanent key architecture | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Current prerelease format | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | `ARCH-508` finalize the permanent device-wrapped key profile and breaking-alpha plan |
-| Next work | `KEY-509` implement one-device genesis, durable HPKE wrappers, local manifest caching, and session-only unlock |
+| Active work | `KEY-509` integrate and qualify the permanent device-wrapped runtime without selecting incomplete state |
+| Next work | `ENR-510` move every enrollment onto one key-rotating roster-addition transition |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
 profile MUST not ship as stable until every release gate below passes.
@@ -130,11 +130,30 @@ security or durability boundary and updates this tracker before it merges.
 | `MUT-507` | Complete; PR #50 | Route selected-vault entry mutations and explicit conflict choices through authenticated expected-head publication |
 | `ENR-506` | Complete; PR #52 | Inspect authenticated device membership without invoking private-key operations |
 | `ENR-507` | Complete; PR #53 | Enroll additional devices through the same owner-approved comparison ceremony |
-| `ARCH-508` | Design complete; PR pending | Select the permanent device-wrapped, session-only key profile, macOS 14 floor, and breaking-alpha path |
-| `KEY-509` | Planned | Create one-device genesis, durable HPKE wrappers, a local checkpoint-manifest cache, and wrapper-backed session unlock |
+| `ARCH-508` | Complete | Select the permanent device-wrapped, session-only key profile, macOS 14 floor, and breaking-alpha path |
+| `KEY-509` | Foundations complete; integration and qualification pending | Create one-device genesis, durable HPKE wrappers, a local checkpoint-manifest cache, wrapper-backed session unlock, and durable content publication |
 | `ENR-510` | Planned | Unify first and later enrollment as key-rotating roster additions and remove the local-to-shared exception |
 | `ENR-511` | Planned | Revoke devices, rotate the key, re-encrypt the current snapshot, and catch remaining devices up safely |
 | `REC-512` | Planned | Add the single offline recovery kit and qualify destructive-loss behavior |
+
+#### `ARCH-508` / `KEY-509` — Permanent Profile Foundation
+
+Status: foundation complete; shipping integration and physical-device
+qualification remain pending.
+
+This increment delivers the macOS 14 CryptoKit HPKE foundation, the permanent
+device-wrapped manifest and envelope, one-owner genesis construction, an exact
+checkpoint-manifest cache, wrapper-backed in-memory sessions, checkpoint-bound
+reads, ordinary content-mutation construction, and durable publication and
+recovery seams. Genesis installation retains version 2 until it has reloaded
+the persisted Secure Enclave identity, reopened every published object, and
+verified the permanent runtime.
+
+This increment does not select the permanent profile in the shipping helper,
+replace the released-alpha enrollment flow, rotate keys for membership changes,
+revoke devices, or create an offline recovery kit. Those boundaries remain the
+work of shipping `KEY-509` integration followed by `ENR-510`, `ENR-511`, and
+`REC-512`.
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -1296,9 +1315,12 @@ formats or transport stacks:
   Macs.
 - [x] `ARCH-508` Select the permanent device-wrapped, session-only key model
   and the deliberate breaking-alpha transition.
-- [ ] `KEY-509` Replace persistent raw v3 keys and the local/shared split with
-  one-device genesis, durable HPKE wrappers, an exact local manifest cache,
-  and wrapper-backed session unlock.
+- [x] `KEY-509` Implement the permanent manifest, CryptoKit HPKE wrappers,
+  one-device genesis, exact local manifest cache, wrapper-backed session
+  unlock, checkpoint reads, and durable ordinary-content publication seams.
+- [ ] `KEY-509` Connect the permanent profile to the shipping helper, remove
+  persistent raw v3 key use, and qualify lock and helper restart on a physical
+  Mac.
 - [ ] `ENR-510` Rotate the key and re-encrypt the current snapshot when adding
   a device; remove the local-to-shared exception.
 - [ ] `ENR-511` Revoke a selected device, rotate the vault key, re-encrypt the
@@ -1431,7 +1453,9 @@ explicit migration rather than another implicit synchronized-key repair.
 | `v0.2.0-alpha.4` | 9 | Released | Add device enrollment and multi-device read-only sharing |
 | `v0.2.0-alpha.5` | 10 | Released | Resume the exact authenticated owner-approved enrollment after invitation expiry or delayed provider delivery |
 | `v0.2.0-alpha.6` | 11 | Released | Enable guarded multi-device writes and conflict resolution |
-| `v0.2.0-beta.1` | 12 | Planned | Complete provider qualification, migration and rollback validation, recovery documentation, signing checks, and the required security-review gates |
+| `v0.2.0-alpha.7` | 12 | Planned | Ship the permanent device-wrapped profile after shipping integration, unified key-rotating enrollment, restart tests, and physical multi-device validation |
+| `v0.2.0-alpha.8` | 13 | Planned | Add revocation, remaining-device catch-up, offline recovery, and multi-epoch physical-device validation |
+| `v0.2.0-beta.1` | 14 | Planned | Complete provider qualification, migration and rollback validation, recovery documentation, signing checks, and the required security-review gates |
 
 Urgent fixes may add an intervening prerelease and advance the build counter,
 but they do not redefine the security checkpoint assigned to a version above.
@@ -1480,11 +1504,12 @@ or establish support for other providers.
 
 ## Immediate Next Action
 
-Review and land `ARCH-508`, then implement `KEY-509` one-device genesis,
-durable CryptoKit HPKE wrappers, the exact local checkpoint-manifest cache, and
-session-only vault-key unlock. Follow with `ENR-510` to move first and later
-enrollment onto one key-rotating roster-addition transition and remove the
-local-to-shared compatibility exception.
+Review and land the `KEY-509` foundation, then connect its device-wrapped
+genesis, session-only unlock, reads, and durable content publication to the
+shipping helper. Qualify lock and helper-restart behavior on a physical Mac
+before beginning `ENR-510`, which moves first and later enrollment onto one
+key-rotating roster-addition transition and removes the local-to-shared
+compatibility exception.
 
 Cut alpha.7 only after the permanent profile unlocks and enrolls successfully
 across physical Macs without persisting a raw vault key. Implement `ENR-511`
