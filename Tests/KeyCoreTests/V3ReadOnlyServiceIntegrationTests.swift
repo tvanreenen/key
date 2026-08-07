@@ -5,6 +5,22 @@ import Testing
 @Suite
 struct V3ReadOnlyServiceIntegrationTests {
     @Test
+    func migrationDeviceNamePrefersNormalizedMacNameThenHostName() {
+        #expect(KeyServiceHandler.currentDeviceDisplayName(
+            localizedName: "  Cafe\u{301} Mac  ",
+            hostName: "fallback.local"
+        ) == "Caf\u{e9} Mac")
+        #expect(KeyServiceHandler.currentDeviceDisplayName(
+            localizedName: "\n",
+            hostName: "fallback.local"
+        ) == "fallback.local")
+        #expect(KeyServiceHandler.currentDeviceDisplayName(
+            localizedName: nil,
+            hostName: ""
+        ) == "This Mac")
+    }
+
+    @Test
     func handlerRoutesLogicalReadsAndListsThroughSelectedV3Runtime() throws {
         let root = temporaryV3ServiceDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

@@ -51,6 +51,13 @@ struct V3DeviceWrappedGenesisInstallReport: Equatable, Sendable {
     let totpCount: Int
 }
 
+protocol V3DeviceWrappedGenesisInstalling {
+    func install(
+        operationID: VaultTransactionOperationID,
+        deviceName: String
+    ) throws -> V3DeviceWrappedGenesisInstallReport
+}
+
 enum V3DeviceWrappedGenesisInstallPhase: Equatable, Sendable {
     case identityCreated
     case candidateBuilt
@@ -691,6 +698,45 @@ struct V3DeviceWrappedGenesisInstaller {
         try? objectStore.removeEmptyTransactionDirectories(
             operationID: operationID,
             entryIDs: candidate.entries.map(\.manifestEntry.entryID)
+        )
+    }
+}
+
+extension V3DeviceWrappedGenesisInstaller:
+    V3DeviceWrappedGenesisInstalling
+{}
+
+/// Adapts permanent genesis installation to the stable migration command.
+///
+/// The installer retains all publication and selection authority. This layer
+/// supplies only the local device label and renders the completed conversion
+/// through the existing service protocol.
+struct V3DeviceWrappedMigrationService: V3LocalMigrationServicing {
+    private let installer: any V3DeviceWrappedGenesisInstalling
+    private let deviceName: String
+
+    init(
+        installer: any V3DeviceWrappedGenesisInstalling,
+        deviceName: String
+    ) {
+        precondition(isValidV3DeviceDisplayName(deviceName))
+        self.installer = installer
+        self.deviceName = deviceName
+    }
+
+    func migrate(
+        operationID: VaultTransactionOperationID
+    ) throws -> V3LocalMigrationReport {
+        let report = try installer.install(
+            operationID: operationID,
+            deviceName: deviceName
+        )
+        return V3LocalMigrationReport(
+            vaultID: report.vaultID,
+            entryCount: report.entryCount,
+            secretCount: report.secretCount,
+            totpCount: report.totpCount,
+            destination: .deviceWrapped
         )
     }
 }

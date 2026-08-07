@@ -111,33 +111,12 @@ public final class KeyServiceHandler {
         guard let vaultID = keyConfiguration.vaultID else {
             let mutationOwner = VaultTransactionMutationOwner()
             let migrationService = DeferredV3LocalMigrationService {
-                let rootHandle = try VaultRootDirectoryHandle(
-                    opening: keyConfiguration.vaultDirectoryURL
-                )
-                return V3LocalMigrationService(
+                try makeV3DeviceWrappedMigrationService(
+                    keyStore: keyStore,
                     entryStore: entryStore,
-                    cipher: VaultCipher(),
-                    objectStore: V3FilesystemTransactionArtifactStore(
-                        rootHandle: rootHandle
-                    ),
-                    checkpointStore: V3ManifestCheckpointKeychainStore(
-                        configuration: runtimeConfiguration
-                    ),
-                    loadVaultKey: { reason, createIfMissing in
-                        try keyStore.loadKey(
-                            mode: keyConfiguration.keychainMode,
-                            reason: reason,
-                            createIfMissing: createIfMissing
-                        )
-                    },
-                    selectVault: { vaultID in
-                        _ = try configStore.selectV3Vault(
-                            vaultID: vaultID,
-                            expectedRootHandle: rootHandle,
-                            expectedKeychainMode:
-                                keyConfiguration.keychainMode
-                        )
-                    }
+                    keyConfiguration: keyConfiguration,
+                    configStore: configStore,
+                    runtimeConfiguration: runtimeConfiguration
                 )
             }
             let enrollmentService = DeferredV3EnrollmentWorkflowService {
@@ -170,31 +149,12 @@ public final class KeyServiceHandler {
         let checkpointStore = V3ManifestCheckpointKeychainStore(
             configuration: runtimeConfiguration
         )
-        let cacheDirectory = keyConfiguration.configFileURL
-            .deletingLastPathComponent()
-            .appendingPathComponent(
-                "v3-checkpoint-manifests",
-                isDirectory: true
-            )
-        do {
-            try FileManager.default.createDirectory(
-                at: cacheDirectory,
-                withIntermediateDirectories: false
-            )
-        } catch {
-            throw AppError.io(
-                "Failed to prepare the device-local version 3 checkpoint cache at '\(cacheDirectory.path(percentEncoded: false))': \(error.localizedDescription)"
-            )
-        }
-        let cacheRootHandle = try VaultRootDirectoryHandle(
-            opening: cacheDirectory
-        )
         let runtime = V3DeviceWrappedVaultRuntime(
             rootHandle: rootHandle,
             vaultID: vaultID,
             checkpointStore: checkpointStore,
-            cache: V3CheckpointManifestFilesystemCache(
-                rootHandle: cacheRootHandle
+            cache: try makeV3CheckpointManifestCache(
+                keyConfiguration: keyConfiguration
             ),
             identityLoader: V3EnrollmentDeviceIdentityManager(
                 recordStore: V3EnrollmentDeviceKeyRecordKeychainStore(
@@ -215,6 +175,100 @@ public final class KeyServiceHandler {
             vaultSession: runtime,
             configuredVaultID: vaultID
         )
+    }
+
+    private static func makeV3DeviceWrappedMigrationService(
+        keyStore: VaultKeyStoring,
+        entryStore: EntryStore,
+        keyConfiguration: KeyConfiguration,
+        configStore: KeyConfigStore,
+        runtimeConfiguration: RuntimeConfiguration
+    ) throws -> V3DeviceWrappedMigrationService {
+        let rootHandle = try VaultRootDirectoryHandle(
+            opening: keyConfiguration.vaultDirectoryURL
+        )
+        let installer = V3DeviceWrappedGenesisInstaller(
+            entryStore: entryStore,
+            cipher: VaultCipher(),
+            objectStore: V3FilesystemTransactionArtifactStore(
+                rootHandle: rootHandle
+            ),
+            checkpointStore: V3ManifestCheckpointKeychainStore(
+                configuration: runtimeConfiguration
+            ),
+            cache: try makeV3CheckpointManifestCache(
+                keyConfiguration: keyConfiguration
+            ),
+            session: V3DeviceWrappedVaultKeySessionStore(),
+            identityManager: V3EnrollmentDeviceIdentityManager(
+                recordStore: V3EnrollmentDeviceKeyRecordKeychainStore(
+                    configuration: runtimeConfiguration
+                ),
+                keyOperations: V3SecureEnclaveEnrollmentDeviceKeyOperations()
+            ),
+            loadV2VaultKey: { reason, createIfMissing in
+                try keyStore.loadKey(
+                    mode: keyConfiguration.keychainMode,
+                    reason: reason,
+                    createIfMissing: createIfMissing
+                )
+            },
+            selectVault: { vaultID in
+                _ = try configStore.selectV3Vault(
+                    vaultID: vaultID,
+                    expectedRootHandle: rootHandle,
+                    expectedKeychainMode: keyConfiguration.keychainMode
+                )
+            }
+        )
+        return V3DeviceWrappedMigrationService(
+            installer: installer,
+            deviceName: currentDeviceDisplayName()
+        )
+    }
+
+    private static func makeV3CheckpointManifestCache(
+        keyConfiguration: KeyConfiguration,
+        fileManager: FileManager = .default
+    ) throws -> V3CheckpointManifestFilesystemCache {
+        let cacheDirectory = keyConfiguration.configFileURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(
+                "v3-checkpoint-manifests",
+                isDirectory: true
+            )
+        do {
+            try fileManager.createDirectory(
+                at: cacheDirectory,
+                withIntermediateDirectories: false
+            )
+        } catch {
+            throw AppError.io(
+                "Failed to prepare the device-local version 3 checkpoint cache at '\(cacheDirectory.path(percentEncoded: false))': \(error.localizedDescription)"
+            )
+        }
+        return V3CheckpointManifestFilesystemCache(
+            rootHandle: try VaultRootDirectoryHandle(
+                opening: cacheDirectory
+            )
+        )
+    }
+
+    static func currentDeviceDisplayName(
+        localizedName: String? = Host.current().localizedName,
+        hostName: String = ProcessInfo.processInfo.hostName
+    ) -> String {
+        for candidate in [localizedName, hostName] {
+            let normalized = candidate?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .precomposedStringWithCanonicalMapping
+            if let normalized,
+               isValidV3DeviceDisplayName(normalized)
+            {
+                return normalized
+            }
+        }
+        return "This Mac"
     }
 
     public func handle(_ request: KeyServiceRequest) -> KeyServiceResponse {
