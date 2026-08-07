@@ -261,6 +261,13 @@ protocol V3EnrollmentDeviceKeyOperating: Sendable {
         wrappingKeyRepresentation: Data,
         reason: String
     ) throws -> SharedSecret
+
+    func unwrapDeviceWrappedVaultKey(
+        _ wrappedKey: V3HPKEWrappedVaultKey,
+        context: V3VaultKeyHPKEContext,
+        wrappingKeyRepresentation: Data,
+        reason: String
+    ) throws -> Data
 }
 
 struct V3SecureEnclaveEnrollmentDeviceKeyOperations:
@@ -392,6 +399,37 @@ struct V3SecureEnclaveEnrollmentDeviceKeyOperations:
         }
     }
 
+    func unwrapDeviceWrappedVaultKey(
+        _ wrappedKey: V3HPKEWrappedVaultKey,
+        context: V3VaultKeyHPKEContext,
+        wrappingKeyRepresentation: Data,
+        reason: String
+    ) throws -> Data {
+        guard !reason.isEmpty else {
+            throw V3EnrollmentDeviceIdentityStoreError
+                .invalidIdentityRequest
+        }
+        guard isAvailable else {
+            throw V3EnrollmentDeviceIdentityStoreError
+                .secureEnclaveUnavailable
+        }
+        do {
+            let key = try SecureEnclave.P256.KeyAgreement.PrivateKey(
+                dataRepresentation: wrappingKeyRepresentation,
+                authenticationContext: makeAuthenticationContext(
+                    reason: reason
+                )
+            )
+            return try V3VaultKeyHPKE().unwrap(
+                wrappedKey,
+                recipientPrivateKey: key,
+                context: context
+            )
+        } catch {
+            throw V3EnrollmentDeviceIdentityStoreError.keyOperationFailed
+        }
+    }
+
     private func makeAccessControl() throws -> SecAccessControl {
         var accessControlError: Unmanaged<CFError>?
         guard
@@ -418,6 +456,7 @@ struct V3SecureEnclaveEnrollmentDeviceKeyOperations:
 struct V3EnrollmentDevicePrivateIdentity:
     V3EnrollmentMessageSigning,
     V3EnrollmentVaultKeyUnwrapping,
+    V3DeviceWrappedVaultKeyUnwrapping,
     Sendable
 {
     let vaultID: String
@@ -470,6 +509,26 @@ struct V3EnrollmentDevicePrivateIdentity:
                 reason: reason
             )
         }
+    }
+
+    func unwrapDeviceWrappedVaultKey(
+        _ wrappedKey: V3HPKEWrappedVaultKey,
+        context: V3VaultKeyHPKEContext,
+        reason: String
+    ) throws -> Data {
+        guard context.vaultID == vaultID,
+              context.recipientDeviceID == publicIdentity.deviceID,
+              !reason.isEmpty
+        else {
+            throw V3EnrollmentDeviceIdentityStoreError
+                .invalidIdentityRequest
+        }
+        return try keyOperations.unwrapDeviceWrappedVaultKey(
+            wrappedKey,
+            context: context,
+            wrappingKeyRepresentation: wrappingKeyRepresentation,
+            reason: reason
+        )
     }
 }
 
