@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 enum V3DeviceWrappedVaultUnlockRuntimeError:
@@ -40,6 +41,15 @@ protocol V3DeviceWrappedIdentityLoading: Sendable {
     ) throws -> (any V3DeviceWrappedVaultKeyUnwrapping)?
 }
 
+/// One fully authenticated permanent-profile checkpoint observation.
+///
+/// The envelope remains bound to the exact device-local checkpoint so callers
+/// can revalidate that authority immediately before releasing plaintext.
+struct V3DeviceWrappedTrustedCheckpoint: Equatable, Sendable {
+    let checkpoint: V3ManifestCheckpoint
+    let envelope: V3DeviceWrappedManifestEnvelope
+}
+
 extension V3EnrollmentDeviceIdentityManager:
     V3DeviceWrappedIdentityLoading
 {
@@ -65,6 +75,7 @@ final class V3DeviceWrappedVaultUnlockRuntime: @unchecked Sendable {
     private let identityLoader: any V3DeviceWrappedIdentityLoading
     private let session: V3DeviceWrappedVaultKeySessionStore
     private let unlocker = V3DeviceWrappedCheckpointUnlocker()
+    private let envelopeCodec = V3DeviceWrappedManifestEnvelopeCodec()
     private let unlockLock = NSLock()
 
     init(
@@ -87,6 +98,80 @@ final class V3DeviceWrappedVaultUnlockRuntime: @unchecked Sendable {
     func unlock(reason: String) throws -> V3DeviceWrappedManifestEnvelope {
         unlockLock.lock()
         defer { unlockLock.unlock() }
+
+        return try unlockLocked(reason: reason).envelope
+    }
+
+    /// Authenticates the exact checkpoint using the resident key when
+    /// possible, falling back to one user-presence-gated unwrap when locked.
+    func authenticatedCheckpoint(
+        reason: String
+    ) throws -> V3DeviceWrappedTrustedCheckpoint {
+        unlockLock.lock()
+        defer { unlockLock.unlock() }
+
+        let checkpoint = try loadCheckpoint()
+        let loadedManifest = try loadCheckpointManifest(checkpoint)
+        let manifestData = loadedManifest.data
+        let envelope: V3DeviceWrappedManifestEnvelope
+        do {
+            guard Data(SHA256.hash(data: manifestData))
+                    == checkpoint.envelopeDigest
+            else {
+                throw V3DeviceWrappedUnlockError.checkpointMismatch
+            }
+            envelope = try envelopeCodec.parse(manifestData)
+            guard envelope.body.vaultID == vaultID else {
+                throw V3DeviceWrappedUnlockError.checkpointMismatch
+            }
+        } catch let error as V3DeviceWrappedUnlockError {
+            throw runtimeError(for: error, manifestData: manifestData)
+        }
+
+        let vaultKey: Data
+        do {
+            vaultKey = try session.load(
+                vaultID: vaultID,
+                keyID: envelope.body.keyID
+            )
+        } catch {
+            // Reload under the same lock. The second observation ensures a
+            // provider/checkpoint change cannot be smuggled through the
+            // session-miss path.
+            return try unlockLocked(reason: reason)
+        }
+
+        guard (try? V3ManifestAuthenticator.isValidAuthenticationTag(
+            envelope.authenticationTag,
+            canonicalContent: envelope.canonicalContentBytes,
+            vaultID: vaultID,
+            vaultKey: vaultKey
+        )) == true else {
+            session.invalidate()
+            throw V3DeviceWrappedVaultUnlockRuntimeError.recoveryRequired
+        }
+        try requireUnchangedCheckpoint(checkpoint)
+        if loadedManifest.shouldCache {
+            try? cache.store(manifestData, for: checkpoint)
+        }
+        return V3DeviceWrappedTrustedCheckpoint(
+            checkpoint: checkpoint,
+            envelope: envelope
+        )
+    }
+
+    func checkpointForRevalidation(
+        vaultID expectedVaultID: String
+    ) throws -> V3ManifestCheckpoint {
+        guard expectedVaultID == vaultID else {
+            throw V3DeviceWrappedVaultUnlockRuntimeError.recoveryRequired
+        }
+        return try loadCheckpoint()
+    }
+
+    private func unlockLocked(
+        reason: String
+    ) throws -> V3DeviceWrappedTrustedCheckpoint {
 
         // A failed explicit unlock must never leave an earlier key resident.
         session.invalidate()
@@ -127,7 +212,10 @@ final class V3DeviceWrappedVaultUnlockRuntime: @unchecked Sendable {
                 // this write.
                 try? cache.store(manifestData, for: checkpoint)
             }
-            return envelope
+            return V3DeviceWrappedTrustedCheckpoint(
+                checkpoint: checkpoint,
+                envelope: envelope
+            )
         } catch let error as V3DeviceWrappedUnlockError {
             throw runtimeError(for: error, manifestData: manifestData)
         }
