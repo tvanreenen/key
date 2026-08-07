@@ -27,6 +27,23 @@ struct V3DeviceWrappedGenesisCandidate: Equatable, Sendable {
     let manifestDigest: Data
 }
 
+/// Complete, still-unpublished permanent genesis snapshot.
+///
+/// Source plaintext remains here only while the helper-owned migration call
+/// validates its exact staged and published output. It is never written to
+/// transaction or recovery state.
+struct V3DeviceWrappedGenesisPublicationCandidate: Sendable {
+    struct Entry: Sendable {
+        let source: V2MigrationSourceEntry
+        let manifestEntry: V3ManifestEntry
+        let encryptedEntry: V3EncryptedEntry
+        let digest: Data
+    }
+
+    let genesis: V3DeviceWrappedGenesisCandidate
+    let entries: [Entry]
+}
+
 /// Pure construction of a one-owner permanent-profile genesis manifest.
 ///
 /// Device-identity creation, immutable publication, checkpoint installation,
@@ -39,6 +56,81 @@ struct V3DeviceWrappedGenesisBuilder: Sendable {
 
     private let hpke = V3VaultKeyHPKE()
     private let bodyCodec = V3DeviceWrappedManifestCodec()
+    private let entryCipher = V3EntryCipher()
+
+    func buildPublicationCandidate(
+        vaultID: String,
+        authorityTransitionID: String,
+        entryIDs: [String],
+        sourceEntries: [V2MigrationSourceEntry],
+        vaultKey: Data,
+        ownerIdentity: V3EnrollmentDeviceIdentity
+    ) throws -> V3DeviceWrappedGenesisPublicationCandidate {
+        guard isValidV3UUID(vaultID),
+              isValidV3UUID(authorityTransitionID),
+              entryIDs.count == sourceEntries.count,
+              entryIDs.allSatisfy(isValidV3UUID)
+        else {
+            throw V3DeviceWrappedGenesisError.invalidManifest
+        }
+        guard Set(entryIDs).count == entryIDs.count else {
+            throw V3DeviceWrappedGenesisError.invalidManifest
+        }
+
+        let keyID = try V3VaultKeyID.derive(
+            vaultKey: vaultKey,
+            vaultID: vaultID
+        )
+        var entries: [V3DeviceWrappedGenesisPublicationCandidate.Entry] = []
+        entries.reserveCapacity(sourceEntries.count)
+        for (source, entryID) in zip(sourceEntries, entryIDs) {
+            let context = try V3EntryAuthenticationContext(
+                vaultID: vaultID,
+                entryID: entryID,
+                name: source.name,
+                type: source.type,
+                keyID: keyID,
+                revision: 1
+            )
+            let encryptedEntry = try entryCipher.seal(
+                source.plaintext,
+                context: context,
+                vaultKey: vaultKey
+            )
+            guard let digest = Base64URL.decodeCanonical(
+                encryptedEntry.ciphertextDigest
+            ), digest.count == 32 else {
+                throw V3DeviceWrappedGenesisError.invalidManifest
+            }
+            entries.append(.init(
+                source: source,
+                manifestEntry: V3ManifestEntry(
+                    entryID: entryID,
+                    name: source.name,
+                    type: source.type,
+                    revision: 1,
+                    keyID: keyID,
+                    ciphertextDigest: encryptedEntry.ciphertextDigest
+                ),
+                encryptedEntry: encryptedEntry,
+                digest: digest
+            ))
+        }
+        entries.sort {
+            v3ManifestEntryPrecedes($0.manifestEntry, $1.manifestEntry)
+        }
+        let genesis = try build(
+            vaultID: vaultID,
+            authorityTransitionID: authorityTransitionID,
+            vaultKey: vaultKey,
+            ownerIdentity: ownerIdentity,
+            entries: entries.map(\.manifestEntry)
+        )
+        return V3DeviceWrappedGenesisPublicationCandidate(
+            genesis: genesis,
+            entries: entries
+        )
+    }
 
     func build(
         vaultID: String,
