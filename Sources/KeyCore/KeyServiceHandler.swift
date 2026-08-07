@@ -15,6 +15,7 @@ public final class KeyServiceHandler {
     private let vaultUXService: any VaultUXServicing
     private let vaultReader: (any VaultReadServicing)?
     private let vaultMutator: (any VaultMutationServicing)?
+    private let vaultSession: (any VaultSessionServicing)?
     private let configuredVaultID: String?
     private let requestQueue = DispatchQueue(
         label: "work.tvr.key.service-handler.requests",
@@ -62,6 +63,7 @@ public final class KeyServiceHandler {
         vaultUXService: (any VaultUXServicing)? = nil,
         vaultReader: (any VaultReadServicing)? = nil,
         vaultMutator: (any VaultMutationServicing)? = nil,
+        vaultSession: (any VaultSessionServicing)? = nil,
         configuredVaultID: String? = nil
     ) {
         self.keyStore = keyStore
@@ -76,6 +78,7 @@ public final class KeyServiceHandler {
             ?? V2VaultUXService(entryStore: entryStore)
         self.vaultReader = vaultReader
         self.vaultMutator = vaultMutator
+        self.vaultSession = vaultSession
         self.configuredVaultID = configuredVaultID
         self.currentKeychainMode = keychainMode
     }
@@ -167,29 +170,39 @@ public final class KeyServiceHandler {
         let checkpointStore = V3ManifestCheckpointKeychainStore(
             configuration: runtimeConfiguration
         )
-        let runtime = V3VaultRuntime(
+        let cacheDirectory = keyConfiguration.configFileURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(
+                "v3-checkpoint-manifests",
+                isDirectory: true
+            )
+        do {
+            try FileManager.default.createDirectory(
+                at: cacheDirectory,
+                withIntermediateDirectories: false
+            )
+        } catch {
+            throw AppError.io(
+                "Failed to prepare the device-local version 3 checkpoint cache at '\(cacheDirectory.path(percentEncoded: false))': \(error.localizedDescription)"
+            )
+        }
+        let cacheRootHandle = try VaultRootDirectoryHandle(
+            opening: cacheDirectory
+        )
+        let runtime = V3DeviceWrappedVaultRuntime(
             rootHandle: rootHandle,
             vaultID: vaultID,
             checkpointStore: checkpointStore,
-            recoveryAnchorStore:
-                V3ImmutableTransactionRecoveryAnchorKeychainStore(
-                configuration: runtimeConfiguration
+            cache: V3CheckpointManifestFilesystemCache(
+                rootHandle: cacheRootHandle
             ),
-            vaultKeyProvider: { reason in
-                try keyStore.loadKey(
-                    mode: keyConfiguration.keychainMode,
-                    reason: reason,
-                    createIfMissing: false
-                )
-            }
-        )
-        let enrollmentService = makeLiveV3EnrollmentWorkflowService(
-            rootHandle: rootHandle,
-            selectedVaultID: vaultID,
-            keyStore: keyStore,
-            keyConfiguration: keyConfiguration,
-            configStore: configStore,
-            runtimeConfiguration: runtimeConfiguration
+            identityLoader: V3EnrollmentDeviceIdentityManager(
+                recordStore: V3EnrollmentDeviceKeyRecordKeychainStore(
+                    configuration: runtimeConfiguration
+                ),
+                keyOperations:
+                    V3SecureEnclaveEnrollmentDeviceKeyOperations()
+            )
         )
         return KeyServiceHandler(
             keyStore: keyStore,
@@ -197,10 +210,9 @@ public final class KeyServiceHandler {
             keychainMode: keyConfiguration.keychainMode,
             configStore: configStore,
             mutationOwner: VaultTransactionMutationOwner(),
-            enrollmentService: enrollmentService,
             vaultUXService: runtime,
             vaultReader: runtime,
-            vaultMutator: runtime,
+            vaultSession: runtime,
             configuredVaultID: vaultID
         )
     }
@@ -277,10 +289,12 @@ public final class KeyServiceHandler {
                 }
                 return .success()
             case .lock:
+                vaultSession?.lock()
                 keyStore.invalidate()
                 return .success()
             case .status:
-                let helperStatus = (keyStore as? KeySessionStatusReporting)?
+                let helperStatus = vaultSession?.sessionStatus(at: nil)
+                    ?? (keyStore as? KeySessionStatusReporting)?
                     .sessionStatus(at: nil) ?? .locked(inactivityTimeoutSeconds: Self.defaultSessionTimeout)
                 return .success(helperStatus: helperStatus)
             case .vaultStatus:

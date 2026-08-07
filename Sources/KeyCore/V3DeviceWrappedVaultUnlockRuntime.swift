@@ -178,6 +178,19 @@ final class V3DeviceWrappedVaultUnlockRuntime: @unchecked Sendable {
         let checkpoint = try loadCheckpoint()
         let loadedManifest = try loadCheckpointManifest(checkpoint)
         let manifestData = loadedManifest.data
+        do {
+            guard Data(SHA256.hash(data: manifestData))
+                    == checkpoint.envelopeDigest
+            else {
+                throw V3DeviceWrappedUnlockError.checkpointMismatch
+            }
+            let envelope = try envelopeCodec.parse(manifestData)
+            guard envelope.body.vaultID == vaultID else {
+                throw V3DeviceWrappedUnlockError.checkpointMismatch
+            }
+        } catch let error as V3DeviceWrappedUnlockError {
+            throw runtimeError(for: error, manifestData: manifestData)
+        }
         let identity: any V3DeviceWrappedVaultKeyUnwrapping
         do {
             guard let loaded = try identityLoader.loadDeviceIdentity(

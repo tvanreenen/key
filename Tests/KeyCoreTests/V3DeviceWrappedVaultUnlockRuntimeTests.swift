@@ -174,13 +174,14 @@ struct V3DeviceWrappedVaultUnlockRuntimeTests {
             vaultID: Self.vaultID,
             envelopeDigest: Data(SHA256.hash(data: alpha.manifestData))
         )
+        let identityLoader = TestIdentityLoader(identity: nil)
         let runtime = Self.runtime(
             checkpoint: checkpoint,
             source: TestManifestSource(
                 result: .available(alpha.manifestData)
             ),
             cache: TestCheckpointCache(lookup: .missing),
-            identity: identity
+            identityLoader: identityLoader
         )
 
         #expect(
@@ -190,6 +191,7 @@ struct V3DeviceWrappedVaultUnlockRuntimeTests {
             try runtime.unlock(reason: "Unlock the vault")
         }
         #expect(identity.unwrapCount == 0)
+        #expect(identityLoader.loadCount == 0)
     }
 
     @Test
