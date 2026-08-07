@@ -8,6 +8,7 @@ enum V3DeviceWrappedGenesisInstallError:
 {
     case invalidGeneratedKey
     case generatedIdentityMismatch
+    case persistedIdentityUnavailable
     case localStateAlreadyExists
     case checkpointChanged
     case objectTooLarge
@@ -22,6 +23,8 @@ enum V3DeviceWrappedGenesisInstallError:
             "Permanent version 3 creation did not generate a 32-byte vault key."
         case .generatedIdentityMismatch:
             "The generated Secure Enclave identity does not belong to the new vault."
+        case .persistedIdentityUnavailable:
+            "The new Secure Enclave identity could not be reloaded from device-local storage. Version 2 remains selected."
         case .localStateAlreadyExists:
             "Permanent version 3 creation found existing local state for its generated vault identity."
         case .checkpointChanged:
@@ -91,8 +94,16 @@ protocol V3DeviceWrappedGenesisIdentityCreating: Sendable {
     ) throws -> any V3DeviceWrappedVaultKeyUnwrapping
 }
 
+/// The genesis transaction must prove that the identity it just created can be
+/// reconstructed from device-local persistence before it publishes or selects
+/// the new vault.
+protocol V3DeviceWrappedGenesisIdentityManaging:
+    V3DeviceWrappedGenesisIdentityCreating,
+    V3DeviceWrappedIdentityLoading
+{}
+
 extension V3EnrollmentDeviceIdentityManager:
-    V3DeviceWrappedGenesisIdentityCreating
+    V3DeviceWrappedGenesisIdentityManaging
 {
     func createDeviceWrappedIdentity(
         vaultID: String,
@@ -128,7 +139,7 @@ struct V3DeviceWrappedGenesisInstaller {
     private let checkpointStore: any V3ManifestCheckpointStoring
     private let cache: any V3CheckpointManifestCaching
     private let session: V3DeviceWrappedVaultKeySessionStore
-    private let identityCreator: any V3DeviceWrappedGenesisIdentityCreating
+    private let identityManager: any V3DeviceWrappedGenesisIdentityManaging
     private let loadV2VaultKey: V2VaultKeyProvider
     private let selectVault: VaultSelector
     private let makeUUID: UUIDGenerator
@@ -148,7 +159,7 @@ struct V3DeviceWrappedGenesisInstaller {
         checkpointStore: any V3ManifestCheckpointStoring,
         cache: any V3CheckpointManifestCaching,
         session: V3DeviceWrappedVaultKeySessionStore,
-        identityCreator: any V3DeviceWrappedGenesisIdentityCreating,
+        identityManager: any V3DeviceWrappedGenesisIdentityManaging,
         loadV2VaultKey: @escaping V2VaultKeyProvider,
         selectVault: @escaping VaultSelector,
         makeUUID: @escaping UUIDGenerator = {
@@ -177,7 +188,7 @@ struct V3DeviceWrappedGenesisInstaller {
         self.checkpointStore = checkpointStore
         self.cache = cache
         self.session = session
-        self.identityCreator = identityCreator
+        self.identityManager = identityManager
         self.loadV2VaultKey = loadV2VaultKey
         self.selectVault = selectVault
         self.makeUUID = makeUUID
@@ -233,7 +244,7 @@ struct V3DeviceWrappedGenesisInstaller {
                 .localStateAlreadyExists
         }
 
-        let identity = try identityCreator.createDeviceWrappedIdentity(
+        let identity = try identityManager.createDeviceWrappedIdentity(
             vaultID: vaultID,
             displayName: deviceName,
             reason: "Create this Mac's permanent version 3 vault identity."
@@ -246,6 +257,15 @@ struct V3DeviceWrappedGenesisInstaller {
             .identityCreated,
             operationID: operationID
         )
+        guard let persistedIdentity = try identityManager.loadDeviceIdentity(
+            vaultID: vaultID,
+            reason: "Verify this Mac's permanent version 3 vault identity."
+        ), persistedIdentity.vaultID == vaultID,
+           persistedIdentity.publicIdentity == identity.publicIdentity
+        else {
+            throw V3DeviceWrappedGenesisInstallError
+                .persistedIdentityUnavailable
+        }
         let candidate = try builder.buildPublicationCandidate(
             vaultID: vaultID,
             authorityTransitionID: authorityTransitionID,
@@ -301,7 +321,7 @@ struct V3DeviceWrappedGenesisInstaller {
         )
         try validateDeviceWrapper(
             candidate,
-            identity: identity,
+            identity: persistedIdentity,
             vaultKey: vaultKey
         )
         try phaseObserver.didReach(
@@ -378,7 +398,6 @@ struct V3DeviceWrappedGenesisInstaller {
 
         try verifyPermanentRuntime(
             candidate,
-            identity: identity,
             session: session
         )
         try phaseObserver.didReach(
@@ -588,7 +607,6 @@ struct V3DeviceWrappedGenesisInstaller {
 
     private func verifyPermanentRuntime(
         _ candidate: V3DeviceWrappedGenesisPublicationCandidate,
-        identity: any V3DeviceWrappedVaultKeyUnwrapping,
         session: V3DeviceWrappedVaultKeySessionStore
     ) throws {
         let unlockRuntime = V3DeviceWrappedVaultUnlockRuntime(
@@ -596,9 +614,7 @@ struct V3DeviceWrappedGenesisInstaller {
             checkpointStore: checkpointStore,
             source: objectStore,
             cache: cache,
-            identityLoader: V3FixedDeviceWrappedIdentityLoader(
-                identity: identity
-            ),
+            identityLoader: identityManager,
             session: session
         )
         let runtime = V3DeviceWrappedReadOnlyVaultRuntime(
@@ -676,21 +692,5 @@ struct V3DeviceWrappedGenesisInstaller {
             operationID: operationID,
             entryIDs: candidate.entries.map(\.manifestEntry.entryID)
         )
-    }
-}
-
-private struct V3FixedDeviceWrappedIdentityLoader:
-    V3DeviceWrappedIdentityLoading
-{
-    let identity: any V3DeviceWrappedVaultKeyUnwrapping
-
-    func loadDeviceIdentity(
-        vaultID: String,
-        reason _: String
-    ) throws -> (any V3DeviceWrappedVaultKeyUnwrapping)? {
-        guard identity.vaultID == vaultID else {
-            return nil
-        }
-        return identity
     }
 }

@@ -245,13 +245,36 @@ struct V3DeviceWrappedGenesisInstallerTests {
     }
 
     @Test
+    func identityMustReloadBeforeImmutablePublication() throws {
+        let fixture = try Fixture(entryCount: 1)
+        defer { fixture.remove() }
+        let manager = UnreloadableInstallIdentityManager()
+
+        #expect(
+            throws: V3DeviceWrappedGenesisInstallError
+                .persistedIdentityUnavailable
+        ) {
+            try fixture.installer(identityManager: manager).install(
+                operationID: Self.operationID,
+                deviceName: "Test Mac"
+            )
+        }
+        #expect(fixture.selector.vaultID == nil)
+        #expect(fixture.checkpointStore.checkpoint(Self.vaultID) == nil)
+        #expect(!fixture.session.hasResidentKey)
+        #expect(!FileManager.default.fileExists(
+            atPath: fixture.root.appendingPathComponent("manifests").path
+        ))
+    }
+
+    @Test
     func unusableDeviceWrapperStopsBeforeImmutablePublication() throws {
         let fixture = try Fixture(entryCount: 1)
         defer { fixture.remove() }
         let creator = FailingInstallIdentityCreator()
 
         #expect(throws: V3DeviceWrappedUnlockError.keyUnwrapFailed) {
-            try fixture.installer(identityCreator: creator).install(
+            try fixture.installer(identityManager: creator).install(
                 operationID: Self.operationID,
                 deviceName: "Test Mac"
             )
@@ -313,8 +336,8 @@ private extension V3DeviceWrappedGenesisInstallerTests {
 
         func installer(
             vaultKey: Data = newVaultKey,
-            identityCreator:
-                (any V3DeviceWrappedGenesisIdentityCreating)? = nil,
+            identityManager:
+                (any V3DeviceWrappedGenesisIdentityManaging)? = nil,
             loadV2VaultKey:
                 V3DeviceWrappedGenesisInstaller.V2VaultKeyProvider? = nil,
             phaseObserver: any V3DeviceWrappedGenesisInstallPhaseObserving =
@@ -327,7 +350,7 @@ private extension V3DeviceWrappedGenesisInstallerTests {
                 checkpointStore: checkpointStore,
                 cache: cache,
                 session: session,
-                identityCreator: identityCreator ?? self.identityCreator,
+                identityManager: identityManager ?? self.identityCreator,
                 loadV2VaultKey: loadV2VaultKey ?? v2KeyProvider.load,
                 selectVault: selector.select,
                 makeUUID: InstallUUIDSequence([
@@ -642,13 +665,14 @@ private final class InstallSelector: @unchecked Sendable {
 }
 
 private final class InstallIdentityCreator:
-    V3DeviceWrappedGenesisIdentityCreating,
+    V3DeviceWrappedGenesisIdentityManaging,
     @unchecked Sendable
 {
     private let lock = NSLock()
     private let signingKey = P256.Signing.PrivateKey()
     private let wrappingKey = P256.KeyAgreement.PrivateKey()
     private var vaultIDs: [String] = []
+    private var identities: [String: InstallIdentity] = [:]
 
     var createdVaultIDs: [String] { lock.withLock { vaultIDs } }
     var deviceID: String {
@@ -669,12 +693,23 @@ private final class InstallIdentityCreator:
             signingPublicKey: signingKey.publicKey.x963Representation,
             wrappingPublicKey: wrappingKey.publicKey.x963Representation
         )
-        lock.withLock { vaultIDs.append(vaultID) }
-        return InstallIdentity(
+        let privateIdentity = InstallIdentity(
             vaultID: vaultID,
             publicIdentity: identity,
             privateKey: wrappingKey
         )
+        lock.withLock {
+            vaultIDs.append(vaultID)
+            identities[vaultID] = privateIdentity
+        }
+        return privateIdentity
+    }
+
+    func loadDeviceIdentity(
+        vaultID: String,
+        reason _: String
+    ) throws -> (any V3DeviceWrappedVaultKeyUnwrapping)? {
+        lock.withLock { identities[vaultID] }
     }
 }
 
@@ -697,7 +732,7 @@ private struct InstallIdentity: V3DeviceWrappedVaultKeyUnwrapping {
 }
 
 private final class FailingInstallIdentityCreator:
-    V3DeviceWrappedGenesisIdentityCreating,
+    V3DeviceWrappedGenesisIdentityManaging,
     @unchecked Sendable
 {
     private let signingKey = P256.Signing.PrivateKey()
@@ -716,6 +751,51 @@ private final class FailingInstallIdentityCreator:
                 wrappingPublicKey: wrappingKey.publicKey.x963Representation
             )
         )
+    }
+
+    func loadDeviceIdentity(
+        vaultID: String,
+        reason _: String
+    ) throws -> (any V3DeviceWrappedVaultKeyUnwrapping)? {
+        FailingInstallIdentity(
+            vaultID: vaultID,
+            publicIdentity: try V3EnrollmentDeviceIdentity(
+                displayName: "Test Mac",
+                signingPublicKey: signingKey.publicKey.x963Representation,
+                wrappingPublicKey: wrappingKey.publicKey.x963Representation
+            )
+        )
+    }
+}
+
+private final class UnreloadableInstallIdentityManager:
+    V3DeviceWrappedGenesisIdentityManaging,
+    @unchecked Sendable
+{
+    private let signingKey = P256.Signing.PrivateKey()
+    private let wrappingKey = P256.KeyAgreement.PrivateKey()
+
+    func createDeviceWrappedIdentity(
+        vaultID: String,
+        displayName: String,
+        reason _: String
+    ) throws -> any V3DeviceWrappedVaultKeyUnwrapping {
+        InstallIdentity(
+            vaultID: vaultID,
+            publicIdentity: try V3EnrollmentDeviceIdentity(
+                displayName: displayName,
+                signingPublicKey: signingKey.publicKey.x963Representation,
+                wrappingPublicKey: wrappingKey.publicKey.x963Representation
+            ),
+            privateKey: wrappingKey
+        )
+    }
+
+    func loadDeviceIdentity(
+        vaultID _: String,
+        reason _: String
+    ) throws -> (any V3DeviceWrappedVaultKeyUnwrapping)? {
+        nil
     }
 }
 
