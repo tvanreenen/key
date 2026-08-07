@@ -117,6 +117,31 @@ struct V3AuthenticatedReadPlanner: Sendable {
         )
     }
 
+    /// Plans an exact read from a permanent-profile checkpoint before forward
+    /// history and key-transition discovery are enabled.
+    func planCheckpointRead(
+        named name: String,
+        entries: [V3ManifestEntry],
+        checkpoint: V3ManifestCheckpoint
+    ) throws -> V3AuthenticatedReadPlan {
+        try plan(
+            named: normalizedV3EntryName(name),
+            in: entries,
+            vaultID: checkpoint.vaultID,
+            authority: .lastTrusted(checkpoint)
+        )
+    }
+
+    func planCheckpointList(
+        entries: [V3ManifestEntry],
+        checkpoint: V3ManifestCheckpoint
+    ) -> V3AuthenticatedListPlan {
+        V3AuthenticatedListPlan(
+            authority: .lastTrusted(checkpoint),
+            entries: entries.sorted(by: manifestEntryPrecedesForRead)
+        )
+    }
+
     private func effectiveReadState(
         allowStale: Bool,
         classification: V3VaultRepositoryClassification,

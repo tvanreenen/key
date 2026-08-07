@@ -656,6 +656,26 @@ public struct V3ManifestAuthenticator: Sendable {
         ))
     }
 
+    static func isValidAuthenticationTag(
+        _ tag: Data,
+        canonicalContent: Data,
+        vaultID: String,
+        vaultKey: Data
+    ) throws -> Bool {
+        guard vaultKey.count == 32 else {
+            throw V3ManifestError.invalidVaultKey
+        }
+        let key = try manifestAuthenticationKey(
+            vaultKey: vaultKey,
+            vaultID: vaultID
+        )
+        return HMAC<SHA256>.isValidAuthenticationCode(
+            tag,
+            authenticating: authenticationInput(for: canonicalContent),
+            using: key
+        )
+    }
+
     static func deviceID(
         signingPublicKey: Data,
         wrappingPublicKey: Data

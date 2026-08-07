@@ -1016,6 +1016,21 @@ private struct AdoptionDeviceKeyOperations:
             rawRepresentation: wrappingKeyRepresentation
         ).sharedSecretFromKeyAgreement(with: publicKey)
     }
+
+    func unwrapDeviceWrappedVaultKey(
+        _ wrappedKey: V3HPKEWrappedVaultKey,
+        context: V3VaultKeyHPKEContext,
+        wrappingKeyRepresentation: Data,
+        reason _: String
+    ) throws -> Data {
+        try V3VaultKeyHPKE().unwrap(
+            wrappedKey,
+            recipientPrivateKey: P256.KeyAgreement.PrivateKey(
+                rawRepresentation: wrappingKeyRepresentation
+            ),
+            context: context
+        )
+    }
 }
 
 private struct AdoptionSigner: V3EnrollmentMessageSigning, Sendable {
