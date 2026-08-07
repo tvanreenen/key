@@ -15,20 +15,28 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
         var keyID: V3VaultKeyID?
         var key: Data?
         var deadline: ContinuousClock.Instant?
+        var expiresAt: Date?
     }
 
     private let inactivityTimeout: Duration
+    private let inactivityTimeoutSeconds: TimeInterval
     private let clock = ContinuousClock()
+    private let now: @Sendable () -> Date
     private let lock = NSLock()
     private var state = State()
     private var expirationTask: Task<Void, Never>?
     private var expirationGeneration: UInt64 = 0
 
     init(
-        inactivityTimeout: Duration = .seconds(15 * 60)
+        inactivityTimeout: Duration = .seconds(15 * 60),
+        now: @escaping @Sendable () -> Date = Date.init
     ) {
         precondition(inactivityTimeout > .zero)
         self.inactivityTimeout = inactivityTimeout
+        let components = inactivityTimeout.components
+        inactivityTimeoutSeconds = TimeInterval(components.seconds)
+            + TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000
+        self.now = now
     }
 
     deinit {
@@ -52,9 +60,13 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
             vaultID: vaultID,
             keyID: keyID,
             key: key,
-            deadline: nil
+            deadline: nil,
+            expiresAt: nil
         )
-        scheduleExpirationLocked(from: clock.now)
+        scheduleExpirationLocked(
+            from: clock.now,
+            wallTime: now()
+        )
     }
 
     func load(vaultID: String, keyID: V3VaultKeyID) throws -> Data {
@@ -70,7 +82,10 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
             clearLocked()
             throw V3DeviceWrappedVaultKeySessionError.unavailable
         }
-        scheduleExpirationLocked(from: current)
+        scheduleExpirationLocked(
+            from: current,
+            wallTime: now()
+        )
         return key
     }
 
@@ -78,6 +93,28 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
         lock.lock()
         clearLocked()
         lock.unlock()
+    }
+
+    func sessionStatus(at date: Date? = nil) -> KeyHelperStatus {
+        lock.lock()
+        defer { lock.unlock() }
+        let observedDate = date ?? now()
+        guard let deadline = state.deadline,
+              clock.now < deadline,
+              let expiresAt = state.expiresAt,
+              observedDate < expiresAt,
+              state.key != nil
+        else {
+            clearLocked()
+            return .locked(
+                inactivityTimeoutSeconds: inactivityTimeoutSeconds
+            )
+        }
+        return KeyHelperStatus(
+            isUnlocked: true,
+            sessionExpiresAt: expiresAt,
+            inactivityTimeoutSeconds: inactivityTimeoutSeconds
+        )
     }
 
     /// Test and diagnostic visibility into whether key bytes are still held.
@@ -89,13 +126,17 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
     }
 
     private func scheduleExpirationLocked(
-        from now: ContinuousClock.Instant
+        from now: ContinuousClock.Instant,
+        wallTime: Date
     ) {
         expirationTask?.cancel()
         expirationGeneration += 1
         let generation = expirationGeneration
         let deadline = now.advanced(by: inactivityTimeout)
         state.deadline = deadline
+        state.expiresAt = wallTime.addingTimeInterval(
+            inactivityTimeoutSeconds
+        )
         let clock = self.clock
         expirationTask = Task { [weak self] in
             do {

@@ -8,13 +8,13 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-alpha.6` released; permanent `KEY-509` foundations implemented; shipping integration and qualification pending |
+| Status | `v0.2.0-alpha.6` released; permanent `KEY-509` runtime implemented on the current branch; review and physical qualification pending |
 | Latest release | `v0.2.0-alpha.6 (11)` at `e02c76c` |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
 | Permanent key architecture | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Current prerelease format | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | `KEY-509` integrate and qualify the permanent device-wrapped runtime without selecting incomplete state |
+| Active work | Review and land `KEY-509`, then qualify its lock and helper-restart behavior on a physical Mac |
 | Next work | `ENR-510` move every enrollment onto one key-rotating roster-addition transition |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
@@ -38,7 +38,7 @@ profile MUST not ship as stable until every release gate below passes.
   never a mixed-key vault.
 - [x] `INV-09` Every filesystem effect remains beneath the opened vault root.
 - [ ] `INV-10` Loss of all enrolled devices has an explicit recovery outcome.
-- [ ] `INV-11` A raw v3 vault key exists only in an unlocked Key Agent session
+- [x] `INV-11` A raw v3 vault key exists only in an unlocked Key Agent session
   and is never persisted or synchronized.
 - [ ] `INV-12` Every membership change creates a fresh key and re-encrypts the
   complete current snapshot.
@@ -131,29 +131,37 @@ security or durability boundary and updates this tracker before it merges.
 | `ENR-506` | Complete; PR #52 | Inspect authenticated device membership without invoking private-key operations |
 | `ENR-507` | Complete; PR #53 | Enroll additional devices through the same owner-approved comparison ceremony |
 | `ARCH-508` | Complete | Select the permanent device-wrapped, session-only key profile, macOS 14 floor, and breaking-alpha path |
-| `KEY-509` | Foundations complete; integration and qualification pending | Create one-device genesis, durable HPKE wrappers, a local checkpoint-manifest cache, wrapper-backed session unlock, and durable content publication |
+| `KEY-509` | Runtime implemented on current branch; review and physical qualification pending | Ship one-device genesis, durable HPKE wrappers, explicit migration, wrapper-backed sessions, exact reads, and recoverable ordinary writes without persisting the raw vault key |
 | `ENR-510` | Planned | Unify first and later enrollment as key-rotating roster additions and remove the local-to-shared exception |
 | `ENR-511` | Planned | Revoke devices, rotate the key, re-encrypt the current snapshot, and catch remaining devices up safely |
 | `REC-512` | Planned | Add the single offline recovery kit and qualify destructive-loss behavior |
 
-#### `ARCH-508` / `KEY-509` — Permanent Profile Foundation
+#### `ARCH-508` / `KEY-509` — Permanent Profile Runtime
 
-Status: foundation complete; shipping integration and physical-device
+Status: runtime implemented on the current branch; review and physical-device
 qualification remain pending.
 
-This increment delivers the macOS 14 CryptoKit HPKE foundation, the permanent
-device-wrapped manifest and envelope, one-owner genesis construction, an exact
-checkpoint-manifest cache, wrapper-backed in-memory sessions, checkpoint-bound
-reads, ordinary content-mutation construction, and durable publication and
-recovery seams. Genesis installation retains version 2 until it has reloaded
-the persisted Secure Enclave identity, reopened every published object, and
-verified the permanent runtime.
+This work delivers the macOS 14 CryptoKit HPKE foundation, permanent
+device-wrapped manifests, one-owner genesis, an exact checkpoint-manifest
+cache, and wrapper-backed in-memory sessions. Explicit migration keeps version
+2 selected until it has reloaded the persisted Secure Enclave identity,
+reopened every published object, and verified the permanent runtime. It then
+selects the new vault last while retaining the version 2 source for recovery.
 
-This increment does not select the permanent profile in the shipping helper,
-replace the released-alpha enrollment flow, rotate keys for membership changes,
-revoke devices, or create an offline recovery kit. Those boundaries remain the
-work of shipping `KEY-509` integration followed by `ENR-510`, `ENR-511`, and
-`REC-512`.
+Once selected, the shipping helper uses the permanent runtime for unlock,
+status, list, get, add, edit, duplicate, rename, and remove. Each ordinary
+write recovers any locally anchored interruption, reauthenticates the exact
+device-local checkpoint and complete encrypted snapshot, builds a
+content-only child manifest, publishes immutable entries before the manifest,
+and compare-and-swap advances the checkpoint last. It cannot fall through to
+legacy `.secret` files or persistent raw version 3 key storage.
+
+This is a complete one-device permanent runtime, not yet the final
+multi-device experience. It deliberately follows only the exact local
+checkpoint and does not reuse the released-alpha enrollment exception.
+`ENR-510` must add one key-rotating roster transition for first and later
+devices before alpha.7. Revocation remains `ENR-511`, and offline recovery
+remains `REC-512`.
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -1318,9 +1326,11 @@ formats or transport stacks:
 - [x] `KEY-509` Implement the permanent manifest, CryptoKit HPKE wrappers,
   one-device genesis, exact local manifest cache, wrapper-backed session
   unlock, checkpoint reads, and durable ordinary-content publication seams.
-- [ ] `KEY-509` Connect the permanent profile to the shipping helper, remove
-  persistent raw v3 key use, and qualify lock and helper restart on a physical
-  Mac.
+- [x] `KEY-509` Connect permanent genesis, migration, session-only unlock,
+  reads, and recoverable ordinary writes to the shipping helper without
+  persistent raw v3 key use.
+- [ ] `KEY-509` Qualify lock, helper restart, and the installed permanent
+  runtime on a physical Mac.
 - [ ] `ENR-510` Rotate the key and re-encrypt the current snapshot when adding
   a device; remove the local-to-shared exception.
 - [ ] `ENR-511` Revoke a selected device, rotate the vault key, re-encrypt the
@@ -1504,17 +1514,18 @@ or establish support for other providers.
 
 ## Immediate Next Action
 
-Review and land the `KEY-509` foundation, then connect its device-wrapped
-genesis, session-only unlock, reads, and durable content publication to the
-shipping helper. Qualify lock and helper-restart behavior on a physical Mac
-before beginning `ENR-510`, which moves first and later enrollment onto one
-key-rotating roster-addition transition and removes the local-to-shared
-compatibility exception.
+Review and land the integrated `KEY-509` runtime, then use a development build
+for its narrow one-device migration, lock, helper-restart, and ordinary-write
+qualification. Do not cut a prerelease for `KEY-509` alone. Begin `ENR-510`
+after that check; it moves first and later enrollment onto one key-rotating
+roster-addition transition and removes the local-to-shared compatibility
+exception.
 
-Cut alpha.7 only after the permanent profile unlocks and enrolls successfully
-across physical Macs without persisting a raw vault key. Implement `ENR-511`
-revocation and `REC-512` offline recovery next, then cut alpha.8 only after
-enrollment, revocation, multi-epoch catch-up, recovery, restart, and provider
-delay tests pass on multiple physical Macs. Provider qualification, realistic
-migration and rollback copies, and independent security review remain beta or
-stable gates.
+Before alpha.7, qualify permanent migration, lock, helper restart, ordinary
+writes, interrupted recovery, and key-rotating enrollment across physical Macs
+without persisting a raw vault key. Implement `ENR-511` revocation and
+`REC-512` offline recovery next, then cut alpha.8 only after enrollment,
+revocation, multi-epoch catch-up, recovery, restart, and provider-delay tests
+pass on multiple physical Macs. Provider qualification, realistic migration
+and rollback copies, and independent security review remain beta or stable
+gates.

@@ -29,13 +29,42 @@ enum V3LocalMigrationError: Error, Equatable, LocalizedError {
     }
 }
 
+enum V3MigrationDestination: Equatable, Sendable {
+    case releasedAlpha
+    case deviceWrapped
+}
+
 struct V3LocalMigrationReport: Equatable, Sendable {
     let vaultID: String
     let entryCount: Int
     let secretCount: Int
     let totpCount: Int
+    let destination: V3MigrationDestination
+
+    init(
+        vaultID: String,
+        entryCount: Int,
+        secretCount: Int,
+        totpCount: Int,
+        destination: V3MigrationDestination
+    ) {
+        self.vaultID = vaultID
+        self.entryCount = entryCount
+        self.secretCount = secretCount
+        self.totpCount = totpCount
+        self.destination = destination
+    }
 
     var rendered: String {
+        switch destination {
+        case .releasedAlpha:
+            releasedAlphaRendering
+        case .deviceWrapped:
+            deviceWrappedRendering
+        }
+    }
+
+    private var releasedAlphaRendering: String {
         [
             "Migration completed.",
             "Entries migrated: \(entryCount) (\(secretCount) \(secretCount == 1 ? "secret" : "secrets"), \(totpCount) \(totpCount == 1 ? "TOTP entry" : "TOTP entries")).",
@@ -43,6 +72,17 @@ struct V3LocalMigrationReport: Equatable, Sendable {
             "The version 2 source files were retained unchanged. No cleanup was performed.",
             "After Key Agent restarts, ordinary entry commands publish guarded version 3 history.",
             "Other devices remain on version 2 and their later changes are not copied into this snapshot. To enroll a second Mac into this v3 vault, start with `key share invite --name <device-name>`."
+        ].joined(separator: "\n") + "\n"
+    }
+
+    private var deviceWrappedRendering: String {
+        [
+            "Migration completed.",
+            "Entries migrated: \(entryCount) (\(secretCount) \(secretCount == 1 ? "secret" : "secrets"), \(totpCount) \(totpCount == 1 ? "TOTP entry" : "TOTP entries")).",
+            "This Mac now uses permanent version 3 vault '\(vaultID)'.",
+            "Its new vault key is wrapped to this Mac's Secure Enclave identity and exists in plaintext only in Key Agent's unlocked memory session.",
+            "The version 2 source files were retained unchanged. No cleanup was performed.",
+            "Other devices are not converted automatically. Enroll each device explicitly after it has the permanent-profile release."
         ].joined(separator: "\n") + "\n"
     }
 }
@@ -306,7 +346,8 @@ struct V3LocalMigrationService: V3LocalMigrationServicing {
             vaultID: candidate.vaultID,
             entryCount: inspection.report.entryCount,
             secretCount: inspection.report.secretCount,
-            totpCount: inspection.report.totpCount
+            totpCount: inspection.report.totpCount,
+            destination: .releasedAlpha
         )
     }
 

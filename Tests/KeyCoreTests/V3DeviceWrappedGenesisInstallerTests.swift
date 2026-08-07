@@ -75,6 +75,43 @@ struct V3DeviceWrappedGenesisInstallerTests {
     }
 
     @Test
+    func migrationAdapterUsesPermanentInstallerAndReportsTheNewProfile() throws {
+        let installReport = V3DeviceWrappedGenesisInstallReport(
+            vaultID: Self.vaultID,
+            deviceID: "sha256:device",
+            entryCount: 2,
+            secretCount: 1,
+            totpCount: 1
+        )
+        let installer = RecordingGenesisInstaller(report: installReport)
+        let service = V3DeviceWrappedMigrationService(
+            installer: installer,
+            deviceName: "Tim's Mac"
+        )
+
+        let report = try service.migrate(operationID: Self.operationID)
+
+        #expect(installer.operationIDs == [Self.operationID])
+        #expect(installer.deviceNames == ["Tim's Mac"])
+        #expect(report == V3LocalMigrationReport(
+            vaultID: Self.vaultID,
+            entryCount: 2,
+            secretCount: 1,
+            totpCount: 1,
+            destination: .deviceWrapped
+        ))
+        #expect(report.rendered == """
+            Migration completed.
+            Entries migrated: 2 (1 secret, 1 TOTP entry).
+            This Mac now uses permanent version 3 vault '\(Self.vaultID)'.
+            Its new vault key is wrapped to this Mac's Secure Enclave identity and exists in plaintext only in Key Agent's unlocked memory session.
+            The version 2 source files were retained unchanged. No cleanup was performed.
+            Other devices are not converted automatically. Enroll each device explicitly after it has the permanent-profile release.
+
+            """)
+    }
+
+    @Test
     func everyPreselectionInterruptionRetainsV2AndNoSessionKey() throws {
         let phases: [V3DeviceWrappedGenesisInstallPhase] = [
             .identityCreated,
@@ -285,6 +322,38 @@ struct V3DeviceWrappedGenesisInstallerTests {
         #expect(!FileManager.default.fileExists(
             atPath: fixture.root.appendingPathComponent("manifests").path
         ))
+    }
+}
+
+private final class RecordingGenesisInstaller:
+    V3DeviceWrappedGenesisInstalling
+{
+    private let lock = NSLock()
+    private let report: V3DeviceWrappedGenesisInstallReport
+    private var recordedOperationIDs: [VaultTransactionOperationID] = []
+    private var recordedDeviceNames: [String] = []
+
+    var operationIDs: [VaultTransactionOperationID] {
+        lock.withLock { recordedOperationIDs }
+    }
+
+    var deviceNames: [String] {
+        lock.withLock { recordedDeviceNames }
+    }
+
+    init(report: V3DeviceWrappedGenesisInstallReport) {
+        self.report = report
+    }
+
+    func install(
+        operationID: VaultTransactionOperationID,
+        deviceName: String
+    ) throws -> V3DeviceWrappedGenesisInstallReport {
+        lock.withLock {
+            recordedOperationIDs.append(operationID)
+            recordedDeviceNames.append(deviceName)
+        }
+        return report
     }
 }
 

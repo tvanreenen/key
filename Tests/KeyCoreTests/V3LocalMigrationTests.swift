@@ -658,7 +658,8 @@ private final class RecordingMigrationService:
                 "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
             entryCount: 0,
             secretCount: 0,
-            totpCount: 0
+            totpCount: 0,
+            destination: .releasedAlpha
         )
     }
 }

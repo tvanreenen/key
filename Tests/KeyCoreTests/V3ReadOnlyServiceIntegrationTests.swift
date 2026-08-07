@@ -5,6 +5,22 @@ import Testing
 @Suite
 struct V3ReadOnlyServiceIntegrationTests {
     @Test
+    func migrationDeviceNamePrefersNormalizedMacNameThenHostName() {
+        #expect(KeyServiceHandler.currentDeviceDisplayName(
+            localizedName: "  Cafe\u{301} Mac  ",
+            hostName: "fallback.local"
+        ) == "Caf\u{e9} Mac")
+        #expect(KeyServiceHandler.currentDeviceDisplayName(
+            localizedName: "\n",
+            hostName: "fallback.local"
+        ) == "fallback.local")
+        #expect(KeyServiceHandler.currentDeviceDisplayName(
+            localizedName: nil,
+            hostName: ""
+        ) == "This Mac")
+    }
+
+    @Test
     func handlerRoutesLogicalReadsAndListsThroughSelectedV3Runtime() throws {
         let root = temporaryV3ServiceDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -93,10 +109,38 @@ struct V3ReadOnlyServiceIntegrationTests {
             secret: "value",
             type: .secret
         ))
-        #expect(mutation.errorCode == .serviceFailure)
+        #expect(mutation.errorCode == .recoveryRequired)
         #expect(try EntryStore(rootURL: root).listEntries().isEmpty)
         #expect(keys.createIfMissingValues.isEmpty)
         #expect(keys.storeCount == 0)
+        #expect(FileManager.default.fileExists(
+            atPath: initial.configFileURL
+                .deletingLastPathComponent()
+                .appendingPathComponent("v3-checkpoint-manifests")
+                .path(percentEncoded: false)
+        ))
+    }
+
+    @Test
+    func selectedV3LockAndStatusUseItsWrapperBackedSession() throws {
+        let root = temporaryV3ServiceDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = RecordingV3VaultSession()
+        let handler = KeyServiceHandler(
+            keyStore: RecordingV3VaultKeyStore(),
+            entryStore: EntryStore(rootURL: root),
+            mutationOwner: VaultTransactionMutationOwner(),
+            vaultUXService: ReadOnlyV3UXService(),
+            vaultReader: RecordingV3VaultReader(),
+            vaultSession: session,
+            configuredVaultID:
+                "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
+        )
+
+        let status = handler.handle(.status)
+        #expect(status.helperStatus?.isUnlocked == true)
+        #expect(handler.handle(.lock) == .success())
+        #expect(session.lockCount == 1)
     }
 
     @Test
@@ -303,6 +347,32 @@ private final class RecordingV3VaultKeyStore:
     }
 
     func invalidate() {}
+}
+
+private final class RecordingV3VaultSession:
+    VaultSessionServicing,
+    @unchecked Sendable
+{
+    private let stateLock = NSLock()
+    private var locks = 0
+
+    var lockCount: Int {
+        stateLock.withLock { locks }
+    }
+
+    func lock() {
+        stateLock.withLock {
+            locks += 1
+        }
+    }
+
+    func sessionStatus(at _: Date?) -> KeyHelperStatus {
+        KeyHelperStatus(
+            isUnlocked: true,
+            sessionExpiresAt: Date(timeIntervalSince1970: 2_000_000_000),
+            inactivityTimeoutSeconds: 15 * 60
+        )
+    }
 }
 
 private struct ReadOnlyV3UXService: VaultUXServicing {
