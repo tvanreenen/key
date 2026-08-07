@@ -232,7 +232,7 @@ public final class KeyServiceHandler {
         )
     }
 
-    private static func makeV3CheckpointManifestCache(
+    static func makeV3CheckpointManifestCache(
         keyConfiguration: KeyConfiguration,
         fileManager: FileManager = .default
     ) throws -> V3CheckpointManifestFilesystemCache {
@@ -245,7 +245,7 @@ public final class KeyServiceHandler {
         do {
             try fileManager.createDirectory(
                 at: cacheDirectory,
-                withIntermediateDirectories: false
+                withIntermediateDirectories: true
             )
         } catch {
             throw AppError.io(

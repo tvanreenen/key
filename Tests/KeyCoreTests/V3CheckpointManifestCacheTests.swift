@@ -7,6 +7,71 @@ import Testing
 
 struct V3CheckpointManifestCacheTests {
     @Test
+    func repeatedRuntimeCompositionReusesTheExistingCacheDirectory() throws {
+        let containerURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: containerURL) }
+        try FileManager.default.createDirectory(
+            at: containerURL,
+            withIntermediateDirectories: false
+        )
+        let configuration = KeyConfiguration(
+            configFileURL: containerURL.appendingPathComponent("config.toml"),
+            vaultDirectoryURL: containerURL.appendingPathComponent("vault"),
+            vaultPathSource: .appSupportConfigCustom,
+            keychainMode: .local,
+            vaultID: Fixture.vaultID
+        )
+
+        _ = try KeyServiceHandler.makeV3CheckpointManifestCache(
+            keyConfiguration: configuration
+        )
+        _ = try KeyServiceHandler.makeV3CheckpointManifestCache(
+            keyConfiguration: configuration
+        )
+
+        var isDirectory: ObjCBool = false
+        #expect(
+            FileManager.default.fileExists(
+                atPath: containerURL
+                    .appendingPathComponent("v3-checkpoint-manifests")
+                    .path,
+                isDirectory: &isDirectory
+            )
+        )
+        #expect(isDirectory.boolValue)
+    }
+
+    @Test
+    func runtimeCompositionRejectsAFileAtTheCacheDirectoryPath() throws {
+        let containerURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: containerURL) }
+        try FileManager.default.createDirectory(
+            at: containerURL,
+            withIntermediateDirectories: false
+        )
+        try Data("not a directory".utf8).write(
+            to: containerURL.appendingPathComponent(
+                "v3-checkpoint-manifests"
+            )
+        )
+        let configuration = KeyConfiguration(
+            configFileURL: containerURL.appendingPathComponent("config.toml"),
+            vaultDirectoryURL: containerURL.appendingPathComponent("vault"),
+            vaultPathSource: .appSupportConfigCustom,
+            keychainMode: .local,
+            vaultID: Fixture.vaultID
+        )
+
+        #expect(throws: AppError.self) {
+            _ = try KeyServiceHandler.makeV3CheckpointManifestCache(
+                keyConfiguration: configuration
+            )
+        }
+    }
+
+    @Test
     func missingCacheDoesNotChangeCheckpointAuthority() throws {
         let fixture = try Fixture()
 
