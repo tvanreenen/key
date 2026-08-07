@@ -89,6 +89,7 @@
 		A5450001A5450001A5450001 /* V3DeviceWrappedCheckpointUnlocker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5450002A5450002A5450002 /* V3DeviceWrappedCheckpointUnlocker.swift */; };
 		A5460001A5460001A5460001 /* V3DeviceWrappedManifestEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5460002A5460002A5460002 /* V3DeviceWrappedManifestEnvelope.swift */; };
 		A5470001A5470001A5470001 /* V3DeviceWrappedVaultKeySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5470002A5470002A5470002 /* V3DeviceWrappedVaultKeySession.swift */; };
+		A5480001A5480001A5480001 /* V3DeviceWrappedVaultUnlockRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5480002A5480002A5480002 /* V3DeviceWrappedVaultUnlockRuntime.swift */; };
 		A5000011A5000011A5000011 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000012A5000012A5000012 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000013A5000013A5000013 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
@@ -233,6 +234,7 @@
 		A5450002A5450002A5450002 /* V3DeviceWrappedCheckpointUnlocker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedCheckpointUnlocker.swift; sourceTree = "<group>"; };
 		A5460002A5460002A5460002 /* V3DeviceWrappedManifestEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedManifestEnvelope.swift; sourceTree = "<group>"; };
 		A5470002A5470002A5470002 /* V3DeviceWrappedVaultKeySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedVaultKeySession.swift; sourceTree = "<group>"; };
+		A5480002A5480002A5480002 /* V3DeviceWrappedVaultUnlockRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedVaultUnlockRuntime.swift; sourceTree = "<group>"; };
 		A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libJSONCanonicalization.a; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -348,6 +350,7 @@
 				A5450002A5450002A5450002 /* V3DeviceWrappedCheckpointUnlocker.swift */,
 				A5460002A5460002A5460002 /* V3DeviceWrappedManifestEnvelope.swift */,
 				A5470002A5470002A5470002 /* V3DeviceWrappedVaultKeySession.swift */,
+				A5480002A5480002A5480002 /* V3DeviceWrappedVaultUnlockRuntime.swift */,
 				A4090012A4090012A4090012 /* VaultUXService.swift */,
 				A4010002A4010002A4010002 /* VaultTransactionMutationOwner.swift */,
 				B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */,
@@ -728,6 +731,7 @@
 				A5450001A5450001A5450001 /* V3DeviceWrappedCheckpointUnlocker.swift in Sources */,
 				A5460001A5460001A5460001 /* V3DeviceWrappedManifestEnvelope.swift in Sources */,
 				A5470001A5470001A5470001 /* V3DeviceWrappedVaultKeySession.swift in Sources */,
+				A5480001A5480001A5480001 /* V3DeviceWrappedVaultUnlockRuntime.swift in Sources */,
 				A4090011A4090011A4090011 /* VaultUXService.swift in Sources */,
 				A4010001A4010001A4010001 /* VaultTransactionMutationOwner.swift in Sources */,
 				2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */,

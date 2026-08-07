@@ -14,6 +14,7 @@ enum V3EnrollmentDeviceIdentityStoreError:
     case identityAlreadyExists
     case identityMismatch
     case secureEnclaveUnavailable
+    case authenticationCancelled
     case invalidConfiguration
     case keyOperationFailed
     case keychainStatus(OSStatus)
@@ -30,6 +31,8 @@ enum V3EnrollmentDeviceIdentityStoreError:
             "The stored Secure Enclave keys do not match the device enrollment identity."
         case .secureEnclaveUnavailable:
             "The Secure Enclave is unavailable on this Mac."
+        case .authenticationCancelled:
+            "Device authentication was cancelled or is not currently available."
         case .invalidConfiguration:
             "Version 3 enrollment identity storage is not configured."
         case .keyOperationFailed:
@@ -311,7 +314,7 @@ struct V3SecureEnclaveEnrollmentDeviceKeyOperations:
         } catch let error as V3EnrollmentDeviceIdentityStoreError {
             throw error
         } catch {
-            throw V3EnrollmentDeviceIdentityStoreError.keyOperationFailed
+            throw v3EnrollmentKeyOperationError(for: error)
         }
     }
 
@@ -343,7 +346,7 @@ struct V3SecureEnclaveEnrollmentDeviceKeyOperations:
                 wrappingKey.publicKey.x963Representation
             )
         } catch {
-            throw V3EnrollmentDeviceIdentityStoreError.keyOperationFailed
+            throw v3EnrollmentKeyOperationError(for: error)
         }
     }
 
@@ -369,7 +372,7 @@ struct V3SecureEnclaveEnrollmentDeviceKeyOperations:
             )
             return try key.signature(for: input).rawRepresentation
         } catch {
-            throw V3EnrollmentDeviceIdentityStoreError.keyOperationFailed
+            throw v3EnrollmentKeyOperationError(for: error)
         }
     }
 
@@ -395,7 +398,7 @@ struct V3SecureEnclaveEnrollmentDeviceKeyOperations:
             )
             return try key.sharedSecretFromKeyAgreement(with: publicKey)
         } catch {
-            throw V3EnrollmentDeviceIdentityStoreError.keyOperationFailed
+            throw v3EnrollmentKeyOperationError(for: error)
         }
     }
 
@@ -426,7 +429,7 @@ struct V3SecureEnclaveEnrollmentDeviceKeyOperations:
                 context: context
             )
         } catch {
-            throw V3EnrollmentDeviceIdentityStoreError.keyOperationFailed
+            throw v3EnrollmentKeyOperationError(for: error)
         }
     }
 
@@ -451,6 +454,43 @@ struct V3SecureEnclaveEnrollmentDeviceKeyOperations:
         context.localizedReason = reason
         return context
     }
+}
+
+func v3EnrollmentKeyOperationError(
+    for error: Error
+) -> V3EnrollmentDeviceIdentityStoreError {
+    var current = error as NSError
+    for _ in 0..<4 {
+        if current.domain == LAError.errorDomain,
+           let code = LAError.Code(rawValue: current.code)
+        {
+            switch code {
+            case .authenticationFailed, .userCancel, .userFallback,
+                    .systemCancel, .biometryLockout, .appCancel,
+                    .notInteractive:
+                return .authenticationCancelled
+            default:
+                break
+            }
+        }
+        if current.domain == NSOSStatusErrorDomain {
+            switch OSStatus(current.code) {
+            case errSecAuthFailed, errSecUserCanceled,
+                    errSecInteractionNotAllowed:
+                return .authenticationCancelled
+            default:
+                break
+            }
+        }
+        guard let underlying = current.userInfo[NSUnderlyingErrorKey]
+                as? NSError,
+              underlying !== current
+        else {
+            break
+        }
+        current = underlying
+    }
+    return .keyOperationFailed
 }
 
 struct V3EnrollmentDevicePrivateIdentity:

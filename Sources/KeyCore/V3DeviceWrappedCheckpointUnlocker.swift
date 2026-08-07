@@ -10,6 +10,7 @@ enum V3DeviceWrappedUnlockError: Error, Equatable, LocalizedError {
     case deviceNotEnrolled
     case deviceRevoked
     case wrapperMissing
+    case authenticationCancelled
     case keyUnwrapFailed
     case authenticationFailed
 
@@ -31,6 +32,8 @@ enum V3DeviceWrappedUnlockError: Error, Equatable, LocalizedError {
             "This Mac has been revoked from the trusted vault."
         case .wrapperMissing:
             "The trusted vault has no current key wrapper for this Mac."
+        case .authenticationCancelled:
+            "Device authentication was cancelled or is not currently available."
         case .keyUnwrapFailed:
             "This Mac could not open its current vault-key wrapper."
         case .authenticationFailed:
@@ -60,7 +63,8 @@ struct V3DeviceWrappedCheckpointUnlocker: Sendable {
         manifestData: Data,
         identity: any V3DeviceWrappedVaultKeyUnwrapping,
         session: V3DeviceWrappedVaultKeySessionStore,
-        reason: String
+        reason: String,
+        validateBeforeSessionInstall: () throws -> Void = {}
     ) throws -> V3DeviceWrappedManifestEnvelope {
         guard !manifestData.isEmpty,
               manifestData.count
@@ -119,6 +123,8 @@ struct V3DeviceWrappedCheckpointUnlocker: Sendable {
                 context: context,
                 reason: reason
             )
+        } catch V3EnrollmentDeviceIdentityStoreError.authenticationCancelled {
+            throw V3DeviceWrappedUnlockError.authenticationCancelled
         } catch {
             throw V3DeviceWrappedUnlockError.keyUnwrapFailed
         }
@@ -137,6 +143,7 @@ struct V3DeviceWrappedCheckpointUnlocker: Sendable {
             throw V3DeviceWrappedUnlockError.authenticationFailed
         }
 
+        try validateBeforeSessionInstall()
         do {
             try session.install(
                 vaultKey,

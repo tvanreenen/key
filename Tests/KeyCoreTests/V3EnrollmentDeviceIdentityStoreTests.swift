@@ -1,5 +1,7 @@
 import CryptoKit
 import Foundation
+import LocalAuthentication
+import Security
 import Testing
 
 @testable import KeyCore
@@ -208,6 +210,37 @@ struct V3EnrollmentDeviceIdentityStoreTests {
     }
 
     @Test
+    func authenticationCancellationRemainsDistinctFromKeyFailure() {
+        let cancelled = NSError(
+            domain: LAError.errorDomain,
+            code: LAError.Code.userCancel.rawValue
+        )
+        #expect(
+            v3EnrollmentKeyOperationError(for: cancelled)
+                == .authenticationCancelled
+        )
+
+        let interactionDenied = NSError(
+            domain: NSOSStatusErrorDomain,
+            code: Int(errSecInteractionNotAllowed)
+        )
+        let wrapped = NSError(
+            domain: "TestWrappedError",
+            code: 1,
+            userInfo: [NSUnderlyingErrorKey: interactionDenied]
+        )
+        #expect(
+            v3EnrollmentKeyOperationError(for: wrapped)
+                == .authenticationCancelled
+        )
+
+        #expect(
+            v3EnrollmentKeyOperationError(for: TestIdentityError.failed)
+                == .keyOperationFailed
+        )
+    }
+
+    @Test
     func unavailableSecureEnclaveStopsBeforeGenerationOrPersistence() throws {
         let store = MemoryEnrollmentDeviceKeyRecordStore()
         let operations = SoftwareEnrollmentDeviceKeyOperations()
@@ -316,6 +349,10 @@ struct V3EnrollmentDeviceIdentityStoreTests {
                 .utf8
         )
     }
+}
+
+private enum TestIdentityError: Error {
+    case failed
 }
 
 private final class MemoryEnrollmentDeviceKeyRecordStore:
