@@ -36,6 +36,9 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
     let expectedHeads: [Data]
     let candidateManifestDigest: Data
     let stagedEntries: [V3ImmutableTransactionRecoveryEntry]
+    /// Binds recovery to the exact locally approved enrollment ceremony.
+    /// Ordinary content transactions use the original version 1 shape.
+    let enrollmentTranscriptDigest: Data?
 
     init(
         operationID: VaultTransactionOperationID,
@@ -44,7 +47,8 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
         expectedCheckpoint: V3ManifestCheckpoint,
         expectedHeads: [Data],
         candidateManifestDigest: Data,
-        stagedEntries: [V3ImmutableTransactionRecoveryEntry]
+        stagedEntries: [V3ImmutableTransactionRecoveryEntry],
+        enrollmentTranscriptDigest: Data? = nil
     ) throws {
         guard kind != .recoverInterruptedTransaction,
               isValidV3UUID(vaultID),
@@ -57,6 +61,8 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
                   $0.lexicographicallyPrecedes($1)
               }),
               candidateManifestDigest.count == 32,
+              enrollmentTranscriptDigest == nil
+                || enrollmentTranscriptDigest?.count == 32,
               stagedEntries.count <= Self.maximumStagedEntries,
               stagedEntries.allSatisfy({
                   isValidV3UUID($0.entryID) && $0.digest.count == 32
@@ -80,6 +86,7 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
         self.expectedHeads = expectedHeads
         self.candidateManifestDigest = candidateManifestDigest
         self.stagedEntries = stagedEntries
+        self.enrollmentTranscriptDigest = enrollmentTranscriptDigest
     }
 
     init(canonicalBytes: Data) throws {
@@ -92,7 +99,12 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
         guard canonicalBytes.count <= Self.maximumBytes,
               CanonicalJSON.encode(json) == canonicalBytes,
               let object = json.objectValue,
-              Set(object.map(\.0)) == Set([
+              let version = recoveryInteger("version", in: object),
+              version == 1 || version == 2
+        else {
+            throw V3ImmutableTransactionRecoveryIntentError.invalidFormat
+        }
+        let commonFields = Set([
                   "candidateManifestDigest",
                   "expectedCheckpoint",
                   "expectedHeads",
@@ -102,10 +114,13 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
                   "stagedEntries",
                   "vaultID",
                   "version"
-              ]),
+              ])
+        let expectedFields = version == 1
+            ? commonFields
+            : commonFields.union(["enrollmentTranscriptDigest"])
+        guard Set(object.map(\.0)) == expectedFields,
               recoveryString("format", in: object)
                 == "key-vault-transaction-recovery",
-              recoveryInteger("version", in: object) == 1,
               let operationIDValue = recoveryString(
                   "operationID",
                   in: object
@@ -141,6 +156,20 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
         else {
             throw V3ImmutableTransactionRecoveryIntentError.invalidFormat
         }
+        let enrollmentTranscriptDigest: Data?
+        if version == 2 {
+            guard let encoded = recoveryString(
+                "enrollmentTranscriptDigest",
+                in: object
+            ), let digest = Base64URL.decodeCanonical(encoded),
+                  digest.count == 32
+            else {
+                throw V3ImmutableTransactionRecoveryIntentError.invalidFormat
+            }
+            enrollmentTranscriptDigest = digest
+        } else {
+            enrollmentTranscriptDigest = nil
+        }
         try self.init(
             operationID: operationID,
             kind: kind,
@@ -148,14 +177,17 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
             expectedCheckpoint: expectedCheckpoint,
             expectedHeads: expectedHeads,
             candidateManifestDigest: candidateManifestDigest,
-            stagedEntries: stagedEntries
+            stagedEntries: stagedEntries,
+            enrollmentTranscriptDigest: enrollmentTranscriptDigest
         )
     }
 
     var canonicalBytes: Data {
-        CanonicalJSON.encode(.object([
+        var members: [(String, CanonicalJSONValue)] = [
             ("format", .string("key-vault-transaction-recovery")),
-            ("version", .integer(1)),
+            ("version", .integer(
+                enrollmentTranscriptDigest == nil ? 1 : 2
+            )),
             ("operationID", .string(operationID.rawValue)),
             ("kind", .string(kind.rawValue)),
             ("vaultID", .string(vaultID)),
@@ -195,7 +227,14 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
                     ])
                 })
             )
-        ]))
+        ]
+        if let enrollmentTranscriptDigest {
+            members.append((
+                "enrollmentTranscriptDigest",
+                .string(Base64URL.encode(enrollmentTranscriptDigest))
+            ))
+        }
+        return CanonicalJSON.encode(.object(members))
     }
 }
 

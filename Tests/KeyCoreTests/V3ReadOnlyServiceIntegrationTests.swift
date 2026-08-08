@@ -104,6 +104,10 @@ struct V3ReadOnlyServiceIntegrationTests {
             runtimeConfiguration: testV3RuntimeConfiguration()
         )
 
+        #expect(handler.handle(.share(.invitations)) == .success(
+            "No enrollment invitations are available yet.\n"
+        ))
+
         let mutation = handler.handle(.addManual(
             name: "mail/new",
             secret: "value",

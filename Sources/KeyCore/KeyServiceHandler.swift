@@ -123,7 +123,7 @@ public final class KeyServiceHandler {
                 let rootHandle = try VaultRootDirectoryHandle(
                     opening: keyConfiguration.vaultDirectoryURL
                 )
-                return makeLiveV3EnrollmentWorkflowService(
+                return try makeLiveV3EnrollmentWorkflowService(
                     rootHandle: rootHandle,
                     selectedVaultID: nil,
                     keyStore: keyStore,
@@ -149,24 +149,86 @@ public final class KeyServiceHandler {
         let checkpointStore = V3ManifestCheckpointKeychainStore(
             configuration: runtimeConfiguration
         )
-        let runtime = V3DeviceWrappedVaultRuntime(
-            rootHandle: rootHandle,
+        let recoveryAnchorStore =
+            V3ImmutableTransactionRecoveryAnchorKeychainStore(
+                configuration: runtimeConfiguration
+            )
+        let cache = try makeV3CheckpointManifestCache(
+            keyConfiguration: keyConfiguration
+        )
+        let identityManager = V3EnrollmentDeviceIdentityManager(
+            recordStore: V3EnrollmentDeviceKeyRecordKeychainStore(
+                configuration: runtimeConfiguration
+            ),
+            keyOperations: V3SecureEnclaveEnrollmentDeviceKeyOperations()
+        )
+        let objectStore = V3FilesystemTransactionArtifactStore(
+            rootHandle: rootHandle
+        )
+        let session = V3DeviceWrappedVaultKeySessionStore()
+        let unlockRuntime = V3DeviceWrappedVaultUnlockRuntime(
             vaultID: vaultID,
             checkpointStore: checkpointStore,
-            recoveryAnchorStore:
-                V3ImmutableTransactionRecoveryAnchorKeychainStore(
-                    configuration: runtimeConfiguration
-                ),
-            cache: try makeV3CheckpointManifestCache(
-                keyConfiguration: keyConfiguration
+            source: objectStore,
+            cache: cache,
+            identityLoader: identityManager,
+            session: session
+        )
+        let runtime = V3DeviceWrappedVaultRuntime(
+            runtime: V3DeviceWrappedReadOnlyVaultRuntime(
+                source: objectStore,
+                unlockRuntime: unlockRuntime
             ),
-            identityLoader: V3EnrollmentDeviceIdentityManager(
-                recordStore: V3EnrollmentDeviceKeyRecordKeychainStore(
-                    configuration: runtimeConfiguration
-                ),
-                keyOperations:
-                    V3SecureEnclaveEnrollmentDeviceKeyOperations()
+            mutationService: V3DeviceWrappedVaultMutationService(
+                stateLoader: unlockRuntime,
+                objectStore: objectStore,
+                checkpointStore: checkpointStore,
+                recoveryAnchorStore: recoveryAnchorStore,
+                cache: cache
+            ),
+            session: session,
+            lockSession: { unlockRuntime.lock() }
+        )
+        let exchange = V3EnrollmentExchangeCoordinator(
+            mailbox: V3FilesystemEnrollmentMailbox(rootHandle: rootHandle),
+            stateStore: V3EnrollmentCeremonyStateKeychainStore(
+                configuration: runtimeConfiguration
             )
+        )
+        let approvalService =
+            V3DeviceWrappedEnrollmentOwnerApprovalService(
+                vaultID: vaultID,
+                stateLoader: unlockRuntime,
+                source: objectStore,
+                objectStore: objectStore,
+                checkpointStore: checkpointStore,
+                recoveryAnchorStore: recoveryAnchorStore,
+                cache: cache,
+                exchange: exchange,
+                loadIdentity: { requestedVaultID, reason in
+                    try identityManager.loadIdentity(
+                        vaultID: requestedVaultID,
+                        reason: reason
+                    )
+                },
+                session: session
+            )
+        let enrollmentService = V3DeviceWrappedEnrollmentOwnerWorkflow(
+            vaultID: vaultID,
+            stateLoader: unlockRuntime,
+            exchange: exchange,
+            loadIdentity: { requestedVaultID, reason in
+                try identityManager.loadIdentity(
+                    vaultID: requestedVaultID,
+                    reason: reason
+                )
+            },
+            loadPublicIdentity: { requestedVaultID in
+                try identityManager.loadRecordedPublicIdentity(
+                    vaultID: requestedVaultID
+                )
+            },
+            approvalService: approvalService
         )
         return KeyServiceHandler(
             keyStore: keyStore,
@@ -174,6 +236,7 @@ public final class KeyServiceHandler {
             keychainMode: keyConfiguration.keychainMode,
             configStore: configStore,
             mutationOwner: VaultTransactionMutationOwner(),
+            enrollmentService: enrollmentService,
             vaultUXService: runtime,
             vaultReader: runtime,
             vaultMutator: runtime,
@@ -540,6 +603,8 @@ public final class KeyServiceHandler {
             return .failure(error)
         } catch let error as V3EnrollmentAdoptionError {
             return enrollmentFailure(error)
+        } catch let error as V3DeviceWrappedEnrollmentAdoptionError {
+            return deviceWrappedEnrollmentFailure(error)
         } catch {
             return .failure(error.localizedDescription)
         }
@@ -1077,5 +1142,20 @@ private func enrollmentFailure(
             error.localizedDescription,
             code: .recoveryRequired
         )
+    }
+}
+
+private func deviceWrappedEnrollmentFailure(
+    _ error: V3DeviceWrappedEnrollmentAdoptionError
+) -> KeyServiceResponse {
+    switch error {
+    case .approvalUnavailable:
+        return .failure(error.localizedDescription, code: .vaultIncomplete)
+    case .invalidCeremony, .upgradeRequired, .authenticationCancelled,
+        .selectionFailed:
+        return .failure(error.localizedDescription, code: .operationRefused)
+    case .ambiguousApproval, .invalidApproval, .identityUnavailable,
+        .invalidWrappedKey, .conflictingCheckpoint:
+        return .failure(error.localizedDescription, code: .recoveryRequired)
     }
 }

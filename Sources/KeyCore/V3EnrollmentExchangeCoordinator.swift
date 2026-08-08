@@ -383,6 +383,41 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
         return state
     }
 
+    /// Reopens the permanent-profile inviter record without applying expiry.
+    /// The caller must first attempt durable transaction recovery, then apply
+    /// invitation expiry before constructing any fresh approval candidate.
+    func resumeDeviceWrappedOwnerApproval(
+        vaultID: String,
+        invitationDigest: Data
+    ) throws -> V3EnrollmentCeremonyState {
+        guard let loaded = try loadValidatedState(
+            vaultID: vaultID,
+            invitationDigest: invitationDigest
+        ) else {
+            throw V3EnrollmentCeremonyStateError.notFound
+        }
+        let state = loaded.state
+        guard state.role == .inviter else {
+            throw V3EnrollmentCeremonyStateError.wrongRole
+        }
+        switch state.phase {
+        case .awaitingComparison:
+            guard state.ownerApproval == nil else {
+                throw V3EnrollmentCeremonyStateError.invalidState
+            }
+        case .consumed:
+            // Permanent enrollment records omit the alpha prepared approval.
+            // Reopen only that shape so an exact durable transaction can
+            // finish cleanup after the ceremony marker was committed.
+            guard state.ownerApproval == nil else {
+                throw V3EnrollmentCeremonyStateError.replayed
+            }
+        case .awaitingJoinRequest, .publishingApproval:
+            throw V3EnrollmentCeremonyStateError.invalidState
+        }
+        return state
+    }
+
     /// Marks the exact compared transcript as consumed using a CAS guard.
     ///
     /// This is non-authoritative bookkeeping for ENR-504 and ENR-505. Calling
@@ -435,6 +470,57 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
             signedInvitation: state.signedInvitation,
             signedJoinRequest: state.signedJoinRequest,
             ownerApproval: state.ownerApproval
+        )
+        try stateStore.replaceState(
+            consumed.canonicalBytes,
+            expectedState: loaded.bytes,
+            vaultID: vaultID,
+            invitationDigest: invitationDigest
+        )
+        return consumed
+    }
+
+    /// Marks a permanent-profile owner approval complete while its durable
+    /// transaction recovery anchor still protects the checkpoint transition.
+    /// Unlike the replaced alpha publisher, the permanent publisher retains
+    /// its exact candidate in the recovery intent rather than `ownerApproval`.
+    func markDeviceWrappedOwnerApprovalConsumed(
+        vaultID: String,
+        invitationDigest: Data,
+        transcriptDigest: Data,
+        at _: UInt64
+    ) throws -> V3EnrollmentCeremonyState {
+        guard transcriptDigest.count == 32 else {
+            throw V3EnrollmentCeremonyStateError.invalidState
+        }
+        guard let loaded = try loadValidatedState(
+            vaultID: vaultID,
+            invitationDigest: invitationDigest
+        ) else {
+            throw V3EnrollmentCeremonyStateError.notFound
+        }
+        let state = loaded.state
+        guard state.role == .inviter,
+              let transcript = state.transcript,
+              transcript.digest == transcriptDigest
+        else {
+            throw V3EnrollmentCeremonyStateError.conflict
+        }
+        if state.phase == .consumed {
+            return state
+        }
+        guard state.phase == .awaitingComparison,
+              state.ownerApproval == nil
+        else {
+            throw V3EnrollmentCeremonyStateError.invalidState
+        }
+        let consumed = try V3EnrollmentCeremonyState(
+            vaultID: state.vaultID,
+            invitationDigest: state.invitationDigest,
+            role: state.role,
+            phase: .consumed,
+            signedInvitation: state.signedInvitation,
+            signedJoinRequest: state.signedJoinRequest
         )
         try stateStore.replaceState(
             consumed.canonicalBytes,

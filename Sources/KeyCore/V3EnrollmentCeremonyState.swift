@@ -128,10 +128,11 @@ struct V3EnrollmentCeremonyState: Equatable, Sendable {
             }
         case .consumed:
             guard signedJoinRequest != nil,
-                  (role == .inviter) == (ownerApproval != nil),
-                  ownerApproval?.transcriptDigest
-                    == validatedTranscript?.digest
-                    || ownerApproval == nil
+                  (role == .joiner && ownerApproval == nil)
+                    || (role == .inviter
+                        && (ownerApproval == nil
+                            || ownerApproval?.transcriptDigest
+                                == validatedTranscript?.digest))
             else {
                 throw V3EnrollmentCeremonyStateError.invalidState
             }
