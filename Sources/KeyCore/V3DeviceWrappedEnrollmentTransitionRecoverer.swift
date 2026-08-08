@@ -57,10 +57,14 @@ struct V3DeviceWrappedEnrollmentTransitionRecoverer: Sendable {
 
     func recover(
         vaultID: String,
+        expectedTranscriptDigest: Data,
         localIdentity: any V3DeviceWrappedVaultKeyUnwrapping,
-        unwrapReason: String
+        unwrapReason: String,
+        afterCheckpointAdvance:
+            V3DeviceWrappedEnrollmentCommitHandler = { _, _ in }
     ) throws -> V3DeviceWrappedEnrollmentRecoveryResult {
         guard isValidV3UUID(vaultID),
+              expectedTranscriptDigest.count == 32,
               localIdentity.vaultID == vaultID,
               !unwrapReason.isEmpty
         else {
@@ -106,6 +110,8 @@ struct V3DeviceWrappedEnrollmentTransitionRecoverer: Sendable {
               intent.operationID == anchor.operationID,
               intent.kind == .enrollDevice,
               intent.vaultID == vaultID,
+              intent.enrollmentTranscriptDigest
+                == expectedTranscriptDigest,
               intent.expectedHeads
                 == [intent.expectedCheckpoint.envelopeDigest],
               intent.stagedEntries.count
@@ -120,7 +126,8 @@ struct V3DeviceWrappedEnrollmentTransitionRecoverer: Sendable {
             intentData: intentData,
             anchorData: anchorData,
             localIdentity: localIdentity,
-            unwrapReason: unwrapReason
+            unwrapReason: unwrapReason,
+            afterCheckpointAdvance: afterCheckpointAdvance
         )
     }
 
@@ -129,7 +136,9 @@ struct V3DeviceWrappedEnrollmentTransitionRecoverer: Sendable {
         intentData: Data,
         anchorData: Data,
         localIdentity: any V3DeviceWrappedVaultKeyUnwrapping,
-        unwrapReason: String
+        unwrapReason: String,
+        afterCheckpointAdvance:
+            V3DeviceWrappedEnrollmentCommitHandler
     ) throws -> V3DeviceWrappedEnrollmentRecoveryResult {
         let currentCheckpoint = try loadCheckpoint(vaultID: intent.vaultID)
         let candidateCheckpoint = try V3ManifestCheckpoint(
@@ -276,6 +285,11 @@ struct V3DeviceWrappedEnrollmentTransitionRecoverer: Sendable {
             } catch let error as V3ImmutableTransactionError {
                 throw recoveryError(for: error, intent: intent)
             }
+            let trusted = V3DeviceWrappedTrustedCheckpoint(
+                checkpoint: candidateCheckpoint,
+                envelope: validated.candidate
+            )
+            try afterCheckpointAdvance(trusted, nextVaultKey)
             try cleanup(
                 intent,
                 intentData: intentData,
@@ -286,10 +300,7 @@ struct V3DeviceWrappedEnrollmentTransitionRecoverer: Sendable {
             try? cache.store(manifest.data, for: candidateCheckpoint)
             return V3DeviceWrappedEnrollmentRecoveryResult(
                 outcome: .alreadyCompleted(operationID: intent.operationID),
-                trustedCheckpoint: V3DeviceWrappedTrustedCheckpoint(
-                    checkpoint: candidateCheckpoint,
-                    envelope: validated.candidate
-                ),
+                trustedCheckpoint: trusted,
                 vaultKey: nextVaultKey
             )
         }
@@ -333,6 +344,11 @@ struct V3DeviceWrappedEnrollmentTransitionRecoverer: Sendable {
             expectedCheckpoint: intent.expectedCheckpoint.canonicalBytes,
             vaultID: intent.vaultID
         )
+        let trusted = V3DeviceWrappedTrustedCheckpoint(
+            checkpoint: candidateCheckpoint,
+            envelope: validated.candidate
+        )
+        try afterCheckpointAdvance(trusted, nextVaultKey)
         try cleanup(
             intent,
             intentData: intentData,
@@ -343,10 +359,7 @@ struct V3DeviceWrappedEnrollmentTransitionRecoverer: Sendable {
         try? cache.store(manifest.data, for: candidateCheckpoint)
         return V3DeviceWrappedEnrollmentRecoveryResult(
             outcome: .completed(operationID: intent.operationID),
-            trustedCheckpoint: V3DeviceWrappedTrustedCheckpoint(
-                checkpoint: candidateCheckpoint,
-                envelope: validated.candidate
-            ),
+            trustedCheckpoint: trusted,
             vaultKey: nextVaultKey
         )
     }

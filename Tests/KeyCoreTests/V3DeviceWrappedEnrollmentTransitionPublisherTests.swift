@@ -67,6 +67,86 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
     }
 
     @Test
+    func completionFailureRetainsRecoveryUntilTheCallbackSucceeds() throws {
+        let fixture = try Fixture()
+        defer { fixture.removeRoot() }
+        let publisher = fixture.publisher(observer: RecordingObserver())
+
+        #expect(throws: PublicationTestError.commitFailed) {
+            _ = try publisher.publish(
+                fixture.candidate,
+                parent: fixture.base,
+                currentEntries: fixture.currentEntries,
+                currentVaultKey: Self.currentKey,
+                nextVaultKey: Self.nextKey,
+                state: fixture.ceremony,
+                localIdentity: fixture.owner,
+                at: Self.approvalTime,
+                unwrapReason: "Verify the owner's rotated-key wrapper.",
+                afterCheckpointAdvance: { _, _ in
+                    throw PublicationTestError.commitFailed
+                }
+            )
+        }
+        #expect(fixture.anchorStore.anchor(vaultID: Self.vaultID) != nil)
+
+        let recorder = EnrollmentCommitRecorder()
+        let recovered = try publisher.recoverInterruptedTransaction(
+            vaultID: Self.vaultID,
+            expectedTranscriptDigest: fixture.candidate.transcriptDigest,
+            localIdentity: fixture.owner,
+            unwrapReason: "Resume the exact approved enrollment.",
+            afterCheckpointAdvance: { trusted, vaultKey in
+                recorder.record(trusted: trusted, vaultKey: vaultKey)
+            }
+        )
+
+        #expect(recovered.outcome == .alreadyCompleted(
+            operationID: Self.operationID
+        ))
+        #expect(recorder.count == 1)
+        #expect(recorder.vaultKey == Self.nextKey)
+        #expect(recorder.checkpoint?.envelope.body == fixture.candidate.body)
+        #expect(fixture.anchorStore.anchor(vaultID: Self.vaultID) == nil)
+    }
+
+    @Test
+    func recoveryRequiresTheExactApprovedCeremony() throws {
+        let fixture = try Fixture()
+        defer { fixture.removeRoot() }
+        let publisher = fixture.publisher(
+            observer: InterruptingObserver(target: .recoveryArmed)
+        )
+        #expect(throws: PublicationTestError.interrupted) {
+            _ = try fixture.publish(using: publisher)
+        }
+        let recorder = EnrollmentCommitRecorder()
+
+        #expect(
+            throws: V3ImmutableTransactionRecoveryError.invalidIntent(
+                operationID: Self.operationID.rawValue
+            )
+        ) {
+            _ = try publisher.recoverInterruptedTransaction(
+                vaultID: Self.vaultID,
+                expectedTranscriptDigest: Data(repeating: 0x9a, count: 32),
+                localIdentity: fixture.owner,
+                unwrapReason: "Do not resume another enrollment ceremony.",
+                afterCheckpointAdvance: { trusted, vaultKey in
+                    recorder.record(trusted: trusted, vaultKey: vaultKey)
+                }
+            )
+        }
+
+        #expect(recorder.count == 0)
+        #expect(fixture.anchorStore.anchor(vaultID: Self.vaultID) != nil)
+        #expect(
+            fixture.checkpointStore.checkpoint
+                == fixture.base.checkpoint.canonicalBytes
+        )
+    }
+
+    @Test
     func everyInterruptionRecoversToTheCompleteOldOrNewEpoch() throws {
         let cases: [(
             phase: V3ImmutableTransactionPhase,
@@ -108,6 +188,7 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
 
             let recovered = try publisher.recoverInterruptedTransaction(
                 vaultID: Self.vaultID,
+                expectedTranscriptDigest: fixture.candidate.transcriptDigest,
                 localIdentity: fixture.owner,
                 unwrapReason: "Resume the exact approved enrollment."
             )
@@ -277,6 +358,7 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
             repositoryObserver: ClosureRepositoryObserver { _, _ in advanced }
         ).recoverInterruptedTransaction(
             vaultID: Self.vaultID,
+            expectedTranscriptDigest: fixture.candidate.transcriptDigest,
             localIdentity: fixture.owner,
             unwrapReason: "Resume the exact approved enrollment."
         )
@@ -319,6 +401,7 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
         ) {
             _ = try publisher.recoverInterruptedTransaction(
                 vaultID: Self.vaultID,
+                expectedTranscriptDigest: fixture.candidate.transcriptDigest,
                 localIdentity: fixture.owner,
                 unwrapReason: "Resume the exact approved enrollment."
             )
@@ -360,6 +443,7 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
                 objectStore: delayedStore
             ).recoverInterruptedTransaction(
                 vaultID: Self.vaultID,
+                expectedTranscriptDigest: fixture.candidate.transcriptDigest,
                 localIdentity: fixture.owner,
                 unwrapReason: "Resume the exact approved enrollment."
             )
@@ -393,6 +477,7 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
                 objectStore: substitutedStore
             ).recoverInterruptedTransaction(
                 vaultID: Self.vaultID,
+                expectedTranscriptDigest: fixture.candidate.transcriptDigest,
                 localIdentity: fixture.owner,
                 unwrapReason: "Resume the exact approved enrollment."
             )
@@ -429,6 +514,247 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
             #expect(!String(decoding: intent, as: UTF8.self).contains(
                 Base64URL.encode(rawKey)
             ))
+        }
+    }
+
+    @Test
+    func ownerApprovalRotatesTheKeyAndConsumesTheCeremony() throws {
+        let fixture = try Fixture()
+        defer { fixture.removeRoot() }
+        let stateStore = ApprovalMemoryCeremonyStateStore()
+        try stateStore.replaceState(
+            fixture.ceremony.canonicalBytes,
+            expectedState: nil,
+            vaultID: Self.vaultID,
+            invitationDigest: fixture.ceremony.invitationDigest
+        )
+        let exchange = V3EnrollmentExchangeCoordinator(
+            mailbox: ApprovalNoopMailbox(),
+            stateStore: stateStore
+        )
+        let session = V3DeviceWrappedVaultKeySessionStore()
+        let service = V3DeviceWrappedEnrollmentOwnerApprovalService(
+            vaultID: Self.vaultID,
+            stateLoader: ApprovalStateLoader(
+                trusted: fixture.base,
+                vaultKey: Self.currentKey
+            ),
+            source: fixture.store,
+            objectStore: fixture.store,
+            checkpointStore: fixture.checkpointStore,
+            recoveryAnchorStore: fixture.anchorStore,
+            cache: fixture.cache,
+            exchange: exchange,
+            loadIdentity: { _, _ in fixture.owner },
+            session: session,
+            makeUUID: { Self.enrollmentTransitionID },
+            makeVaultKey: { Self.nextKey }
+        )
+        let workflow = V3DeviceWrappedEnrollmentOwnerWorkflow(
+            vaultID: Self.vaultID,
+            stateLoader: ApprovalStateLoader(
+                trusted: fixture.base,
+                vaultKey: Self.currentKey
+            ),
+            exchange: exchange,
+            loadIdentity: { _, _ in fixture.owner },
+            loadPublicIdentity: { _ in fixture.owner.publicIdentity },
+            approvalService: service
+        )
+        let transcript = try #require(fixture.ceremony.transcript)
+
+        let rendered = try workflow.approve(
+            vaultID: Self.vaultID,
+            invitationDigest: fixture.ceremony.invitationDigest,
+            comparisonCode: transcript.comparisonCode,
+            at: Self.approvalTime,
+            operationID: Self.operationID
+        )
+
+        #expect(rendered.contains("Enrollment approved."))
+        let checkpointData = try #require(fixture.checkpointStore.checkpoint)
+        let checkpoint = try V3ManifestCheckpoint(
+            canonicalBytes: checkpointData
+        )
+        let manifestData: Data
+        switch try fixture.store.readManifest(
+            digest: checkpoint.envelopeDigest,
+            maximumBytes: V3ManifestRepositoryLimits.standard
+                .maximumManifestBytes
+        ) {
+        case let .available(data):
+            manifestData = data
+        case .unavailable, .invalid, .tooLarge:
+            Issue.record("Approved manifest is unavailable.")
+            return
+        }
+        let envelope = try V3DeviceWrappedManifestEnvelopeCodec().parse(
+            manifestData
+        )
+        #expect(envelope.body.devices.count == 2)
+        #expect(envelope.body.devices.contains(where: {
+            $0.identity == fixture.joiner.publicIdentity
+        }))
+        #expect(try session.load(
+            vaultID: Self.vaultID,
+            keyID: envelope.body.keyID
+        ) == Self.nextKey)
+        let consumedData = try #require(try stateStore.loadState(
+            vaultID: Self.vaultID,
+            invitationDigest: fixture.ceremony.invitationDigest
+        ))
+        let consumed = try V3EnrollmentCeremonyState(
+            canonicalBytes: consumedData
+        )
+        #expect(consumed.phase == .consumed)
+        #expect(consumed.ownerApproval == nil)
+        #expect(fixture.anchorStore.anchor(vaultID: Self.vaultID) == nil)
+    }
+
+    @Test
+    func ownerApprovalRecoversWhenCeremonyConsumptionInitiallyFails() throws {
+        let fixture = try Fixture()
+        defer { fixture.removeRoot() }
+        let stateStore = ApprovalMemoryCeremonyStateStore()
+        try stateStore.replaceState(
+            fixture.ceremony.canonicalBytes,
+            expectedState: nil,
+            vaultID: Self.vaultID,
+            invitationDigest: fixture.ceremony.invitationDigest
+        )
+        stateStore.setFailConsumedReplacement(true)
+        let exchange = V3EnrollmentExchangeCoordinator(
+            mailbox: ApprovalNoopMailbox(),
+            stateStore: stateStore
+        )
+        let session = V3DeviceWrappedVaultKeySessionStore()
+        let service = V3DeviceWrappedEnrollmentOwnerApprovalService(
+            vaultID: Self.vaultID,
+            stateLoader: ApprovalStateLoader(
+                trusted: fixture.base,
+                vaultKey: Self.currentKey
+            ),
+            source: fixture.store,
+            objectStore: fixture.store,
+            checkpointStore: fixture.checkpointStore,
+            recoveryAnchorStore: fixture.anchorStore,
+            cache: fixture.cache,
+            exchange: exchange,
+            loadIdentity: { _, _ in fixture.owner },
+            session: session,
+            makeUUID: { Self.enrollmentTransitionID },
+            makeVaultKey: { Self.nextKey }
+        )
+        let transcript = try #require(fixture.ceremony.transcript)
+
+        #expect(throws: ApprovalTestError.consumptionFailed) {
+            _ = try service.approve(
+                invitationDigest: fixture.ceremony.invitationDigest,
+                approvedTranscriptDigest: transcript.digest,
+                at: Self.approvalTime,
+                operationID: Self.operationID
+            )
+        }
+        #expect(fixture.anchorStore.anchor(vaultID: Self.vaultID) != nil)
+
+        stateStore.setFailConsumedReplacement(false)
+        let recovered = try service.approve(
+            invitationDigest: fixture.ceremony.invitationDigest,
+            approvedTranscriptDigest: transcript.digest,
+            at: Self.approvalTime + 10_000,
+            operationID: Self.operationID
+        )
+
+        #expect(recovered.envelope.body.devices.count == 2)
+        #expect(fixture.anchorStore.anchor(vaultID: Self.vaultID) == nil)
+        let consumedData = try #require(try stateStore.loadState(
+            vaultID: Self.vaultID,
+            invitationDigest: fixture.ceremony.invitationDigest
+        ))
+        #expect(try V3EnrollmentCeremonyState(
+            canonicalBytes: consumedData
+        ).phase == .consumed)
+    }
+
+    @Test
+    func consumedOwnerApprovalCanFinishInterruptedCleanup() throws {
+        let fixture = try Fixture()
+        defer { fixture.removeRoot() }
+        let stateStore = ApprovalMemoryCeremonyStateStore()
+        try stateStore.replaceState(
+            fixture.ceremony.canonicalBytes,
+            expectedState: nil,
+            vaultID: Self.vaultID,
+            invitationDigest: fixture.ceremony.invitationDigest
+        )
+        let exchange = V3EnrollmentExchangeCoordinator(
+            mailbox: ApprovalNoopMailbox(),
+            stateStore: stateStore
+        )
+        let session = V3DeviceWrappedVaultKeySessionStore()
+        let stateLoader = ApprovalStateLoader(
+            trusted: fixture.base,
+            vaultKey: Self.currentKey
+        )
+        let service = V3DeviceWrappedEnrollmentOwnerApprovalService(
+            vaultID: Self.vaultID,
+            stateLoader: stateLoader,
+            source: fixture.store,
+            objectStore: fixture.store,
+            checkpointStore: fixture.checkpointStore,
+            recoveryAnchorStore: fixture.anchorStore,
+            cache: fixture.cache,
+            exchange: exchange,
+            loadIdentity: { _, _ in fixture.owner },
+            session: session,
+            makeUUID: { Self.enrollmentTransitionID },
+            makeVaultKey: { Self.nextKey }
+        )
+        let workflow = V3DeviceWrappedEnrollmentOwnerWorkflow(
+            vaultID: Self.vaultID,
+            stateLoader: stateLoader,
+            exchange: exchange,
+            loadIdentity: { _, _ in fixture.owner },
+            loadPublicIdentity: { _ in fixture.owner.publicIdentity },
+            approvalService: service
+        )
+        let transcript = try #require(fixture.ceremony.transcript)
+        fixture.anchorStore.failNextRemoval()
+
+        _ = try workflow.approve(
+            vaultID: Self.vaultID,
+            invitationDigest: fixture.ceremony.invitationDigest,
+            comparisonCode: transcript.comparisonCode,
+            at: Self.approvalTime,
+            operationID: Self.operationID
+        )
+        #expect(fixture.anchorStore.anchor(vaultID: Self.vaultID) != nil)
+        let consumedData = try #require(try stateStore.loadState(
+            vaultID: Self.vaultID,
+            invitationDigest: fixture.ceremony.invitationDigest
+        ))
+        #expect(try V3EnrollmentCeremonyState(
+            canonicalBytes: consumedData
+        ).phase == .consumed)
+
+        let rendered = try workflow.approve(
+            vaultID: Self.vaultID,
+            invitationDigest: fixture.ceremony.invitationDigest,
+            comparisonCode: transcript.comparisonCode,
+            at: Self.approvalTime + 10_000,
+            operationID: Self.operationID
+        )
+
+        #expect(rendered.contains("Enrollment approved."))
+        #expect(fixture.anchorStore.anchor(vaultID: Self.vaultID) == nil)
+        #expect(throws: V3EnrollmentCeremonyStateError.replayed) {
+            _ = try workflow.approve(
+                vaultID: Self.vaultID,
+                invitationDigest: fixture.ceremony.invitationDigest,
+                comparisonCode: transcript.comparisonCode,
+                at: Self.approvalTime + 10_001,
+                operationID: Self.operationID
+            )
         }
     }
 
@@ -1016,6 +1342,134 @@ private final class FaultInjectingArtifactStore:
 
 private enum PublicationTestError: Error {
     case interrupted
+    case commitFailed
+}
+
+private enum ApprovalTestError: Error {
+    case consumptionFailed
+    case cleanupFailed
+}
+
+private struct ApprovalStateLoader:
+    V3DeviceWrappedMutationStateLoading,
+    Sendable
+{
+    let trusted: V3DeviceWrappedTrustedCheckpoint
+    let vaultKey: Data
+
+    func authenticatedCheckpoint(
+        reason _: String
+    ) throws -> V3DeviceWrappedTrustedCheckpoint {
+        trusted
+    }
+
+    func loadVaultKey(keyID: V3VaultKeyID) throws -> Data {
+        guard keyID == trusted.envelope.body.keyID else {
+            throw V3DeviceWrappedVaultKeySessionError.unavailable
+        }
+        return vaultKey
+    }
+}
+
+private struct ApprovalNoopMailbox: V3EnrollmentMailboxStoring {
+    func invitationDigests(
+        maximumCount _: Int
+    ) throws -> V3EnrollmentMailboxListing {
+        .available(digests: [], objectCount: 0)
+    }
+
+    func readInvitation(digest _: Data) throws -> V3RepositoryObjectRead {
+        .unavailable
+    }
+
+    func publishInvitation(_: Data) throws {}
+
+    func joinRequestDigests(
+        invitationDigest _: Data,
+        maximumCount _: Int
+    ) throws -> V3EnrollmentMailboxListing {
+        .available(digests: [], objectCount: 0)
+    }
+
+    func readJoinRequest(
+        invitationDigest _: Data,
+        joinRequestDigest _: Data
+    ) throws -> V3RepositoryObjectRead {
+        .unavailable
+    }
+
+    func publishJoinRequest(
+        _: Data,
+        invitationDigest _: Data
+    ) throws {}
+}
+
+private final class ApprovalMemoryCeremonyStateStore:
+    V3EnrollmentCeremonyStateStoring,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var state: Data?
+    private var failConsumedReplacement = false
+
+    func setFailConsumedReplacement(_ fail: Bool) {
+        lock.withLock { failConsumedReplacement = fail }
+    }
+
+    func loadState(
+        vaultID _: String,
+        invitationDigest _: Data
+    ) throws -> Data? {
+        lock.withLock { state }
+    }
+
+    func replaceState(
+        _ state: Data,
+        expectedState: Data?,
+        vaultID _: String,
+        invitationDigest _: Data
+    ) throws {
+        let decoded = try V3EnrollmentCeremonyState(canonicalBytes: state)
+        try lock.withLock {
+            guard self.state == expectedState else {
+                throw V3EnrollmentCeremonyStateError.conflict
+            }
+            if decoded.phase == .consumed, failConsumedReplacement {
+                throw ApprovalTestError.consumptionFailed
+            }
+            self.state = state
+        }
+    }
+}
+
+private final class EnrollmentCommitRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedCheckpoint: V3DeviceWrappedTrustedCheckpoint?
+    private var recordedVaultKey: Data?
+    private var invocationCount = 0
+
+    var checkpoint: V3DeviceWrappedTrustedCheckpoint? {
+        lock.withLock { recordedCheckpoint }
+    }
+
+    var vaultKey: Data? {
+        lock.withLock { recordedVaultKey }
+    }
+
+    var count: Int {
+        lock.withLock { invocationCount }
+    }
+
+    func record(
+        trusted: V3DeviceWrappedTrustedCheckpoint,
+        vaultKey: Data
+    ) {
+        lock.withLock {
+            recordedCheckpoint = trusted
+            recordedVaultKey = vaultKey
+            invocationCount += 1
+        }
+    }
 }
 
 private final class RecordingObserver:
@@ -1142,6 +1596,11 @@ private final class MemoryAnchorStore:
 {
     private let lock = NSLock()
     private var anchors: [String: Data] = [:]
+    private var shouldFailNextRemoval = false
+
+    func failNextRemoval() {
+        lock.withLock { shouldFailNextRemoval = true }
+    }
 
     func anchor(vaultID: String) -> Data? {
         lock.withLock { anchors[vaultID] }
@@ -1159,6 +1618,10 @@ private final class MemoryAnchorStore:
         try lock.withLock {
             guard anchors[vaultID] == expectedAnchor else {
                 throw V3ImmutableTransactionRecoveryAnchorError.conflict
+            }
+            if anchor == nil, shouldFailNextRemoval {
+                shouldFailNextRemoval = false
+                throw ApprovalTestError.cleanupFailed
             }
             anchors[vaultID] = anchor
         }

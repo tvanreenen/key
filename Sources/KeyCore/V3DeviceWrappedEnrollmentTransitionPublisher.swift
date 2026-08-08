@@ -1,6 +1,11 @@
 import CryptoKit
 import Foundation
 
+typealias V3DeviceWrappedEnrollmentCommitHandler = @Sendable (
+    _ checkpoint: V3DeviceWrappedTrustedCheckpoint,
+    _ vaultKey: Data
+) throws -> Void
+
 private struct V3DeviceWrappedNoopEnrollmentPublicationObserver:
     V3ImmutableTransactionPhaseObserving
 {
@@ -76,7 +81,9 @@ struct V3DeviceWrappedEnrollmentTransitionPublisher: Sendable {
         state: V3EnrollmentCeremonyState,
         localIdentity: any V3DeviceWrappedVaultKeyUnwrapping,
         at unixTime: UInt64,
-        unwrapReason: String
+        unwrapReason: String,
+        afterCheckpointAdvance: @escaping
+            V3DeviceWrappedEnrollmentCommitHandler = { _, _ in }
     ) throws -> V3DeviceWrappedTrustedCheckpoint {
         try mutationOwner.perform(.enrollDevice) { context in
             try publish(
@@ -89,6 +96,7 @@ struct V3DeviceWrappedEnrollmentTransitionPublisher: Sendable {
                 localIdentity: localIdentity,
                 at: unixTime,
                 unwrapReason: unwrapReason,
+                afterCheckpointAdvance: afterCheckpointAdvance,
                 operationID: context.operationID
             )
         }
@@ -96,14 +104,19 @@ struct V3DeviceWrappedEnrollmentTransitionPublisher: Sendable {
 
     func recoverInterruptedTransaction(
         vaultID: String,
+        expectedTranscriptDigest: Data,
         localIdentity: any V3DeviceWrappedVaultKeyUnwrapping,
-        unwrapReason: String
+        unwrapReason: String,
+        afterCheckpointAdvance: @escaping
+            V3DeviceWrappedEnrollmentCommitHandler = { _, _ in }
     ) throws -> V3DeviceWrappedEnrollmentRecoveryResult {
         try mutationOwner.perform(.recoverInterruptedTransaction) { _ in
             try recoverer.recover(
                 vaultID: vaultID,
+                expectedTranscriptDigest: expectedTranscriptDigest,
                 localIdentity: localIdentity,
-                unwrapReason: unwrapReason
+                unwrapReason: unwrapReason,
+                afterCheckpointAdvance: afterCheckpointAdvance
             )
         }
     }
@@ -118,6 +131,8 @@ struct V3DeviceWrappedEnrollmentTransitionPublisher: Sendable {
         localIdentity: any V3DeviceWrappedVaultKeyUnwrapping,
         at unixTime: UInt64,
         unwrapReason: String,
+        afterCheckpointAdvance:
+            V3DeviceWrappedEnrollmentCommitHandler,
         operationID: VaultTransactionOperationID
     ) throws -> V3DeviceWrappedTrustedCheckpoint {
         let vaultID = candidate.expectedCheckpoint.vaultID
@@ -170,7 +185,8 @@ struct V3DeviceWrappedEnrollmentTransitionPublisher: Sendable {
                     entryID: $0.entryID,
                     digest: $0.digest
                 )
-            }
+            },
+            enrollmentTranscriptDigest: candidate.transcriptDigest
         )
         let intentData = intent.canonicalBytes
         let intentDigest = Data(SHA256.hash(data: intentData))
@@ -340,6 +356,12 @@ struct V3DeviceWrappedEnrollmentTransitionPublisher: Sendable {
             operationID: operationID
         )
 
+        let trusted = V3DeviceWrappedTrustedCheckpoint(
+            checkpoint: checkpoint,
+            envelope: validated.candidate
+        )
+        try afterCheckpointAdvance(trusted, nextVaultKey)
+
         if (try? cleanup(
             intent,
             intentData: intentData,
@@ -353,10 +375,7 @@ struct V3DeviceWrappedEnrollmentTransitionPublisher: Sendable {
                 operationID: operationID
             )
         }
-        return V3DeviceWrappedTrustedCheckpoint(
-            checkpoint: checkpoint,
-            envelope: validated.candidate
-        )
+        return trusted
     }
 
     private func requireNoInterruptedTransaction(vaultID: String) throws {
