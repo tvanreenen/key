@@ -19,7 +19,6 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
     V3DeviceWrappedEnrollmentOwnerApproving,
     Sendable
 {
-    typealias UUIDGenerator = @Sendable () -> String
     typealias VaultKeyGenerator = @Sendable () -> Data
     typealias Identity =
         any V3EnrollmentMessageSigning & V3DeviceWrappedVaultKeyUnwrapping
@@ -40,7 +39,6 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
     private let loadIdentity: IdentityLoader
     private let session: V3DeviceWrappedVaultKeySessionStore
     private let limits: V3ManifestRepositoryLimits
-    private let makeUUID: UUIDGenerator
     private let makeVaultKey: VaultKeyGenerator
     private let builder = V3DeviceWrappedEnrollmentTransitionBuilder()
 
@@ -57,9 +55,6 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
         loadIdentity: @escaping IdentityLoader,
         session: V3DeviceWrappedVaultKeySessionStore,
         limits: V3ManifestRepositoryLimits = .standard,
-        makeUUID: @escaping UUIDGenerator = {
-            UUID().uuidString.lowercased()
-        },
         makeVaultKey: @escaping VaultKeyGenerator = {
             var generator = SystemRandomNumberGenerator()
             return Data((0..<32).map { _ in
@@ -82,7 +77,6 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
         self.loadIdentity = loadIdentity
         self.session = session
         self.limits = limits
-        self.makeUUID = makeUUID
         self.makeVaultKey = makeVaultKey
     }
 
@@ -156,9 +150,15 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
             limits: limits
         ).load(parent)
         let nextVaultKey = try freshVaultKey(excluding: currentVaultKey)
-        let authorityTransitionID = try freshAuthorityTransitionID(
-            excluding: parent.envelope.body.authorityTransitionID
+        let authorityTransitionID = try v3EnrollmentAuthorityTransitionID(
+            transcriptDigest: approvedTranscriptDigest
         )
+        guard isValidV3UUID(authorityTransitionID),
+              authorityTransitionID
+                != parent.envelope.body.authorityTransitionID
+        else {
+            throw V3DeviceWrappedEnrollmentTransitionError.invalidCandidate
+        }
         let candidate = try builder.build(
             from: parent,
             currentEntries: currentEntries,
@@ -239,19 +239,4 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
         throw V3DeviceWrappedEnrollmentTransitionError.invalidNextVaultKey
     }
 
-    private func freshAuthorityTransitionID(
-        excluding current: String
-    ) throws -> String {
-        for _ in 0..<16 {
-            let candidate = makeUUID()
-            guard isValidV3UUID(candidate) else {
-                throw V3DeviceWrappedEnrollmentTransitionError
-                    .invalidCandidate
-            }
-            if candidate != current {
-                return candidate
-            }
-        }
-        throw V3DeviceWrappedEnrollmentTransitionError.invalidCandidate
-    }
 }

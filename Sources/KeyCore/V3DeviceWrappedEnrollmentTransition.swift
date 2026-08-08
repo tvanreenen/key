@@ -2,6 +2,29 @@ import CryptoKit
 import Foundation
 internal import JSONCanonicalization
 
+/// Derives a stable RFC 9562 version-8 UUID from the complete enrollment
+/// transcript. The identifier is authenticated by the manifest, included in
+/// every HPKE wrapper context, and lets a joining Mac prove that synchronized
+/// approval bytes belong to the exact comparison it accepted.
+func v3EnrollmentAuthorityTransitionID(
+    transcriptDigest: Data
+) throws -> String {
+    guard transcriptDigest.count == 32 else {
+        throw V3DeviceWrappedEnrollmentTransitionError.invalidCeremony
+    }
+    var bytes = Array(transcriptDigest.prefix(16))
+    bytes[6] = (bytes[6] & 0x0f) | 0x80
+    bytes[8] = (bytes[8] & 0x3f) | 0x80
+    let hex = bytes.map { String(format: "%02x", $0) }.joined()
+    return [
+        String(hex.prefix(8)),
+        String(hex.dropFirst(8).prefix(4)),
+        String(hex.dropFirst(12).prefix(4)),
+        String(hex.dropFirst(16).prefix(4)),
+        String(hex.dropFirst(20)),
+    ].joined(separator: "-")
+}
+
 enum V3DeviceWrappedEnrollmentTransitionError:
     Error,
     Equatable,

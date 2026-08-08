@@ -547,7 +547,6 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
             exchange: exchange,
             loadIdentity: { _, _ in fixture.owner },
             session: session,
-            makeUUID: { Self.enrollmentTransitionID },
             makeVaultKey: { Self.nextKey }
         )
         let workflow = V3DeviceWrappedEnrollmentOwnerWorkflow(
@@ -591,6 +590,10 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
         let envelope = try V3DeviceWrappedManifestEnvelopeCodec().parse(
             manifestData
         )
+        #expect(envelope.body.authorityTransitionID
+            == (try v3EnrollmentAuthorityTransitionID(
+                transcriptDigest: transcript.digest
+            )))
         #expect(envelope.body.devices.count == 2)
         #expect(envelope.body.devices.contains(where: {
             $0.identity == fixture.joiner.publicIdentity
@@ -642,7 +645,6 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
             exchange: exchange,
             loadIdentity: { _, _ in fixture.owner },
             session: session,
-            makeUUID: { Self.enrollmentTransitionID },
             makeVaultKey: { Self.nextKey }
         )
         let transcript = try #require(fixture.ceremony.transcript)
@@ -707,7 +709,6 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
             exchange: exchange,
             loadIdentity: { _, _ in fixture.owner },
             session: session,
-            makeUUID: { Self.enrollmentTransitionID },
             makeVaultKey: { Self.nextKey }
         )
         let workflow = V3DeviceWrappedEnrollmentOwnerWorkflow(
@@ -756,6 +757,215 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
                 operationID: Self.operationID
             )
         }
+    }
+
+    @Test
+    func joiningDeviceSelectsOnlyAfterPermanentFirstTrustIsUsable() throws {
+        let fixture = try Fixture()
+        defer { fixture.removeRoot() }
+        try fixture.publishCandidateDirectly()
+        let stateStore = ApprovalMemoryCeremonyStateStore()
+        let joinerState = try fixture.joinerCeremony()
+        try stateStore.replaceState(
+            joinerState.canonicalBytes,
+            expectedState: nil,
+            vaultID: Self.vaultID,
+            invitationDigest: joinerState.invitationDigest
+        )
+        let checkpointStore = MemoryCheckpointStore()
+        let cache = MemoryCheckpointCache()
+        let session = V3DeviceWrappedVaultKeySessionStore()
+        let selection = AdoptionSelectionRecorder()
+        let service = V3DeviceWrappedEnrollmentAdoptionService(
+            source: fixture.store,
+            checkpointStore: checkpointStore,
+            cache: cache,
+            exchange: V3EnrollmentExchangeCoordinator(
+                mailbox: ApprovalNoopMailbox(),
+                stateStore: stateStore
+            ),
+            loadIdentity: { _, _ in fixture.joiner },
+            session: session,
+            selectVault: { selection.select($0) },
+            verifyRuntime: { vaultID, installedSession in
+                #expect(vaultID == Self.vaultID)
+                #expect(try installedSession.load(
+                    vaultID: vaultID,
+                    keyID: fixture.candidate.body.keyID
+                ) == Self.nextKey)
+                let checkpoint = try #require(checkpointStore.checkpoint)
+                #expect(try V3ManifestCheckpoint(
+                    canonicalBytes: checkpoint
+                ).envelopeDigest == fixture.candidate.manifestDigest)
+            }
+        )
+        let transcript = try #require(joinerState.transcript)
+
+        let report = try service.adopt(
+            vaultID: Self.vaultID,
+            invitationDigest: joinerState.invitationDigest,
+            approvedTranscriptDigest: transcript.digest,
+            at: Self.approvalTime,
+            operationID: Self.operationID
+        )
+
+        #expect(report.deviceName == "Joining Mac")
+        #expect(report.role == .member)
+        #expect(selection.vaultID == Self.vaultID)
+        #expect(cache.storedManifest == fixture.candidate.manifestData)
+        #expect(try V3EnrollmentCeremonyState(
+            canonicalBytes: #require(try stateStore.loadState(
+                vaultID: Self.vaultID,
+                invitationDigest: joinerState.invitationDigest
+            ))
+        ).phase == .consumed)
+    }
+
+    @Test
+    func joiningDeviceCanRetryExactConsumedApprovalAfterSelectionFailure()
+        throws
+    {
+        let fixture = try Fixture()
+        defer { fixture.removeRoot() }
+        try fixture.publishCandidateDirectly()
+        let stateStore = ApprovalMemoryCeremonyStateStore()
+        let joinerState = try fixture.joinerCeremony()
+        try stateStore.replaceState(
+            joinerState.canonicalBytes,
+            expectedState: nil,
+            vaultID: Self.vaultID,
+            invitationDigest: joinerState.invitationDigest
+        )
+        let checkpointStore = MemoryCheckpointStore()
+        let cache = MemoryCheckpointCache()
+        let session = V3DeviceWrappedVaultKeySessionStore()
+        let selection = AdoptionSelectionRecorder(failFirst: true)
+        let service = V3DeviceWrappedEnrollmentAdoptionService(
+            source: fixture.store,
+            checkpointStore: checkpointStore,
+            cache: cache,
+            exchange: V3EnrollmentExchangeCoordinator(
+                mailbox: ApprovalNoopMailbox(),
+                stateStore: stateStore
+            ),
+            loadIdentity: { _, _ in fixture.joiner },
+            session: session,
+            selectVault: { try selection.selectOrFail($0) },
+            verifyRuntime: { _, _ in }
+        )
+        let transcript = try #require(joinerState.transcript)
+
+        #expect(throws:
+            V3DeviceWrappedEnrollmentAdoptionError.selectionFailed
+        ) {
+            _ = try service.adopt(
+                vaultID: Self.vaultID,
+                invitationDigest: joinerState.invitationDigest,
+                approvedTranscriptDigest: transcript.digest,
+                at: Self.approvalTime,
+                operationID: Self.operationID
+            )
+        }
+        #expect(try V3EnrollmentCeremonyState(
+            canonicalBytes: #require(try stateStore.loadState(
+                vaultID: Self.vaultID,
+                invitationDigest: joinerState.invitationDigest
+            ))
+        ).phase == .consumed)
+
+        _ = try service.adopt(
+            vaultID: Self.vaultID,
+            invitationDigest: joinerState.invitationDigest,
+            approvedTranscriptDigest: transcript.digest,
+            at: Self.approvalTime + 10_000,
+            operationID: Self.operationID
+        )
+
+        #expect(selection.vaultID == Self.vaultID)
+    }
+
+    @Test
+    func unboundOrUnavailableApprovalChangesNoJoiningTrust() throws {
+        let fixture = try Fixture()
+        defer { fixture.removeRoot() }
+        let stateStore = ApprovalMemoryCeremonyStateStore()
+        let joinerState = try fixture.joinerCeremony()
+        try stateStore.replaceState(
+            joinerState.canonicalBytes,
+            expectedState: nil,
+            vaultID: Self.vaultID,
+            invitationDigest: joinerState.invitationDigest
+        )
+        let checkpointStore = MemoryCheckpointStore()
+        let session = V3DeviceWrappedVaultKeySessionStore()
+        let selection = AdoptionSelectionRecorder()
+        let service = V3DeviceWrappedEnrollmentAdoptionService(
+            source: fixture.store,
+            checkpointStore: checkpointStore,
+            cache: MemoryCheckpointCache(),
+            exchange: V3EnrollmentExchangeCoordinator(
+                mailbox: ApprovalNoopMailbox(),
+                stateStore: stateStore
+            ),
+            loadIdentity: { _, _ in fixture.joiner },
+            session: session,
+            selectVault: { selection.select($0) },
+            verifyRuntime: { _, _ in }
+        )
+        let transcript = try #require(joinerState.transcript)
+
+        #expect(throws:
+            V3DeviceWrappedEnrollmentAdoptionError.approvalUnavailable
+        ) {
+            _ = try service.adopt(
+                vaultID: Self.vaultID,
+                invitationDigest: joinerState.invitationDigest,
+                approvedTranscriptDigest: transcript.digest,
+                at: Self.approvalTime,
+                operationID: Self.operationID
+            )
+        }
+        #expect(checkpointStore.checkpoint == nil)
+        #expect(selection.vaultID == nil)
+        #expect(try V3EnrollmentCeremonyState(
+            canonicalBytes: #require(try stateStore.loadState(
+                vaultID: Self.vaultID,
+                invitationDigest: joinerState.invitationDigest
+            ))
+        ).phase == .awaitingComparison)
+
+        try fixture.publishManifest(
+            try fixture.futureProfileCandidateManifest()
+        )
+        #expect(throws:
+            V3DeviceWrappedEnrollmentAdoptionError.upgradeRequired
+        ) {
+            _ = try service.adopt(
+                vaultID: Self.vaultID,
+                invitationDigest: joinerState.invitationDigest,
+                approvedTranscriptDigest: transcript.digest,
+                at: Self.approvalTime,
+                operationID: Self.operationID
+            )
+        }
+        #expect(checkpointStore.checkpoint == nil)
+        #expect(selection.vaultID == nil)
+
+        let unbound = try fixture.unboundCandidate()
+        try fixture.publishCandidateDirectly(unbound)
+        #expect(throws:
+            V3DeviceWrappedEnrollmentAdoptionError.invalidApproval
+        ) {
+            _ = try service.adopt(
+                vaultID: Self.vaultID,
+                invitationDigest: joinerState.invitationDigest,
+                approvedTranscriptDigest: transcript.digest,
+                at: Self.approvalTime,
+                operationID: Self.operationID
+            )
+        }
+        #expect(checkpointStore.checkpoint == nil)
+        #expect(selection.vaultID == nil)
     }
 
     private final class Fixture: @unchecked Sendable {
@@ -864,7 +1074,10 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
                     state: ceremony,
                     currentVaultKey: currentKey,
                     nextVaultKey: nextKey,
-                    authorityTransitionID: enrollmentTransitionID,
+                    authorityTransitionID:
+                        try v3EnrollmentAuthorityTransitionID(
+                            transcriptDigest: #require(ceremony.transcript).digest
+                        ),
                     owner: owner,
                     at: approvalTime,
                     authorizationReason: "Approve the compared Mac."
@@ -1020,6 +1233,95 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
                 }
                 #expect(data == entry.canonicalBytes)
             }
+        }
+
+        func publishCandidateDirectly(
+            _ publication: V3DeviceWrappedEnrollmentTransitionCandidate? = nil
+        ) throws {
+            let publication = publication ?? candidate
+            for entry in publication.stagedEntries {
+                let digest = try #require(Base64URL.decodeCanonical(
+                    entry.ciphertextDigest
+                ))
+                try store.stageEntry(
+                    entry.canonicalBytes,
+                    entryID: entry.context.entryID,
+                    digest: digest,
+                    operationID: operationID
+                )
+                try store.publishStagedEntry(
+                    entry.canonicalBytes,
+                    entryID: entry.context.entryID,
+                    digest: digest,
+                    operationID: operationID
+                )
+            }
+            try store.stageManifest(
+                publication.manifestData,
+                digest: publication.manifestDigest,
+                operationID: operationID
+            )
+            try store.publishStagedManifest(
+                publication.manifestData,
+                digest: publication.manifestDigest,
+                operationID: operationID
+            )
+        }
+
+        func unboundCandidate()
+            throws -> V3DeviceWrappedEnrollmentTransitionCandidate
+        {
+            try V3DeviceWrappedEnrollmentTransitionBuilder().build(
+                from: base,
+                currentEntries: currentEntries,
+                state: ceremony,
+                currentVaultKey: currentKey,
+                nextVaultKey: nextKey,
+                authorityTransitionID: enrollmentTransitionID,
+                owner: owner,
+                at: approvalTime,
+                authorizationReason: "Approve the compared Mac."
+            )
+        }
+
+        func futureProfileCandidateManifest() throws -> Data {
+            var text = try #require(String(
+                data: candidate.manifestData,
+                encoding: .utf8
+            ))
+            let version = try #require(
+                text.range(of: "\"profileVersion\":1")
+            )
+            text.replaceSubrange(
+                version,
+                with: "\"profileVersion\":2"
+            )
+            return Data(text.utf8)
+        }
+
+        func publishManifest(_ data: Data) throws {
+            let digest = Data(SHA256.hash(data: data))
+            try store.stageManifest(
+                data,
+                digest: digest,
+                operationID: operationID
+            )
+            try store.publishStagedManifest(
+                data,
+                digest: digest,
+                operationID: operationID
+            )
+        }
+
+        func joinerCeremony() throws -> V3EnrollmentCeremonyState {
+            try V3EnrollmentCeremonyState(
+                vaultID: ceremony.vaultID,
+                invitationDigest: ceremony.invitationDigest,
+                role: .joiner,
+                phase: .awaitingComparison,
+                signedInvitation: ceremony.signedInvitation,
+                signedJoinRequest: ceremony.signedJoinRequest
+            )
         }
 
         func removeRoot() {
@@ -1348,6 +1650,7 @@ private enum PublicationTestError: Error {
 private enum ApprovalTestError: Error {
     case consumptionFailed
     case cleanupFailed
+    case selectionFailed
 }
 
 private struct ApprovalStateLoader:
@@ -1438,6 +1741,34 @@ private final class ApprovalMemoryCeremonyStateStore:
                 throw ApprovalTestError.consumptionFailed
             }
             self.state = state
+        }
+    }
+}
+
+private final class AdoptionSelectionRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var selectedVaultID: String?
+    private var shouldFail: Bool
+
+    init(failFirst: Bool = false) {
+        shouldFail = failFirst
+    }
+
+    var vaultID: String? {
+        lock.withLock { selectedVaultID }
+    }
+
+    func select(_ vaultID: String) {
+        lock.withLock { selectedVaultID = vaultID }
+    }
+
+    func selectOrFail(_ vaultID: String) throws {
+        try lock.withLock {
+            if shouldFail {
+                shouldFail = false
+                throw ApprovalTestError.selectionFailed
+            }
+            selectedVaultID = vaultID
         }
     }
 }
@@ -1564,8 +1895,8 @@ private final class MemoryCheckpointStore:
 {
     private let lock = NSLock()
     private var stored: Data?
-    init(checkpoint: V3ManifestCheckpoint) {
-        stored = checkpoint.canonicalBytes
+    init(checkpoint: V3ManifestCheckpoint? = nil) {
+        stored = checkpoint?.canonicalBytes
     }
 
     var checkpoint: Data? {

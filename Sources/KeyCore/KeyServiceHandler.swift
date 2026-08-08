@@ -123,7 +123,7 @@ public final class KeyServiceHandler {
                 let rootHandle = try VaultRootDirectoryHandle(
                     opening: keyConfiguration.vaultDirectoryURL
                 )
-                return makeLiveV3EnrollmentWorkflowService(
+                return try makeLiveV3EnrollmentWorkflowService(
                     rootHandle: rootHandle,
                     selectedVaultID: nil,
                     keyStore: keyStore,
@@ -603,6 +603,8 @@ public final class KeyServiceHandler {
             return .failure(error)
         } catch let error as V3EnrollmentAdoptionError {
             return enrollmentFailure(error)
+        } catch let error as V3DeviceWrappedEnrollmentAdoptionError {
+            return deviceWrappedEnrollmentFailure(error)
         } catch {
             return .failure(error.localizedDescription)
         }
@@ -1140,5 +1142,20 @@ private func enrollmentFailure(
             error.localizedDescription,
             code: .recoveryRequired
         )
+    }
+}
+
+private func deviceWrappedEnrollmentFailure(
+    _ error: V3DeviceWrappedEnrollmentAdoptionError
+) -> KeyServiceResponse {
+    switch error {
+    case .approvalUnavailable:
+        return .failure(error.localizedDescription, code: .vaultIncomplete)
+    case .invalidCeremony, .upgradeRequired, .authenticationCancelled,
+        .selectionFailed:
+        return .failure(error.localizedDescription, code: .operationRefused)
+    case .ambiguousApproval, .invalidApproval, .identityUnavailable,
+        .invalidWrappedKey, .conflictingCheckpoint:
+        return .failure(error.localizedDescription, code: .recoveryRequired)
     }
 }

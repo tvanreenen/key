@@ -1,6 +1,34 @@
 import CryptoKit
 import Foundation
 
+/// Immutable bridge around the synchronous configuration API. Calls remain
+/// inside the helper's exclusive runtime-selection barrier.
+private final class V3EnrollmentVaultSelectionCommitter:
+    @unchecked Sendable
+{
+    private let configStore: KeyConfigStore
+    private let rootHandle: VaultRootDirectoryHandle
+    private let keychainMode: KeychainMode
+
+    init(
+        configStore: KeyConfigStore,
+        rootHandle: VaultRootDirectoryHandle,
+        keychainMode: KeychainMode
+    ) {
+        self.configStore = configStore
+        self.rootHandle = rootHandle
+        self.keychainMode = keychainMode
+    }
+
+    func select(_ vaultID: String) throws {
+        _ = try configStore.selectV3Vault(
+            vaultID: vaultID,
+            expectedRootHandle: rootHandle,
+            expectedKeychainMode: keychainMode
+        )
+    }
+}
+
 func makeLiveV3EnrollmentWorkflowService(
     rootHandle: VaultRootDirectoryHandle,
     selectedVaultID: String?,
@@ -8,7 +36,7 @@ func makeLiveV3EnrollmentWorkflowService(
     keyConfiguration: KeyConfiguration,
     configStore: KeyConfigStore,
     runtimeConfiguration: RuntimeConfiguration
-) -> V3EnrollmentWorkflowService {
+) throws -> V3EnrollmentWorkflowService {
     let objectStore = V3FilesystemTransactionArtifactStore(
         rootHandle: rootHandle
     )
@@ -26,6 +54,45 @@ func makeLiveV3EnrollmentWorkflowService(
             configuration: runtimeConfiguration
         ),
         keyOperations: V3SecureEnclaveEnrollmentDeviceKeyOperations()
+    )
+    let cache = try KeyServiceHandler.makeV3CheckpointManifestCache(
+        keyConfiguration: keyConfiguration
+    )
+    let session = V3DeviceWrappedVaultKeySessionStore()
+    let selectionCommitter = V3EnrollmentVaultSelectionCommitter(
+        configStore: configStore,
+        rootHandle: rootHandle,
+        keychainMode: keyConfiguration.keychainMode
+    )
+    let deviceWrappedAdoption = V3DeviceWrappedEnrollmentAdoptionService(
+        source: objectStore,
+        checkpointStore: checkpointStore,
+        cache: cache,
+        exchange: exchange,
+        loadIdentity: { vaultID, reason in
+            try identityManager.loadIdentity(
+                vaultID: vaultID,
+                reason: reason
+            )
+        },
+        session: session,
+        selectVault: { vaultID in
+            try selectionCommitter.select(vaultID)
+        },
+        verifyRuntime: { vaultID, adoptionSession in
+            let unlockRuntime = V3DeviceWrappedVaultUnlockRuntime(
+                vaultID: vaultID,
+                checkpointStore: checkpointStore,
+                source: objectStore,
+                cache: cache,
+                identityLoader: identityManager,
+                session: adoptionSession
+            )
+            _ = try V3DeviceWrappedReadOnlyVaultRuntime(
+                source: objectStore,
+                unlockRuntime: unlockRuntime
+            ).list(allowStale: false)
+        }
     )
     return V3EnrollmentWorkflowService(
         selectedVaultID: selectedVaultID,
@@ -56,7 +123,8 @@ func makeLiveV3EnrollmentWorkflowService(
                     )
                 }
             ).unlock()
-        }
+        },
+        deviceWrappedAdoption: deviceWrappedAdoption
     )
 }
 
@@ -217,6 +285,8 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
     private let keychainMode: KeychainMode
     private let selectVault: V3EnrollmentAdoptionService.VaultSelector
     private let verifyRuntime: V3EnrollmentAdoptionService.RuntimeVerifier
+    private let deviceWrappedAdoption:
+        (any V3DeviceWrappedEnrollmentAdoptionServicing)?
 
     init(
         selectedVaultID: String?,
@@ -228,7 +298,9 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         vaultKeyStore: any VaultKeyStoring,
         keychainMode: KeychainMode,
         selectVault: @escaping V3EnrollmentAdoptionService.VaultSelector,
-        verifyRuntime: @escaping V3EnrollmentAdoptionService.RuntimeVerifier
+        verifyRuntime: @escaping V3EnrollmentAdoptionService.RuntimeVerifier,
+        deviceWrappedAdoption:
+            (any V3DeviceWrappedEnrollmentAdoptionServicing)? = nil
     ) {
         self.selectedVaultID = selectedVaultID
         self.source = source
@@ -240,6 +312,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         self.keychainMode = keychainMode
         self.selectVault = selectVault
         self.verifyRuntime = verifyRuntime
+        self.deviceWrappedAdoption = deviceWrappedAdoption
     }
 
     func deviceInventory() throws -> V3VaultDeviceInventory {
@@ -548,6 +621,15 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             state: state,
             comparisonCode: comparisonCode
         )
+        if let deviceWrappedAdoption {
+            return try deviceWrappedAdoption.adopt(
+                vaultID: vaultID,
+                invitationDigest: invitationDigest,
+                approvedTranscriptDigest: transcript.digest,
+                at: unixTime,
+                operationID: operationID
+            ).rendered
+        }
         return try V3EnrollmentAdoptionService(
             source: source,
             checkpointStore: checkpointStore,
