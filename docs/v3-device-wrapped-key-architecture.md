@@ -3,7 +3,8 @@
 Status: selected permanent design during the `0.2.0` alpha series. The
 `KEY-509` manifest, HPKE, one-device genesis, local cache, session unlock, and
 durable content-publication runtime are implemented and connected to the
-shipping helper on the current implementation branch. Review and
+shipping helper. `ENR-510` first and later enrollment now use that permanent
+profile and one key-rotating roster-addition transition. Review and
 physical-device qualification remain pending.
 
 This document defines the intended final key-management model for version 3
@@ -139,13 +140,15 @@ through HPKE `info` and authenticated data to a canonical context containing:
 - wrapper format and version;
 - vault ID;
 - exact vault-key ID;
-- random authority-transition ID;
+- authenticated authority-transition ID;
 - recipient device ID; and
 - selected HPKE suite.
 
-The authority-transition ID is authenticated random identity, not a freshness
-counter. The wrapper context must be self-contained in permanent manifest
-state and must not depend on temporary enrollment mailbox or comparison state.
+The authority-transition ID is identity, not a freshness counter. Genesis uses
+a random value. Enrollment derives it deterministically from the complete
+comparison transcript so that every wrapper and the signed transition are
+bound to that exact ceremony. The wrapper context remains self-contained in
+permanent manifest state and does not depend on temporary mailbox state.
 
 ### Vault and entry encryption
 
@@ -210,7 +213,8 @@ They may branch and use the existing content reconciliation rules.
 1. Require one complete authenticated current head and an active local owner.
 2. Perform the existing invitation, signed request, device-name, and comparison
    ceremony.
-3. Generate a new vault key and authority-transition ID.
+3. Generate a new vault key and derive the authority-transition ID from the
+   complete compared transcript.
 4. Re-encrypt the complete current snapshot under the new key.
 5. Preserve existing active devices and add exactly the compared identity.
 6. HPKE-wrap the new key to every resulting active device and the recovery
@@ -364,10 +368,12 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 
 ### `ENR-510` — Unified enrollment and key epochs
 
-- Make first and later enrollment use one roster-addition transition.
-- Rotate the key and re-encrypt the current snapshot when adding a device.
-- Remove the local-to-shared exception and legacy wrapper implementation.
-- Qualify two-device and later-device enrollment before releasing alpha.7.
+- [x] Make first and later enrollment use one roster-addition transition.
+- [x] Rotate the key and re-encrypt the current snapshot when adding a device.
+- [x] Bind the signed transition and every wrapper to the complete compared
+  transcript.
+- [x] Remove the local-to-shared exception and legacy wrapper implementation.
+- [ ] Qualify two-device and later-device enrollment before releasing alpha.7.
 
 ### `ENR-511` — Revocation and rotation
 
