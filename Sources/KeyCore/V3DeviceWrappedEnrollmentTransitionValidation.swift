@@ -81,15 +81,76 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         at unixTime: UInt64,
         unwrapReason: String
     ) throws -> V3DeviceWrappedValidatedEnrollmentTransition {
+        let transcript = try validateCeremony(
+            state,
+            transition: transition,
+            parent: parent.envelope,
+            localIdentity: localIdentity,
+            at: unixTime
+        )
+        let validated = try validateAnchored(
+            transition,
+            parent: parent,
+            currentEntries: currentEntries,
+            currentVaultKey: currentVaultKey,
+            nextVaultKey: nextVaultKey,
+            expectedOwner: transcript.invitation.invitingDevice,
+            expectedAddition: (
+                transcript.joinRequest.joiningDevice,
+                transcript.invitation.invitedRole
+            )
+        )
+        try validateLocalWrapper(
+            validated.candidate,
+            identity: localIdentity,
+            nextVaultKey: nextVaultKey,
+            reason: unwrapReason
+        )
+        return validated
+    }
+
+    /// Revalidates an exact candidate selected by a device-local recovery
+    /// anchor. The anchor is created only after `validate` succeeds, so this
+    /// path deliberately proves the immutable transition without reopening an
+    /// expired ceremony or trusting synchronized transaction metadata.
+    func validateAnchored(
+        _ transition: V3DeviceWrappedEnrollmentTransitionCandidate,
+        parent: V3DeviceWrappedTrustedCheckpoint,
+        currentEntries: [V3EntryObjectKey: V3EncryptedEntry],
+        currentVaultKey: Data,
+        nextVaultKey: Data,
+        expectedOwner: V3EnrollmentDeviceIdentity
+    ) throws -> V3DeviceWrappedValidatedEnrollmentTransition {
+        try validateAnchored(
+            transition,
+            parent: parent,
+            currentEntries: currentEntries,
+            currentVaultKey: currentVaultKey,
+            nextVaultKey: nextVaultKey,
+            expectedOwner: expectedOwner,
+            expectedAddition: nil
+        )
+    }
+
+    private func validateAnchored(
+        _ transition: V3DeviceWrappedEnrollmentTransitionCandidate,
+        parent: V3DeviceWrappedTrustedCheckpoint,
+        currentEntries: [V3EntryObjectKey: V3EncryptedEntry],
+        currentVaultKey: Data,
+        nextVaultKey: Data,
+        expectedOwner: V3EnrollmentDeviceIdentity,
+        expectedAddition: (
+            identity: V3EnrollmentDeviceIdentity,
+            role: V3DeviceRole
+        )?
+    ) throws -> V3DeviceWrappedValidatedEnrollmentTransition {
         guard transition.manifestData.count <= limits.maximumManifestBytes,
               transition.stagedEntries.count
                 <= limits.maximumReferencedEntryObjects
         else {
             throw V3DeviceWrappedEnrollmentValidationError.objectTooLarge
         }
-        guard transition.manifestDigest.count == 32,
-              transition.transcriptDigest.count == 32
-        else {
+        guard transition.manifestDigest.count == 32 else {
             throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
         }
 
@@ -103,22 +164,15 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
             parent: authenticatedParent,
             nextVaultKey: nextVaultKey
         )
-        let transcript = try validateCeremony(
-            state,
-            transition: transition,
-            parent: authenticatedParent,
-            localIdentity: localIdentity,
-            at: unixTime
-        )
         try validateRosterTransition(
             from: authenticatedParent,
             to: authenticatedCandidate,
-            transcript: transcript
+            expectedAddition: expectedAddition
         )
         try validateOwnerAuthorization(
             authenticatedCandidate,
             parent: authenticatedParent,
-            expectedOwner: transcript.invitation.invitingDevice
+            expectedOwner: expectedOwner
         )
         let staged = try validateEntries(
             parent: authenticatedParent,
@@ -127,12 +181,6 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
             stagedEntries: transition.stagedEntries,
             currentVaultKey: currentVaultKey,
             nextVaultKey: nextVaultKey
-        )
-        try validateLocalWrapper(
-            authenticatedCandidate,
-            identity: localIdentity,
-            nextVaultKey: nextVaultKey,
-            reason: unwrapReason
         )
         return V3DeviceWrappedValidatedEnrollmentTransition(
             parent: authenticatedParent,
@@ -149,7 +197,8 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         localIdentity: any V3DeviceWrappedVaultKeyUnwrapping,
         at unixTime: UInt64
     ) throws -> V3EnrollmentTranscript {
-        guard state.role == .inviter,
+        guard transition.transcriptDigest.count == 32,
+              state.role == .inviter,
               state.phase == .awaitingComparison,
               let signedJoinRequest = state.signedJoinRequest,
               let transcript = state.transcript,
@@ -246,7 +295,10 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
     private func validateRosterTransition(
         from parent: V3DeviceWrappedManifestEnvelope,
         to candidate: V3DeviceWrappedManifestEnvelope,
-        transcript: V3EnrollmentTranscript
+        expectedAddition: (
+            identity: V3EnrollmentDeviceIdentity,
+            role: V3DeviceRole
+        )?
     ) throws {
         let parentBody = parent.body
         let candidateBody = candidate.body
@@ -262,8 +314,9 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
               candidateBody.devices.count == parentBody.devices.count + 1,
               added.count == 1,
               added[0].status == .active,
-              added[0].identity == transcript.joinRequest.joiningDevice,
-              added[0].role == transcript.invitation.invitedRole,
+              expectedAddition.map({ added[0].identity == $0.identity })
+                ?? true,
+              expectedAddition.map({ added[0].role == $0.role }) ?? true,
               parentBody.devices.allSatisfy({ device in
                   candidateBody.devices.first(where: {
                       $0.identity.deviceID == device.identity.deviceID
