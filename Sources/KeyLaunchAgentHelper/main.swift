@@ -123,7 +123,9 @@ private func run() -> Never {
     let logger = Logger(subsystem: configuration.helperBundleIdentifier, category: "XPC")
 
     do {
-        let configStore = KeyConfigStore()
+        let configStore = KeyConfigStore(
+            productIdentity: configuration.productIdentity
+        )
         let keyConfiguration = try configStore.load()
         let sessionKeyStore = SessionVaultKeyStore(
             underlying: VaultKeyStore(configuration: configuration)

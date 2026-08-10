@@ -44,7 +44,9 @@ private final class DashboardModel: ObservableObject {
         let bundleURL = bundle.bundleURL
         let vaultLocation: VaultLocation?
         do {
-            vaultLocation = try EntryStore.defaultLocation()
+            vaultLocation = try EntryStore.defaultLocation(
+                productIdentity: configuration.productIdentity
+            )
         } catch {
             vaultLocation = nil
         }

@@ -84,9 +84,11 @@ public final class KeyServiceHandler {
     }
 
     public static func live(bundle: Bundle = .main) throws -> KeyServiceHandler {
-        let configStore = KeyConfigStore()
-        let keyConfiguration = try configStore.load()
         let configuration = RuntimeConfiguration.live(bundle: bundle)
+        let configStore = KeyConfigStore(
+            productIdentity: configuration.productIdentity
+        )
+        let keyConfiguration = try configStore.load()
         return try live(
             keyStore: VaultKeyStore(configuration: configuration),
             keyConfiguration: keyConfiguration,

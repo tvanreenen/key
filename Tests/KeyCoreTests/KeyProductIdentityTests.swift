@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import KeyCore
 
@@ -77,5 +78,52 @@ struct KeyProductIdentityTests {
         #expect(!app.contains("identifier \"work.tvr.key.app\""))
         #expect(helper.contains("identifier \"work.tvr.key.preview.xpc\""))
         #expect(!helper.contains("identifier \"work.tvr.key.xpc\""))
+    }
+
+    @Test
+    func stableAndPreviewUseSeparateDeviceLocalStorage() throws {
+        let homeDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: homeDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: homeDirectory) }
+
+        let stable = try EntryStore.defaultLocation(
+            productIdentity: .stable,
+            homeDirectoryURL: homeDirectory
+        )
+        let preview = try EntryStore.defaultLocation(
+            productIdentity: .preview,
+            homeDirectoryURL: homeDirectory
+        )
+
+        #expect(
+            stable.configFileURL == homeDirectory
+                .appendingPathComponent("Library", isDirectory: true)
+                .appendingPathComponent("Application Support", isDirectory: true)
+                .appendingPathComponent("Key", isDirectory: true)
+                .appendingPathComponent("config.toml", isDirectory: false)
+        )
+        #expect(
+            preview.configFileURL == homeDirectory
+                .appendingPathComponent("Library", isDirectory: true)
+                .appendingPathComponent("Application Support", isDirectory: true)
+                .appendingPathComponent("Key Preview", isDirectory: true)
+                .appendingPathComponent("config.toml", isDirectory: false)
+        )
+        #expect(
+            stable.rootURL.standardizedFileURL == homeDirectory
+                .appendingPathComponent(".key", isDirectory: true)
+                .standardizedFileURL
+        )
+        #expect(
+            preview.rootURL.standardizedFileURL == homeDirectory
+                .appendingPathComponent(".key-preview", isDirectory: true)
+                .standardizedFileURL
+        )
+        #expect(stable.configFileURL != preview.configFileURL)
+        #expect(stable.rootURL != preview.rootURL)
     }
 }

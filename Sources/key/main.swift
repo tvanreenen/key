@@ -9,6 +9,9 @@ let transport = KeyXPCClientTransport(
 let app = KeyCLIApplication(
     transport: transport,
     io: SystemIO(),
-    clipboard: SystemClipboardWriter()
+    clipboard: SystemClipboardWriter(),
+    configStore: KeyConfigStore(
+        productIdentity: configuration.productIdentity
+    )
 )
 exit(app.run(arguments: Array(CommandLine.arguments.dropFirst())))
