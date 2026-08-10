@@ -19,22 +19,22 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>KeychainAccessGroup</key>
-	<string>9Q355KSV85.work.tvr.key.shared</string>
+	<string>$(KEY_KEYCHAIN_ACCESS_GROUP)</string>
 	<key>KeyProductVariant</key>
-	<string>stable</string>
+	<string>$(KEY_PRODUCT_VARIANT)</string>
 	<key>LaunchAgentPlistName</key>
-	<string>work.tvr.key.agent.plist</string>
+	<string>$(KEY_LAUNCH_AGENT_PLIST_NAME)</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>HelperMachServiceName</key>
-	<string>work.tvr.key.agent</string>
+	<string>$(KEY_HELPER_MACH_SERVICE_NAME)</string>
 	<key>HelperBundleIdentifier</key>
-	<string>work.tvr.key.xpc</string>
+	<string>$(KEY_HELPER_BUNDLE_IDENTIFIER)</string>
 	<key>VaultKeyAccount</key>
 	<string>default-vault</string>
 	<key>VaultKeyService</key>
-	<string>work.tvr.key.secure-vault</string>
+	<string>$(KEY_VAULT_KEY_SERVICE)</string>
 </dict>
 </plist>

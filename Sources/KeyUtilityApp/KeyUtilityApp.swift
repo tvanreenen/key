@@ -8,9 +8,12 @@ private let registeredHelperBuildDefaultsKey = "registered-helper-build-version"
 
 @main
 struct KeyUtilityApp: App {
+    private let configuration: RuntimeConfiguration
+
     init() {
         let bundle = Bundle.main
         let configuration = RuntimeConfiguration.live(bundle: bundle)
+        self.configuration = configuration
         let buildVersion = KeyVersionInfo(bundle: bundle).buildVersion
 
         Task {
@@ -22,8 +25,8 @@ struct KeyUtilityApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("Key") {
-            ContentView()
+        WindowGroup(configuration.productIdentity.appName) {
+            ContentView(configuration: configuration)
                 .frame(minWidth: 860, minHeight: 680)
         }
         .windowToolbarStyle(.unified(showsTitle: true))
@@ -52,10 +55,17 @@ private final class DashboardModel: ObservableObject {
         }
 
         self.context = KeyAppDiagnosticsContext(
+            productIdentity: configuration.productIdentity,
             appVersion: KeyVersionInfo(bundle: bundle),
-            bundledCLIPath: bundleURL.appendingPathComponent("Contents/MacOS/key").path,
-            helperAppPath: bundleURL.appendingPathComponent("Contents/Helpers/Key Agent.app").path,
-            helperExecutablePath: bundleURL.appendingPathComponent("Contents/Helpers/Key Agent.app/Contents/MacOS/Key Agent").path,
+            bundledCLIPath: bundleURL.appendingPathComponent(
+                "Contents/MacOS/\(configuration.productIdentity.cliExecutableName)"
+            ).path,
+            helperAppPath: bundleURL.appendingPathComponent(
+                "Contents/Helpers/\(configuration.productIdentity.helperName).app"
+            ).path,
+            helperExecutablePath: bundleURL.appendingPathComponent(
+                "Contents/Helpers/\(configuration.productIdentity.helperName).app/Contents/MacOS/\(configuration.productIdentity.helperName)"
+            ).path,
             launchAgentPlistPath: bundleURL.appendingPathComponent("Contents/Library/LaunchAgents/\(configuration.launchAgentPlistName)").path,
             machServiceName: configuration.helperMachServiceName,
             configFilePath: vaultLocation?.configFileURL.path ?? "Unavailable",
@@ -107,7 +117,9 @@ private final class DashboardModel: ObservableObject {
                 try helperStatus(configuration: configuration)
             },
             shellCLIProbe: {
-                shellCLIStatus()
+                shellCLIStatus(
+                    executableName: configuration.productIdentity.cliExecutableName
+                )
             }
         )
 
@@ -149,19 +161,29 @@ private final class DashboardModel: ObservableObject {
         let response = try transport.send(.status)
 
         if response.exitCode != EXIT_SUCCESS {
-            throw AppError.service(response.errorMessage ?? "Key Agent returned an unknown status error.")
+            throw AppError.service(
+                response.errorMessage
+                    ?? "\(configuration.productIdentity.helperName) returned an unknown status error."
+            )
         }
 
         guard let helperStatus = response.helperStatus else {
-            throw AppError.service("Key Agent returned no helper status.")
+            throw AppError.service(
+                "\(configuration.productIdentity.helperName) returned no helper status."
+            )
         }
 
         return helperStatus
     }
 
-    nonisolated private static func shellCLIStatus() -> ShellCLIStatus {
+    nonisolated private static func shellCLIStatus(
+        executableName: String
+    ) -> ShellCLIStatus {
         let runner = LoginShellCommandRunner()
-        let resolvedCLI = resolvedShellCLI(using: runner)
+        let resolvedCLI = resolvedShellCLI(
+            executableName: executableName,
+            using: runner
+        )
 
         guard let resolvedCLI else {
             return ShellCLIStatus(resolvedPath: nil, version: nil)
@@ -191,24 +213,43 @@ private final class DashboardModel: ObservableObject {
         "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
     }
 
-    nonisolated private static func resolvedShellCLI(using runner: LoginShellCommandRunner) -> (path: String, source: ShellCLIResolutionSource)? {
-        if let path = resolvedPathFromLoginShell(using: runner) {
+    nonisolated private static func resolvedShellCLI(
+        executableName: String,
+        using runner: LoginShellCommandRunner
+    ) -> (path: String, source: ShellCLIResolutionSource)? {
+        if let path = resolvedPathFromLoginShell(
+            executableName: executableName,
+            using: runner
+        ) {
             return (path, .loginShell)
         }
 
         // Finder-launched apps often miss Homebrew PATH setup that only lives in interactive shell init files.
-        for candidate in homebrewCLIPathCandidates() {
+        for candidate in homebrewCLIPathCandidates(
+            executableName: executableName
+        ) {
             if FileManager.default.isExecutableFile(atPath: candidate) {
-                return (candidate, source(forHomebrewCandidate: candidate))
+                return (
+                    candidate,
+                    source(
+                        forHomebrewCandidate: candidate,
+                        executableName: executableName
+                    )
+                )
             }
         }
 
         return nil
     }
 
-    nonisolated private static func resolvedPathFromLoginShell(using runner: LoginShellCommandRunner) -> String? {
+    nonisolated private static func resolvedPathFromLoginShell(
+        executableName: String,
+        using runner: LoginShellCommandRunner
+    ) -> String? {
         do {
-            let output = try runner.run("command -v key")
+            let output = try runner.run(
+                "command -v \(shellQuote(executableName))"
+            )
             return output
                 .split(whereSeparator: \.isNewline)
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -218,8 +259,13 @@ private final class DashboardModel: ObservableObject {
         }
     }
 
-    nonisolated private static func homebrewCLIPathCandidates() -> [String] {
-        var candidates = ["/opt/homebrew/bin/key", "/usr/local/bin/key"]
+    nonisolated private static func homebrewCLIPathCandidates(
+        executableName: String
+    ) -> [String] {
+        var candidates = [
+            "/opt/homebrew/bin/\(executableName)",
+            "/usr/local/bin/\(executableName)"
+        ]
 
         for brewPath in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"] {
             guard FileManager.default.isExecutableFile(atPath: brewPath) else {
@@ -246,7 +292,7 @@ private final class DashboardModel: ObservableObject {
                 ).trimmingCharacters(in: .whitespacesAndNewlines)
 
                 if !output.isEmpty {
-                    candidates.append("\(output)/bin/key")
+                    candidates.append("\(output)/bin/\(executableName)")
                 }
             } catch {
                 continue
@@ -260,13 +306,16 @@ private final class DashboardModel: ObservableObject {
         return deduplicated
     }
 
-    nonisolated private static func source(forHomebrewCandidate path: String) -> ShellCLIResolutionSource {
-        switch path {
-        case "/opt/homebrew/bin/key", "/usr/local/bin/key":
+    nonisolated private static func source(
+        forHomebrewCandidate path: String,
+        executableName: String
+    ) -> ShellCLIResolutionSource {
+        if path == "/opt/homebrew/bin/\(executableName)"
+            || path == "/usr/local/bin/\(executableName)"
+        {
             return .homebrewInstall
-        default:
-            return .homebrewPrefix
         }
+        return .homebrewPrefix
     }
 }
 
@@ -293,9 +342,17 @@ private actor HelperRegistrationCoordinator {
             default:
                 break
             }
-            return helperRegistrationState(from: service.status, error: nil)
+            return helperRegistrationState(
+                from: service.status,
+                productIdentity: configuration.productIdentity,
+                error: nil
+            )
         } catch {
-            return helperRegistrationState(from: service.status, error: error)
+            return helperRegistrationState(
+                from: service.status,
+                productIdentity: configuration.productIdentity,
+                error: error
+            )
         }
     }
 
@@ -318,15 +375,18 @@ private actor HelperRegistrationCoordinator {
 
     private func helperRegistrationState(
         from status: SMAppService.Status,
+        productIdentity: KeyProductIdentity,
         error: Error?
     ) -> HelperRegistrationState {
         let message = error?.localizedDescription
 
         switch status {
         case .enabled:
-            return .registered(detail: "Key Agent is registered and can launch on demand through launchd.")
+            return .registered(
+                detail: "\(productIdentity.helperName) is registered and can launch on demand through launchd."
+            )
         case .requiresApproval:
-            let detail = "Allow Key in System Settings > Login Items & Extensions so Key Agent can launch. \(message ?? "")"
+            let detail = "Allow \(productIdentity.appName) in System Settings > Login Items & Extensions so \(productIdentity.helperName) can launch. \(message ?? "")"
                 .trimmingCharacters(in: .whitespaces)
             return .requiresApproval(detail: detail)
         case .notRegistered:
@@ -340,8 +400,16 @@ private actor HelperRegistrationCoordinator {
 }
 
 private struct ContentView: View {
-    @StateObject private var model = DashboardModel()
+    @StateObject private var model: DashboardModel
+    private let productIdentity: KeyProductIdentity
     @Namespace private var glassNamespace
+
+    init(configuration: RuntimeConfiguration) {
+        _model = StateObject(
+            wrappedValue: DashboardModel(configuration: configuration)
+        )
+        productIdentity = configuration.productIdentity
+    }
 
     var body: some View {
         ScrollView {
@@ -354,7 +422,7 @@ private struct ContentView: View {
                     }
                     detailsSection(snapshot)
                 } else {
-                    ProgressView("Loading Key status...")
+                    ProgressView("Loading \(productIdentity.appName) status...")
                         .controlSize(.large)
                         .frame(maxWidth: .infinity, minHeight: 320)
                 }
@@ -396,7 +464,7 @@ private struct ContentView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Key")
+                    Text(productIdentity.appName)
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(.secondary)
 
@@ -545,7 +613,10 @@ private struct ContentView: View {
         let rows = detailRows(for: snapshot)
 
         VStack(alignment: .leading, spacing: 14) {
-            sectionHeader("Details", detail: "Paths, versions, and runtime identifiers used by Key.app.")
+            sectionHeader(
+                "Details",
+                detail: "Paths, versions, and runtime identifiers used by \(productIdentity.appName).app."
+            )
 
             VStack(spacing: 0) {
                 ForEach(rows) { row in
@@ -602,7 +673,7 @@ private struct ContentView: View {
                 id: "registered",
                 title: "Agent Registration",
                 value: "Ready",
-                detail: "launchd can start Key Agent on demand.",
+                detail: "launchd can start \(productIdentity.helperName) on demand.",
                 tint: .green
             )
         case .requiresApproval:

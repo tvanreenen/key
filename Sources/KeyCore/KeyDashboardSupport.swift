@@ -203,16 +203,22 @@ public struct ShellCLIStatus: Equatable, Sendable {
     }
 
     public var conciseVersionErrorDescription: String? {
+        conciseVersionErrorDescription(executableName: "key")
+    }
+
+    public func conciseVersionErrorDescription(
+        executableName: String
+    ) -> String? {
         guard let versionErrorDescription else {
             return nil
         }
 
         if versionErrorDescription.contains("Unknown command 'version'.") {
-            return "The detected CLI does not support `key version` yet."
+            return "The detected CLI does not support `\(executableName) version` yet."
         }
 
         if versionErrorDescription.contains("Unknown option '--json' for version.") {
-            return "The detected CLI does not support `key version --json` yet."
+            return "The detected CLI does not support `\(executableName) version --json` yet."
         }
 
         if versionErrorDescription.contains("Usage:") {
@@ -273,6 +279,7 @@ public struct KeyDashboardCallout: Equatable, Sendable {
 }
 
 public struct KeyAppDiagnosticsContext: Equatable, Sendable {
+    public let productIdentity: KeyProductIdentity
     public let appVersion: KeyVersionInfo
     public let bundledCLIPath: String
     public let helperAppPath: String
@@ -284,6 +291,7 @@ public struct KeyAppDiagnosticsContext: Equatable, Sendable {
     public let vaultLocationSource: String
 
     public init(
+        productIdentity: KeyProductIdentity = .stable,
         appVersion: KeyVersionInfo,
         bundledCLIPath: String,
         helperAppPath: String,
@@ -294,6 +302,7 @@ public struct KeyAppDiagnosticsContext: Equatable, Sendable {
         vaultDirectoryPath: String,
         vaultLocationSource: String
     ) {
+        self.productIdentity = productIdentity
         self.appVersion = appVersion
         self.bundledCLIPath = bundledCLIPath
         self.helperAppPath = helperAppPath
@@ -338,9 +347,10 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
     }
 
     public var hero: KeyDashboardHero {
-        KeyDashboardHero(
-            title: "Welcome to Key",
-            detail: "Key is a file-based, CLI-first secret vault for macOS. Your vault encryption key stays in Keychain, key-backed commands unlock with macOS user presence, and Key Agent briefly reuses that unlocked session in memory while it stays active."
+        let identity = context.productIdentity
+        return KeyDashboardHero(
+            title: "Welcome to \(identity.appName)",
+            detail: "\(identity.appName) is a file-based, CLI-first secret vault for macOS. Your vault encryption key stays in Keychain, key-backed commands unlock with macOS user presence, and \(identity.helperName) briefly reuses that unlocked session in memory while it stays active."
         )
     }
 
@@ -353,7 +363,7 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
                 guidance: [
                     KeyDashboardGuidance(
                         title: "Allow the helper in System Settings",
-                        detail: "Approve Key in Login Items & Extensions so launchd can start Key Agent on demand.",
+                        detail: "Approve \(context.productIdentity.appName) in Login Items & Extensions so launchd can start \(context.productIdentity.helperName) on demand.",
                         command: nil
                     )
                 ]
@@ -364,7 +374,7 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
                 detail: detail,
                 guidance: [
                     KeyDashboardGuidance(
-                        title: "Reopen Key if setup doesn’t complete",
+                        title: "Reopen \(context.productIdentity.appName) if setup doesn’t complete",
                         detail: "The app registers the LaunchAgent helper on open.",
                         command: nil
                     )
@@ -382,27 +392,31 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
 
         switch shellCLIStatus.matchState(appVersion: context.appVersion) {
         case .missing:
+            let identity = context.productIdentity
             return KeyDashboardCallout(
                 title: "External CLI not found",
-                detail: "Key could not find an external `key` CLI through your login shell or standard Homebrew install locations. You can still use the bundled CLI directly from Key.app.",
+                detail: "\(identity.appName) could not find an external `\(identity.cliExecutableName)` CLI through your login shell or standard Homebrew install locations. You can still use the bundled CLI directly from \(identity.appName).app.",
                 guidance: [
                     KeyDashboardGuidance(
                         title: "Use the bundled CLI directly",
-                        detail: "Run the app’s bundled CLI until an external `key` install is available again.",
+                        detail: "Run the app’s bundled CLI until an external `\(identity.cliExecutableName)` install is available again.",
                         command: bundledCLICommand("unlock")
                     )
                 ]
             )
         case .unreadable:
+            let identity = context.productIdentity
             let path = shellCLIStatus.resolvedPath ?? "the resolved CLI path"
-            let detail = shellCLIStatus.conciseVersionErrorDescription ?? "The CLI returned an unreadable version payload."
+            let detail = shellCLIStatus.conciseVersionErrorDescription(
+                executableName: identity.cliExecutableName
+            ) ?? "The CLI returned an unreadable version payload."
             let sourceDescription = shellCLIStatus.resolutionSource?.detectionDescription ?? "the detected install location"
             let guidance: [KeyDashboardGuidance]
             if detail.contains("does not support") {
                 guidance = [
                     KeyDashboardGuidance(
                         title: "Use the bundled CLI directly",
-                        detail: "The external `key` CLI is older than this app. Use the bundled CLI until the external CLI is updated.",
+                        detail: "The external `\(identity.cliExecutableName)` CLI is older than this app. Use the bundled CLI until the external CLI is updated.",
                         command: bundledCLICommand("version")
                     )
                 ]
@@ -411,7 +425,7 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
                     KeyDashboardGuidance(
                         title: "Inspect the external CLI",
                         detail: "Run the CLI version command from the same shell environment you expect to use.",
-                        command: "key version"
+                        command: "\(identity.cliExecutableName) version"
                     )
                 ]
             }
@@ -422,17 +436,18 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
                 guidance: guidance
             )
         case .mismatch:
+            let identity = context.productIdentity
             let shellVersion = shellCLIStatus.version?.displayString ?? "unknown"
             let path = shellCLIStatus.resolvedPath ?? "the resolved CLI path"
             let sourceDescription = shellCLIStatus.resolutionSource?.detectionDescription ?? "the detected install location"
             return KeyDashboardCallout(
                 title: "CLI version mismatch",
-                detail: "Key detected \(path) from \(sourceDescription) at version \(shellVersion), while this app is \(context.appVersion.displayString).",
+                detail: "\(identity.appName) detected \(path) from \(sourceDescription) at version \(shellVersion), while this app is \(context.appVersion.displayString).",
                 guidance: [
                     KeyDashboardGuidance(
                         title: "Inspect the external CLI",
-                        detail: "Confirm which `key` binary your shell environment is actually using.",
-                        command: "key version"
+                        detail: "Confirm which `\(identity.cliExecutableName)` binary your shell environment is actually using.",
+                        command: "\(identity.cliExecutableName) version"
                     )
                 ]
             )
@@ -447,7 +462,7 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
                 guidance: [
                     KeyDashboardGuidance(
                         title: "Refresh helper status",
-                        detail: "If the helper was shutting down while Key checked it, refreshing should settle the dashboard.",
+                        detail: "If the helper was shutting down while \(context.productIdentity.appName) checked it, refreshing should settle the dashboard.",
                         command: nil
                     )
                 ]
