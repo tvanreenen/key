@@ -110,6 +110,7 @@
 		D51800000000000000000002 /* V3DeviceWrappedEnrollmentOwnerWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D51800000000000000000001 /* V3DeviceWrappedEnrollmentOwnerWorkflow.swift */; };
 		D51900000000000000000002 /* V3DeviceWrappedEnrollmentAdoption.swift in Sources */ = {isa = PBXBuildFile; fileRef = D51900000000000000000001 /* V3DeviceWrappedEnrollmentAdoption.swift */; };
 		D52100000000000000000002 /* V3DeviceWrappedCatchUpPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52100000000000000000001 /* V3DeviceWrappedCatchUpPlanner.swift */; };
+		D52200000000000000000002 /* V3DeviceWrappedSameEpochCatchUpService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52200000000000000000001 /* V3DeviceWrappedSameEpochCatchUpService.swift */; };
 		A5000011A5000011A5000011 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000012A5000012A5000012 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000013A5000013A5000013 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
@@ -270,6 +271,7 @@
 		D51800000000000000000001 /* V3DeviceWrappedEnrollmentOwnerWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedEnrollmentOwnerWorkflow.swift; sourceTree = "<group>"; };
 		D51900000000000000000001 /* V3DeviceWrappedEnrollmentAdoption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedEnrollmentAdoption.swift; sourceTree = "<group>"; };
 		D52100000000000000000001 /* V3DeviceWrappedCatchUpPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedCatchUpPlanner.swift; sourceTree = "<group>"; };
+		D52200000000000000000001 /* V3DeviceWrappedSameEpochCatchUpService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedSameEpochCatchUpService.swift; sourceTree = "<group>"; };
 		A5500002A5500002A5500002 /* V3DeviceWrappedGenesisInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedGenesisInstaller.swift; sourceTree = "<group>"; };
 		A5510002A5510002A5510002 /* V3DeviceWrappedManifestCandidateBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedManifestCandidateBuilder.swift; sourceTree = "<group>"; };
 		A5520002A5520002A5520002 /* V3DeviceWrappedTransactionValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedTransactionValidation.swift; sourceTree = "<group>"; };
@@ -406,6 +408,7 @@
 				D51800000000000000000001 /* V3DeviceWrappedEnrollmentOwnerWorkflow.swift */,
 				D51900000000000000000001 /* V3DeviceWrappedEnrollmentAdoption.swift */,
 				D52100000000000000000001 /* V3DeviceWrappedCatchUpPlanner.swift */,
+				D52200000000000000000001 /* V3DeviceWrappedSameEpochCatchUpService.swift */,
 				A5500002A5500002A5500002 /* V3DeviceWrappedGenesisInstaller.swift */,
 				A5510002A5510002A5510002 /* V3DeviceWrappedManifestCandidateBuilder.swift */,
 				A5520002A5520002A5520002 /* V3DeviceWrappedTransactionValidation.swift */,
@@ -807,6 +810,7 @@
 				D51800000000000000000002 /* V3DeviceWrappedEnrollmentOwnerWorkflow.swift in Sources */,
 				D51900000000000000000002 /* V3DeviceWrappedEnrollmentAdoption.swift in Sources */,
 				D52100000000000000000002 /* V3DeviceWrappedCatchUpPlanner.swift in Sources */,
+				D52200000000000000000002 /* V3DeviceWrappedSameEpochCatchUpService.swift in Sources */,
 				A5500001A5500001A5500001 /* V3DeviceWrappedGenesisInstaller.swift in Sources */,
 				A5510001A5510001A5510001 /* V3DeviceWrappedManifestCandidateBuilder.swift in Sources */,
 				A5520001A5520001A5520001 /* V3DeviceWrappedTransactionValidation.swift in Sources */,

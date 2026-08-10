@@ -68,6 +68,7 @@ enum VaultTransactionMutationKind: String, Codable, Sendable {
     case mergeHeads
     case migrateToV3
     case enrollDevice
+    case catchUpVault
     case recoverInterruptedTransaction
 }
 
