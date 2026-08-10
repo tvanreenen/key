@@ -1,0 +1,56 @@
+name: Product variants
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: macos-26
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Stable
+            scheme: Key
+            configuration: Debug
+            variant: stable
+            app: Key.app
+          - name: Preview
+            scheme: Key Preview
+            configuration: PreviewDebug
+            variant: preview
+            app: Key Preview.app
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build product
+        run: |
+          xcodebuild \
+            -project Key.xcodeproj \
+            -scheme "${{ matrix.scheme }}" \
+            -configuration "${{ matrix.configuration }}" \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "${RUNNER_TEMP}/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Verify product isolation
+        run: |
+          scripts/verify-product-bundle.sh \
+            "${{ matrix.variant }}" \
+            "${RUNNER_TEMP}/DerivedData/Build/Products/${{ matrix.configuration }}/${{ matrix.app }}"
+
+      - name: Test Preview install safety
+        if: matrix.variant == 'preview'
+        run: Tests/PreviewScripts/preview-install-tests.sh

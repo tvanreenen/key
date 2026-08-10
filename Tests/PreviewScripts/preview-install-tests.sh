@@ -29,12 +29,22 @@ cat > "${source_app}/Contents/Helpers/Key Preview Agent.app/Contents/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>work.tvr.key.preview.xpc</string>
+<key>CFBundleExecutable</key><string>Key Preview Agent</string>
+<key>KeyProductVariant</key><string>preview</string>
 </dict></plist>
 PLIST
 cat > "${source_app}/Contents/Library/LaunchAgents/work.tvr.key.preview.agent.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict>
 <key>Label</key><string>work.tvr.key.preview.agent</string>
+<key>BundleProgram</key><string>Contents/Helpers/Key Preview Agent.app/Contents/MacOS/Key Preview Agent</string>
+<key>MachServices</key><dict>
+<key>work.tvr.key.preview.agent</key><true/>
+<key>work.tvr.key.preview.agent.status</key><true/>
+</dict>
+<key>SpawnConstraint</key><dict>
+<key>signing-identifier</key><string>work.tvr.key.preview.xpc</string>
+</dict>
 </dict></plist>
 PLIST
 touch "${source_app}/Contents/MacOS/key-preview"
@@ -62,6 +72,11 @@ KEY_PREVIEW_SKIP_PROCESS_STOP=1 \
 [[ -d "${installed_app}" ]]
 [[ -L "${cli_link}" ]]
 [[ "$(readlink "${cli_link}")" == "${installed_app}/Contents/MacOS/key-preview" ]]
+"${repo_root}/scripts/verify-product-bundle.sh" preview "${installed_app}" >/dev/null
+if "${repo_root}/scripts/verify-product-bundle.sh" stable "${installed_app}" >/dev/null 2>&1; then
+  echo "expected product verification to reject a Preview app as Stable" >&2
+  exit 1
+fi
 
 mkdir -p "${test_root}/persistent-preview-state"
 touch "${test_root}/persistent-preview-state/vault-marker"

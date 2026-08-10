@@ -6,6 +6,7 @@ if [[ $# -ne 1 ]]; then
   exit 1
 fi
 
+script_dir="$(cd "$(dirname "$0")" && pwd)"
 source_app_path="$1"
 applications_dir="${KEY_PREVIEW_APPLICATIONS_DIR:-/Applications}"
 cli_bin_dir="${KEY_PREVIEW_CLI_BIN_DIR:-${HOME}/.local/bin}"
@@ -17,51 +18,7 @@ agent_label="work.tvr.key.preview.agent"
 
 validate_preview_app() {
   local app_path="$1"
-  local bundle_id
-  local app_executable
-  local product_variant
-  local helper_bundle_id
-  local launch_agent_label
-
-  if [[ ! -d "${app_path}" ]]; then
-    echo "missing Preview app bundle at ${app_path}" >&2
-    return 1
-  fi
-
-  bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${app_path}/Contents/Info.plist" 2>/dev/null || true)"
-  app_executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "${app_path}/Contents/Info.plist" 2>/dev/null || true)"
-  product_variant="$(/usr/libexec/PlistBuddy -c 'Print :KeyProductVariant' "${app_path}/Contents/Info.plist" 2>/dev/null || true)"
-  helper_bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${app_path}/Contents/Helpers/Key Preview Agent.app/Contents/Info.plist" 2>/dev/null || true)"
-  launch_agent_label="$(/usr/libexec/PlistBuddy -c 'Print :Label' "${app_path}/Contents/Library/LaunchAgents/work.tvr.key.preview.agent.plist" 2>/dev/null || true)"
-
-  if [[ "${bundle_id}" != "${app_id}" ]]; then
-    echo "refusing app with unexpected bundle identifier '${bundle_id:-missing}' at ${app_path}" >&2
-    return 1
-  fi
-  if [[ "${product_variant}" != "preview" ]]; then
-    echo "refusing app without the Preview product marker at ${app_path}" >&2
-    return 1
-  fi
-  if [[ -z "${app_executable}" || ! -x "${app_path}/Contents/MacOS/${app_executable}" ]]; then
-    echo "missing Preview app executable at ${app_path}" >&2
-    return 1
-  fi
-  if [[ "${helper_bundle_id}" != "work.tvr.key.preview.xpc" ]]; then
-    echo "refusing app with an unexpected Preview helper identity at ${app_path}" >&2
-    return 1
-  fi
-  if [[ "${launch_agent_label}" != "${agent_label}" ]]; then
-    echo "refusing app with an unexpected Preview LaunchAgent identity at ${app_path}" >&2
-    return 1
-  fi
-  if [[ ! -x "${app_path}/Contents/MacOS/key-preview" ]]; then
-    echo "missing bundled key-preview executable at ${app_path}" >&2
-    return 1
-  fi
-  if [[ ! -x "${app_path}/Contents/Helpers/Key Preview Agent.app/Contents/MacOS/Key Preview Agent" ]]; then
-    echo "missing bundled Key Preview Agent executable at ${app_path}" >&2
-    return 1
-  fi
+  "${script_dir}/verify-product-bundle.sh" preview "${app_path}" >/dev/null
 }
 
 validate_existing_cli_link() {
