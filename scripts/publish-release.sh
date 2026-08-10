@@ -6,28 +6,23 @@ if [[ $# -ne 2 ]]; then
   exit 1
 fi
 
+version="$1"
+zip_path="$2"
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+IFS=$'\t' read -r product_variant _ _ \
+  <<< "$("${repo_root}/scripts/release-target.sh" "${version}")"
+
+"${repo_root}/scripts/verify-release-artifact.sh" "${version}" "${zip_path}"
+
+tag="${version}"
+sha256="$(shasum -a 256 "${zip_path}" | awk '{print $1}')"
+asset_name="$(basename "${zip_path}")"
+
 if ! command -v gh >/dev/null 2>&1; then
   echo "gh CLI is required." >&2
   exit 1
 fi
 
-version="$1"
-zip_path="$2"
-if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-  echo "version must look like v#.#.# or v#.#.#-prerelease" >&2
-  exit 1
-fi
-
-repo_root="$(cd "$(dirname "$0")/.." && pwd)"
-
-if [[ ! -f "${zip_path}" ]]; then
-  echo "missing release zip at ${zip_path}" >&2
-  exit 1
-fi
-
-tag="${version}"
-sha256="$(shasum -a 256 "${zip_path}" | awk '{print $1}')"
-asset_name="$(basename "${zip_path}")"
 is_prerelease=0
 if [[ "${version}" == *-* ]]; then
   is_prerelease=1
@@ -41,14 +36,32 @@ if [[ "${branch}" != "main" ]]; then
   exit 1
 fi
 
-head_tag="$(git tag --points-at HEAD | grep -x "${tag}" || true)"
-if [[ -z "${head_tag}" ]]; then
-  echo "HEAD must be tagged ${tag} before publishing the release" >&2
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "worktree must be clean before tagging and publishing the release" >&2
   exit 1
 fi
 
-git push origin main
-git push origin "${tag}"
+head_commit="$(git rev-parse HEAD)"
+tag_commit="$(git rev-list -n 1 "${tag}" 2>/dev/null || true)"
+if [[ -n "${tag_commit}" && "${tag_commit}" != "${head_commit}" ]]; then
+  echo "tag ${tag} already points to ${tag_commit}, not HEAD ${head_commit}" >&2
+  exit 1
+fi
+
+created_tag=0
+if [[ -z "${tag_commit}" ]]; then
+  git tag -a "${tag}" -m "${tag}"
+  created_tag=1
+fi
+
+if ! git push --atomic origin main "${tag}"; then
+  if [[ "${created_tag}" -eq 1 ]]; then
+    git tag --delete "${tag}" >/dev/null
+  fi
+  echo "failed to confirm atomic publication of main and ${tag}" >&2
+  echo "main and the tag cannot advance independently; inspect the remote refs before retrying" >&2
+  exit 1
+fi
 
 if gh release view "${tag}" >/dev/null 2>&1; then
   gh release upload "${tag}" "${zip_path}" --clobber
@@ -75,6 +88,7 @@ fi
 echo
 echo "Published release:"
 echo "  tag:         ${tag}"
+echo "  product:     ${product_variant}"
 echo "  prerelease:  $([[ "${is_prerelease}" -eq 1 ]] && echo yes || echo no)"
 echo "  branch:      ${branch}"
 echo "  asset:       ${asset_name}"

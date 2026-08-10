@@ -8,13 +8,14 @@ fi
 
 notary_profile="key-notary"
 archive_path="$1"
-app_path="${archive_path}/Products/Applications/Key.app"
 zip_path="${archive_path%.*}.zip"
 
-if [[ ! -d "${app_path}" ]]; then
-  echo "missing app bundle at ${app_path}" >&2
+app_paths=("${archive_path}/Products/Applications/"*.app(N))
+if [[ ${#app_paths[@]} -ne 1 ]]; then
+  echo "expected one app bundle in ${archive_path}/Products/Applications" >&2
   exit 1
 fi
+app_path="${app_paths[1]}"
 
 ditto -c -k --keepParent "${app_path}" "${zip_path}"
 xcrun notarytool submit "${zip_path}" --keychain-profile "${notary_profile}" --wait

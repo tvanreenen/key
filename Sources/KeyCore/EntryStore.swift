@@ -12,10 +12,12 @@ public struct EntryStore {
     }
 
     public static func defaultLocation(
+        productIdentity: KeyProductIdentity = .stable,
         fileManager: FileManager = .default,
         homeDirectoryURL: URL? = nil
     ) throws -> VaultLocation {
         try VaultLocationResolver(
+            productIdentity: productIdentity,
             fileManager: fileManager,
             homeDirectoryURL: homeDirectoryURL
         )
@@ -23,10 +25,12 @@ public struct EntryStore {
     }
 
     public static func defaultRootURL(
+        productIdentity: KeyProductIdentity = .stable,
         fileManager: FileManager = .default,
         homeDirectoryURL: URL? = nil
     ) throws -> URL {
         try defaultLocation(
+            productIdentity: productIdentity,
             fileManager: fileManager,
             homeDirectoryURL: homeDirectoryURL
         )

@@ -530,12 +530,21 @@ private func temporaryV3ServiceDirectory() -> URL {
 
 private func testV3RuntimeConfiguration() -> RuntimeConfiguration {
     RuntimeConfiguration(
-        vaultService: "work.tvr.key.tests.v3",
+        productIdentity: KeyProductIdentity(
+            variant: .stable,
+            appName: "Key Tests",
+            appBundleIdentifier: "work.tvr.key.tests.app",
+            cliExecutableName: "key-tests",
+            cliSigningIdentifier: "work.tvr.key.tests.cli",
+            helperName: "Key Tests Agent",
+            helperBundleIdentifier: "work.tvr.key.tests.helper",
+            helperMachServiceName: "work.tvr.key.tests.agent",
+            keychainAccessGroup: "work.tvr.key.tests.shared",
+            vaultKeyService: "work.tvr.key.tests.v3",
+            applicationSupportDirectoryName: "Key Tests",
+            defaultVaultDirectoryName: ".key-tests"
+        ),
         vaultAccount: "runtime",
-        keychainAccessGroup: nil,
-        helperMachServiceName: "work.tvr.key.tests.agent",
-        helperBundleIdentifier: "work.tvr.key.tests.helper",
-        launchAgentPlistName: "work.tvr.key.tests.agent.plist",
         useDataProtectionKeychain: false
     )
 }

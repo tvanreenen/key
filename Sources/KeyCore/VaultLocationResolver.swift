@@ -68,8 +68,14 @@ struct ConfiguredVaultRuntimeSelection: Equatable, Sendable {
 public struct KeyConfigStore {
     private let fileManager: FileManager
     private let homeDirectoryURL: URL
+    private let productIdentity: KeyProductIdentity
 
-    public init(fileManager: FileManager = .default, homeDirectoryURL: URL? = nil) {
+    public init(
+        productIdentity: KeyProductIdentity = .stable,
+        fileManager: FileManager = .default,
+        homeDirectoryURL: URL? = nil
+    ) {
+        self.productIdentity = productIdentity
         self.fileManager = fileManager
         self.homeDirectoryURL = homeDirectoryURL ?? fileManager.homeDirectoryForCurrentUser
     }
@@ -288,11 +294,17 @@ public struct KeyConfigStore {
         let configDirectoryURL = homeDirectoryURL
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("Key", isDirectory: true)
+            .appendingPathComponent(
+                productIdentity.applicationSupportDirectoryName,
+                isDirectory: true
+            )
         let configFileURL = configDirectoryURL
             .appendingPathComponent("config.toml", isDirectory: false)
         let defaultVaultURL = homeDirectoryURL
-            .appendingPathComponent(".key", isDirectory: true)
+            .appendingPathComponent(
+                productIdentity.defaultVaultDirectoryName,
+                isDirectory: true
+            )
 
         return BootstrapPaths(
             configDirectoryURL: configDirectoryURL,
@@ -597,8 +609,13 @@ public struct KeyConfigStore {
 public struct VaultLocationResolver {
     private let configStore: KeyConfigStore
 
-    public init(fileManager: FileManager = .default, homeDirectoryURL: URL? = nil) {
+    public init(
+        productIdentity: KeyProductIdentity = .stable,
+        fileManager: FileManager = .default,
+        homeDirectoryURL: URL? = nil
+    ) {
         self.configStore = KeyConfigStore(
+            productIdentity: productIdentity,
             fileManager: fileManager,
             homeDirectoryURL: homeDirectoryURL
         )

@@ -10,8 +10,15 @@ version="$1"
 download_url="$2"
 sha256="$3"
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
-cask_token="$("${repo_root}/scripts/homebrew-cask-token.sh" "${version}")"
+IFS=$'\t' read -r product_variant cask_token expected_artifact_name \
+  <<< "$("${repo_root}/scripts/release-target.sh" "${version}")"
 tap_repo_root="${KEY_TAP_REPO:-$HOME/Code/homebrew-tap}"
+
+download_asset_name="${download_url##*/}"
+if [[ "${download_asset_name}" != "${expected_artifact_name}" ]]; then
+  echo "${version} requires ${expected_artifact_name}, not ${download_asset_name}" >&2
+  exit 1
+fi
 
 if [[ ! -d "${tap_repo_root}" ]]; then
   echo "missing Homebrew tap checkout at ${tap_repo_root}" >&2
@@ -24,18 +31,33 @@ cask_dir="${tap_repo}/Casks"
 cask_path="${cask_dir}/${cask_token}.rb"
 homepage="https://github.com/tvanreenen/key"
 
-case "${cask_token}" in
-  key)
-    conflicting_casks='["key@alpha", "key@beta", "key@rc"]'
+case "${product_variant}" in
+  stable)
+    display_name="Key"
+    app_name="Key.app"
+    cli_name="key"
+    helper_name="Key Agent"
+    conflicts_clause=""
+    completion_clause='  zsh_completion "completions/_key"'
     ;;
-  key@alpha)
-    conflicting_casks='["key", "key@beta", "key@rc"]'
-    ;;
-  key@beta)
-    conflicting_casks='["key", "key@alpha", "key@rc"]'
-    ;;
-  key@rc)
-    conflicting_casks='["key", "key@alpha", "key@beta"]'
+  preview)
+    display_name="Key Preview"
+    app_name="Key Preview.app"
+    cli_name="key-preview"
+    helper_name="Key Preview Agent"
+    completion_clause=""
+    case "${cask_token}" in
+      key@alpha)
+        conflicting_casks='["key@beta", "key@rc"]'
+        ;;
+      key@beta)
+        conflicting_casks='["key@alpha", "key@rc"]'
+        ;;
+      key@rc)
+        conflicting_casks='["key@alpha", "key@beta"]'
+        ;;
+    esac
+    conflicts_clause="  conflicts_with cask: ${conflicting_casks}"
     ;;
 esac
 
@@ -55,19 +77,19 @@ cask "${cask_token}" do
   sha256 "${sha256}"
 
   url "${download_url}"
-  name "key"
+  name "${display_name}"
   desc "File-based secret manager with native authentication"
   homepage "${homepage}"
 
-  conflicts_with cask: ${conflicting_casks}
-  depends_on :macos
+${conflicts_clause}
+  depends_on macos: :tahoe
 
-  app "Key.app"
-  binary "#{appdir}/Key.app/Contents/MacOS/key", target: "key"
-  zsh_completion "completions/_key"
+  app "${app_name}"
+  binary "#{appdir}/${app_name}/Contents/MacOS/${cli_name}", target: "${cli_name}"
+${completion_clause}
 
   caveats <<~EOS
-    Open Key.app once after install so it can register Key Agent with macOS before you use the key CLI.
+    Open ${app_name} once after install so it can register ${helper_name} with macOS before you use the ${cli_name} CLI.
   EOS
 end
 EOF

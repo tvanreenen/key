@@ -123,7 +123,9 @@ private func run() -> Never {
     let logger = Logger(subsystem: configuration.helperBundleIdentifier, category: "XPC")
 
     do {
-        let configStore = KeyConfigStore()
+        let configStore = KeyConfigStore(
+            productIdentity: configuration.productIdentity
+        )
         let keyConfiguration = try configStore.load()
         let sessionKeyStore = SessionVaultKeyStore(
             underlying: VaultKeyStore(configuration: configuration)
@@ -161,10 +163,18 @@ private func run() -> Never {
         let utilityListener = NSXPCListener(machServiceName: configuration.helperStatusMachServiceName)
 
         cliListener.setConnectionCodeSigningRequirement(
-            KeyXPCSecurityPolicy.codeSigningRequirement(for: .fullCLI, policy: signingPolicy)
+            KeyXPCSecurityPolicy.codeSigningRequirement(
+                for: .fullCLI,
+                productIdentity: configuration.productIdentity,
+                policy: signingPolicy
+            )
         )
         utilityListener.setConnectionCodeSigningRequirement(
-            KeyXPCSecurityPolicy.codeSigningRequirement(for: .utilityStatus, policy: signingPolicy)
+            KeyXPCSecurityPolicy.codeSigningRequirement(
+                for: .utilityStatus,
+                productIdentity: configuration.productIdentity,
+                policy: signingPolicy
+            )
         )
 
         lifecycleController.start()

@@ -24,7 +24,8 @@ struct KeyCLIApplicationTests {
             "CFBundleName": "Key",
             "CFBundlePackageType": "APPL",
             "CFBundleShortVersionString": "1.2.3",
-            "CFBundleVersion": "45"
+            "CFBundleVersion": "45",
+            "KeyProductVariant": "preview"
         ]
         #expect(infoPlist.write(to: infoPlistURL, atomically: true))
 
@@ -47,8 +48,14 @@ struct KeyCLIApplicationTests {
 
         let fallbackBundle = try #require(Bundle(url: fallbackAppURL))
         let version = KeyVersionInfo.currentProcess(mainBundle: fallbackBundle, executableURL: symlinkURL)
+        let processBundle = KeyVersionInfo.currentProcessBundle(
+            mainBundle: fallbackBundle,
+            executableURL: symlinkURL
+        )
+        let configuration = RuntimeConfiguration.live(bundle: processBundle)
 
         #expect(version == KeyVersionInfo(marketingVersion: "1.2.3", buildVersion: "45"))
+        #expect(configuration.productIdentity == .preview)
     }
 
     @Test
@@ -1509,6 +1516,67 @@ struct KeyAppDiagnosticsCollectorTests {
         #expect(snapshot.shellCLIStatus.matchState(appVersion: snapshot.context.appVersion) == .mismatch)
         #expect(snapshot.hero.title == "Welcome to Key")
         #expect(snapshot.callout?.title == "CLI version mismatch")
+    }
+
+    @Test
+    func previewGuidanceNeverDirectsUsersToTheStableProduct() {
+        let context = KeyAppDiagnosticsContext(
+            productIdentity: .preview,
+            appVersion: KeyVersionInfo(marketingVersion: "0.2.0-alpha.6", buildVersion: "11"),
+            bundledCLIPath: "/Applications/Key Preview.app/Contents/MacOS/key-preview",
+            helperAppPath: "/Applications/Key Preview.app/Contents/Helpers/Key Preview Agent.app",
+            helperExecutablePath: "/Applications/Key Preview.app/Contents/Helpers/Key Preview Agent.app/Contents/MacOS/Key Preview Agent",
+            launchAgentPlistPath: "/Applications/Key Preview.app/Contents/Library/LaunchAgents/work.tvr.key.preview.agent.plist",
+            machServiceName: "work.tvr.key.preview.agent",
+            configFilePath: "/Users/test/Library/Application Support/Key Preview/config.toml",
+            vaultDirectoryPath: "/Users/test/.key-preview",
+            vaultLocationSource: "App Support config (default)"
+        )
+        let snapshot = KeyAppDiagnosticsCollector(
+            context: context,
+            registrationProbe: {
+                .requiresApproval(detail: "Allow Key Preview so Key Preview Agent can launch.")
+            },
+            runningProbe: {
+                false
+            },
+            helperStatusProbe: {
+                .locked(inactivityTimeoutSeconds: 900)
+            },
+            shellCLIProbe: {
+                ShellCLIStatus(
+                    resolvedPath: "/opt/homebrew/bin/key-preview",
+                    version: nil,
+                    versionErrorDescription: "Command failed"
+                )
+            }
+        ).load()
+
+        #expect(snapshot.hero.title == "Welcome to Key Preview")
+        #expect(snapshot.hero.detail.contains("Key Preview Agent"))
+        #expect(snapshot.callout?.detail.contains("Key Preview") == true)
+
+        let registeredSnapshot = KeyAppDiagnosticsCollector(
+            context: context,
+            registrationProbe: {
+                .registered(detail: "ready")
+            },
+            runningProbe: {
+                false
+            },
+            helperStatusProbe: {
+                .locked(inactivityTimeoutSeconds: 900)
+            },
+            shellCLIProbe: {
+                ShellCLIStatus(
+                    resolvedPath: "/opt/homebrew/bin/key-preview",
+                    version: nil,
+                    versionErrorDescription: "Command failed"
+                )
+            }
+        ).load()
+
+        #expect(registeredSnapshot.callout?.guidance.first?.command == "key-preview version")
     }
 
     @Test

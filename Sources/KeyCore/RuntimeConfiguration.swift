@@ -1,44 +1,62 @@
 import Foundation
 
 public struct RuntimeConfiguration: Equatable, Sendable {
-    public let vaultService: String
+    public let productIdentity: KeyProductIdentity
     public let vaultAccount: String
-    public let keychainAccessGroup: String?
-    public let helperMachServiceName: String
-    public let helperBundleIdentifier: String
-    public let launchAgentPlistName: String
     public let useDataProtectionKeychain: Bool
 
+    public var vaultService: String {
+        productIdentity.vaultKeyService
+    }
+
+    public var keychainAccessGroup: String? {
+        productIdentity.keychainAccessGroup
+    }
+
+    public var helperMachServiceName: String {
+        productIdentity.helperMachServiceName
+    }
+
+    public var helperBundleIdentifier: String {
+        productIdentity.helperBundleIdentifier
+    }
+
+    public var launchAgentPlistName: String {
+        productIdentity.launchAgentPlistName
+    }
+
     public var helperStatusMachServiceName: String {
-        "\(helperMachServiceName).status"
+        productIdentity.helperStatusMachServiceName
     }
 
     public init(
-        vaultService: String,
-        vaultAccount: String,
-        keychainAccessGroup: String?,
-        helperMachServiceName: String,
-        helperBundleIdentifier: String,
-        launchAgentPlistName: String,
-        useDataProtectionKeychain: Bool
+        productIdentity: KeyProductIdentity,
+        vaultAccount: String = "default-vault",
+        useDataProtectionKeychain: Bool = true
     ) {
-        self.vaultService = vaultService
+        self.productIdentity = productIdentity
         self.vaultAccount = vaultAccount
-        self.keychainAccessGroup = keychainAccessGroup
-        self.helperMachServiceName = helperMachServiceName
-        self.helperBundleIdentifier = helperBundleIdentifier
-        self.launchAgentPlistName = launchAgentPlistName
         self.useDataProtectionKeychain = useDataProtectionKeychain
     }
 
     public static func live(bundle: Bundle = .main) -> RuntimeConfiguration {
-        RuntimeConfiguration(
-            vaultService: bundle.object(forInfoDictionaryKey: "VaultKeyService") as? String ?? "work.tvr.key.secure-vault",
+        let productIdentity: KeyProductIdentity
+        if let rawVariant = bundle.object(forInfoDictionaryKey: "KeyProductVariant") as? String {
+            guard let variant = KeyProductVariant(rawValue: rawVariant) else {
+                preconditionFailure("Unsupported KeyProductVariant '\(rawVariant)'.")
+            }
+            productIdentity = .identity(for: variant)
+        } else {
+            #if SWIFT_PACKAGE
+            productIdentity = .stable
+            #else
+            preconditionFailure("The shipping product is missing KeyProductVariant.")
+            #endif
+        }
+
+        return RuntimeConfiguration(
+            productIdentity: productIdentity,
             vaultAccount: bundle.object(forInfoDictionaryKey: "VaultKeyAccount") as? String ?? "default-vault",
-            keychainAccessGroup: bundle.object(forInfoDictionaryKey: "KeychainAccessGroup") as? String,
-            helperMachServiceName: bundle.object(forInfoDictionaryKey: "HelperMachServiceName") as? String ?? "work.tvr.key.agent",
-            helperBundleIdentifier: bundle.object(forInfoDictionaryKey: "HelperBundleIdentifier") as? String ?? "work.tvr.key.xpc",
-            launchAgentPlistName: bundle.object(forInfoDictionaryKey: "LaunchAgentPlistName") as? String ?? "work.tvr.key.agent.plist",
             useDataProtectionKeychain: true
         )
     }
