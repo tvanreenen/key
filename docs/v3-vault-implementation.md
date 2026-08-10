@@ -8,13 +8,13 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-alpha.6` released; permanent runtime, key-rotating enrollment, and the isolated Preview release track ready; alpha.7 release and physical qualification pending |
-| Latest release | `v0.2.0-alpha.6 (11)` at `e02c76c` |
+| Status | `v0.2.0-alpha.7` released through the isolated Preview track; permanent-profile migration, device-bound restart, two-device enrollment, and a member write passed on physical Macs; remaining-device catch-up remains `ENR-511` |
+| Latest release | `v0.2.0-alpha.7 (12)` at `7829acc` |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
 | Permanent key architecture | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Current prerelease format | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | Cut alpha.7 through the isolated Preview track, then qualify the permanent profile across physical Macs without changing Stable state |
+| Active work | Implement authenticated remaining-device catch-up, then revocation, without treating provider arrival as authority |
 | Next work | `ENR-511` revocation and remaining-device catch-up, followed by `REC-512` offline recovery |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
@@ -131,15 +131,15 @@ security or durability boundary and updates this tracker before it merges.
 | `ENR-506` | Complete; PR #52 | Inspect authenticated device membership without invoking private-key operations |
 | `ENR-507` | Complete; PR #53 | Enroll additional devices through the same owner-approved comparison ceremony |
 | `ARCH-508` | Complete | Select the permanent device-wrapped, session-only key profile, macOS 14 floor, and breaking-alpha path |
-| `KEY-509` | Implemented on current branch; review and physical qualification pending | Ship one-device genesis, durable HPKE wrappers, explicit migration, wrapper-backed sessions, exact reads, and recoverable ordinary writes without persisting the raw vault key |
-| `ENR-510` | Implemented on current branch; review and physical qualification pending | Use one owner-approved, key-rotating roster-addition path for first and later enrollment |
+| `KEY-509` | Complete; PRs #54–#56; physically qualified in alpha.7 | Ship one-device genesis, durable HPKE wrappers, explicit migration, wrapper-backed sessions, exact reads, and recoverable ordinary writes without persisting the raw vault key |
+| `ENR-510` | Complete; PR #57; two-device ceremony physically qualified in alpha.7 | Use one owner-approved, key-rotating roster-addition path for first and later enrollment |
 | `ENR-511` | Planned | Revoke devices, rotate the key, re-encrypt the current snapshot, and catch remaining devices up safely |
 | `REC-512` | Planned | Add the single offline recovery kit and qualify destructive-loss behavior |
 
 #### `ARCH-508` / `KEY-509` — Permanent Profile Runtime
 
-Status: runtime implemented on the current branch; review and physical-device
-qualification remain pending.
+Status: complete in PRs #54–#56 and physically qualified on two Macs with the
+signed alpha.7 Preview release.
 
 This work delivers the macOS 14 CryptoKit HPKE foundation, permanent
 device-wrapped manifests, one-owner genesis, an exact checkpoint-manifest
@@ -161,8 +161,10 @@ Revocation remains `ENR-511`, and offline recovery remains `REC-512`.
 
 #### `ENR-510` — Permanent Key-Rotating Enrollment
 
-Status: implemented on the current branch; review and physical multi-device
-qualification remain pending.
+Status: complete in PR #57. The owner-to-second-device ceremony and the
+joining-device read, restart, and write paths were physically qualified with
+the signed alpha.7 Preview release. A third-device ceremony remains a later
+beta qualification; its protocol and implementation use this same transition.
 
 First and later device enrollment now use the same user ceremony: the owner
 invites a Mac, both Macs compare the short code, and the owner approves the
@@ -1487,7 +1489,7 @@ explicit migration rather than another implicit synchronized-key repair.
 | `v0.2.0-alpha.4` | 9 | Released | Add device enrollment and multi-device read-only sharing |
 | `v0.2.0-alpha.5` | 10 | Released | Resume the exact authenticated owner-approved enrollment after invitation expiry or delayed provider delivery |
 | `v0.2.0-alpha.6` | 11 | Released | Enable guarded multi-device writes and conflict resolution |
-| `v0.2.0-alpha.7` | 12 | Planned | Introduce the side-by-side Preview track and ship the permanent device-wrapped profile for physical multi-device qualification without replacing Stable Key |
+| `v0.2.0-alpha.7` | 12 | Released | Introduce the side-by-side Preview track and ship the permanent device-wrapped profile for physical multi-device qualification without replacing Stable Key |
 | `v0.2.0-alpha.8` | 13 | Planned | Add revocation, remaining-device catch-up, offline recovery, and multi-epoch physical-device validation |
 | `v0.2.0-beta.1` | 14 | Planned | Complete provider qualification, migration and rollback validation, recovery documentation, signing checks, and the required security-review gates |
 
@@ -1526,6 +1528,40 @@ authenticated convergence. This qualifies iCloud Drive for the current alpha
 smoke-test scope; it does not turn provider timing into a Key correctness input
 or establish support for other providers.
 
+#### Alpha.7 Release Qualification
+
+The signed and notarized alpha.7 build was published as the first isolated
+Preview release. Homebrew installed `Key Preview.app` and `key-preview` on both
+physical Macs without replacing Stable Key's app, CLI, helper identity,
+configuration, Keychain namespace, or vault selection. Strict signatures,
+provisioning and entitlement allowlists, hardened runtime, stapling,
+Gatekeeper, artifact identity, helper registration, and version/build
+alignment passed. The release branch's full Swift suite passed 581 tests.
+
+The physical exercise used a new disposable iCloud Drive vault and verified:
+
+- explicit migration of one version 2 entry to the permanent device-wrapped
+  profile while retaining the version 2 source unchanged;
+- one-device status, read, ordinary write, lock, complete helper termination,
+  restart, Secure Enclave authentication, and wrapper-backed unlock;
+- an independently matched enrollment code and exact owner/joiner device pair;
+- owner-approved key rotation, complete snapshot resealing, one wrapper for
+  each active device, and joining-device acceptance;
+- authenticated reads of both owner-written values on the joining Mac;
+- joining-device lock, helper restart, Secure Enclave unwrap, and one ordinary
+  member write; and
+- unchanged Stable configuration and protected vault aggregates throughout,
+  with zero offline, dataless, symlink, or special provider objects.
+
+The member write and its parent manifest uploaded successfully and arrived on
+the owner Mac as materialized, digest-matching immutable objects. Alpha.7
+correctly kept the owner on its exact device-local checkpoint instead of
+trusting newly arrived bytes, so the owner did not expose the new value or
+publish a competing write. Advancing that remaining device through the
+authenticated key epoch is deliberately `ENR-511`, not an iCloud timing fix.
+Until that increment ships, do not write from a device whose checkpoint has
+not caught up after another device advances the permanent-profile vault.
+
 - [ ] All security and durability invariants pass.
 - [x] The v3 reader ships before any v3 writer is enabled.
 - [ ] Local APFS and every supported sync provider pass commit/conflict tests.
@@ -1538,16 +1574,17 @@ or establish support for other providers.
 
 ## Immediate Next Action
 
-Cut alpha.7 through the staged release runbook. Install `key@alpha` beside
-Stable Key on both physical Macs; do not repoint Stable Key or its existing
-vault for this qualification.
+Implement `ENR-511` in reviewable increments, beginning with authenticated
+remaining-device catch-up. A device must start from its exact local checkpoint,
+verify every forward content manifest and owner-authorized key transition in
+order, open only its addressed wrapper, validate the complete snapshot, and
+advance its checkpoint with an expected-value guard. Missing provider objects
+remain temporary-unavailable; invalid transitions and competing rotations fail
+closed.
 
-Use Preview state to qualify permanent-profile migration, lock, helper restart,
-ordinary writes, first-device enrollment, later-device enrollment, interrupted
-recovery, and provider delay without persisting a raw vault key. Record the
-signed artifact and physical results here. Implement `ENR-511` revocation and
-`REC-512` offline recovery next, then cut alpha.8 only after enrollment,
-revocation, multi-epoch catch-up, recovery, restart, and provider-delay tests
-pass on multiple physical Macs. Provider qualification, realistic migration
-and rollback copies, and independent security review remain beta or stable
-gates.
+Add revocation only after that catch-up path is proven, then implement
+`REC-512` offline recovery. Cut alpha.8 after enrollment, revocation,
+multi-epoch catch-up, recovery, restart, and provider-delay tests pass on
+multiple physical Macs. Provider qualification, realistic migration and
+rollback copies, a third-device ceremony, and independent security review
+remain beta or stable gates.

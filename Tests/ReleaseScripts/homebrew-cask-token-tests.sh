@@ -195,6 +195,11 @@ if grep -q 'conflicts_with.*"key"' "${alpha_cask}"; then
   echo "Preview cask unexpectedly conflicts with Stable Key" >&2
   exit 1
 fi
+if ruby -e 'exit(File.read(ARGV.fetch(0)).include?("\n\n\n") ? 0 : 1)' \
+  "${alpha_cask}"; then
+  echo "Preview cask contains repeated blank lines" >&2
+  exit 1
+fi
 ruby -c "${alpha_cask}" >/dev/null
 
 artifact_fixture_root="${test_root}/release-artifacts"
@@ -527,6 +532,11 @@ grep -q '^  binary "#{appdir}/Key.app/Contents/MacOS/key", target: "key"$' "${st
 grep -q '^  zsh_completion "completions/_key"$' "${stable_cask}"
 if grep -q 'conflicts_with' "${stable_cask}"; then
   echo "Stable cask unexpectedly conflicts with the side-by-side Preview product" >&2
+  exit 1
+fi
+if ruby -e 'exit(File.read(ARGV.fetch(0)).include?("\n\n\n") ? 0 : 1)' \
+  "${stable_cask}"; then
+  echo "Stable cask contains repeated blank lines" >&2
   exit 1
 fi
 ruby -c "${stable_cask}" >/dev/null
