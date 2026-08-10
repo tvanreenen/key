@@ -82,7 +82,7 @@ cask "${cask_token}" do
   homepage "${homepage}"
 
 ${conflicts_clause}
-  depends_on :macos
+  depends_on macos: :tahoe
 
   app "${app_name}"
   binary "#{appdir}/${app_name}/Contents/MacOS/${cli_name}", target: "${cli_name}"

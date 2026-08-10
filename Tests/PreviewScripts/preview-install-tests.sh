@@ -78,6 +78,36 @@ if "${repo_root}/scripts/verify-product-bundle.sh" stable "${installed_app}" >/d
   exit 1
 fi
 
+touch "${installed_app}/old-install-marker"
+touch "${source_app}/new-install-marker"
+rm "${cli_link}"
+failure_bin="${test_root}/failure-bin"
+mkdir -p "${failure_bin}"
+cat > "${failure_bin}/mv" <<'SCRIPT'
+#!/bin/zsh
+if [[ "$#" -eq 2 && "$1" == */.key-preview-link.* && \
+      "$2" == "${KEY_PREVIEW_TEST_CLI_LINK:?}" ]]; then
+  exit 1
+fi
+exec /bin/mv "$@"
+SCRIPT
+chmod +x "${failure_bin}/mv"
+
+if PATH="${failure_bin}:${PATH}" \
+  KEY_PREVIEW_APPLICATIONS_DIR="${applications_dir}" \
+  KEY_PREVIEW_CLI_BIN_DIR="${cli_bin_dir}" \
+  KEY_PREVIEW_SKIP_PROCESS_STOP=1 \
+  KEY_PREVIEW_TEST_CLI_LINK="${cli_link}" \
+  "${repo_root}/scripts/install-preview-app.sh" "${source_app}" \
+  >/dev/null 2>&1; then
+  echo "expected installer to fail when the CLI link cannot be published" >&2
+  exit 1
+fi
+
+[[ -f "${installed_app}/old-install-marker" ]]
+[[ ! -e "${installed_app}/new-install-marker" ]]
+[[ ! -e "${cli_link}" && ! -L "${cli_link}" ]]
+
 mkdir -p "${test_root}/persistent-preview-state"
 touch "${test_root}/persistent-preview-state/vault-marker"
 

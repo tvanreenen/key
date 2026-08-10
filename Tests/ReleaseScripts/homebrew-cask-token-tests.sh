@@ -183,7 +183,7 @@ grep -q '^  version "v0.2.0-alpha.2"$' "${alpha_cask}"
 grep -q '^  url "https://example.invalid/Key-Preview-v0.2.0-alpha.2.zip"$' "${alpha_cask}"
 grep -q '^  name "Key Preview"$' "${alpha_cask}"
 grep -q '^  desc "File-based secret manager with native authentication"$' "${alpha_cask}"
-grep -q '^  depends_on :macos$' "${alpha_cask}"
+grep -q '^  depends_on macos: :tahoe$' "${alpha_cask}"
 grep -q '^  conflicts_with cask: \["key@beta", "key@rc"\]$' "${alpha_cask}"
 grep -q '^  app "Key Preview.app"$' "${alpha_cask}"
 grep -q '^  binary "#{appdir}/Key Preview.app/Contents/MacOS/key-preview", target: "key-preview"$' "${alpha_cask}"
@@ -212,7 +212,12 @@ artifact_verifier_root="${test_root}/artifact-verifier"
 artifact_verifier_scripts="${artifact_verifier_root}/scripts"
 artifact_verifier_project="${artifact_verifier_root}/Key.xcodeproj/project.pbxproj"
 signing_verification_log="${artifact_verifier_root}/signing-verifications"
-mkdir -p "${artifact_verifier_scripts}" "${artifact_verifier_project:h}"
+gatekeeper_verification_log="${artifact_verifier_root}/gatekeeper-verifications"
+artifact_verifier_bin="${artifact_verifier_root}/bin"
+mkdir -p \
+  "${artifact_verifier_scripts}" \
+  "${artifact_verifier_project:h}" \
+  "${artifact_verifier_bin}"
 cp \
   "${repo_root}/scripts/project-version.sh" \
   "${repo_root}/scripts/release-target.sh" \
@@ -237,6 +242,36 @@ if [[ -n "${SIGNING_VERIFICATION_LOG:-}" ]]; then
 fi
 EOF
 chmod +x "${artifact_verifier_scripts}/verify-signing.sh"
+cat > "${artifact_verifier_bin}/xcrun" <<'EOF'
+#!/bin/zsh
+set -euo pipefail
+
+if [[ "$#" -ne 3 || "$1" != "stapler" || "$2" != "validate" || ! -d "$3" ]]; then
+  exit 64
+fi
+if [[ "${ARTIFACT_GATEKEEPER_FAILURE:-}" == "stapler" ]]; then
+  exit 1
+fi
+if [[ -n "${ARTIFACT_GATEKEEPER_LOG:-}" ]]; then
+  echo "stapler" >> "${ARTIFACT_GATEKEEPER_LOG}"
+fi
+EOF
+cat > "${artifact_verifier_bin}/spctl" <<'EOF'
+#!/bin/zsh
+set -euo pipefail
+
+if [[ "$#" -ne 5 || "$1" != "--assess" || "$2" != "--type" || \
+      "$3" != "execute" || "$4" != "--verbose" || ! -d "$5" ]]; then
+  exit 64
+fi
+if [[ "${ARTIFACT_GATEKEEPER_FAILURE:-}" == "spctl" ]]; then
+  exit 1
+fi
+if [[ -n "${ARTIFACT_GATEKEEPER_LOG:-}" ]]; then
+  echo "spctl" >> "${ARTIFACT_GATEKEEPER_LOG}"
+fi
+EOF
+chmod +x "${artifact_verifier_bin}/xcrun" "${artifact_verifier_bin}/spctl"
 artifact_verifier="${artifact_verifier_scripts}/verify-release-artifact.sh"
 
 set_artifact_project_version() {
@@ -260,18 +295,42 @@ preview_artifact="${artifact_fixture_root}/Key-Preview-v0.2.0-alpha.2.zip"
 )
 
 set_artifact_project_version "0.2.0" "11"
-SIGNING_VERIFICATION_LOG="${signing_verification_log}" "${artifact_verifier}" \
+PATH="${artifact_verifier_bin}:${PATH}" \
+ARTIFACT_GATEKEEPER_LOG="${gatekeeper_verification_log}" \
+SIGNING_VERIFICATION_LOG="${signing_verification_log}" \
+  "${artifact_verifier}" \
   "v0.2.0" \
   "${stable_artifact}" \
   >/dev/null
 set_artifact_project_version "0.2.0-alpha.2" "11"
-SIGNING_VERIFICATION_LOG="${signing_verification_log}" "${artifact_verifier}" \
+PATH="${artifact_verifier_bin}:${PATH}" \
+ARTIFACT_GATEKEEPER_LOG="${gatekeeper_verification_log}" \
+SIGNING_VERIFICATION_LOG="${signing_verification_log}" \
+  "${artifact_verifier}" \
   "v0.2.0-alpha.2" \
   "${preview_artifact}" \
   >/dev/null
 
 grep -q '^stable$' "${signing_verification_log}"
 grep -q '^preview$' "${signing_verification_log}"
+[[ "$(grep -c '^stapler$' "${gatekeeper_verification_log}")" -eq 2 ]]
+[[ "$(grep -c '^spctl$' "${gatekeeper_verification_log}")" -eq 2 ]]
+
+set_artifact_project_version "0.2.0" "11"
+if PATH="${artifact_verifier_bin}:${PATH}" \
+  ARTIFACT_GATEKEEPER_FAILURE="stapler" \
+  "${artifact_verifier}" "v0.2.0" "${stable_artifact}" \
+  >/dev/null 2>&1; then
+  echo "expected artifact verification to reject a missing staple" >&2
+  exit 1
+fi
+if PATH="${artifact_verifier_bin}:${PATH}" \
+  ARTIFACT_GATEKEEPER_FAILURE="spctl" \
+  "${artifact_verifier}" "v0.2.0" "${stable_artifact}" \
+  >/dev/null 2>&1; then
+  echo "expected artifact verification to reject a failed Gatekeeper assessment" >&2
+  exit 1
+fi
 
 renamed_stable_artifact="${artifact_fixture_root}/Key-Preview-v0.2.0-alpha.3.zip"
 cp "${stable_artifact}" "${renamed_stable_artifact}"
@@ -370,6 +429,8 @@ git init --initial-branch=main "${publication_repo}" >/dev/null
 git -C "${publication_repo}" config user.name "Release Script Tests"
 git -C "${publication_repo}" config user.email "release-tests@example.invalid"
 mkdir -p "${publication_repo}/scripts" "${publication_fake_bin}"
+cp "${artifact_verifier_bin}/xcrun" "${artifact_verifier_bin}/spctl" \
+  "${publication_fake_bin}/"
 cp \
   "${repo_root}/scripts/publish-release.sh" \
   "${artifact_verifier_scripts}/project-version.sh" \
@@ -460,6 +521,7 @@ fi
 
 stable_cask="${tap_checkout}/Casks/key.rb"
 grep -q '^  name "Key"$' "${stable_cask}"
+grep -q '^  depends_on macos: :tahoe$' "${stable_cask}"
 grep -q '^  app "Key.app"$' "${stable_cask}"
 grep -q '^  binary "#{appdir}/Key.app/Contents/MacOS/key", target: "key"$' "${stable_cask}"
 grep -q '^  zsh_completion "completions/_key"$' "${stable_cask}"

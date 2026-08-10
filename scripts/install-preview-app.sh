@@ -51,28 +51,69 @@ fi
 
 mkdir -p "${applications_dir}" "${cli_bin_dir}"
 staging_dir="$(mktemp -d "${applications_dir}/.key-preview-install.XXXXXX")"
-trap 'rm -rf -- "${staging_dir}"' EXIT
+cli_link_staging_path=""
+discard_staging_dir=1
+
+cleanup() {
+  if [[ -n "${cli_link_staging_path}" ]]; then
+    rm -f -- "${cli_link_staging_path}"
+  fi
+  if (( discard_staging_dir )); then
+    rm -rf -- "${staging_dir}"
+  else
+    echo "retained interrupted Preview installation at ${staging_dir}" >&2
+  fi
+}
+trap cleanup EXIT
 staged_app_path="${staging_dir}/Key Preview.app"
 
 ditto "${source_app_path}" "${staged_app_path}"
 validate_preview_app "${staged_app_path}"
 
+publish_cli_link=0
+if [[ ! -L "${cli_link_path}" ]]; then
+  cli_link_staging_path="$(mktemp "${cli_bin_dir}/.key-preview-link.XXXXXX")"
+  rm -- "${cli_link_staging_path}"
+  ln -s "${installed_cli_path}" "${cli_link_staging_path}"
+  publish_cli_link=1
+fi
+
 previous_app_path="${staging_dir}/Previous Key Preview.app"
+
+restore_previous_app() {
+  if [[ -e "${installed_app_path}" ]]; then
+    [[ ! -e "${staged_app_path}" ]] || return 1
+    mv "${installed_app_path}" "${staged_app_path}" || return 1
+  fi
+  if [[ -e "${previous_app_path}" ]]; then
+    [[ ! -e "${installed_app_path}" ]] || return 1
+    mv "${previous_app_path}" "${installed_app_path}" || return 1
+  fi
+}
+
 if [[ -e "${installed_app_path}" ]]; then
   mv "${installed_app_path}" "${previous_app_path}"
 fi
 if ! mv "${staged_app_path}" "${installed_app_path}"; then
-  if [[ -e "${previous_app_path}" ]]; then
-    mv "${previous_app_path}" "${installed_app_path}"
+  if ! restore_previous_app; then
+    discard_staging_dir=0
+    echo "failed to install Key Preview and could not restore the previous installation" >&2
+    exit 1
   fi
-  echo "failed to install Key Preview; the previous installation was restored" >&2
+  echo "failed to install Key Preview; the installation was rolled back" >&2
   exit 1
 fi
 
-if [[ -L "${cli_link_path}" ]]; then
-  rm -- "${cli_link_path}"
+if (( publish_cli_link )) && ! mv "${cli_link_staging_path}" "${cli_link_path}"; then
+  if ! restore_previous_app; then
+    discard_staging_dir=0
+    echo "failed to publish the key-preview CLI link and could not fully restore the previous installation" >&2
+    exit 1
+  fi
+  echo "failed to publish the key-preview CLI link; the installation was rolled back" >&2
+  exit 1
 fi
-ln -s "${installed_cli_path}" "${cli_link_path}"
+cli_link_staging_path=""
 
 echo "Installed the isolated Preview product:"
 echo "  app: ${installed_app_path}"

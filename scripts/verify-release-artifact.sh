@@ -128,4 +128,7 @@ require_value \
   "${product_variant}" \
   >/dev/null
 
+xcrun stapler validate "${app_path}" >/dev/null
+spctl --assess --type execute --verbose "${app_path}" >/dev/null
+
 echo "Verified ${product_variant} release artifact: ${zip_path}"
