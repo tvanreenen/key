@@ -372,6 +372,130 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
     }
 
     @Test
+    func preflightAcceptsOnlyTheOwnerAuthorizedParentBinding() throws {
+        let fixture = try Fixture()
+        let ceremony = try fixture.ceremony(
+            parentDigest: fixture.base.checkpoint.envelopeDigest,
+            joiner: fixture.firstJoiner,
+            role: .member,
+            nonce: 0x76
+        )
+        let candidate = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
+            from: fixture.base,
+            currentEntries: fixture.currentEntries,
+            state: ceremony.state,
+            currentVaultKey: Self.currentKey,
+            nextVaultKey: Self.nextKey,
+            authorityTransitionID: Self.firstEnrollmentTransitionID,
+            owner: fixture.owner,
+            at: Self.approvalTime,
+            authorizationReason: "Approve the compared Mac."
+        )
+
+        let authorized = try V3DeviceWrappedEnrollmentTransitionValidator()
+            .preflightOwnerAuthorizedCandidate(
+                manifestData: candidate.manifestData,
+                manifestDigest: candidate.manifestDigest,
+                parent: fixture.base,
+                currentVaultKey: Self.currentKey
+            )
+
+        #expect(authorized.candidate.body == candidate.body)
+        #expect(authorized.manifestDigest == candidate.manifestDigest)
+        #expect(authorized.authorizingOwner == fixture.owner.publicIdentity)
+
+        let otherParentCandidate = try V3DeviceWrappedManifestCandidateBuilder()
+            .edit(
+                in: fixture.base,
+                name: "account/password",
+                type: .secret,
+                plaintext: "newer parent value",
+                vaultKey: Self.currentKey
+            )
+        let otherParent = V3DeviceWrappedTrustedCheckpoint(
+            checkpoint: try V3ManifestCheckpoint(
+                vaultID: Self.vaultID,
+                envelopeDigest: otherParentCandidate.manifestDigest
+            ),
+            envelope: try V3DeviceWrappedManifestEnvelopeCodec().parse(
+                otherParentCandidate.manifestData
+            )
+        )
+        #expect(
+            throws: V3DeviceWrappedEnrollmentValidationError
+                .invalidTransition
+        ) {
+            try V3DeviceWrappedEnrollmentTransitionValidator()
+                .preflightOwnerAuthorizedCandidate(
+                    manifestData: candidate.manifestData,
+                    manifestDigest: candidate.manifestDigest,
+                    parent: otherParent,
+                    currentVaultKey: Self.currentKey
+                )
+        }
+    }
+
+    @Test
+    func preflightPreservesFutureProfileUpgradeRequirement() throws {
+        let fixture = try Fixture()
+        let ceremony = try fixture.ceremony(
+            parentDigest: fixture.base.checkpoint.envelopeDigest,
+            joiner: fixture.firstJoiner,
+            role: .member,
+            nonce: 0x77
+        )
+        let candidate = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
+            from: fixture.base,
+            currentEntries: fixture.currentEntries,
+            state: ceremony.state,
+            currentVaultKey: Self.currentKey,
+            nextVaultKey: Self.nextKey,
+            authorityTransitionID: Self.firstEnrollmentTransitionID,
+            owner: fixture.owner,
+            at: Self.approvalTime,
+            authorizationReason: "Approve the compared Mac."
+        )
+        let root = try #require(
+            CanonicalJSON.parse(candidate.manifestData).objectValue
+        )
+        let content = try #require(
+            root.first(where: { $0.0 == "content" })?.1.objectValue
+        )
+        let body = try #require(
+            content.first(where: { $0.0 == "manifest" })?.1.objectValue
+        )
+        let futureBody = body.map { name, value in
+            name == "profileVersion"
+                ? (name, CanonicalJSONValue.integer(2))
+                : (name, value)
+        }
+        let futureContent = content.map { name, value in
+            name == "manifest"
+                ? (name, CanonicalJSONValue.object(futureBody))
+                : (name, value)
+        }
+        let futureRoot = root.map { name, value in
+            name == "content"
+                ? (name, CanonicalJSONValue.object(futureContent))
+                : (name, value)
+        }
+        let futureData = CanonicalJSON.encode(.object(futureRoot))
+
+        #expect(
+            throws: V3DeviceWrappedUnlockError
+                .unsupportedProfileVersion(2)
+        ) {
+            try V3DeviceWrappedEnrollmentTransitionValidator()
+                .preflightOwnerAuthorizedCandidate(
+                    manifestData: futureData,
+                    manifestDigest: Data(SHA256.hash(data: futureData)),
+                    parent: fixture.base,
+                    currentVaultKey: Self.currentKey
+                )
+        }
+    }
+
+    @Test
     func validatorRejectsAResealWithDifferentPlaintext() throws {
         let fixture = try Fixture()
         let ceremony = try fixture.ceremony(
@@ -468,6 +592,18 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
             signer: fixture.firstJoiner
         )
 
+        #expect(
+            throws: V3DeviceWrappedEnrollmentValidationError
+                .invalidOwnerAuthorization
+        ) {
+            try V3DeviceWrappedEnrollmentTransitionValidator()
+                .preflightOwnerAuthorizedCandidate(
+                    manifestData: altered.manifestData,
+                    manifestDigest: altered.manifestDigest,
+                    parent: fixture.base,
+                    currentVaultKey: Self.currentKey
+                )
+        }
         #expect(
             throws: V3DeviceWrappedEnrollmentValidationError
                 .invalidOwnerAuthorization
