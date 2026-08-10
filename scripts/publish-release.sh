@@ -58,7 +58,8 @@ if ! git push --atomic origin main "${tag}"; then
   if [[ "${created_tag}" -eq 1 ]]; then
     git tag --delete "${tag}" >/dev/null
   fi
-  echo "failed to publish main and ${tag} atomically; no remote release state was changed" >&2
+  echo "failed to confirm atomic publication of main and ${tag}" >&2
+  echo "main and the tag cannot advance independently; inspect the remote refs before retrying" >&2
   exit 1
 fi
 

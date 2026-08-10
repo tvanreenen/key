@@ -125,16 +125,21 @@ The release script uses that profile here:
 Once signing and notarization are configured locally:
 
 ```bash
-just build-release v0.1.0-alpha.1
-just publish-release v0.1.0-alpha.1 "$HOME/Library/Developer/Xcode/Releases/key/v0.1.0-alpha.1/Key-Preview-v0.1.0-alpha.1.zip"
+just build-release v0.2.0-alpha.7
+just publish-release v0.2.0-alpha.7 "$HOME/Library/Developer/Xcode/Releases/key/v0.2.0-alpha.7/Key-Preview-v0.2.0-alpha.7.zip"
 ```
 
 The tag selects the signing profile and product identity. Stable tags build
 `Key.app`; numbered alpha, beta, and rc tags build `Key Preview.app`.
+Before publication creates the tag, the final extracted ZIP must still match
+the version commit and pass the complete Developer ID and entitlement checks.
+See the [release runbook](release.md#operator-runbook) for the staged workflow,
+retry boundaries, and post-Homebrew smoke test.
 
 Supporting scripts:
 
 - [verify-signing.sh](../scripts/verify-signing.sh)
+- [verify-release-artifact.sh](../scripts/verify-release-artifact.sh)
 - [verify-release.sh](../scripts/verify-release.sh)
 - [Justfile](../Justfile)
 

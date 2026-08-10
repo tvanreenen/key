@@ -69,36 +69,117 @@ brew uninstall --cask tvanreenen/tap/key@alpha
 brew install --cask tvanreenen/tap/key@alpha
 ```
 
-`release-target.sh` validates the tag and resolves the product variant, Homebrew cask, and exact artifact name as one decision. Stable tags resolve to `Key`; numbered prerelease tags resolve to `Key Preview`.
-`bump-version.sh` validates that same release target, updates Xcode's `MARKETING_VERSION`, auto-increments `CURRENT_PROJECT_VERSION`, and commits the version bump on `main`. It deliberately leaves the commit untagged until a complete release artifact has passed validation.
-`build-release.sh` builds, notarizes, staples, and zips the selected product. Before notarization, it requires valid Apple Developer ID signatures from team `9Q355KSV85`, the product's exact app, CLI, and helper signing identifiers, hardened runtime, and the exact Stable or Preview Keychain entitlement set. A Stable zip includes `Key.app` plus `completions/_key`; a prerelease zip contains the isolated `Key Preview.app`.
-`publish-release.sh` revalidates the artifact, creates or resumes the annotated tag at the exact version commit, pushes `main` plus the tag, then uses `gh` to create or update a GitHub release, upload the zip asset, and print the final download URL plus sha256 needed for the tap cask. It uses the tag as the release title and GitHub's generated release notes, and rejects an artifact whose product identity does not match the tag.
-`update-homebrew-tap.sh` fast-forwards a local tap checkout and updates the cask selected from the tag: `Casks/key.rb` for a stable release or the matching `Casks/key@<channel>.rb` for a Preview release. It writes product-specific app and CLI artifacts and rejects a download URL whose artifact name does not match the tag. It defaults to `~/Code/homebrew-tap` and can be overridden with `KEY_TAP_REPO`.
-`publish-homebrew-tap.sh` derives the same channel from the tag, stages only that cask, commits it, and pushes it.
-`release.sh` runs the full release flow end to end on `main`: version bump, signed/notarized build, GitHub release publish, Homebrew tap update, and Homebrew tap publish.
-`CURRENT_PROJECT_VERSION` is treated as an internal Apple/Xcode build counter and auto-increments with each release bump. The semver or prerelease string remains the primary release identity.
+## What the release workflow guarantees
 
-The intended release flow is:
+The tag makes the product decision once. A stable tag selects `Key.app`, `key`,
+and the `key` cask. A numbered alpha, beta, or release-candidate tag selects
+`Key Preview.app`, `key-preview`, and the matching opt-in cask. The later stages
+all use that same decision; there is no independent product switch to mistype.
 
-0. Start from a clean, up-to-date `main`:
+The version bump creates an ordinary commit on `main`, but not a tag. The build
+must then produce a ZIP containing the signed, notarized, and stapled app. The
+final gate extracts that ZIP and verifies its exact layout, product identity,
+marketing and build versions, Developer ID signatures, hardened runtime, and
+entitlement allowlists. Publication will run the same gate again.
 
-   ```bash
-   git checkout main
-   git pull --ff-only
-   git status --short
-   ```
+Only after the ZIP passes does publication create the annotated tag. It pushes
+`main` and the tag atomically, so GitHub receives both or neither. The GitHub
+release upload is resumable. Homebrew remains the final distribution step and
+is updated only after the GitHub asset and checksum exist.
 
-1. Fast path: `just release vX.Y.Z[-prerelease]`
+`CURRENT_PROJECT_VERSION` is an internal Apple/Xcode build counter and advances
+with every version bump. The semver or prerelease string is the public version.
 
-Manual path, if you want to inspect each stage:
+## Operator runbook
 
-1. `just bump-version vX.Y.Z[-prerelease]`
-2. `just build-release vX.Y.Z[-prerelease]`
-3. Inspect the selected product and artifact printed by the builder.
-4. `just publish-release vX.Y.Z[-prerelease] <zip-path>`
-5. `just update-homebrew-tap vX.Y.Z[-prerelease] <download-url> <sha256>`
-6. Inspect the cask path and product artifacts printed by `update-homebrew-tap.sh` (`Casks/key.rb` for Stable or `Casks/key@<channel>.rb` for Preview).
-7. `just publish-homebrew-tap vX.Y.Z[-prerelease]`
+Use the manual flow for prereleases and any release you intend to inspect one
+stage at a time. `just release <tag>` runs the same stages end to end and is the
+fast path once the process is routine.
+
+### 1. Prepare the version commit
+
+Start from clean, current `main`:
+
+```bash
+git checkout main
+git pull --ff-only
+git status --short
+just bump-version vX.Y.Z[-prerelease]
+```
+
+Review the resulting commit. At this point no release tag or remote release
+state exists.
+
+### 2. Build the final artifact
+
+```bash
+just build-release vX.Y.Z[-prerelease]
+```
+
+The command prints the selected product, final ZIP path, and SHA-256. Do not
+publish if its final extracted-artifact verification fails.
+
+### 3. Publish GitHub state atomically
+
+```bash
+just publish-release vX.Y.Z[-prerelease] <zip-path>
+```
+
+This rechecks the ZIP, creates the tag at the version commit, atomically pushes
+`main` and the tag, and creates or resumes the GitHub release. Keep `main` at
+that commit until the GitHub release upload completes. Save the printed asset
+URL and SHA-256 for the tap update.
+
+### 4. Update and publish Homebrew
+
+```bash
+just update-homebrew-tap vX.Y.Z[-prerelease] <download-url> <sha256>
+git -C "$HOME/Code/homebrew-tap" diff -- "Casks/<resolved-cask>.rb"
+just publish-homebrew-tap vX.Y.Z[-prerelease]
+```
+
+The update command prints the exact cask path. Inspect that path before
+publishing it. Stable updates only `key.rb`; prereleases update only their
+`key@alpha.rb`, `key@beta.rb`, or `key@rc.rb` channel.
+
+### 5. Smoke-test the distributed product
+
+For an alpha Preview release:
+
+```bash
+brew update
+brew install --cask tvanreenen/tap/key@alpha   # first installation
+brew upgrade --cask tvanreenen/tap/key@alpha   # later alpha releases
+spctl --assess --type execute --verbose "/Applications/Key Preview.app"
+open -a "Key Preview"
+key-preview version --json
+key-preview status
+```
+
+Run the appropriate Homebrew install or upgrade command, not both.
+
+For a stable release, use the `key` cask, `/Applications/Key.app`, and the `key`
+CLI instead. Open the installed app once if the helper has not previously been
+registered. Preview has its own configuration, vault default, helper, and
+Keychain namespace, so this smoke test does not require repointing Stable Key
+at a test vault.
+
+## Failure and retry boundaries
+
+- If the build fails, fix the cause and rerun `just build-release <tag>`; no tag
+  or GitHub release exists yet.
+- If the atomic Git push reports failure, `main` and the tag cannot have
+  advanced independently, but a lost network response can leave the client
+  unsure whether both advanced. Fetch or inspect the remote `main` and tag,
+  keep the local checkout on the version commit, and rerun publication. The
+  retry safely handles either outcome.
+- If GitHub release creation or upload fails after the atomic push, immediately
+  rerun the same `just publish-release` command from the unchanged version
+  commit. It resumes the existing tag and release.
+- If the tap update fails, the GitHub release remains valid. Rerun the Homebrew
+  steps without rebuilding or retagging.
+- Do not change a published tag or reuse a version number. Correct a released
+  artifact with a new version and build number.
 
 This project currently publishes its cask through:
 

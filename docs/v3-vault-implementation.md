@@ -8,13 +8,13 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-alpha.6` released; permanent runtime and key-rotating enrollment implemented on the current branch; review and physical qualification pending |
+| Status | `v0.2.0-alpha.6` released; permanent runtime, key-rotating enrollment, and the isolated Preview release track ready; alpha.7 release and physical qualification pending |
 | Latest release | `v0.2.0-alpha.6 (11)` at `e02c76c` |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
 | Permanent key architecture | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Current prerelease format | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | Review and land `KEY-509` and `ENR-510`, then qualify the permanent profile across physical Macs |
+| Active work | Cut alpha.7 through the isolated Preview track, then qualify the permanent profile across physical Macs without changing Stable state |
 | Next work | `ENR-511` revocation and remaining-device catch-up, followed by `REC-512` offline recovery |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
@@ -1487,7 +1487,7 @@ explicit migration rather than another implicit synchronized-key repair.
 | `v0.2.0-alpha.4` | 9 | Released | Add device enrollment and multi-device read-only sharing |
 | `v0.2.0-alpha.5` | 10 | Released | Resume the exact authenticated owner-approved enrollment after invitation expiry or delayed provider delivery |
 | `v0.2.0-alpha.6` | 11 | Released | Enable guarded multi-device writes and conflict resolution |
-| `v0.2.0-alpha.7` | 12 | Planned | Ship the permanent device-wrapped profile after shipping integration, unified key-rotating enrollment, restart tests, and physical multi-device validation |
+| `v0.2.0-alpha.7` | 12 | Planned | Introduce the side-by-side Preview track and ship the permanent device-wrapped profile for physical multi-device qualification without replacing Stable Key |
 | `v0.2.0-alpha.8` | 13 | Planned | Add revocation, remaining-device catch-up, offline recovery, and multi-epoch physical-device validation |
 | `v0.2.0-beta.1` | 14 | Planned | Complete provider qualification, migration and rollback validation, recovery documentation, signing checks, and the required security-review gates |
 
@@ -1538,15 +1538,14 @@ or establish support for other providers.
 
 ## Immediate Next Action
 
-Review and land the integrated `KEY-509` and `ENR-510` branch, then use a
-development build for permanent-profile migration, lock, helper restart,
-ordinary writes, first-device enrollment, and later-device enrollment across
-physical Macs. Do not cut alpha.7 until those flows pass without persistent
-raw v3 key storage.
+Cut alpha.7 through the staged release runbook. Install `key@alpha` beside
+Stable Key on both physical Macs; do not repoint Stable Key or its existing
+vault for this qualification.
 
-Before alpha.7, qualify permanent migration, lock, helper restart, ordinary
-writes, interrupted recovery, and key-rotating enrollment across physical Macs
-without persisting a raw vault key. Implement `ENR-511` revocation and
+Use Preview state to qualify permanent-profile migration, lock, helper restart,
+ordinary writes, first-device enrollment, later-device enrollment, interrupted
+recovery, and provider delay without persisting a raw vault key. Record the
+signed artifact and physical results here. Implement `ENR-511` revocation and
 `REC-512` offline recovery next, then cut alpha.8 only after enrollment,
 revocation, multi-epoch catch-up, recovery, restart, and provider-delay tests
 pass on multiple physical Macs. Provider qualification, realistic migration

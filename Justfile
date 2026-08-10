@@ -48,7 +48,7 @@ notarize archive_path:
 bump-version tag:
   scripts/bump-version.sh "{{tag}}"
 
-# Build, notarize, staple, and zip the product selected by the release tag.
+# Build, notarize, staple, zip, and verify the product selected by the release tag.
 build-release tag:
   scripts/build-release.sh "{{tag}}"
 
@@ -64,6 +64,6 @@ update-homebrew-tap tag download_url sha256:
 publish-homebrew-tap tag:
   scripts/publish-homebrew-tap.sh "{{tag}}"
 
-# Publish a GitHub release asset and print the data needed for the tap cask.
+# Verify the ZIP, atomically publish main plus its tag, and upload the GitHub release asset.
 publish-release tag zip_path:
   scripts/publish-release.sh "{{tag}}" "{{zip_path}}"
