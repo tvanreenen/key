@@ -22,21 +22,39 @@ public struct KeyVersionInfo: Codable, Equatable, Sendable {
     }
 
     public static func currentProcess() -> KeyVersionInfo {
-        currentProcess(mainBundle: .main, executableURL: currentExecutableURL())
+        KeyVersionInfo(bundle: currentProcessBundle())
     }
 
     public static func currentProcess(
         mainBundle: Bundle,
         executableURL: URL?
     ) -> KeyVersionInfo {
+        KeyVersionInfo(
+            bundle: currentProcessBundle(
+                mainBundle: mainBundle,
+                executableURL: executableURL
+            )
+        )
+    }
+
+    public static func currentProcessBundle() -> Bundle {
+        currentProcessBundle(
+            mainBundle: .main,
+            executableURL: currentExecutableURL()
+        )
+    }
+
+    static func currentProcessBundle(
+        mainBundle: Bundle,
+        executableURL: URL?
+    ) -> Bundle {
         guard
             let executableURL,
             let bundle = bundle(containingExecutableAt: executableURL)
         else {
-            return KeyVersionInfo(bundle: mainBundle)
+            return mainBundle
         }
-
-        return KeyVersionInfo(bundle: bundle)
+        return bundle
     }
 
     public var displayString: String {

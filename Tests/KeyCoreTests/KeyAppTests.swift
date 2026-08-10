@@ -24,7 +24,8 @@ struct KeyCLIApplicationTests {
             "CFBundleName": "Key",
             "CFBundlePackageType": "APPL",
             "CFBundleShortVersionString": "1.2.3",
-            "CFBundleVersion": "45"
+            "CFBundleVersion": "45",
+            "KeyProductVariant": "preview"
         ]
         #expect(infoPlist.write(to: infoPlistURL, atomically: true))
 
@@ -47,8 +48,14 @@ struct KeyCLIApplicationTests {
 
         let fallbackBundle = try #require(Bundle(url: fallbackAppURL))
         let version = KeyVersionInfo.currentProcess(mainBundle: fallbackBundle, executableURL: symlinkURL)
+        let processBundle = KeyVersionInfo.currentProcessBundle(
+            mainBundle: fallbackBundle,
+            executableURL: symlinkURL
+        )
+        let configuration = RuntimeConfiguration.live(bundle: processBundle)
 
         #expect(version == KeyVersionInfo(marketingVersion: "1.2.3", buildVersion: "45"))
+        #expect(configuration.productIdentity == .preview)
     }
 
     @Test

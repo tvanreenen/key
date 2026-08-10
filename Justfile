@@ -6,6 +6,7 @@ default:
 test:
   swift test
   Tests/ReleaseScripts/homebrew-cask-token-tests.sh
+  Tests/PreviewScripts/preview-install-tests.sh
 
 # Verify stable and prerelease Homebrew channel selection.
 test-release-scripts:
@@ -14,6 +15,14 @@ test-release-scripts:
 # Build the app in Debug using the checked-in Xcode project.
 build-debug:
   scripts/build-debug-app.sh
+
+# Build and install the isolated Preview app plus its key-preview CLI link.
+install-preview:
+  scripts/build-preview-app.sh
+
+# Remove only the Preview app and CLI link while preserving Preview vault state.
+uninstall-preview:
+  scripts/uninstall-preview-app.sh
 
 # Clear stale LaunchAgent/debug-install state so the next debug build starts clean.
 reset-debug:

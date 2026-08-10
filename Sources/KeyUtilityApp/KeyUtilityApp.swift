@@ -5,6 +5,7 @@ import ServiceManagement
 import SwiftUI
 
 private let registeredHelperBuildDefaultsKey = "registered-helper-build-version"
+private let unregisterPreviewHelperArgument = "--unregister-preview-helper"
 
 @main
 struct KeyUtilityApp: App {
@@ -14,6 +15,7 @@ struct KeyUtilityApp: App {
         let bundle = Bundle.main
         let configuration = RuntimeConfiguration.live(bundle: bundle)
         self.configuration = configuration
+        Self.runPreviewMaintenanceCommandIfRequested(configuration: configuration)
         let buildVersion = KeyVersionInfo(bundle: bundle).buildVersion
 
         Task {
@@ -22,6 +24,33 @@ struct KeyUtilityApp: App {
                 buildVersion: buildVersion
             )
         }
+    }
+
+    private static func runPreviewMaintenanceCommandIfRequested(
+        configuration: RuntimeConfiguration
+    ) {
+        guard Array(CommandLine.arguments.dropFirst()) == [unregisterPreviewHelperArgument] else {
+            return
+        }
+        guard configuration.productIdentity == .preview else {
+            fputs("The Preview helper maintenance command is only available in Key Preview.\n", stderr)
+            Darwin.exit(EX_USAGE)
+        }
+
+        let service = SMAppService.agent(plistName: configuration.launchAgentPlistName)
+        do {
+            try service.unregister()
+        } catch {
+            let nsError = error as NSError
+            guard nsError.code == kSMErrorJobNotFound else {
+                fputs("Unable to unregister the Key Preview helper: \(error.localizedDescription)\n", stderr)
+                Darwin.exit(EXIT_FAILURE)
+            }
+        }
+
+        UserDefaults.standard.removeObject(forKey: registeredHelperBuildDefaultsKey)
+        print("Unregistered the Key Preview helper.")
+        Darwin.exit(EXIT_SUCCESS)
     }
 
     var body: some Scene {

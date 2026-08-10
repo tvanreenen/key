@@ -1,7 +1,9 @@
 import Foundation
 import KeyCore
 
-let configuration = RuntimeConfiguration.live()
+let configuration = RuntimeConfiguration.live(
+    bundle: KeyVersionInfo.currentProcessBundle()
+)
 let transport = KeyXPCClientTransport(
     machServiceName: configuration.helperMachServiceName,
     productIdentity: configuration.productIdentity
