@@ -65,6 +65,8 @@ trap 'rm -rf -- "${test_root}"' EXIT
 create_test_product_bundle() {
   local variant="$1"
   local app_path="$2"
+  local marketing_version="$3"
+  local build_version="${4:-11}"
   local app_id
   local app_executable
   local cli_name
@@ -107,6 +109,8 @@ create_test_product_bundle() {
 <plist version="1.0"><dict>
   <key>CFBundleIdentifier</key><string>${app_id}</string>
   <key>CFBundleExecutable</key><string>${app_executable}</string>
+  <key>CFBundleShortVersionString</key><string>${marketing_version}</string>
+  <key>CFBundleVersion</key><string>${build_version}</string>
   <key>KeyProductVariant</key><string>${variant}</string>
 </dict></plist>
 EOF
@@ -116,6 +120,8 @@ EOF
 <plist version="1.0"><dict>
   <key>CFBundleIdentifier</key><string>${helper_id}</string>
   <key>CFBundleExecutable</key><string>${helper_name}</string>
+  <key>CFBundleShortVersionString</key><string>${marketing_version}</string>
+  <key>CFBundleVersion</key><string>${build_version}</string>
   <key>KeyProductVariant</key><string>${variant}</string>
 </dict></plist>
 EOF
@@ -195,9 +201,52 @@ artifact_fixture_root="${test_root}/release-artifacts"
 stable_package="${artifact_fixture_root}/stable"
 preview_package="${artifact_fixture_root}/preview"
 mkdir -p "${stable_package}/completions" "${preview_package}"
-create_test_product_bundle "stable" "${stable_package}/Key.app"
-create_test_product_bundle "preview" "${preview_package}/Key Preview.app"
+create_test_product_bundle "stable" "${stable_package}/Key.app" "0.2.0"
+create_test_product_bundle \
+  "preview" \
+  "${preview_package}/Key Preview.app" \
+  "0.2.0-alpha.2"
 touch "${stable_package}/completions/_key"
+
+artifact_verifier_root="${test_root}/artifact-verifier"
+artifact_verifier_scripts="${artifact_verifier_root}/scripts"
+artifact_verifier_project="${artifact_verifier_root}/Key.xcodeproj/project.pbxproj"
+signing_verification_log="${artifact_verifier_root}/signing-verifications"
+mkdir -p "${artifact_verifier_scripts}" "${artifact_verifier_project:h}"
+cp \
+  "${repo_root}/scripts/project-version.sh" \
+  "${repo_root}/scripts/release-target.sh" \
+  "${repo_root}/scripts/verify-product-bundle.sh" \
+  "${repo_root}/scripts/verify-release-artifact.sh" \
+  "${artifact_verifier_scripts}/"
+cat > "${artifact_verifier_scripts}/verify-signing.sh" <<'EOF'
+#!/bin/zsh
+set -euo pipefail
+
+if [[ $# -ne 2 || ! -d "$1" ]]; then
+  exit 1
+fi
+
+case "$2" in
+  stable|preview) ;;
+  *) exit 1 ;;
+esac
+
+if [[ -n "${SIGNING_VERIFICATION_LOG:-}" ]]; then
+  echo "$2" >> "${SIGNING_VERIFICATION_LOG}"
+fi
+EOF
+chmod +x "${artifact_verifier_scripts}/verify-signing.sh"
+artifact_verifier="${artifact_verifier_scripts}/verify-release-artifact.sh"
+
+set_artifact_project_version() {
+  local marketing_version="$1"
+  local build_version="$2"
+  cat > "${artifact_verifier_project}" <<EOF
+MARKETING_VERSION = ${marketing_version};
+CURRENT_PROJECT_VERSION = ${build_version};
+EOF
+}
 
 stable_artifact="${artifact_fixture_root}/Key-v0.2.0.zip"
 preview_artifact="${artifact_fixture_root}/Key-Preview-v0.2.0-alpha.2.zip"
@@ -210,18 +259,24 @@ preview_artifact="${artifact_fixture_root}/Key-Preview-v0.2.0-alpha.2.zip"
   /usr/bin/zip -qry "${preview_artifact}" "Key Preview.app"
 )
 
-"${repo_root}/scripts/verify-release-artifact.sh" \
+set_artifact_project_version "0.2.0" "11"
+SIGNING_VERIFICATION_LOG="${signing_verification_log}" "${artifact_verifier}" \
   "v0.2.0" \
   "${stable_artifact}" \
   >/dev/null
-"${repo_root}/scripts/verify-release-artifact.sh" \
+set_artifact_project_version "0.2.0-alpha.2" "11"
+SIGNING_VERIFICATION_LOG="${signing_verification_log}" "${artifact_verifier}" \
   "v0.2.0-alpha.2" \
   "${preview_artifact}" \
   >/dev/null
 
+grep -q '^stable$' "${signing_verification_log}"
+grep -q '^preview$' "${signing_verification_log}"
+
 renamed_stable_artifact="${artifact_fixture_root}/Key-Preview-v0.2.0-alpha.3.zip"
 cp "${stable_artifact}" "${renamed_stable_artifact}"
-if "${repo_root}/scripts/verify-release-artifact.sh" \
+set_artifact_project_version "0.2.0-alpha.3" "11"
+if "${artifact_verifier}" \
   "v0.2.0-alpha.3" \
   "${renamed_stable_artifact}" \
   >/dev/null 2>&1; then
@@ -231,11 +286,55 @@ fi
 
 renamed_preview_artifact="${artifact_fixture_root}/Key-v0.2.1.zip"
 cp "${preview_artifact}" "${renamed_preview_artifact}"
-if "${repo_root}/scripts/verify-release-artifact.sh" \
+set_artifact_project_version "0.2.1" "11"
+if "${artifact_verifier}" \
   "v0.2.1" \
   "${renamed_preview_artifact}" \
   >/dev/null 2>&1; then
   echo "expected Stable verification to reject renamed Preview contents" >&2
+  exit 1
+fi
+
+wrong_version_package="${artifact_fixture_root}/wrong-version/package"
+wrong_version_artifact="${artifact_fixture_root}/wrong-version/Key-v0.2.0.zip"
+set_artifact_project_version "0.2.0" "11"
+mkdir -p "${wrong_version_package}/completions"
+create_test_product_bundle \
+  "stable" \
+  "${wrong_version_package}/Key.app" \
+  "0.2.1"
+touch "${wrong_version_package}/completions/_key"
+(
+  cd "${wrong_version_package}"
+  /usr/bin/zip -qry "${wrong_version_artifact}" "Key.app" "completions"
+)
+if "${artifact_verifier}" \
+  "v0.2.0" \
+  "${wrong_version_artifact}" \
+  >/dev/null 2>&1; then
+  echo "expected artifact verification to reject the wrong embedded version" >&2
+  exit 1
+fi
+
+wrong_build_package="${artifact_fixture_root}/wrong-build/package"
+wrong_build_artifact="${artifact_fixture_root}/wrong-build/Key-v0.2.0.zip"
+set_artifact_project_version "0.2.0" "11"
+mkdir -p "${wrong_build_package}/completions"
+create_test_product_bundle \
+  "stable" \
+  "${wrong_build_package}/Key.app" \
+  "0.2.0" \
+  "12"
+touch "${wrong_build_package}/completions/_key"
+(
+  cd "${wrong_build_package}"
+  /usr/bin/zip -qry "${wrong_build_artifact}" "Key.app" "completions"
+)
+if "${artifact_verifier}" \
+  "v0.2.0" \
+  "${wrong_build_artifact}" \
+  >/dev/null 2>&1; then
+  echo "expected artifact verification to reject the wrong embedded build" >&2
   exit 1
 fi
 
@@ -262,8 +361,9 @@ fi
 publication_origin="${test_root}/publication-origin.git"
 publication_repo="${test_root}/publication-repo"
 publication_fake_bin="${test_root}/publication-bin"
-publication_tag="v9.9.9"
-publication_artifact="${artifact_fixture_root}/Key-${publication_tag}.zip"
+publication_tag="v0.2.0"
+publication_artifact_root="${artifact_fixture_root}/publication"
+publication_artifact="${publication_artifact_root}/Key-${publication_tag}.zip"
 
 git init --bare --initial-branch=main "${publication_origin}" >/dev/null
 git init --initial-branch=main "${publication_repo}" >/dev/null
@@ -272,12 +372,17 @@ git -C "${publication_repo}" config user.email "release-tests@example.invalid"
 mkdir -p "${publication_repo}/scripts" "${publication_fake_bin}"
 cp \
   "${repo_root}/scripts/publish-release.sh" \
-  "${repo_root}/scripts/release-target.sh" \
-  "${repo_root}/scripts/verify-product-bundle.sh" \
-  "${repo_root}/scripts/verify-release-artifact.sh" \
+  "${artifact_verifier_scripts}/project-version.sh" \
+  "${artifact_verifier_scripts}/release-target.sh" \
+  "${artifact_verifier_scripts}/verify-product-bundle.sh" \
+  "${artifact_verifier_scripts}/verify-release-artifact.sh" \
+  "${artifact_verifier_scripts}/verify-signing.sh" \
   "${publication_repo}/scripts/"
+mkdir -p "${publication_repo}/Key.xcodeproj"
+set_artifact_project_version "0.2.0" "11"
+cp "${artifact_verifier_project}" "${publication_repo}/Key.xcodeproj/project.pbxproj"
 touch "${publication_repo}/release-marker"
-git -C "${publication_repo}" add scripts release-marker
+git -C "${publication_repo}" add Key.xcodeproj scripts release-marker
 git -C "${publication_repo}" commit -m "Initial publication state" >/dev/null
 git -C "${publication_repo}" remote add origin "${publication_origin}"
 git -C "${publication_repo}" push --set-upstream origin main >/dev/null 2>&1
@@ -290,6 +395,7 @@ git -C "${publication_repo}" tag --delete "${publication_tag}" >/dev/null
 echo "release" > "${publication_repo}/release-marker"
 git -C "${publication_repo}" add release-marker
 git -C "${publication_repo}" commit -m "Prepare release" >/dev/null
+mkdir -p "${publication_artifact_root}"
 cp "${stable_artifact}" "${publication_artifact}"
 ln -s /usr/bin/true "${publication_fake_bin}/gh"
 
