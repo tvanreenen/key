@@ -7,16 +7,13 @@ if [[ $# -ne 1 ]]; then
 fi
 
 version="$1"
-if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-  echo "version must look like v#.#.# or v#.#.#-prerelease" >&2
-  exit 1
-fi
-
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
-homebrew_cask_token="$("${repo_root}/scripts/homebrew-cask-token.sh" "${version}")"
+IFS=$'\t' read -r product_variant homebrew_cask_token artifact_name \
+  <<< "$("${repo_root}/scripts/release-target.sh" "${version}")"
 release_root="${HOME}/Library/Developer/Xcode/Releases/key/${version}"
-final_zip="${release_root}/Key-${version}.zip"
+final_zip="${release_root}/${artifact_name}"
 
+echo "==> Product: ${product_variant}"
 echo "==> Homebrew channel: ${homebrew_cask_token}"
 
 echo "==> Bump version"

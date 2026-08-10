@@ -8,49 +8,59 @@ The checked-in [Key.xcodeproj](../Key.xcodeproj) is the source of truth for the 
 
 Keep these identifiers and profiles in the Apple Developer portal:
 
-- Team ID: `9Q355KSV85`
-- App ID: `work.tvr.key.app`
-- Helper signing ID: `work.tvr.key.xpc`
-- Shared keychain access group: `9Q355KSV85.work.tvr.key.shared`
-- Developer ID provisioning profile: `Key App Developer ID`
-- Developer ID provisioning profile: `Key XPC Developer ID`
+| Product | Type | Identifier | Developer ID profile |
+| --- | --- | --- | --- |
+| Key app | App ID | `work.tvr.key.app` | `Key App Developer ID` |
+| Key helper | App ID | `work.tvr.key.xpc` | `Key XPC Developer ID` |
+| Key Preview app | App ID | `work.tvr.key.preview.app` | `Key Preview App Developer ID` |
+| Key Preview helper | App ID | `work.tvr.key.preview.xpc` | `Key Preview XPC Developer ID` |
 
-The `KeyCore` target does not need its own App ID or provisioning profile. Any old `work.tvr.key.cli` identifier or profile from earlier experiments can be removed if it still exists.
+All four are explicit macOS App IDs under team `9Q355KSV85`. The Stable helper
+uses keychain group `9Q355KSV85.work.tvr.key.shared`; the Preview helper uses
+`9Q355KSV85.work.tvr.key.preview.shared`.
+
+The CLI, `KeyCore`, and `JSONCanonicalization` targets do not need App IDs or
+provisioning profiles. Any old CLI identifier or profile from earlier
+experiments can be removed if it still exists.
 
 ## Xcode project mapping
 
-The current project expects these values:
+The checked-in project maps the Stable product to `work.tvr.key.app`,
+`work.tvr.key.xpc`, `work.tvr.key.agent`, and
+`9Q355KSV85.work.tvr.key.shared`. It maps Preview to the corresponding
+`work.tvr.key.preview.*` identifiers and
+`9Q355KSV85.work.tvr.key.preview.shared`.
 
-- [Key.xcodeproj](../Key.xcodeproj)
-- app bundle ID: `work.tvr.key.app`
-- helper signing ID: `work.tvr.key.xpc`
-- helper Mach service: `work.tvr.key.agent`
-- LaunchAgent plist: `work.tvr.key.agent.plist`
-- vault key service: `work.tvr.key.secure-vault`
-- vault key account: `default-vault`
-
-The shared keychain group is recorded in:
+The claimed keychain groups are recorded in:
 
 - [KeyLaunchAgentHelper.entitlements](../Config/KeyLaunchAgentHelper.entitlements)
-- [Key-Info.plist](../Config/Key-Info.plist)
+- [KeyPreviewLaunchAgentHelper.entitlements](../Config/KeyPreviewLaunchAgentHelper.entitlements)
 
 ## Portal setup
 
-Create and keep the app App ID plus the helper signing identifier:
+Create and keep these explicit App IDs:
 
 1. `work.tvr.key.app`
 2. `work.tvr.key.xpc`
-
-Both should use the same team and both should allow Keychain Sharing for:
-
-- `9Q355KSV85.work.tvr.key.shared`
+3. `work.tvr.key.preview.app`
+4. `work.tvr.key.preview.xpc`
 
 Then create the matching Developer ID provisioning profiles:
 
 1. `Key App Developer ID`
 2. `Key XPC Developer ID`
+3. `Key Preview App Developer ID`
+4. `Key Preview XPC Developer ID`
 
 Download and install those profiles locally so Xcode can use them for Release archives.
+
+The current portal does not present a separate Keychain Sharing capability for
+this Developer ID setup. The helper claims its exact group through the checked-in
+entitlements file, while the generated profile authorizes the team's keychain
+namespace. Confirm the downloaded helper profiles contain
+`keychain-access-groups = [9Q355KSV85.*]` before relying on them. See Apple's
+[keychain access group entitlement documentation](https://developer.apple.com/documentation/BundleResources/Entitlements/keychain-access-groups)
+and [TN3125](https://developer.apple.com/documentation/technotes/tn3125-inside-code-signing-provisioning-profiles).
 
 ## Xcode setup
 
@@ -59,7 +69,7 @@ In Xcode, the important targets are:
 - `KeyApp`
 - `KeyLaunchAgentHelper`
 
-Expected Release signing values:
+Expected manual Developer ID signing values:
 
 ### `KeyApp`
 
@@ -74,7 +84,15 @@ Expected Release signing values:
 - `Code Signing Style`: `Manual`
 - `Provisioning Profile`: `Key XPC Developer ID`
 - `Product Bundle Identifier`: `work.tvr.key.xpc`
-- `Keychain Sharing`: `work.tvr.key.shared`
+- helper keychain group: `9Q355KSV85.work.tvr.key.shared`
+
+The `PreviewRelease` configuration uses the same two targets with these values:
+
+- app profile: `Key Preview App Developer ID`
+- app bundle ID: `work.tvr.key.preview.app`
+- helper profile: `Key Preview XPC Developer ID`
+- helper bundle ID: `work.tvr.key.preview.xpc`
+- helper keychain group: `9Q355KSV85.work.tvr.key.preview.shared`
 
 For local development, Debug builds can remain automatic and use `Apple Development`.
 
@@ -108,8 +126,11 @@ Once signing and notarization are configured locally:
 
 ```bash
 just build-release v0.1.0-alpha.1
-just publish-release v0.1.0-alpha.1 "$HOME/Library/Developer/Xcode/Releases/key/v0.1.0-alpha.1/Key-v0.1.0-alpha.1.zip"
+just publish-release v0.1.0-alpha.1 "$HOME/Library/Developer/Xcode/Releases/key/v0.1.0-alpha.1/Key-Preview-v0.1.0-alpha.1.zip"
 ```
+
+The tag selects the signing profile and product identity. Stable tags build
+`Key.app`; numbered alpha, beta, and rc tags build `Key Preview.app`.
 
 Supporting scripts:
 
@@ -131,9 +152,19 @@ After notarization and stapling, run:
 just verify-release "$HOME/Library/Developer/Xcode/Archives/<date>/<archive>.xcarchive/Products/Applications/Key.app"
 ```
 
-The helper executable should show:
+Signing verification fails unless the Stable helper executable has:
 
-- `com.apple.application-identifier = 9Q355KSV85.work.tvr.key.xpc`
-- `keychain-access-groups = [9Q355KSV85.work.tvr.key.shared]`
+- signing identifier `work.tvr.key.xpc`
+- the sole entitlement `keychain-access-groups = [9Q355KSV85.work.tvr.key.shared]`
 
 If the keychain access group is missing from the signed helper executable, the protected vault-key path will not work.
+
+The Preview helper must instead have:
+
+- signing identifier `work.tvr.key.preview.xpc`
+- the sole entitlement `keychain-access-groups = [9Q355KSV85.work.tvr.key.preview.shared]`
+
+`verify-signing.sh` also requires Apple Developer ID Application signatures from
+team `9Q355KSV85`, each product's exact app, CLI, and helper signing identifier,
+hardened runtime, the app's team-bound application identifier, and no CLI
+entitlements. Any unexpected entitlement fails the release before notarization.

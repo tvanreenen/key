@@ -44,11 +44,11 @@ verify-release app_path:
 notarize archive_path:
   scripts/notarize-release.sh "{{archive_path}}"
 
-# Update the Xcode version fields, commit the bump on main, and create a local tag.
+# Update the Xcode version fields and commit the release version on main.
 bump-version tag:
   scripts/bump-version.sh "{{tag}}"
 
-# Build, notarize, staple, and zip a semver release artifact.
+# Build, notarize, staple, and zip the product selected by the release tag.
 build-release tag:
   scripts/build-release.sh "{{tag}}"
 

@@ -7,12 +7,8 @@ if [[ $# -ne 1 ]]; then
 fi
 
 tag="$1"
-if [[ ! "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-  echo "tag must look like v#.#.# or v#.#.#-prerelease" >&2
-  exit 1
-fi
-
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+"${repo_root}/scripts/release-target.sh" "${tag}" >/dev/null
 project_file="${repo_root}/Key.xcodeproj/project.pbxproj"
 
 if [[ ! -f "${project_file}" ]]; then
@@ -119,7 +115,6 @@ fi
 
 git -C "${repo_root}" add "${project_file}"
 git -C "${repo_root}" commit -m "Bump version to ${marketing_version} (${new_build_version})"
-git -C "${repo_root}" tag -a "${tag}" -m "${tag}"
 
 commit_sha="$(git -C "${repo_root}" rev-parse --short HEAD)"
 
@@ -129,8 +124,7 @@ echo "  new marketing version: ${marketing_version}"
 echo "  old build version:     ${old_build_version}"
 echo "  new build version:     ${new_build_version}"
 echo "  commit:                ${commit_sha}"
-echo "  tag:                   ${tag}"
+echo "  planned tag:           ${tag}"
 echo
 echo "Next:"
-echo "  git push origin main --follow-tags"
 echo "  just build-release \"${tag}\""

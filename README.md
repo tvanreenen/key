@@ -74,6 +74,11 @@ An opt-in alpha is available now:
 brew install --cask tvanreenen/tap/key@alpha
 ```
 
+Beginning with the next alpha, that channel installs the isolated
+`Key Preview.app` and `key-preview` CLI. It can live beside Stable Key with its
+own helper, configuration, default vault, and Keychain namespace, so testing a
+prerelease does not replace the installation you rely on.
+
 The preview currently supports explicit migration, one additional Mac,
 guarded reads and writes, and conflict resolution. It is not yet a stable or
 complete recovery story: adding more devices, revocation, key rotation, and

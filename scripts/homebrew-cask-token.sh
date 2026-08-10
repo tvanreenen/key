@@ -6,19 +6,6 @@ if [[ $# -ne 1 ]]; then
   exit 1
 fi
 
-version="$1"
-
-if [[ "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "key"
-  exit 0
-fi
-
-if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
-  echo "Homebrew releases require a stable tag or a numbered alpha, beta, or rc tag." >&2
-  echo "expected v#.#.#, v#.#.#-alpha.#, v#.#.#-beta.#, or v#.#.#-rc.#" >&2
-  exit 1
-fi
-
-prerelease="${version#*-}"
-channel="${prerelease%%.*}"
-echo "key@${channel}"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+IFS=$'\t' read -r _ cask_token _ <<< "$("${script_dir}/release-target.sh" "$1")"
+print -r -- "${cask_token}"
