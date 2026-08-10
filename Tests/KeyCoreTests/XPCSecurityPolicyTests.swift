@@ -51,13 +51,8 @@ struct XPCSecurityPolicyTests {
     @Test
     func machServiceNamesKeepFullAndUtilityAuthoritySeparate() {
         let configuration = RuntimeConfiguration(
-            vaultService: "vault",
-            vaultAccount: "account",
-            keychainAccessGroup: nil,
-            helperMachServiceName: "work.tvr.key.agent",
-            helperBundleIdentifier: "work.tvr.key.xpc",
-            launchAgentPlistName: "work.tvr.key.agent.plist",
-            useDataProtectionKeychain: true
+            productIdentity: .stable,
+            vaultAccount: "account"
         )
 
         #expect(configuration.helperMachServiceName == "work.tvr.key.agent")
@@ -66,8 +61,16 @@ struct XPCSecurityPolicyTests {
 
     @Test
     func productionRequirementsBindRoleIdentifierAndTeam() {
-        let cli = KeyXPCSecurityPolicy.codeSigningRequirement(for: .fullCLI, policy: .production)
-        let utility = KeyXPCSecurityPolicy.codeSigningRequirement(for: .utilityStatus, policy: .production)
+        let cli = KeyXPCSecurityPolicy.codeSigningRequirement(
+            for: .fullCLI,
+            productIdentity: .stable,
+            policy: .production
+        )
+        let utility = KeyXPCSecurityPolicy.codeSigningRequirement(
+            for: .utilityStatus,
+            productIdentity: .stable,
+            policy: .production
+        )
 
         #expect(cli.contains("identifier \"work.tvr.key.cli\""))
         #expect(cli.contains("anchor apple generic"))
@@ -83,8 +86,16 @@ struct XPCSecurityPolicyTests {
 
     @Test
     func developmentRequirementsRemainRoleAndTeamSpecific() {
-        let cli = KeyXPCSecurityPolicy.codeSigningRequirement(for: .fullCLI, policy: .development)
-        let utility = KeyXPCSecurityPolicy.codeSigningRequirement(for: .utilityStatus, policy: .development)
+        let cli = KeyXPCSecurityPolicy.codeSigningRequirement(
+            for: .fullCLI,
+            productIdentity: .stable,
+            policy: .development
+        )
+        let utility = KeyXPCSecurityPolicy.codeSigningRequirement(
+            for: .utilityStatus,
+            productIdentity: .stable,
+            policy: .development
+        )
 
         #expect(cli.contains("identifier \"work.tvr.key.cli\""))
         #expect(utility.contains("identifier \"work.tvr.key.app\""))
@@ -100,8 +111,14 @@ struct XPCSecurityPolicyTests {
 
     @Test
     func clientsAuthenticateTheExpectedHelperIdentifierAndTeam() {
-        let development = KeyXPCSecurityPolicy.helperCodeSigningRequirement(policy: .development)
-        let production = KeyXPCSecurityPolicy.helperCodeSigningRequirement(policy: .production)
+        let development = KeyXPCSecurityPolicy.helperCodeSigningRequirement(
+            productIdentity: .stable,
+            policy: .development
+        )
+        let production = KeyXPCSecurityPolicy.helperCodeSigningRequirement(
+            productIdentity: .stable,
+            policy: .production
+        )
 
         #expect(development.contains("identifier \"work.tvr.key.xpc\""))
         #expect(development.contains("9Q355KSV85"))

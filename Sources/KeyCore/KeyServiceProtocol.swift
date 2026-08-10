@@ -302,26 +302,30 @@ public enum KeyXPCCodeSigningPolicy: Equatable, Sendable {
 
 public enum KeyXPCSecurityPolicy {
     public static let teamIdentifier = "9Q355KSV85"
-    public static let cliSigningIdentifier = "work.tvr.key.cli"
-    public static let utilityAppSigningIdentifier = "work.tvr.key.app"
-    public static let helperSigningIdentifier = "work.tvr.key.xpc"
 
     public static func codeSigningRequirement(
         for role: KeyXPCClientRole,
+        productIdentity: KeyProductIdentity,
         policy: KeyXPCCodeSigningPolicy
     ) -> String {
         let identifier = switch role {
         case .fullCLI:
-            cliSigningIdentifier
+            productIdentity.cliSigningIdentifier
         case .utilityStatus:
-            utilityAppSigningIdentifier
+            productIdentity.appBundleIdentifier
         }
 
         return requirement(signingIdentifier: identifier, policy: policy)
     }
 
-    public static func helperCodeSigningRequirement(policy: KeyXPCCodeSigningPolicy) -> String {
-        requirement(signingIdentifier: helperSigningIdentifier, policy: policy)
+    public static func helperCodeSigningRequirement(
+        productIdentity: KeyProductIdentity,
+        policy: KeyXPCCodeSigningPolicy
+    ) -> String {
+        requirement(
+            signingIdentifier: productIdentity.helperBundleIdentifier,
+            policy: policy
+        )
     }
 
     private static func requirement(

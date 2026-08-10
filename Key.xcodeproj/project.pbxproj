@@ -11,6 +11,7 @@
 		11A1C24BB4C342B4948D95FE /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
 		1B7D7F2E9AE24855D9046ED3 /* VaultKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */; };
 		240E840B493F129EF5D4413B /* RuntimeConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = F19B0116010713B57BC705BE /* RuntimeConfiguration.swift */; };
+		D52000000000000000000002 /* KeyProductIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52000000000000000000001 /* KeyProductIdentity.swift */; };
 		2B8F1B84418A9F3C00F3BC6B /* VaultCipher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */; };
 		2FF48E342F108FF694BDB515 /* InputOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 855E71C8AF61988A885402D9 /* InputOutput.swift */; };
 		3E06CBB9790C0F544B940F1B /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE09A18FF4CC11995E958F80 /* AppError.swift */; };
@@ -187,6 +188,7 @@
 		E7E80100701CDE5C7C14F9AB /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		E827F7A4531EEAF53BCF3AA5 /* SystemClipboardWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemClipboardWriter.swift; sourceTree = "<group>"; };
 		F19B0116010713B57BC705BE /* RuntimeConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeConfiguration.swift; sourceTree = "<group>"; };
+		D52000000000000000000001 /* KeyProductIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyProductIdentity.swift; sourceTree = "<group>"; };
 		F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultCipher.swift; sourceTree = "<group>"; };
 		FF28C31FF780A4FCCB3294D7 /* CLIParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIParser.swift; sourceTree = "<group>"; };
 		A3A8B5F52B03F55CDB345501 /* TOTPGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGenerator.swift; sourceTree = "<group>"; };
@@ -321,6 +323,7 @@
 				9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */,
 				55257994DEF9CC6144A32E16 /* KeyServiceProtocol.swift */,
 				0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */,
+				D52000000000000000000001 /* KeyProductIdentity.swift */,
 				F19B0116010713B57BC705BE /* RuntimeConfiguration.swift */,
 				4E30B55D83074B50959E72C6 /* SessionVaultKeyStore.swift */,
 				81B97AA4A2EA5FF5B9CD3FCA /* SecretFile.swift */,
@@ -722,6 +725,7 @@
 				851434753ACA4A4ED0733FEB /* KeyServiceHandler.swift in Sources */,
 				545DE475C8F5F883DB08A529 /* KeyServiceProtocol.swift in Sources */,
 				8B2342C883974B121AB07C37 /* KeyXPCClientTransport.swift in Sources */,
+				D52000000000000000000002 /* KeyProductIdentity.swift in Sources */,
 				240E840B493F129EF5D4413B /* RuntimeConfiguration.swift in Sources */,
 				E9B24E7F8C7042A2A783D53D /* SessionVaultKeyStore.swift in Sources */,
 				873C78C8D57CEF7EBA418B73 /* SecretFile.swift in Sources */,

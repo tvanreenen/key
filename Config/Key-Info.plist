@@ -20,6 +20,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>KeychainAccessGroup</key>
 	<string>9Q355KSV85.work.tvr.key.shared</string>
+	<key>KeyProductVariant</key>
+	<string>stable</string>
 	<key>LaunchAgentPlistName</key>
 	<string>work.tvr.key.agent.plist</string>
 	<key>LSMinimumSystemVersion</key>

@@ -140,7 +140,10 @@ private final class DashboardModel: ObservableObject {
     }
 
     nonisolated private static func helperStatus(configuration: RuntimeConfiguration) throws -> KeyHelperStatus {
-        let transport = KeyXPCClientTransport(machServiceName: configuration.helperStatusMachServiceName)
+        let transport = KeyXPCClientTransport(
+            machServiceName: configuration.helperStatusMachServiceName,
+            productIdentity: configuration.productIdentity
+        )
         let response = try transport.send(.status)
 
         if response.exitCode != EXIT_SUCCESS {

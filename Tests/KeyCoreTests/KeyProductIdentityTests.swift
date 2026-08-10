@@ -1,0 +1,81 @@
+import Testing
+@testable import KeyCore
+
+struct KeyProductIdentityTests {
+    @Test
+    func stableIdentityPreservesTheShippingProduct() {
+        let identity = KeyProductIdentity.stable
+
+        #expect(identity.variant == .stable)
+        #expect(identity.appName == "Key")
+        #expect(identity.appBundleIdentifier == "work.tvr.key.app")
+        #expect(identity.cliExecutableName == "key")
+        #expect(identity.cliSigningIdentifier == "work.tvr.key.cli")
+        #expect(identity.helperName == "Key Agent")
+        #expect(identity.helperBundleIdentifier == "work.tvr.key.xpc")
+        #expect(identity.helperMachServiceName == "work.tvr.key.agent")
+        #expect(identity.helperStatusMachServiceName == "work.tvr.key.agent.status")
+        #expect(identity.launchAgentPlistName == "work.tvr.key.agent.plist")
+        #expect(identity.keychainAccessGroup == "9Q355KSV85.work.tvr.key.shared")
+        #expect(identity.vaultKeyService == "work.tvr.key.secure-vault")
+        #expect(identity.applicationSupportDirectoryName == "Key")
+        #expect(identity.defaultVaultDirectoryName == ".key")
+    }
+
+    @Test
+    func previewIdentityUsesACompleteIndependentNamespace() {
+        let stable = KeyProductIdentity.stable
+        let preview = KeyProductIdentity.preview
+        let runtime = RuntimeConfiguration(productIdentity: preview)
+
+        #expect(preview.variant == .preview)
+        #expect(preview.appName == "Key Preview")
+        #expect(preview.cliExecutableName == "key-preview")
+        #expect(preview.helperName == "Key Preview Agent")
+
+        #expect(preview.appBundleIdentifier != stable.appBundleIdentifier)
+        #expect(preview.cliSigningIdentifier != stable.cliSigningIdentifier)
+        #expect(preview.helperBundleIdentifier != stable.helperBundleIdentifier)
+        #expect(preview.helperMachServiceName != stable.helperMachServiceName)
+        #expect(preview.helperStatusMachServiceName != stable.helperStatusMachServiceName)
+        #expect(preview.launchAgentPlistName != stable.launchAgentPlistName)
+        #expect(preview.keychainAccessGroup != stable.keychainAccessGroup)
+        #expect(preview.vaultKeyService != stable.vaultKeyService)
+        #expect(preview.applicationSupportDirectoryName != stable.applicationSupportDirectoryName)
+        #expect(preview.defaultVaultDirectoryName != stable.defaultVaultDirectoryName)
+        #expect(runtime.helperMachServiceName == preview.helperMachServiceName)
+        #expect(runtime.helperBundleIdentifier == preview.helperBundleIdentifier)
+        #expect(runtime.keychainAccessGroup == preview.keychainAccessGroup)
+        #expect(runtime.vaultService == preview.vaultKeyService)
+    }
+
+    @Test(arguments: KeyProductVariant.allCases)
+    func lookupReturnsTheMatchingIdentity(variant: KeyProductVariant) {
+        #expect(KeyProductIdentity.identity(for: variant).variant == variant)
+    }
+
+    @Test
+    func previewSigningRequirementsBindOnlyPreviewExecutables() {
+        let cli = KeyXPCSecurityPolicy.codeSigningRequirement(
+            for: .fullCLI,
+            productIdentity: .preview,
+            policy: .production
+        )
+        let app = KeyXPCSecurityPolicy.codeSigningRequirement(
+            for: .utilityStatus,
+            productIdentity: .preview,
+            policy: .production
+        )
+        let helper = KeyXPCSecurityPolicy.helperCodeSigningRequirement(
+            productIdentity: .preview,
+            policy: .production
+        )
+
+        #expect(cli.contains("identifier \"work.tvr.key.preview.cli\""))
+        #expect(!cli.contains("identifier \"work.tvr.key.cli\""))
+        #expect(app.contains("identifier \"work.tvr.key.preview.app\""))
+        #expect(!app.contains("identifier \"work.tvr.key.app\""))
+        #expect(helper.contains("identifier \"work.tvr.key.preview.xpc\""))
+        #expect(!helper.contains("identifier \"work.tvr.key.xpc\""))
+    }
+}

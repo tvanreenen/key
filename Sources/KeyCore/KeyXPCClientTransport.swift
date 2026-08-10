@@ -37,11 +37,16 @@ final class KeyXPCReplyState: @unchecked Sendable {
 
 public final class KeyXPCClientTransport: KeyServiceTransport {
     private let machServiceName: String
+    private let productIdentity: KeyProductIdentity
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    public init(machServiceName: String) {
+    public init(
+        machServiceName: String,
+        productIdentity: KeyProductIdentity
+    ) {
         self.machServiceName = machServiceName
+        self.productIdentity = productIdentity
     }
 
     public func send(_ request: KeyServiceRequest) throws -> KeyServiceResponse {
@@ -54,7 +59,10 @@ public final class KeyXPCClientTransport: KeyServiceTransport {
         let signingPolicy = KeyXPCCodeSigningPolicy.production
         #endif
         connection.setCodeSigningRequirement(
-            KeyXPCSecurityPolicy.helperCodeSigningRequirement(policy: signingPolicy)
+            KeyXPCSecurityPolicy.helperCodeSigningRequirement(
+                productIdentity: productIdentity,
+                policy: signingPolicy
+            )
         )
         connection.resume()
         var invalidatesOnReturn = true
