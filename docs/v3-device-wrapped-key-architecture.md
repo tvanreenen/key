@@ -4,8 +4,11 @@ Status: selected permanent design during the `0.2.0` alpha series. The
 `KEY-509` manifest, HPKE, one-device genesis, local cache, session unlock, and
 durable content-publication runtime are implemented and connected to the
 shipping helper. `ENR-510` first and later enrollment now use that permanent
-profile and one key-rotating roster-addition transition. Review and
-physical-device qualification remain pending.
+profile and one key-rotating roster-addition transition. The signed alpha.7
+Preview release physically qualified migration, wrapper-backed restart,
+owner-to-second-device enrollment, and a joining-device write on two Macs.
+Remaining-device catch-up, revocation, recovery, and final review remain
+pending.
 
 This document defines the intended final key-management model for version 3
 vaults. It replaces the prerelease design in which the raw vault key is stored
@@ -363,8 +366,8 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
   shipping helper without falling through to version 2 storage.
 - [x] Detect and refuse the older alpha profile with actionable recovery
   guidance.
-- [ ] Qualify lock, helper restart, and the installed permanent runtime on a
-  physical Mac before releasing it.
+- [x] Qualify lock, helper restart, and the installed permanent runtime on two
+  physical Macs with the signed alpha.7 Preview release.
 
 ### `ENR-510` — Unified enrollment and key epochs
 
@@ -373,7 +376,11 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 - [x] Bind the signed transition and every wrapper to the complete compared
   transcript.
 - [x] Remove the local-to-shared exception and legacy wrapper implementation.
-- [ ] Qualify two-device and later-device enrollment before releasing alpha.7.
+- [x] Qualify the owner-to-second-device ceremony and joining-device restart
+  and write paths with the signed alpha.7 Preview release.
+- [ ] Qualify a third-device ceremony before beta; it uses the same transition
+  but requires another physical identity or a completed revocation/re-enrollment
+  path.
 
 ### `ENR-511` — Revocation and rotation
 

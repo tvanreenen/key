@@ -37,15 +37,20 @@ case "${product_variant}" in
     app_name="Key.app"
     cli_name="key"
     helper_name="Key Agent"
-    conflicts_clause=""
-    completion_clause='  zsh_completion "completions/_key"'
+    requirements_lines=(
+      '  depends_on macos: :tahoe'
+    )
+    artifact_lines=(
+      '  app "Key.app"'
+      '  binary "#{appdir}/Key.app/Contents/MacOS/key", target: "key"'
+      '  zsh_completion "completions/_key"'
+    )
     ;;
   preview)
     display_name="Key Preview"
     app_name="Key Preview.app"
     cli_name="key-preview"
     helper_name="Key Preview Agent"
-    completion_clause=""
     case "${cask_token}" in
       key@alpha)
         conflicting_casks='["key@beta", "key@rc"]'
@@ -57,7 +62,14 @@ case "${product_variant}" in
         conflicting_casks='["key@alpha", "key@beta"]'
         ;;
     esac
-    conflicts_clause="  conflicts_with cask: ${conflicting_casks}"
+    requirements_lines=(
+      "  conflicts_with cask: ${conflicting_casks}"
+      '  depends_on macos: :tahoe'
+    )
+    artifact_lines=(
+      '  app "Key Preview.app"'
+      '  binary "#{appdir}/Key Preview.app/Contents/MacOS/key-preview", target: "key-preview"'
+    )
     ;;
 esac
 
@@ -81,12 +93,9 @@ cask "${cask_token}" do
   desc "File-based secret manager with native authentication"
   homepage "${homepage}"
 
-${conflicts_clause}
-  depends_on macos: :tahoe
+${(F)requirements_lines}
 
-  app "${app_name}"
-  binary "#{appdir}/${app_name}/Contents/MacOS/${cli_name}", target: "${cli_name}"
-${completion_clause}
+${(F)artifact_lines}
 
   caveats <<~EOS
     Open ${app_name} once after install so it can register ${helper_name} with macOS before you use the ${cli_name} CLI.
