@@ -266,6 +266,43 @@ struct V3DeviceWrappedCatchUpCoordinatorTests {
         ))
     }
 
+    @Test
+    func accessGateAllowsOnlyExplicitStaleContentFallback() throws {
+        let fixture = try Fixture()
+        let progress = V3DeviceWrappedCatchUpProgress(
+            contentManifestCount: 0,
+            keyEpochCount: 0
+        )
+        let digest = Data(repeating: 0x77, count: 32)
+        let gate = V3DeviceWrappedCatchUpAccessGate()
+
+        #expect(throws: V3DeviceWrappedCatchUpError.temporaryUnavailable) {
+            try gate.requireCurrent {
+                .contentConflict(
+                    fixture.initial,
+                    manifestDigests: [digest],
+                    progress: progress
+                )
+            }
+        }
+        try gate.requireCurrent(allowStale: true) {
+            .contentConflict(
+                fixture.initial,
+                manifestDigests: [digest],
+                progress: progress
+            )
+        }
+        #expect(throws: V3DeviceWrappedCatchUpError.recoveryRequired) {
+            try gate.requireCurrent(allowStale: true) {
+                .securityConflict(
+                    fixture.initial,
+                    manifestDigests: [digest],
+                    progress: progress
+                )
+            }
+        }
+    }
+
     private final class Fixture: @unchecked Sendable {
         let initial: V3DeviceWrappedTrustedCheckpoint
         let afterContent: V3DeviceWrappedTrustedCheckpoint

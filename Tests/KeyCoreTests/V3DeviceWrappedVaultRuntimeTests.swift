@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 @testable import KeyCore
@@ -116,6 +117,105 @@ struct V3DeviceWrappedVaultRuntimeTests {
         #expect(!session.hasResidentKey)
     }
 
+    @Test
+    func catchUpFailureStopsAReadBeforePlaintextIsOpened() throws {
+        let inner = RecordingPermanentRuntimeStub()
+        let runtime = V3DeviceWrappedVaultRuntime(
+            runtime: inner,
+            session: V3DeviceWrappedVaultKeySessionStore(),
+            catchUp: {
+                throw V3DeviceWrappedCatchUpError.recoveryRequired
+            },
+            lockSession: {}
+        )
+
+        #expect(throws: VaultUXServiceError.recoveryRequired) {
+            _ = try runtime.read(name: "account/password", allowStale: false)
+        }
+        #expect(inner.readCount == 0)
+    }
+
+    @Test
+    func explicitStaleReadCanUseTheLastTrustedCheckpointDuringDelay() throws {
+        let inner = RecordingPermanentRuntimeStub()
+        let runtime = V3DeviceWrappedVaultRuntime(
+            runtime: inner,
+            session: V3DeviceWrappedVaultKeySessionStore(),
+            catchUp: {
+                throw V3DeviceWrappedCatchUpError.temporaryUnavailable
+            },
+            lockSession: {}
+        )
+
+        let value = try runtime.read(
+            name: "account/password",
+            allowStale: true
+        )
+
+        #expect(value.plaintext == "last trusted value")
+        #expect(inner.readCount == 1)
+    }
+
+    @Test
+    func successfulCatchUpCompletesUnlockWithoutASecondUnwrap() throws {
+        let inner = RecordingPermanentRuntimeStub()
+        let trusted = try Self.trustedCheckpoint()
+        let runtime = V3DeviceWrappedVaultRuntime(
+            runtime: inner,
+            session: V3DeviceWrappedVaultKeySessionStore(),
+            catchUp: {
+                .current(
+                    trusted,
+                    progress: V3DeviceWrappedCatchUpProgress(
+                        contentManifestCount: 0,
+                        keyEpochCount: 0
+                    )
+                )
+            },
+            lockSession: {}
+        )
+
+        try runtime.unlock()
+
+        #expect(inner.unlockCount == 0)
+    }
+
+    private static func trustedCheckpoint() throws
+        -> V3DeviceWrappedTrustedCheckpoint
+    {
+        let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
+        let signingKey = try P256.Signing.PrivateKey(
+            rawRepresentation: Data(repeating: 0x21, count: 32)
+        )
+        let wrappingKey = try P256.KeyAgreement.PrivateKey(
+            rawRepresentation: Data(repeating: 0x22, count: 32)
+        )
+        let identity = try V3EnrollmentDeviceIdentity(
+            displayName: "Runtime Mac",
+            signingPublicKey: signingKey.publicKey.x963Representation,
+            wrappingPublicKey: wrappingKey.publicKey.x963Representation
+        )
+        let genesis = try V3DeviceWrappedGenesisBuilder()
+            .buildPublicationCandidate(
+                vaultID: vaultID,
+                authorityTransitionID:
+                    "018f4d38-7d5a-7b20-b0f1-97d6e96c44b4",
+                entryIDs: [],
+                sourceEntries: [],
+                vaultKey: Data(repeating: 0x23, count: 32),
+                ownerIdentity: identity
+            ).genesis
+        return V3DeviceWrappedTrustedCheckpoint(
+            checkpoint: try V3ManifestCheckpoint(
+                vaultID: vaultID,
+                envelopeDigest: genesis.manifestDigest
+            ),
+            envelope: try V3DeviceWrappedManifestEnvelopeCodec().parse(
+                genesis.manifestData
+            )
+        )
+    }
+
     private func makeRuntime(
         failure: V3DeviceWrappedVaultUnlockRuntimeError
     ) -> V3DeviceWrappedVaultRuntime {
@@ -125,6 +225,57 @@ struct V3DeviceWrappedVaultRuntimeTests {
             lockSession: {}
         )
     }
+}
+
+private final class RecordingPermanentRuntimeStub:
+    VaultReadServicing,
+    VaultUXServicing,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var reads = 0
+    private var unlocks = 0
+
+    var readCount: Int {
+        lock.withLock { reads }
+    }
+
+    var unlockCount: Int {
+        lock.withLock { unlocks }
+    }
+
+    func unlock() throws {
+        lock.withLock {
+            unlocks += 1
+        }
+    }
+
+    func read(name _: String, allowStale _: Bool) throws -> VaultReadValue {
+        lock.withLock {
+            reads += 1
+        }
+        return VaultReadValue(type: .secret, plaintext: "last trusted value")
+    }
+
+    func list(allowStale _: Bool) throws -> [String] { [] }
+
+    func status() throws -> VaultStatus {
+        VaultStatus(format: .version3, health: .ready, entries: .effective(0))
+    }
+
+    func authorizeRead(name _: String, allowStale _: Bool) throws {}
+    func authorizeMutation() throws {}
+    func conflicts() throws -> [VaultConflictSummary] { [] }
+
+    func conflict(id _: String) throws -> VaultConflictDetail {
+        throw VaultUXServiceError.conflictNotFound
+    }
+
+    func conflictValue(id _: String, versionID _: String) throws -> String {
+        throw VaultUXServiceError.conflictVersionNotFound
+    }
+
+    func resolve(_: [VaultConflictResolution]) throws {}
 }
 
 private final class BlockingPermanentRuntimeStub:

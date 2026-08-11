@@ -26,6 +26,39 @@ enum V3DeviceWrappedCatchUpCoordinatorOutcome: Equatable, Sendable {
     )
 }
 
+/// Converts one coordinator result into the common access gate used by reads
+/// and writes. Explicit stale reads may retain the exact local checkpoint only
+/// for transport delay or content ambiguity; authority conflicts never pass.
+struct V3DeviceWrappedCatchUpAccessGate: Sendable {
+    func requireCurrent(
+        allowStale: Bool = false,
+        catchUp: () throws -> V3DeviceWrappedCatchUpCoordinatorOutcome
+    ) throws {
+        let outcome: V3DeviceWrappedCatchUpCoordinatorOutcome
+        do {
+            outcome = try catchUp()
+        } catch let error as V3DeviceWrappedCatchUpError {
+            if allowStale,
+               error == .temporaryUnavailable || error == .checkpointChanged
+            {
+                return
+            }
+            throw error
+        }
+        switch outcome {
+        case .current:
+            return
+        case .contentConflict:
+            guard !allowStale else {
+                return
+            }
+            throw V3DeviceWrappedCatchUpError.temporaryUnavailable
+        case .securityConflict:
+            throw V3DeviceWrappedCatchUpError.recoveryRequired
+        }
+    }
+}
+
 /// Advances an offline device through authenticated content and key epochs.
 ///
 /// One helper mutation boundary covers the complete operation. At every exact

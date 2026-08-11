@@ -176,6 +176,47 @@ public final class KeyServiceHandler {
             identityLoader: identityManager,
             session: session
         )
+        let mutationOwner = VaultTransactionMutationOwner()
+        let repositoryObserver = V3LiveDeviceWrappedRepositoryObserver(
+            source: objectStore,
+            checkpointStore: checkpointStore,
+            cache: cache
+        )
+        let contentCatchUpSteps =
+            V3DeviceWrappedSameEpochCatchUpStepService(
+                vaultID: vaultID,
+                repositoryObserver: repositoryObserver,
+                source: objectStore,
+                checkpointStore: checkpointStore,
+                cache: cache
+            )
+        let keyTransitionDiscovery =
+            V3DeviceWrappedKeyTransitionDiscovery(source: objectStore)
+        let keyTransitionCatchUpSteps =
+            V3DeviceWrappedKeyTransitionCatchUpStepService(
+                vaultID: vaultID,
+                stateManager: unlockRuntime,
+                source: objectStore,
+                cache: cache,
+                loadIdentity: { requestedVaultID, reason in
+                    try identityManager.loadIdentity(
+                        vaultID: requestedVaultID,
+                        reason: reason
+                    )
+                }
+            )
+        let makeCatchUpCoordinator: @Sendable (
+            any VaultTransactionMutationOwning
+        ) -> V3DeviceWrappedCatchUpCoordinator = { owner in
+            V3DeviceWrappedCatchUpCoordinator(
+                vaultID: vaultID,
+                mutationOwner: owner,
+                stateLoader: unlockRuntime,
+                contentSteps: contentCatchUpSteps,
+                keyTransitionDiscovery: keyTransitionDiscovery,
+                keyTransitionSteps: keyTransitionCatchUpSteps
+            )
+        }
         let runtime = V3DeviceWrappedVaultRuntime(
             runtime: V3DeviceWrappedReadOnlyVaultRuntime(
                 source: objectStore,
@@ -186,9 +227,19 @@ public final class KeyServiceHandler {
                 objectStore: objectStore,
                 checkpointStore: checkpointStore,
                 recoveryAnchorStore: recoveryAnchorStore,
-                cache: cache
+                cache: cache,
+                catchUp: { operationID in
+                    try makeCatchUpCoordinator(
+                        DirectVaultTransactionMutationOwner(
+                            operationID: operationID
+                        )
+                    ).catchUp()
+                }
             ),
             session: session,
+            catchUp: {
+                try makeCatchUpCoordinator(mutationOwner).catchUp()
+            },
             lockSession: { unlockRuntime.lock() }
         )
         let exchange = V3EnrollmentExchangeCoordinator(
@@ -237,7 +288,7 @@ public final class KeyServiceHandler {
             entryStore: entryStore,
             keychainMode: keyConfiguration.keychainMode,
             configStore: configStore,
-            mutationOwner: VaultTransactionMutationOwner(),
+            mutationOwner: mutationOwner,
             enrollmentService: enrollmentService,
             vaultUXService: runtime,
             vaultReader: runtime,

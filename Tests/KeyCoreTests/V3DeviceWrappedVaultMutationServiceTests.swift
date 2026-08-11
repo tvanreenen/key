@@ -133,6 +133,35 @@ struct V3DeviceWrappedVaultMutationServiceTests {
         #expect(publisher.events == [.recovered])
     }
 
+    @Test
+    func catchUpFailureStopsBeforeMutationStateIsOpened() throws {
+        let fixture = try Fixture()
+        let publisher = RecordingPermanentMutationPublisher()
+        let factory = RecordingPermanentMutationPublisherFactory(
+            publisher: publisher
+        )
+        let catchUp = RecordingFailedMutationCatchUp()
+        let service = fixture.service(
+            factory: factory,
+            entryID: Self.addedID,
+            catchUp: { operationID in try catchUp.run(operationID) }
+        )
+
+        #expect(throws: VaultUXServiceError.vaultIncomplete) {
+            try service.add(
+                name: "service/new",
+                secret: "new value",
+                type: .secret,
+                operationID: Self.operationID
+            )
+        }
+
+        #expect(catchUp.operationIDs == [Self.operationID])
+        #expect(fixture.stateLoader.checkpointLoadCount == 0)
+        #expect(factory.operationIDs.isEmpty)
+        #expect(publisher.events.isEmpty)
+    }
+
     private final class Fixture: @unchecked Sendable {
         let trusted: V3DeviceWrappedTrustedCheckpoint
         let stateLoader: PermanentMutationStateLoader
@@ -181,7 +210,8 @@ struct V3DeviceWrappedVaultMutationServiceTests {
 
         func service(
             factory: RecordingPermanentMutationPublisherFactory,
-            entryID: String
+            entryID: String,
+            catchUp: V3DeviceWrappedVaultMutationService.CatchUp? = nil
         ) -> V3DeviceWrappedVaultMutationService {
             V3DeviceWrappedVaultMutationService(
                 stateLoader: stateLoader,
@@ -189,7 +219,8 @@ struct V3DeviceWrappedVaultMutationServiceTests {
                 makePublisher: { operationID in
                     factory.publisher(for: operationID)
                 },
-                makeEntryID: { entryID }
+                makeEntryID: { entryID },
+                catchUp: catchUp
             )
         }
 
@@ -212,6 +243,24 @@ struct V3DeviceWrappedVaultMutationServiceTests {
         private static func scalar(_ value: UInt8) -> Data {
             Data(repeating: 0, count: 31) + Data([value])
         }
+    }
+}
+
+private final class RecordingFailedMutationCatchUp: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedOperationIDs: [VaultTransactionOperationID] = []
+
+    var operationIDs: [VaultTransactionOperationID] {
+        lock.withLock { recordedOperationIDs }
+    }
+
+    func run(
+        _ operationID: VaultTransactionOperationID
+    ) throws -> V3DeviceWrappedCatchUpCoordinatorOutcome {
+        lock.withLock {
+            recordedOperationIDs.append(operationID)
+        }
+        throw V3DeviceWrappedCatchUpError.temporaryUnavailable
     }
 }
 
