@@ -154,6 +154,46 @@ struct V3DeviceWrappedCatchUpCoordinatorTests {
     }
 
     @Test
+    func rechecksEachPassedCheckpointOnlyOnceAtTheTerminalBoundary() throws {
+        let fixture = try Fixture()
+        let third = try fixture.trusted(digest: Data(repeating: 0x44, count: 32))
+        fixture.content.plans = [
+            fixture.initial.checkpoint.envelopeDigest: .advance(
+                expectedCheckpoint: fixture.initial.checkpoint,
+                manifestDigests: [fixture.afterContent.checkpoint.envelopeDigest]
+            ),
+            fixture.afterContent.checkpoint.envelopeDigest: .advance(
+                expectedCheckpoint: fixture.afterContent.checkpoint,
+                manifestDigests: [third.checkpoint.envelopeDigest]
+            ),
+            third.checkpoint.envelopeDigest: .upToDate,
+        ]
+        fixture.discovery.outcomes = [
+            fixture.initial.checkpoint.envelopeDigest: .none,
+            fixture.afterContent.checkpoint.envelopeDigest: .none,
+            third.checkpoint.envelopeDigest: .none,
+        ]
+        fixture.content.advances = [
+            fixture.afterContent.checkpoint.envelopeDigest:
+                fixture.afterContent,
+            third.checkpoint.envelopeDigest: third,
+        ]
+
+        _ = try fixture.coordinator().catchUp()
+
+        #expect(fixture.content.inspectionCounts == [
+            fixture.initial.checkpoint.envelopeDigest: 2,
+            fixture.afterContent.checkpoint.envelopeDigest: 2,
+            third.checkpoint.envelopeDigest: 1,
+        ])
+        #expect(fixture.discovery.discoveryCounts == [
+            fixture.initial.checkpoint.envelopeDigest: 2,
+            fixture.afterContent.checkpoint.envelopeDigest: 2,
+            third.checkpoint.envelopeDigest: 1,
+        ])
+    }
+
+    @Test
     func catchesAKeyTransitionThatArrivesAfterItsParentAdvances() throws {
         let fixture = try Fixture()
         let lateData = Data("late owner transition".utf8)
@@ -388,7 +428,7 @@ struct V3DeviceWrappedCatchUpCoordinatorTests {
 }
 
 private final class CatchUpCoordinatorState:
-    V3DeviceWrappedMutationStateLoading,
+    V3DeviceWrappedCatchUpStateManaging,
     @unchecked Sendable
 {
     private let lock = NSLock()
@@ -418,6 +458,12 @@ private final class CatchUpCoordinatorState:
         #expect(keyID == trusted.envelope.body.keyID)
         return vaultKey
     }
+
+    func withCatchUpSession<Result>(
+        _ operation: () throws -> Result
+    ) rethrows -> Result {
+        try operation()
+    }
 }
 
 private final class CatchUpCoordinatorContentSteps:
@@ -429,6 +475,7 @@ private final class CatchUpCoordinatorContentSteps:
     var planSequences: [Data: [V3DeviceWrappedCatchUpPlan]] = [:]
     var advances: [Data: V3DeviceWrappedTrustedCheckpoint] = [:]
     private(set) var advancedDigests: [Data] = []
+    private(set) var inspectionCounts: [Data: Int] = [:]
 
     init(state: CatchUpCoordinatorState) {
         self.state = state
@@ -438,6 +485,7 @@ private final class CatchUpCoordinatorContentSteps:
         trusted: V3DeviceWrappedTrustedCheckpoint,
         vaultKey _: Data
     ) throws -> V3DeviceWrappedCatchUpPlan {
+        inspectionCounts[trusted.checkpoint.envelopeDigest, default: 0] += 1
         if var sequence = planSequences[
             trusted.checkpoint.envelopeDigest
         ], !sequence.isEmpty {
@@ -475,11 +523,13 @@ private final class CatchUpCoordinatorTransitionDiscovery:
     var outcomes: [Data: V3DeviceWrappedKeyTransitionDiscoveryOutcome] = [:]
     var outcomeSequences:
         [Data: [V3DeviceWrappedKeyTransitionDiscoveryOutcome]] = [:]
+    private(set) var discoveryCounts: [Data: Int] = [:]
 
     func discover(
         from parent: V3DeviceWrappedTrustedCheckpoint,
         currentVaultKey _: Data
     ) throws -> V3DeviceWrappedKeyTransitionDiscoveryOutcome {
+        discoveryCounts[parent.checkpoint.envelopeDigest, default: 0] += 1
         if var sequence = outcomeSequences[
             parent.checkpoint.envelopeDigest
         ], !sequence.isEmpty {

@@ -132,10 +132,42 @@ struct V3DeviceWrappedKeyTransitionDiscovery:
             } catch is V3DeviceWrappedEnrollmentValidationError {
                 // Invalid or unrelated objects are not authority inputs.
                 continue
-            } catch is V3DeviceWrappedUnlockError {
-                // A provider candidate cannot force an upgrade before it can
-                // be authenticated under a format this client understands.
-                continue
+            } catch let error as V3DeviceWrappedUnlockError {
+                switch error {
+                case .unsupportedProfileVersion:
+                    do {
+                        guard try validator
+                            .isOwnerAuthorizedDirectChildEnvelope(
+                                manifestData: data,
+                                manifestDigest: digest,
+                                parent: parent,
+                                currentVaultKey: currentVaultKey
+                            )
+                        else {
+                            continue
+                        }
+                    } catch is V3DeviceWrappedEnrollmentValidationError {
+                        // Unrelated or unauthenticated future-profile objects
+                        // cannot force an upgrade by provider presence alone.
+                        continue
+                    } catch {
+                        throw V3DeviceWrappedCatchUpError.recoveryRequired
+                    }
+                    // An active owner authorized this exact direct child. An
+                    // older client must stop before publishing a sibling.
+                    throw V3DeviceWrappedCatchUpError.upgradeRequired
+                case .unsupportedEnvelopeVersion:
+                    // A different outer envelope cannot be attributed to the
+                    // trusted parent without assigning authority to unknown
+                    // provider-controlled structure.
+                    continue
+                case .invalidManifest, .checkpointMismatch,
+                        .deviceIdentityMismatch, .deviceNotEnrolled,
+                        .deviceRevoked, .wrapperMissing,
+                        .authenticationCancelled, .keyUnwrapFailed,
+                        .authenticationFailed:
+                    continue
+                }
             } catch {
                 throw V3DeviceWrappedCatchUpError.recoveryRequired
             }

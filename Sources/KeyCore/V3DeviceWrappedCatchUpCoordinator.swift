@@ -26,6 +26,16 @@ enum V3DeviceWrappedCatchUpCoordinatorOutcome: Equatable, Sendable {
     )
 }
 
+/// Supplies authenticated mutation state while coordinating the complete
+/// catch-up operation with explicit session lock and unlock.
+protocol V3DeviceWrappedCatchUpStateManaging:
+    V3DeviceWrappedMutationStateLoading
+{
+    func withCatchUpSession<Result>(
+        _ operation: () throws -> Result
+    ) rethrows -> Result
+}
+
 /// Converts one coordinator result into the common access gate used by reads
 /// and writes. Explicit stale reads may retain the exact local checkpoint only
 /// for transport delay or content ambiguity; authority conflicts never pass.
@@ -85,7 +95,7 @@ struct V3DeviceWrappedCatchUpCoordinator: Sendable {
 
     private let vaultID: String
     private let mutationOwner: any VaultTransactionMutationOwning
-    private let stateLoader: any V3DeviceWrappedMutationStateLoading
+    private let stateLoader: any V3DeviceWrappedCatchUpStateManaging
     private let contentSteps:
         any V3DeviceWrappedSameEpochCatchUpStepServicing
     private let keyTransitionDiscovery:
@@ -98,7 +108,7 @@ struct V3DeviceWrappedCatchUpCoordinator: Sendable {
     init(
         vaultID: String,
         mutationOwner: any VaultTransactionMutationOwning,
-        stateLoader: any V3DeviceWrappedMutationStateLoading,
+        stateLoader: any V3DeviceWrappedCatchUpStateManaging,
         contentSteps: any V3DeviceWrappedSameEpochCatchUpStepServicing,
         keyTransitionDiscovery:
             any V3DeviceWrappedKeyTransitionDiscovering,
@@ -120,122 +130,122 @@ struct V3DeviceWrappedCatchUpCoordinator: Sendable {
 
     func catchUp() throws -> V3DeviceWrappedCatchUpCoordinatorOutcome {
         try mutationOwner.perform(.catchUpVault) { _ in
-            var contentManifestCount = 0
-            var keyEpochCount = 0
-            var passedCheckpoints: [PassedCheckpoint] = []
-
-            while true {
-                let trusted = try stateLoader.authenticatedCheckpoint(
-                    reason: "Unlock version 3 vault to authenticate newer device history."
-                )
-                guard trusted.checkpoint.vaultID == vaultID else {
-                    throw V3DeviceWrappedCatchUpError.recoveryRequired
-                }
-                let vaultKey = try stateLoader.loadVaultKey(
-                    keyID: trusted.envelope.body.keyID
-                )
-                let passedConflicts = try conflictsAfterPassedCheckpoints(
-                    passedCheckpoints
-                )
-                if !passedConflicts.security.isEmpty {
-                    return .securityConflict(
-                        trusted,
-                        manifestDigests: sorted(passedConflicts.security),
-                        progress: V3DeviceWrappedCatchUpProgress(
-                            contentManifestCount: contentManifestCount,
-                            keyEpochCount: keyEpochCount
-                        )
-                    )
-                }
-                if !passedConflicts.content.isEmpty {
-                    return .contentConflict(
-                        trusted,
-                        manifestDigests: sorted(passedConflicts.content),
-                        progress: V3DeviceWrappedCatchUpProgress(
-                            contentManifestCount: contentManifestCount,
-                            keyEpochCount: keyEpochCount
-                        )
-                    )
-                }
-                let contentPlan = try contentSteps.inspect(
-                    trusted: trusted,
-                    vaultKey: vaultKey
-                )
-                let keyTransition = try keyTransitionDiscovery.discover(
-                    from: trusted,
-                    currentVaultKey: vaultKey
-                )
-                let action: V3DeviceWrappedCatchUpAction
-                do {
-                    action = try authorityPlanner.plan(
-                        content: contentPlan,
-                        keyTransition: keyTransition
-                    )
-                } catch {
-                    throw V3DeviceWrappedCatchUpError.recoveryRequired
-                }
-                let progress = V3DeviceWrappedCatchUpProgress(
-                    contentManifestCount: contentManifestCount,
-                    keyEpochCount: keyEpochCount
-                )
-
-                switch action {
-                case .upToDate:
-                    return .current(trusted, progress: progress)
-                case let .contentConflict(manifestDigests):
-                    return .contentConflict(
-                        trusted,
-                        manifestDigests: manifestDigests,
-                        progress: progress
-                    )
-                case let .securityConflict(manifestDigests):
-                    return .securityConflict(
-                        trusted,
-                        manifestDigests: manifestDigests,
-                        progress: progress
-                    )
-                case let .advanceContent(
-                    expectedCheckpoint,
-                    manifestDigest
-                ):
-                    try requireAnotherStep(progress)
-                    let advanced = try contentSteps.advance(
-                        trusted: trusted,
-                        vaultKey: vaultKey,
-                        expectedCheckpoint: expectedCheckpoint,
-                        manifestDigest: manifestDigest
-                    )
-                    try validateAdvance(from: trusted, to: advanced)
-                    passedCheckpoints.append(PassedCheckpoint(
-                        trusted: trusted,
-                        vaultKey: vaultKey,
-                        acceptedChildDigest: manifestDigest,
-                        acceptedChildKind: .content
-                    ))
-                    contentManifestCount += 1
-                case let .advanceKey(manifestData, manifestDigest):
-                    try requireAnotherStep(progress)
-                    let advanced = try keyTransitionSteps.advanceOneEpoch(
-                        manifestData: manifestData,
-                        manifestDigest: manifestDigest
-                    )
-                    try validateAdvance(from: trusted, to: advanced)
-                    passedCheckpoints.append(PassedCheckpoint(
-                        trusted: trusted,
-                        vaultKey: vaultKey,
-                        acceptedChildDigest: manifestDigest,
-                        acceptedChildKind: .keyTransition
-                    ))
-                    keyEpochCount += 1
-                }
+            try stateLoader.withCatchUpSession {
+                try catchUpWithMutationAndSessionOwnership()
             }
         }
     }
 
-    /// Rechecks every parent passed during this serialized operation. Provider
-    /// arrival is not atomic with local checkpoint replacement, so a sibling
-    /// may materialize only after its parent was advanced. The exact accepted
-    /// child is harmless; any other authenticated continuation is a conflict.
+    private func catchUpWithMutationAndSessionOwnership() throws
+        -> V3DeviceWrappedCatchUpCoordinatorOutcome
+    {
+        var contentManifestCount = 0
+        var keyEpochCount = 0
+        var passedCheckpoints: [PassedCheckpoint] = []
+
+        while true {
+            let trusted = try stateLoader.authenticatedCheckpoint(
+                reason: "Unlock version 3 vault to authenticate newer device history."
+            )
+            guard trusted.checkpoint.vaultID == vaultID else {
+                throw V3DeviceWrappedCatchUpError.recoveryRequired
+            }
+            let vaultKey = try stateLoader.loadVaultKey(
+                keyID: trusted.envelope.body.keyID
+            )
+            let contentPlan = try contentSteps.inspect(
+                trusted: trusted,
+                vaultKey: vaultKey
+            )
+            let keyTransition = try keyTransitionDiscovery.discover(
+                from: trusted,
+                currentVaultKey: vaultKey
+            )
+            let action: V3DeviceWrappedCatchUpAction
+            do {
+                action = try authorityPlanner.plan(
+                    content: contentPlan,
+                    keyTransition: keyTransition
+                )
+            } catch {
+                throw V3DeviceWrappedCatchUpError.recoveryRequired
+            }
+            let progress = V3DeviceWrappedCatchUpProgress(
+                contentManifestCount: contentManifestCount,
+                keyEpochCount: keyEpochCount
+            )
+
+            switch action {
+            case .upToDate:
+                if let conflict = try terminalConflict(
+                    after: passedCheckpoints,
+                    trusted: trusted,
+                    progress: progress
+                ) {
+                    return conflict
+                }
+                return .current(trusted, progress: progress)
+            case let .contentConflict(manifestDigests):
+                if let conflict = try terminalConflict(
+                    after: passedCheckpoints,
+                    trusted: trusted,
+                    progress: progress
+                ) {
+                    return conflict
+                }
+                return .contentConflict(
+                    trusted,
+                    manifestDigests: manifestDigests,
+                    progress: progress
+                )
+            case let .securityConflict(manifestDigests):
+                return .securityConflict(
+                    trusted,
+                    manifestDigests: manifestDigests,
+                    progress: progress
+                )
+            case let .advanceContent(expectedCheckpoint, manifestDigest):
+                try requireAnotherStep(progress)
+                let advanced = try contentSteps.advance(
+                    trusted: trusted,
+                    vaultKey: vaultKey,
+                    expectedCheckpoint: expectedCheckpoint,
+                    manifestDigest: manifestDigest
+                )
+                try validateAdvance(from: trusted, to: advanced)
+                passedCheckpoints.append(PassedCheckpoint(
+                    trusted: trusted,
+                    vaultKey: vaultKey,
+                    acceptedChildDigest: manifestDigest,
+                    acceptedChildKind: .content
+                ))
+                contentManifestCount += 1
+            case let .advanceKey(manifestData, manifestDigest):
+                try requireAnotherStep(progress)
+                let advanced = try keyTransitionSteps.advanceOneEpoch(
+                    manifestData: manifestData,
+                    manifestDigest: manifestDigest
+                )
+                try validateAdvance(from: trusted, to: advanced)
+                passedCheckpoints.append(PassedCheckpoint(
+                    trusted: trusted,
+                    vaultKey: vaultKey,
+                    acceptedChildDigest: manifestDigest,
+                    acceptedChildKind: .keyTransition
+                ))
+                keyEpochCount += 1
+            }
+        }
+    }
+
+    /// Rechecks every passed parent once, immediately before a successful or
+    /// content-conflicted return. Provider arrival is not atomic with local
+    /// checkpoint replacement, so a sibling may materialize only after its
+    /// parent was advanced. The exact accepted child is harmless; any other
+    /// authenticated continuation is a conflict.
+    ///
+    /// Keeping this as one terminal pass avoids repeatedly rescanning the full
+    /// repository for every earlier checkpoint after every accepted step.
     private func conflictsAfterPassedCheckpoints(
         _ passedCheckpoints: [PassedCheckpoint]
     ) throws -> PassedCheckpointConflicts {
@@ -286,6 +296,31 @@ struct V3DeviceWrappedCatchUpCoordinator: Sendable {
             }
         }
         return conflicts
+    }
+
+    private func terminalConflict(
+        after passedCheckpoints: [PassedCheckpoint],
+        trusted: V3DeviceWrappedTrustedCheckpoint,
+        progress: V3DeviceWrappedCatchUpProgress
+    ) throws -> V3DeviceWrappedCatchUpCoordinatorOutcome? {
+        let conflicts = try conflictsAfterPassedCheckpoints(
+            passedCheckpoints
+        )
+        if !conflicts.security.isEmpty {
+            return .securityConflict(
+                trusted,
+                manifestDigests: sorted(conflicts.security),
+                progress: progress
+            )
+        }
+        if !conflicts.content.isEmpty {
+            return .contentConflict(
+                trusted,
+                manifestDigests: sorted(conflicts.content),
+                progress: progress
+            )
+        }
+        return nil
     }
 
     private func recordContentConflict(

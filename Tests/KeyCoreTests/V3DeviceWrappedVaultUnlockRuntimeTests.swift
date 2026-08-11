@@ -442,6 +442,56 @@ struct V3DeviceWrappedVaultUnlockRuntimeTests {
         }
     }
 
+    @Test
+    func lockWaitsForCompleteCatchUpSessionAndThenClearsItsKey() throws {
+        let fixture = try Self.fixture()
+        let runtime = Self.runtime(
+            checkpoint: fixture.checkpoint,
+            source: TestManifestSource(
+                result: .available(fixture.candidate.manifestData)
+            ),
+            cache: TestCheckpointCache(lookup: .missing),
+            identity: fixture.identity
+        )
+        _ = try runtime.unlock(reason: "Unlock before catch-up")
+        let didBeginCatchUp = DispatchSemaphore(value: 0)
+        let mayFinishCatchUp = DispatchSemaphore(value: 0)
+        let didFinishCatchUp = DispatchSemaphore(value: 0)
+        let catchUpResult = TestResultBox<Void>()
+        Task.detached {
+            catchUpResult.store(Result {
+                try runtime.withCatchUpSession {
+                    didBeginCatchUp.signal()
+                    mayFinishCatchUp.wait()
+                    _ = try runtime.authenticatedCheckpoint(
+                        reason: "Continue catch-up"
+                    )
+                }
+            })
+            didFinishCatchUp.signal()
+        }
+        #expect(didBeginCatchUp.wait(timeout: .now() + 1) == .success)
+        let didLock = DispatchSemaphore(value: 0)
+        let lockTask = Task.detached {
+            runtime.lock()
+            didLock.signal()
+        }
+
+        #expect(didLock.wait(timeout: .now() + 0.01) == .timedOut)
+        mayFinishCatchUp.signal()
+        #expect(didFinishCatchUp.wait(timeout: .now() + 1) == .success)
+        #expect(didLock.wait(timeout: .now() + 1) == .success)
+        _ = lockTask
+        _ = try #require(catchUpResult.value).get()
+        #expect(
+            throws: V3DeviceWrappedVaultUnlockRuntimeError.locked
+        ) {
+            try runtime.loadVaultKey(
+                keyID: fixture.candidate.body.keyID
+            )
+        }
+    }
+
     private static func fixture() throws -> (
         identity: RuntimeTestUnwrapper,
         candidate: V3DeviceWrappedGenesisCandidate,

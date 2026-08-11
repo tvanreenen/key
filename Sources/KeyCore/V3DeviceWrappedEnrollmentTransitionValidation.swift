@@ -149,6 +149,46 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         )
     }
 
+    /// Authenticates the supported outer envelope of a direct child whose
+    /// manifest-body profile is newer than this client understands.
+    ///
+    /// A valid active-owner signature is enough to require an upgrade before
+    /// this client publishes a competing child. It is not authority to open or
+    /// advance to the unknown profile.
+    func isOwnerAuthorizedDirectChildEnvelope(
+        manifestData: Data,
+        manifestDigest: Data,
+        parent: V3DeviceWrappedTrustedCheckpoint,
+        currentVaultKey: Data
+    ) throws -> Bool {
+        guard manifestData.count <= limits.maximumManifestBytes,
+              manifestDigest.count == 32,
+              Data(SHA256.hash(data: manifestData)) == manifestDigest
+        else {
+            throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
+        }
+        let authenticatedParent = try validateParent(
+            parent,
+            expectedCheckpoint: parent.checkpoint,
+            currentVaultKey: currentVaultKey
+        )
+        let metadata: V3DeviceWrappedManifestEnvelopeMetadata
+        do {
+            metadata = try envelopeCodec.metadata(manifestData)
+        } catch {
+            throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
+        }
+        guard metadata.parents == [parent.checkpoint.envelopeDigest] else {
+            return false
+        }
+        _ = try authorizingOwner(
+            authorizations: metadata.authorizations,
+            canonicalContentBytes: metadata.canonicalContentBytes,
+            parent: authenticatedParent
+        )
+        return true
+    }
+
     func validate(
         _ transition: V3DeviceWrappedEnrollmentTransitionCandidate,
         parent: V3DeviceWrappedTrustedCheckpoint,
@@ -423,8 +463,20 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         of candidate: V3DeviceWrappedManifestEnvelope,
         parent: V3DeviceWrappedManifestEnvelope
     ) throws -> V3EnrollmentDeviceIdentity {
-        guard candidate.authorizations.count == 1,
-              let authorization = candidate.authorizations.first,
+        try authorizingOwner(
+            authorizations: candidate.authorizations,
+            canonicalContentBytes: candidate.canonicalContentBytes,
+            parent: parent
+        )
+    }
+
+    private func authorizingOwner(
+        authorizations: [V3ManifestAuthorization],
+        canonicalContentBytes: Data,
+        parent: V3DeviceWrappedManifestEnvelope
+    ) throws -> V3EnrollmentDeviceIdentity {
+        guard authorizations.count == 1,
+              let authorization = authorizations.first,
               let owner = parent.body.devices.first(where: {
                   $0.identity.deviceID == authorization.signerDeviceID
               }),
@@ -444,7 +496,7 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
                   signature,
                   for: SHA256.hash(data:
                       V3ManifestAuthenticator.authenticationInput(
-                          for: candidate.canonicalContentBytes
+                          for: canonicalContentBytes
                       )
                   )
               )

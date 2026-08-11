@@ -577,6 +577,54 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
     }
 
     @Test
+    func ownerAuthorizedFutureProfileChildRequiresAnUpgrade() throws {
+        let fixture = try Fixture()
+        let candidate = try Self.catchUpCandidate(fixture, nonce: 0x83)
+        let futureData = try Self.signedFutureProfileManifest(
+            basedOn: candidate,
+            signer: fixture.owner
+        )
+        let futureDigest = Data(SHA256.hash(data: futureData))
+        let source = CatchUpTransitionObjectSource(
+            entries: [:],
+            manifests: [futureDigest: .available(futureData)]
+        )
+
+        #expect(throws: V3DeviceWrappedCatchUpError.upgradeRequired) {
+            _ = try V3DeviceWrappedKeyTransitionDiscovery(
+                source: source
+            ).discover(
+                from: fixture.base,
+                currentVaultKey: Self.currentKey
+            )
+        }
+    }
+
+    @Test
+    func unauthenticatedFutureProfileObjectCannotForceAnUpgrade() throws {
+        let fixture = try Fixture()
+        let candidate = try Self.catchUpCandidate(fixture, nonce: 0x84)
+        let futureData = try Self.signedFutureProfileManifest(
+            basedOn: candidate,
+            signer: fixture.firstJoiner
+        )
+        let futureDigest = Data(SHA256.hash(data: futureData))
+        let source = CatchUpTransitionObjectSource(
+            entries: [:],
+            manifests: [futureDigest: .available(futureData)]
+        )
+
+        let outcome = try V3DeviceWrappedKeyTransitionDiscovery(
+            source: source
+        ).discover(
+            from: fixture.base,
+            currentVaultKey: Self.currentKey
+        )
+
+        #expect(outcome == .none)
+    }
+
+    @Test
     func catchUpDiscoveryWaitsForEveryListedManifest() throws {
         let fixture = try Fixture()
         let source = CatchUpTransitionObjectSource(
@@ -1148,6 +1196,63 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
             at: Self.approvalTime,
             authorizationReason: "Approve the compared Mac."
         )
+    }
+
+    private static func signedFutureProfileManifest(
+        basedOn candidate: V3DeviceWrappedEnrollmentTransitionCandidate,
+        signer: SoftwareDevice
+    ) throws -> Data {
+        let root = try #require(
+            CanonicalJSON.parse(candidate.manifestData).objectValue
+        )
+        let content = try #require(
+            root.first(where: { $0.0 == "content" })?.1.objectValue
+        )
+        let body = try #require(
+            content.first(where: { $0.0 == "manifest" })?.1.objectValue
+        )
+        let futureBody = body.map { name, value in
+            name == "profileVersion"
+                ? (name, CanonicalJSONValue.integer(2))
+                : (name, value)
+        }
+        let futureContent = CanonicalJSONValue.object(content.map {
+            name, value in
+            name == "manifest"
+                ? (name, CanonicalJSONValue.object(futureBody))
+                : (name, value)
+        })
+        let canonicalContent = CanonicalJSON.encode(futureContent)
+        let tag = try V3ManifestAuthenticator.authenticationTag(
+            canonicalContent: canonicalContent,
+            vaultID: candidate.body.vaultID,
+            vaultKey: Self.nextKey
+        )
+        let signature = try V3P256Signature.canonicalize(
+            signer.signature(
+                for: V3ManifestAuthenticator.authenticationInput(
+                    for: canonicalContent
+                ),
+                reason: "Create a future-profile discovery candidate."
+            )
+        )
+        return CanonicalJSON.encode(.object([
+            ("format", .string("key-vault-manifest-envelope")),
+            ("version", .integer(3)),
+            ("content", futureContent),
+            ("authentication", .object([
+                ("algorithm", .string("HKDF-SHA256+HMAC-SHA256")),
+                ("tag", .string(Base64URL.encode(tag))),
+            ])),
+            ("authorizations", .array([.object([
+                ("algorithm", .string("P-256-ECDSA-SHA256")),
+                (
+                    "signerDeviceID",
+                    .string(signer.publicIdentity.deviceID)
+                ),
+                ("signature", .string(Base64URL.encode(signature))),
+            ])])),
+        ]))
     }
 
     private static func catchUpSource(

@@ -49,7 +49,7 @@ enum V3DeviceWrappedKeyTransitionStateError: Error, Equatable {
 /// Owns the session-wide synchronization required to open and commit a new
 /// vault-key epoch without racing an explicit lock or another unlock.
 protocol V3DeviceWrappedKeyTransitionStateManaging:
-    V3DeviceWrappedMutationStateLoading,
+    V3DeviceWrappedCatchUpStateManaging,
     Sendable
 {
     func advanceKeyTransition(
@@ -99,7 +99,9 @@ final class V3DeviceWrappedVaultUnlockRuntime:
     private let session: V3DeviceWrappedVaultKeySessionStore
     private let unlocker = V3DeviceWrappedCheckpointUnlocker()
     private let envelopeCodec = V3DeviceWrappedManifestEnvelopeCodec()
-    private let unlockLock = NSLock()
+    // Catch-up holds this lock across several ordinary state-loader calls, so
+    // those nested calls must be able to re-enter the same critical section.
+    private let unlockLock = NSRecursiveLock()
 
     init(
         vaultID: String,
@@ -134,6 +136,14 @@ final class V3DeviceWrappedVaultUnlockRuntime:
         defer { unlockLock.unlock() }
 
         return try authenticatedCheckpointLocked(reason: reason)
+    }
+
+    func withCatchUpSession<Result>(
+        _ operation: () throws -> Result
+    ) rethrows -> Result {
+        unlockLock.lock()
+        defer { unlockLock.unlock() }
+        return try operation()
     }
 
     private func authenticatedCheckpointLocked(
