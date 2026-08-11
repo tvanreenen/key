@@ -50,7 +50,7 @@ extension V3DeviceWrappedRevocationTransitionCandidate {
     }
 }
 
-struct V3DeviceWrappedValidatedKeyRotation: Sendable {
+struct V3DeviceWrappedValidatedKeyRotation: Equatable, Sendable {
     let parent: V3DeviceWrappedManifestEnvelope
     let candidate: V3DeviceWrappedManifestEnvelope
     let manifestDigest: Data

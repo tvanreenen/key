@@ -120,6 +120,7 @@
 		D52900000000000000000002 /* V3DeviceWrappedRevocationTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52900000000000000000001 /* V3DeviceWrappedRevocationTransition.swift */; };
 		D53000000000000000000002 /* V3DeviceWrappedKeyRotationValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53000000000000000000001 /* V3DeviceWrappedKeyRotationValidation.swift */; };
 		D53100000000000000000002 /* V3DeviceWrappedRevocationTransitionValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */; };
+		D53200000000000000000002 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */; };
 		A5000011A5000011A5000011 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000012A5000012A5000012 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000013A5000013A5000013 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
@@ -290,6 +291,7 @@
 		D52900000000000000000001 /* V3DeviceWrappedRevocationTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedRevocationTransition.swift; sourceTree = "<group>"; };
 		D53000000000000000000001 /* V3DeviceWrappedKeyRotationValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedKeyRotationValidation.swift; sourceTree = "<group>"; };
 		D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedRevocationTransitionValidation.swift; sourceTree = "<group>"; };
+		D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedKeyRotationTransitionPublisher.swift; sourceTree = "<group>"; };
 		A5500002A5500002A5500002 /* V3DeviceWrappedGenesisInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedGenesisInstaller.swift; sourceTree = "<group>"; };
 		A5510002A5510002A5510002 /* V3DeviceWrappedManifestCandidateBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedManifestCandidateBuilder.swift; sourceTree = "<group>"; };
 		A5520002A5520002A5520002 /* V3DeviceWrappedTransactionValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedTransactionValidation.swift; sourceTree = "<group>"; };
@@ -436,6 +438,7 @@
 				D52900000000000000000001 /* V3DeviceWrappedRevocationTransition.swift */,
 				D53000000000000000000001 /* V3DeviceWrappedKeyRotationValidation.swift */,
 				D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */,
+				D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */,
 				A5500002A5500002A5500002 /* V3DeviceWrappedGenesisInstaller.swift */,
 				A5510002A5510002A5510002 /* V3DeviceWrappedManifestCandidateBuilder.swift */,
 				A5520002A5520002A5520002 /* V3DeviceWrappedTransactionValidation.swift */,
@@ -847,6 +850,7 @@
 				D52900000000000000000002 /* V3DeviceWrappedRevocationTransition.swift in Sources */,
 				D53000000000000000000002 /* V3DeviceWrappedKeyRotationValidation.swift in Sources */,
 				D53100000000000000000002 /* V3DeviceWrappedRevocationTransitionValidation.swift in Sources */,
+				D53200000000000000000002 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift in Sources */,
 				A5500001A5500001A5500001 /* V3DeviceWrappedGenesisInstaller.swift in Sources */,
 				A5510001A5510001A5510001 /* V3DeviceWrappedManifestCandidateBuilder.swift in Sources */,
 				A5520001A5520001A5520001 /* V3DeviceWrappedTransactionValidation.swift in Sources */,
