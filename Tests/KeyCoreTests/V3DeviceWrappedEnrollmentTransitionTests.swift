@@ -496,6 +496,201 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
     }
 
     @Test
+    func catchUpOpenerAuthenticatesTheAddressedKeyAndCompleteReseal() throws {
+        let fixture = try Fixture()
+        let candidate = try Self.catchUpCandidate(fixture, nonce: 0x78)
+        let source = Self.catchUpSource(
+            fixture: fixture,
+            candidate: candidate
+        )
+        let identity = CatchUpTransitionUnwrapper(device: fixture.owner)
+
+        let opened = try V3DeviceWrappedCatchUpTransitionOpener(
+            source: source
+        ).open(
+            manifestData: candidate.manifestData,
+            manifestDigest: candidate.manifestDigest,
+            parent: fixture.base,
+            currentVaultKey: Self.currentKey,
+            identity: identity,
+            reason: "Open the next authenticated vault-key epoch."
+        )
+
+        let expected = try Self.trustedCheckpoint(for: candidate)
+        #expect(opened.vaultKey == Self.nextKey)
+        #expect(opened.trustedCheckpoint == expected)
+        #expect(opened.authorizingOwner == fixture.owner.publicIdentity)
+        #expect(identity.unwrapCount == 1)
+        #expect(source.entryReadCount == 2)
+    }
+
+    @Test
+    func catchUpOpenerAllowsAnActiveMemberToOpenALaterEpoch() throws {
+        let fixture = try Fixture()
+        let first = try Self.catchUpCandidate(fixture, nonce: 0x7D)
+        let firstBase = try Self.trustedCheckpoint(for: first)
+        let firstEntries = Self.entryMap(first.stagedEntries)
+        let ceremony = try fixture.ceremony(
+            parentDigest: first.manifestDigest,
+            joiner: fixture.secondJoiner,
+            role: .owner,
+            nonce: 0x7E
+        )
+        let later = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
+            from: firstBase,
+            currentEntries: firstEntries,
+            state: ceremony.state,
+            currentVaultKey: Self.nextKey,
+            nextVaultKey: Self.laterKey,
+            authorityTransitionID: Self.secondEnrollmentTransitionID,
+            owner: fixture.owner,
+            at: Self.approvalTime,
+            authorizationReason: "Approve another compared Mac."
+        )
+        let source = Self.catchUpSource(
+            currentEntries: firstEntries,
+            candidate: later
+        )
+
+        let opened = try V3DeviceWrappedCatchUpTransitionOpener(
+            source: source
+        ).open(
+            manifestData: later.manifestData,
+            manifestDigest: later.manifestDigest,
+            parent: firstBase,
+            currentVaultKey: Self.nextKey,
+            identity: fixture.firstJoiner,
+            reason: "Open a later authenticated vault-key epoch."
+        )
+
+        let expected = try Self.trustedCheckpoint(for: later)
+        #expect(opened.vaultKey == Self.laterKey)
+        #expect(opened.trustedCheckpoint == expected)
+    }
+
+    @Test
+    func catchUpOpenerNeverUnwrapsBeforeOwnerPreflight() throws {
+        let fixture = try Fixture()
+        let candidate = try Self.catchUpCandidate(fixture, nonce: 0x79)
+        let unauthorized = try Self.authorizedCandidate(
+            basedOn: candidate,
+            body: candidate.body,
+            stagedEntries: candidate.stagedEntries,
+            vaultKey: Self.nextKey,
+            signer: fixture.firstJoiner
+        )
+        let source = Self.catchUpSource(
+            fixture: fixture,
+            candidate: unauthorized
+        )
+        let identity = CatchUpTransitionUnwrapper(device: fixture.owner)
+
+        #expect(
+            throws: V3DeviceWrappedEnrollmentValidationError
+                .invalidOwnerAuthorization
+        ) {
+            try V3DeviceWrappedCatchUpTransitionOpener(source: source).open(
+                manifestData: unauthorized.manifestData,
+                manifestDigest: unauthorized.manifestDigest,
+                parent: fixture.base,
+                currentVaultKey: Self.currentKey,
+                identity: identity,
+                reason: "Do not open an unauthorized transition."
+            )
+        }
+        #expect(identity.unwrapCount == 0)
+        #expect(source.entryReadCount == 0)
+    }
+
+    @Test
+    func catchUpOpenerPreservesCancellationBeforeEntryReads() throws {
+        let fixture = try Fixture()
+        let candidate = try Self.catchUpCandidate(fixture, nonce: 0x7A)
+        let source = Self.catchUpSource(
+            fixture: fixture,
+            candidate: candidate
+        )
+        let identity = CatchUpTransitionUnwrapper(
+            device: fixture.owner,
+            error: .authenticationCancelled
+        )
+
+        #expect(
+            throws: V3DeviceWrappedCatchUpTransitionOpeningError
+                .authenticationCancelled
+        ) {
+            try V3DeviceWrappedCatchUpTransitionOpener(source: source).open(
+                manifestData: candidate.manifestData,
+                manifestDigest: candidate.manifestDigest,
+                parent: fixture.base,
+                currentVaultKey: Self.currentKey,
+                identity: identity,
+                reason: "Open the next authenticated vault-key epoch."
+            )
+        }
+        #expect(identity.unwrapCount == 1)
+        #expect(source.entryReadCount == 0)
+    }
+
+    @Test
+    func catchUpOpenerDoesNotTrustAnUnavailableResealedEntry() throws {
+        let fixture = try Fixture()
+        let candidate = try Self.catchUpCandidate(fixture, nonce: 0x7B)
+        let missingKey = try entryObjectKey(
+            #require(candidate.body.entries.first)
+        )
+        let source = Self.catchUpSource(
+            fixture: fixture,
+            candidate: candidate,
+            replacing: [missingKey: .unavailable]
+        )
+
+        #expect(
+            throws: V3DeviceWrappedCatchUpTransitionOpeningError
+                .temporaryUnavailable
+        ) {
+            try V3DeviceWrappedCatchUpTransitionOpener(source: source).open(
+                manifestData: candidate.manifestData,
+                manifestDigest: candidate.manifestDigest,
+                parent: fixture.base,
+                currentVaultKey: Self.currentKey,
+                identity: fixture.owner,
+                reason: "Open the next authenticated vault-key epoch."
+            )
+        }
+    }
+
+    @Test
+    func catchUpOpenerRejectsSubstitutedEntryBytes() throws {
+        let fixture = try Fixture()
+        let candidate = try Self.catchUpCandidate(fixture, nonce: 0x7C)
+        let substitutedKey = try entryObjectKey(
+            #require(candidate.body.entries.first)
+        )
+        let source = Self.catchUpSource(
+            fixture: fixture,
+            candidate: candidate,
+            replacing: [
+                substitutedKey: .available(Data("substituted".utf8))
+            ]
+        )
+
+        #expect(
+            throws: V3DeviceWrappedCatchUpTransitionOpeningError
+                .recoveryRequired
+        ) {
+            try V3DeviceWrappedCatchUpTransitionOpener(source: source).open(
+                manifestData: candidate.manifestData,
+                manifestDigest: candidate.manifestDigest,
+                parent: fixture.base,
+                currentVaultKey: Self.currentKey,
+                identity: fixture.owner,
+                reason: "Open the next authenticated vault-key epoch."
+            )
+        }
+    }
+
+    @Test
     func validatorRejectsAResealWithDifferentPlaintext() throws {
         let fixture = try Fixture()
         let ceremony = try fixture.ceremony(
@@ -762,6 +957,64 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         )
     }
 
+    private static func catchUpCandidate(
+        _ fixture: Fixture,
+        nonce: UInt8
+    ) throws -> V3DeviceWrappedEnrollmentTransitionCandidate {
+        let ceremony = try fixture.ceremony(
+            parentDigest: fixture.base.checkpoint.envelopeDigest,
+            joiner: fixture.firstJoiner,
+            role: .member,
+            nonce: nonce
+        )
+        return try V3DeviceWrappedEnrollmentTransitionBuilder().build(
+            from: fixture.base,
+            currentEntries: fixture.currentEntries,
+            state: ceremony.state,
+            currentVaultKey: Self.currentKey,
+            nextVaultKey: Self.nextKey,
+            authorityTransitionID: Self.firstEnrollmentTransitionID,
+            owner: fixture.owner,
+            at: Self.approvalTime,
+            authorizationReason: "Approve the compared Mac."
+        )
+    }
+
+    private static func catchUpSource(
+        fixture: Fixture,
+        candidate: V3DeviceWrappedEnrollmentTransitionCandidate,
+        replacing replacements: [V3EntryObjectKey: V3RepositoryObjectRead]
+            = [:]
+    ) -> CatchUpTransitionObjectSource {
+        catchUpSource(
+            currentEntries: fixture.currentEntries,
+            candidate: candidate,
+            replacing: replacements
+        )
+    }
+
+    private static func catchUpSource(
+        currentEntries: [V3EntryObjectKey: V3EncryptedEntry],
+        candidate: V3DeviceWrappedEnrollmentTransitionCandidate,
+        replacing replacements: [V3EntryObjectKey: V3RepositoryObjectRead]
+            = [:]
+    ) -> CatchUpTransitionObjectSource {
+        var entries = Dictionary(uniqueKeysWithValues:
+            currentEntries.map { key, value in
+                (key, V3RepositoryObjectRead.available(value.canonicalBytes))
+            }
+        )
+        for entry in candidate.stagedEntries {
+            let key = V3EntryObjectKey(
+                entryID: entry.context.entryID,
+                digest: Data(SHA256.hash(data: entry.canonicalBytes))
+            )
+            entries[key] = .available(entry.canonicalBytes)
+        }
+        entries.merge(replacements) { _, replacement in replacement }
+        return CatchUpTransitionObjectSource(entries: entries)
+    }
+
     private static func authorizedCandidate(
         basedOn candidate: V3DeviceWrappedEnrollmentTransitionCandidate,
         body: V3DeviceWrappedManifestBody,
@@ -1021,8 +1274,100 @@ private struct SoftwareDevice:
     }
 }
 
+private final class CatchUpTransitionUnwrapper:
+    V3DeviceWrappedVaultKeyUnwrapping,
+    @unchecked Sendable
+{
+    private let device: SoftwareDevice
+    private let error: V3EnrollmentDeviceIdentityStoreError?
+    private let lock = NSLock()
+    private var count = 0
+
+    init(
+        device: SoftwareDevice,
+        error: V3EnrollmentDeviceIdentityStoreError? = nil
+    ) {
+        self.device = device
+        self.error = error
+    }
+
+    var vaultID: String {
+        device.vaultID
+    }
+
+    var publicIdentity: V3EnrollmentDeviceIdentity {
+        device.publicIdentity
+    }
+
+    var unwrapCount: Int {
+        lock.withLock { count }
+    }
+
+    func unwrapDeviceWrappedVaultKey(
+        _ wrappedKey: V3HPKEWrappedVaultKey,
+        context: V3VaultKeyHPKEContext,
+        reason: String
+    ) throws -> Data {
+        try lock.withLock {
+            count += 1
+            if let error {
+                throw error
+            }
+            return try device.unwrapDeviceWrappedVaultKey(
+                wrappedKey,
+                context: context,
+                reason: reason
+            )
+        }
+    }
+}
+
+private final class CatchUpTransitionObjectSource:
+    V3ImmutableObjectReading,
+    @unchecked Sendable
+{
+    private let entries: [V3EntryObjectKey: V3RepositoryObjectRead]
+    private let lock = NSLock()
+    private var reads = 0
+
+    init(entries: [V3EntryObjectKey: V3RepositoryObjectRead]) {
+        self.entries = entries
+    }
+
+    var entryReadCount: Int {
+        lock.withLock { reads }
+    }
+
+    func manifestDigests(
+        maximumCount _: Int
+    ) throws -> V3RepositoryDirectoryListing {
+        .invalid
+    }
+
+    func readManifest(
+        digest _: Data,
+        maximumBytes _: Int
+    ) throws -> V3RepositoryObjectRead {
+        .invalid
+    }
+
+    func readEntry(
+        entryID: String,
+        digest: Data,
+        maximumBytes _: Int
+    ) throws -> V3RepositoryObjectRead {
+        lock.withLock {
+            reads += 1
+        }
+        return entries[V3EntryObjectKey(
+            entryID: entryID,
+            digest: digest
+        )] ?? .unavailable
+    }
+}
+
 private func privateKeyBytes(_ scalar: UInt8) -> Data {
-    var bytes = Data(repeating: 0, count: 32)
-    bytes[31] = scalar
-    return bytes
+    // Full-width deterministic fixture keys avoid a CryptoKit edge case seen
+    // with artificially tiny private scalars while remaining valid P-256 keys.
+    Data(repeating: scalar, count: 32)
 }
