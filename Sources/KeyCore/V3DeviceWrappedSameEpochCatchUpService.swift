@@ -27,33 +27,25 @@ enum V3DeviceWrappedCatchUpError: Error, Equatable, LocalizedError {
     }
 }
 
-enum V3DeviceWrappedCatchUpOutcome: Equatable, Sendable {
+enum V3DeviceWrappedSameEpochCatchUpStepOutcome: Equatable, Sendable {
     case upToDate(V3DeviceWrappedTrustedCheckpoint)
-    case advanced(V3DeviceWrappedTrustedCheckpoint)
+    case advancedOneStep(V3DeviceWrappedTrustedCheckpoint)
     case multipleHeads([Data])
 }
 
-/// Advances one device through an unambiguous content-only path within its
-/// current vault-key epoch.
+/// Advances one device by one unambiguous content manifest within its current
+/// vault-key epoch.
 ///
 /// The helper mutation owner serializes this local trust change with ordinary
 /// publication and enrollment. The live observer authenticates the complete
-/// forward graph before this service reopens the selected head, validates its
-/// complete encrypted snapshot, and compare-and-swaps the exact checkpoint.
-/// Key-transition catch-up remains a separate increment because it must open
-/// and validate each addressed wrapper in sequence.
+/// forward graph before this service reopens the next direct child, validates
+/// its complete encrypted snapshot, and compare-and-swaps the exact checkpoint.
+/// A later coordinator repeats this step while checking for key transitions at
+/// every newly trusted checkpoint.
 struct V3DeviceWrappedSameEpochCatchUpService: Sendable {
-    private let vaultID: String
     private let mutationOwner: any VaultTransactionMutationOwning
     private let stateLoader: any V3DeviceWrappedMutationStateLoading
-    private let repositoryObserver: any V3DeviceWrappedRepositoryObserving
-    private let source: any V3ImmutableObjectReading
-    private let checkpointStore: any V3ManifestCheckpointStoring
-    private let cache: any V3CheckpointManifestCaching
-    private let limits: V3ManifestRepositoryLimits
-    private let planner: V3DeviceWrappedCatchUpPlanner
-    private let contentValidator: V3DeviceWrappedCheckpointContentValidator
-    private let envelopeCodec = V3DeviceWrappedManifestEnvelopeCodec()
+    private let stepService: V3DeviceWrappedSameEpochCatchUpStepService
 
     init(
         vaultID: String,
@@ -66,9 +58,75 @@ struct V3DeviceWrappedSameEpochCatchUpService: Sendable {
         limits: V3ManifestRepositoryLimits = .standard
     ) {
         precondition(isValidV3UUID(vaultID))
-        self.vaultID = vaultID
         self.mutationOwner = mutationOwner
         self.stateLoader = stateLoader
+        stepService = V3DeviceWrappedSameEpochCatchUpStepService(
+            vaultID: vaultID,
+            repositoryObserver: repositoryObserver,
+            source: source,
+            checkpointStore: checkpointStore,
+            cache: cache,
+            limits: limits
+        )
+    }
+
+    func advanceOneStep()
+        throws -> V3DeviceWrappedSameEpochCatchUpStepOutcome
+    {
+        try mutationOwner.perform(.catchUpVault) { _ in
+            let trusted = try stateLoader.authenticatedCheckpoint(
+                reason: "Unlock version 3 vault to authenticate newer device history."
+            )
+            let vaultKey = try stateLoader.loadVaultKey(
+                keyID: trusted.envelope.body.keyID
+            )
+            let plan = try stepService.inspect(
+                trusted: trusted,
+                vaultKey: vaultKey
+            )
+            switch plan {
+            case .upToDate:
+                return .upToDate(trusted)
+            case let .multipleHeads(heads):
+                return .multipleHeads(heads)
+            case let .advance(expectedCheckpoint, manifestDigests):
+                guard let nextManifestDigest = manifestDigests.first else {
+                    throw V3DeviceWrappedCatchUpError.recoveryRequired
+                }
+                return .advancedOneStep(try stepService.advance(
+                    trusted: trusted,
+                    vaultKey: vaultKey,
+                    expectedCheckpoint: expectedCheckpoint,
+                    manifestDigest: nextManifestDigest
+                ))
+            }
+        }
+    }
+}
+
+/// Read-only inspection and guarded one-manifest advancement used by the
+/// authority-aware catch-up coordinator while it owns mutation serialization.
+struct V3DeviceWrappedSameEpochCatchUpStepService: Sendable {
+    private let vaultID: String
+    private let repositoryObserver: any V3DeviceWrappedRepositoryObserving
+    private let source: any V3ImmutableObjectReading
+    private let checkpointStore: any V3ManifestCheckpointStoring
+    private let cache: any V3CheckpointManifestCaching
+    private let limits: V3ManifestRepositoryLimits
+    private let planner: V3DeviceWrappedCatchUpPlanner
+    private let contentValidator: V3DeviceWrappedCheckpointContentValidator
+    private let envelopeCodec = V3DeviceWrappedManifestEnvelopeCodec()
+
+    init(
+        vaultID: String,
+        repositoryObserver: any V3DeviceWrappedRepositoryObserving,
+        source: any V3ImmutableObjectReading,
+        checkpointStore: any V3ManifestCheckpointStoring,
+        cache: any V3CheckpointManifestCaching,
+        limits: V3ManifestRepositoryLimits = .standard
+    ) {
+        precondition(isValidV3UUID(vaultID))
+        self.vaultID = vaultID
         self.repositoryObserver = repositoryObserver
         self.source = source
         self.checkpointStore = checkpointStore
@@ -81,21 +139,13 @@ struct V3DeviceWrappedSameEpochCatchUpService: Sendable {
         )
     }
 
-    func catchUp() throws -> V3DeviceWrappedCatchUpOutcome {
-        try mutationOwner.perform(.catchUpVault) { _ in
-            try catchUpWithinMutationOwner()
+    func inspect(
+        trusted: V3DeviceWrappedTrustedCheckpoint,
+        vaultKey: Data
+    ) throws -> V3DeviceWrappedCatchUpPlan {
+        guard trusted.checkpoint.vaultID == vaultID else {
+            throw V3DeviceWrappedCatchUpError.recoveryRequired
         }
-    }
-
-    private func catchUpWithinMutationOwner()
-        throws -> V3DeviceWrappedCatchUpOutcome
-    {
-        let trusted = try stateLoader.authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to authenticate newer device history."
-        )
-        let vaultKey = try stateLoader.loadVaultKey(
-            keyID: trusted.envelope.body.keyID
-        )
         let observation: V3DeviceWrappedRepositoryObservation
         do {
             observation = try repositoryObserver.observeRepository(
@@ -111,48 +161,30 @@ struct V3DeviceWrappedSameEpochCatchUpService: Sendable {
             throw V3DeviceWrappedCatchUpError.checkpointChanged
         }
 
-        let plan: V3DeviceWrappedCatchUpPlan
         do {
-            plan = try planner.plan(observation, vaultID: vaultID)
+            return try planner.plan(observation, vaultID: vaultID)
         } catch {
             throw V3DeviceWrappedCatchUpError.recoveryRequired
         }
-        switch plan {
-        case .upToDate:
-            return .upToDate(trusted)
-        case let .multipleHeads(heads):
-            return .multipleHeads(heads)
-        case let .advance(expectedCheckpoint, manifestDigests):
-            guard expectedCheckpoint == trusted.checkpoint,
-                  let headDigest = manifestDigests.last
-            else {
-                throw V3DeviceWrappedCatchUpError.recoveryRequired
-            }
-            return .advanced(try advance(
-                trusted: trusted,
-                vaultKey: vaultKey,
-                manifestDigests: manifestDigests,
-                headDigest: headDigest
-            ))
-        }
     }
 
-    private func advance(
+    func advance(
         trusted: V3DeviceWrappedTrustedCheckpoint,
         vaultKey: Data,
-        manifestDigests: [Data],
-        headDigest: Data
+        expectedCheckpoint: V3ManifestCheckpoint,
+        manifestDigest: Data
     ) throws -> V3DeviceWrappedTrustedCheckpoint {
-        let manifestData = try loadManifest(headDigest)
+        guard expectedCheckpoint == trusted.checkpoint else {
+            throw V3DeviceWrappedCatchUpError.checkpointChanged
+        }
+        let manifestData = try loadManifest(manifestDigest)
         let envelope: V3DeviceWrappedManifestEnvelope
         do {
             envelope = try envelopeCodec.parse(manifestData)
         } catch {
             throw V3DeviceWrappedCatchUpError.recoveryRequired
         }
-        let expectedParent = manifestDigests.dropLast().last
-            ?? trusted.checkpoint.envelopeDigest
-        guard envelope.parents == [expectedParent],
+        guard envelope.parents == [expectedCheckpoint.envelopeDigest],
               hasSameAuthority(envelope, trusted.envelope),
               envelope.authorizations.isEmpty,
               (try? V3ManifestAuthenticator.isValidAuthenticationTag(
@@ -181,7 +213,7 @@ struct V3DeviceWrappedSameEpochCatchUpService: Sendable {
         do {
             checkpoint = try V3ManifestCheckpoint(
                 vaultID: vaultID,
-                envelopeDigest: headDigest
+                envelopeDigest: manifestDigest
             )
             try checkpointStore.replaceCheckpoint(
                 checkpoint.canonicalBytes,

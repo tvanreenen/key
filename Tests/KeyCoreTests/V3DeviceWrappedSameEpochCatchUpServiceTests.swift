@@ -19,11 +19,25 @@ struct V3DeviceWrappedSameEpochCatchUpServiceTests {
     func advancesOneAuthenticatedSameEpochPathWithCheckpointCAS() throws {
         let fixture = try Fixture()
 
-        let outcome = try fixture.service.catchUp()
+        let outcome = try fixture.service.advanceOneStep()
 
-        #expect(outcome == .advanced(fixture.childTrusted))
+        #expect(outcome == .advancedOneStep(fixture.childTrusted))
         #expect(fixture.owner.kinds == [.catchUpVault])
         #expect(fixture.observer.observedKeys == [[Self.vaultKey]])
+        #expect(fixture.checkpointStore.checkpoint
+            == fixture.childTrusted.checkpoint.canonicalBytes)
+        #expect(fixture.checkpointStore.expectedCheckpoints
+            == [fixture.base.checkpoint.canonicalBytes])
+        #expect(fixture.cache.storedManifest == fixture.child.manifestData)
+    }
+
+    @Test
+    func advancesOnlyTheFirstManifestOfALongerContentPath() throws {
+        let fixture = try Fixture(includeGrandchild: true)
+
+        let outcome = try fixture.service.advanceOneStep()
+
+        #expect(outcome == .advancedOneStep(fixture.childTrusted))
         #expect(fixture.checkpointStore.checkpoint
             == fixture.childTrusted.checkpoint.canonicalBytes)
         #expect(fixture.checkpointStore.expectedCheckpoints
@@ -35,7 +49,7 @@ struct V3DeviceWrappedSameEpochCatchUpServiceTests {
     func preservesMultipleHeadsWithoutChangingLocalTrust() throws {
         let fixture = try Fixture(includeFork: true)
 
-        let outcome = try fixture.service.catchUp()
+        let outcome = try fixture.service.advanceOneStep()
 
         #expect(outcome == .multipleHeads(fixture.observation.heads))
         #expect(fixture.checkpointStore.checkpoint
@@ -49,7 +63,7 @@ struct V3DeviceWrappedSameEpochCatchUpServiceTests {
         let fixture = try Fixture(checkpointConflict: true)
 
         #expect(throws: V3DeviceWrappedCatchUpError.checkpointChanged) {
-            _ = try fixture.service.catchUp()
+            _ = try fixture.service.advanceOneStep()
         }
 
         #expect(fixture.checkpointStore.checkpoint
@@ -62,7 +76,7 @@ struct V3DeviceWrappedSameEpochCatchUpServiceTests {
         let fixture = try Fixture(manifestRead: .unavailable)
 
         #expect(throws: V3DeviceWrappedCatchUpError.temporaryUnavailable) {
-            _ = try fixture.service.catchUp()
+            _ = try fixture.service.advanceOneStep()
         }
 
         #expect(fixture.checkpointStore.checkpoint
@@ -77,7 +91,7 @@ struct V3DeviceWrappedSameEpochCatchUpServiceTests {
         )
 
         #expect(throws: V3DeviceWrappedCatchUpError.recoveryRequired) {
-            _ = try fixture.service.catchUp()
+            _ = try fixture.service.advanceOneStep()
         }
 
         #expect(fixture.checkpointStore.checkpoint
@@ -89,9 +103,9 @@ struct V3DeviceWrappedSameEpochCatchUpServiceTests {
     func cacheFailureCannotUndoAnAuthenticatedCheckpointAdvance() throws {
         let fixture = try Fixture(cacheFailure: true)
 
-        let outcome = try fixture.service.catchUp()
+        let outcome = try fixture.service.advanceOneStep()
 
-        #expect(outcome == .advanced(fixture.childTrusted))
+        #expect(outcome == .advancedOneStep(fixture.childTrusted))
         #expect(fixture.checkpointStore.checkpoint
             == fixture.childTrusted.checkpoint.canonicalBytes)
         #expect(fixture.cache.storeAttempts == 1)
@@ -110,6 +124,7 @@ struct V3DeviceWrappedSameEpochCatchUpServiceTests {
 
         init(
             includeFork: Bool = false,
+            includeGrandchild: Bool = false,
             checkpointConflict: Bool = false,
             manifestRead requestedManifestRead: V3RepositoryObjectRead? = nil,
             cacheFailure: Bool = false
@@ -166,6 +181,33 @@ struct V3DeviceWrappedSameEpochCatchUpServiceTests {
                 child.manifestDigest: [baseCheckpoint.envelopeDigest],
             ]
             var heads = [child.manifestDigest]
+            var observedEntries = child.body.entries
+            var totalManifestBytes =
+                genesis.manifestData.count + child.manifestData.count
+            var totalEntryBytes = child.stagedEntries.reduce(0) {
+                $0 + $1.canonicalBytes.count
+            }
+            if includeGrandchild {
+                let grandchild = try V3DeviceWrappedManifestCandidateBuilder()
+                    .add(
+                        to: childTrusted,
+                        entryID:
+                            V3DeviceWrappedSameEpochCatchUpServiceTests
+                                .forkEntryID,
+                        name: "qualification/second-step",
+                        type: .secret,
+                        plaintext: "later value",
+                        vaultKey:
+                            V3DeviceWrappedSameEpochCatchUpServiceTests.vaultKey
+                    )
+                parents[grandchild.manifestDigest] = [child.manifestDigest]
+                heads = [grandchild.manifestDigest]
+                observedEntries = grandchild.body.entries
+                totalManifestBytes += grandchild.manifestData.count
+                totalEntryBytes += grandchild.stagedEntries.reduce(0) {
+                    $0 + $1.canonicalBytes.count
+                }
+            }
             if includeFork {
                 let fork = try V3DeviceWrappedManifestCandidateBuilder().add(
                     to: base,
@@ -184,7 +226,7 @@ struct V3DeviceWrappedSameEpochCatchUpServiceTests {
                 heads.append(fork.manifestDigest)
                 heads.sort(by: { $0.lexicographicallyPrecedes($1) })
             }
-            let entryObjects = Set(try child.body.entries.map(entryObjectKey))
+            let entryObjects = Set(try observedEntries.map(entryObjectKey))
             observation = V3DeviceWrappedRepositoryObservation(
                 checkpoint: baseCheckpoint,
                 heads: heads,
@@ -193,13 +235,10 @@ struct V3DeviceWrappedSameEpochCatchUpServiceTests {
                 referencedEntryObjects: entryObjects,
                 resourceUsage: V3ManifestRepositoryUsage(
                     manifestObjectCount: parents.count,
-                    maximumHistoryDepth: 1,
-                    totalManifestBytes:
-                        genesis.manifestData.count + child.manifestData.count,
+                    maximumHistoryDepth: includeGrandchild ? 2 : 1,
+                    totalManifestBytes: totalManifestBytes,
                     referencedEntryObjectCount: entryObjects.count,
-                    totalEntryBytes: child.stagedEntries.reduce(0) {
-                        $0 + $1.canonicalBytes.count
-                    }
+                    totalEntryBytes: totalEntryBytes
                 )
             )
             observer = CatchUpObservationStub(observation: observation)
