@@ -15,10 +15,6 @@ protocol V3DeviceWrappedVaultMutationServicing:
     func authorizeMutation() throws
 }
 
-extension V3DeviceWrappedVaultUnlockRuntime:
-    V3DeviceWrappedMutationStateLoading
-{}
-
 /// Plans ordinary permanent-profile mutations from one exact authenticated
 /// checkpoint and delegates durability to the device-wrapped publisher.
 ///

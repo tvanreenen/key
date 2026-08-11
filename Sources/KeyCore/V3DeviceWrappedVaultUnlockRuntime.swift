@@ -41,6 +41,26 @@ protocol V3DeviceWrappedIdentityLoading: Sendable {
     ) throws -> (any V3DeviceWrappedVaultKeyUnwrapping)?
 }
 
+enum V3DeviceWrappedKeyTransitionStateError: Error, Equatable {
+    case checkpointChanged
+    case recoveryRequired
+}
+
+/// Owns the session-wide synchronization required to open and commit a new
+/// vault-key epoch without racing an explicit lock or another unlock.
+protocol V3DeviceWrappedKeyTransitionStateManaging:
+    V3DeviceWrappedMutationStateLoading,
+    Sendable
+{
+    func advanceKeyTransition(
+        reason: String,
+        prepare: (
+            _ parent: V3DeviceWrappedTrustedCheckpoint,
+            _ currentVaultKey: Data
+        ) throws -> V3DeviceWrappedOpenedCatchUpTransition
+    ) throws -> V3DeviceWrappedTrustedCheckpoint
+}
+
 /// One fully authenticated permanent-profile checkpoint observation.
 ///
 /// The envelope remains bound to the exact device-local checkpoint so callers
@@ -67,7 +87,10 @@ extension V3EnrollmentDeviceIdentityManager:
 /// This layer owns transport/cache fallback and user-facing failure classes.
 /// Envelope parsing, Secure Enclave HPKE, and in-memory key lifetime remain in
 /// their narrower components.
-final class V3DeviceWrappedVaultUnlockRuntime: @unchecked Sendable {
+final class V3DeviceWrappedVaultUnlockRuntime:
+    V3DeviceWrappedKeyTransitionStateManaging,
+    @unchecked Sendable
+{
     private let vaultID: String
     private let checkpointStore: any V3ManifestCheckpointStoring
     private let source: any V3ImmutableObjectReading
@@ -110,6 +133,12 @@ final class V3DeviceWrappedVaultUnlockRuntime: @unchecked Sendable {
         unlockLock.lock()
         defer { unlockLock.unlock() }
 
+        return try authenticatedCheckpointLocked(reason: reason)
+    }
+
+    private func authenticatedCheckpointLocked(
+        reason: String
+    ) throws -> V3DeviceWrappedTrustedCheckpoint {
         let checkpoint = try loadCheckpoint()
         let loadedManifest = try loadCheckpointManifest(checkpoint)
         let manifestData = loadedManifest.data
@@ -158,6 +187,79 @@ final class V3DeviceWrappedVaultUnlockRuntime: @unchecked Sendable {
             checkpoint: checkpoint,
             envelope: envelope
         )
+    }
+
+    /// Keeps the authenticated parent, user-presence-gated unwrap, checkpoint
+    /// compare-and-swap, and session replacement in the same critical section
+    /// as explicit lock and ordinary unlock.
+    func advanceKeyTransition(
+        reason: String,
+        prepare: (
+            _ parent: V3DeviceWrappedTrustedCheckpoint,
+            _ currentVaultKey: Data
+        ) throws -> V3DeviceWrappedOpenedCatchUpTransition
+    ) throws -> V3DeviceWrappedTrustedCheckpoint {
+        unlockLock.lock()
+        defer { unlockLock.unlock() }
+
+        let parent = try authenticatedCheckpointLocked(reason: reason)
+        let currentVaultKey: Data
+        do {
+            currentVaultKey = try session.load(
+                vaultID: vaultID,
+                keyID: parent.envelope.body.keyID
+            )
+        } catch {
+            throw V3DeviceWrappedKeyTransitionStateError.recoveryRequired
+        }
+        let opened = try prepare(parent, currentVaultKey)
+        let trusted = opened.trustedCheckpoint
+        let manifestData = trusted.envelope.canonicalBytes
+        guard parent.checkpoint.vaultID == vaultID,
+              trusted.checkpoint.vaultID == vaultID,
+              trusted.envelope.body.vaultID == vaultID,
+              trusted.envelope.parents == [
+                  parent.checkpoint.envelopeDigest,
+              ],
+              Data(SHA256.hash(data: manifestData))
+                == trusted.checkpoint.envelopeDigest,
+              (try? V3VaultKeyID.derive(
+                  vaultKey: opened.vaultKey,
+                  vaultID: vaultID
+              )) == trusted.envelope.body.keyID,
+              (try? V3ManifestAuthenticator.isValidAuthenticationTag(
+                  trusted.envelope.authenticationTag,
+                  canonicalContent: trusted.envelope.canonicalContentBytes,
+                  vaultID: vaultID,
+                  vaultKey: opened.vaultKey
+              )) == true
+        else {
+            throw V3DeviceWrappedKeyTransitionStateError.recoveryRequired
+        }
+
+        do {
+            try checkpointStore.replaceCheckpoint(
+                trusted.checkpoint.canonicalBytes,
+                expectedCheckpoint: parent.checkpoint.canonicalBytes,
+                vaultID: vaultID
+            )
+        } catch V3ManifestCheckpointStoreError.conflict {
+            throw V3DeviceWrappedKeyTransitionStateError.checkpointChanged
+        } catch {
+            throw V3DeviceWrappedKeyTransitionStateError.recoveryRequired
+        }
+
+        do {
+            try session.install(
+                opened.vaultKey,
+                vaultID: vaultID,
+                keyID: trusted.envelope.body.keyID
+            )
+        } catch {
+            session.invalidate()
+            throw V3DeviceWrappedKeyTransitionStateError.recoveryRequired
+        }
+        return trusted
     }
 
     func checkpointForRevalidation(

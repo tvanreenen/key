@@ -4,6 +4,9 @@ import Foundation
 enum V3DeviceWrappedCatchUpError: Error, Equatable, LocalizedError {
     case temporaryUnavailable
     case checkpointChanged
+    case authenticationCancelled
+    case deviceRevoked
+    case upgradeRequired
     case recoveryRequired
 
     var errorDescription: String? {
@@ -12,6 +15,12 @@ enum V3DeviceWrappedCatchUpError: Error, Equatable, LocalizedError {
             "Authenticated newer vault state is not completely available from the file provider yet."
         case .checkpointChanged:
             "The trusted vault checkpoint changed during catch-up. Retry the operation."
+        case .authenticationCancelled:
+            "Device authentication was cancelled during vault catch-up."
+        case .deviceRevoked:
+            "This Mac has been revoked and cannot open the next vault-key epoch."
+        case .upgradeRequired:
+            "Newer authenticated vault history requires a newer version of Key."
         case .recoveryRequired:
             "Authenticated vault catch-up found invalid or substituted state. Recovery is required."
         }
