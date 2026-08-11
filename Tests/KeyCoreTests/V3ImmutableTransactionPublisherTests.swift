@@ -107,6 +107,36 @@ struct V3ImmutableTransactionPublisherTests {
     }
 
     @Test
+    func revocationIntentUsesTheExistingCandidateBoundSchema() throws {
+        let fixture = Fixture()
+        let base = try fixture.genesis()
+        let candidate = try fixture.child(
+            parents: [base.verified],
+            entries: []
+        )
+        let intent = try V3ImmutableTransactionRecoveryIntent(
+            operationID: Self.operationID,
+            kind: .revokeDevice,
+            vaultID: Self.vaultID,
+            expectedCheckpoint: V3ManifestCheckpoint(
+                verifiedManifest: base.verified
+            ),
+            expectedHeads: [base.verified.envelopeDigest],
+            candidateManifestDigest: candidate.verified.envelopeDigest,
+            stagedEntries: []
+        )
+
+        let decoded = try V3ImmutableTransactionRecoveryIntent(
+            canonicalBytes: intent.canonicalBytes
+        )
+
+        #expect(decoded == intent)
+        #expect(decoded.kind == .revokeDevice)
+        #expect(decoded.enrollmentTranscriptDigest == nil)
+        #expect(decoded.canonicalBytes == intent.canonicalBytes)
+    }
+
+    @Test
     func recoveryAnchorRoundTripsDeviceLocalOwnershipState() throws {
         for phase in [
             V3ImmutableTransactionRecoveryAnchorPhase.prepared,
