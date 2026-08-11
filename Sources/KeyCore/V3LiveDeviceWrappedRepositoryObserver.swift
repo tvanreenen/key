@@ -32,8 +32,40 @@ struct V3LiveDeviceWrappedRepositoryObserver:
         vaultID: String,
         vaultKeys: [Data]
     ) throws -> V3DeviceWrappedRepositoryObservation {
-        let keysByID = try validatedKeys(vaultKeys, vaultID: vaultID)
         let checkpoint = try loadCheckpoint(vaultID: vaultID)
+        return try observeRepository(
+            checkpoint: checkpoint,
+            checkpointData: loadCheckpointManifest(checkpoint),
+            vaultKeys: vaultKeys
+        )
+    }
+
+    func observeRepository(
+        from trusted: V3DeviceWrappedTrustedCheckpoint,
+        vaultKeys: [Data]
+    ) throws -> V3DeviceWrappedRepositoryObservation {
+        let checkpoint = trusted.checkpoint
+        let checkpointData = trusted.envelope.canonicalBytes
+        guard checkpoint.vaultID == trusted.envelope.body.vaultID,
+              Data(SHA256.hash(data: checkpointData))
+                == checkpoint.envelopeDigest
+        else {
+            throw V3ImmutableTransactionError.invalidAncestryProof
+        }
+        return try observeRepository(
+            checkpoint: checkpoint,
+            checkpointData: checkpointData,
+            vaultKeys: vaultKeys
+        )
+    }
+
+    private func observeRepository(
+        checkpoint: V3ManifestCheckpoint,
+        checkpointData: Data,
+        vaultKeys: [Data]
+    ) throws -> V3DeviceWrappedRepositoryObservation {
+        let vaultID = checkpoint.vaultID
+        let keysByID = try validatedKeys(vaultKeys, vaultID: vaultID)
         let listing = try loadManifestListing()
 
         var manifestData: [Data: Data] = [:]
@@ -91,7 +123,6 @@ struct V3LiveDeviceWrappedRepositoryObserver:
             }
         }
 
-        let checkpointData = try loadCheckpointManifest(checkpoint)
         try accountManifest(
             checkpointData,
             digest: checkpoint.envelopeDigest

@@ -9,13 +9,23 @@ enum V3DeviceWrappedKeyTransitionDiscoveryOutcome: Equatable, Sendable {
     case competingCandidates([Data])
 }
 
+protocol V3DeviceWrappedKeyTransitionDiscovering: Sendable {
+    func discover(
+        from parent: V3DeviceWrappedTrustedCheckpoint,
+        currentVaultKey: Data
+    ) throws -> V3DeviceWrappedKeyTransitionDiscoveryOutcome
+}
+
 /// Finds direct owner-authorized key transitions from one exact checkpoint.
 ///
 /// Discovery is deliberately public-key-only. It validates the current trust
 /// anchor and each candidate's active-owner signature, but it never invokes a
 /// device wrapper or changes the checkpoint. Unrelated, incomplete, and
 /// unauthenticated provider objects gain no authority from being present.
-struct V3DeviceWrappedKeyTransitionDiscovery: Sendable {
+struct V3DeviceWrappedKeyTransitionDiscovery:
+    V3DeviceWrappedKeyTransitionDiscovering,
+    Sendable
+{
     private struct Candidate: Sendable {
         let manifestData: Data
         let manifestDigest: Data

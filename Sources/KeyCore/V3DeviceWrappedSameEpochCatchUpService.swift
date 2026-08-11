@@ -33,6 +33,20 @@ enum V3DeviceWrappedSameEpochCatchUpStepOutcome: Equatable, Sendable {
     case multipleHeads([Data])
 }
 
+protocol V3DeviceWrappedSameEpochCatchUpStepServicing: Sendable {
+    func inspect(
+        trusted: V3DeviceWrappedTrustedCheckpoint,
+        vaultKey: Data
+    ) throws -> V3DeviceWrappedCatchUpPlan
+
+    func advance(
+        trusted: V3DeviceWrappedTrustedCheckpoint,
+        vaultKey: Data,
+        expectedCheckpoint: V3ManifestCheckpoint,
+        manifestDigest: Data
+    ) throws -> V3DeviceWrappedTrustedCheckpoint
+}
+
 /// Advances one device by one unambiguous content manifest within its current
 /// vault-key epoch.
 ///
@@ -106,7 +120,10 @@ struct V3DeviceWrappedSameEpochCatchUpService: Sendable {
 
 /// Read-only inspection and guarded one-manifest advancement used by the
 /// authority-aware catch-up coordinator while it owns mutation serialization.
-struct V3DeviceWrappedSameEpochCatchUpStepService: Sendable {
+struct V3DeviceWrappedSameEpochCatchUpStepService:
+    V3DeviceWrappedSameEpochCatchUpStepServicing,
+    Sendable
+{
     private let vaultID: String
     private let repositoryObserver: any V3DeviceWrappedRepositoryObserving
     private let source: any V3ImmutableObjectReading
@@ -149,7 +166,7 @@ struct V3DeviceWrappedSameEpochCatchUpStepService: Sendable {
         let observation: V3DeviceWrappedRepositoryObservation
         do {
             observation = try repositoryObserver.observeRepository(
-                vaultID: vaultID,
+                from: trusted,
                 vaultKeys: [vaultKey]
             )
         } catch let error as V3ImmutableTransactionError {

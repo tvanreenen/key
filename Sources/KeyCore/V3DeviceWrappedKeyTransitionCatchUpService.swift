@@ -1,5 +1,12 @@
 import Foundation
 
+protocol V3DeviceWrappedKeyTransitionCatchUpStepServicing: Sendable {
+    func advanceOneEpoch(
+        manifestData: Data,
+        manifestDigest: Data
+    ) throws -> V3DeviceWrappedTrustedCheckpoint
+}
+
 /// Serializes one exact owner-authorized key-epoch advancement with ordinary
 /// vault mutations.
 ///
@@ -53,7 +60,10 @@ struct V3DeviceWrappedKeyTransitionCatchUpService: Sendable {
 /// and complete resealed snapshot before the checkpoint changes. The checkpoint
 /// commits authority before the derived in-memory session and best-effort cache
 /// are updated.
-struct V3DeviceWrappedKeyTransitionCatchUpStepService: Sendable {
+struct V3DeviceWrappedKeyTransitionCatchUpStepService:
+    V3DeviceWrappedKeyTransitionCatchUpStepServicing,
+    Sendable
+{
     typealias IdentityLoader = @Sendable (
         _ vaultID: String,
         _ reason: String
