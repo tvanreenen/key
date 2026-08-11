@@ -78,6 +78,40 @@ struct V3DeviceWrappedRevocationTransitionValidator: Sendable {
         localIdentity: any V3DeviceWrappedVaultKeyUnwrapping,
         unwrapReason: String
     ) throws -> V3DeviceWrappedValidatedRevocationTransition {
+        guard localIdentity.vaultID == parent.checkpoint.vaultID else {
+            throw V3DeviceWrappedRevocationValidationError.invalidPlan
+        }
+        let validated = try validateAnchored(
+            transition,
+            parent: parent,
+            currentEntries: currentEntries,
+            currentVaultKey: currentVaultKey,
+            nextVaultKey: nextVaultKey,
+            expectedOwner: localIdentity.publicIdentity
+        )
+        do {
+            try keyRotationValidator.validateLocalWrapper(
+                validated.candidate,
+                identity: localIdentity,
+                nextVaultKey: nextVaultKey,
+                reason: unwrapReason
+            )
+        } catch let error as V3DeviceWrappedKeyRotationValidationError {
+            throw revocationError(for: error)
+        }
+        return validated
+    }
+
+    /// Revalidates the exact immutable revocation after its local recovery
+    /// anchor is durable, without prompting the approving owner a second time.
+    func validateAnchored(
+        _ transition: V3DeviceWrappedRevocationTransitionCandidate,
+        parent: V3DeviceWrappedTrustedCheckpoint,
+        currentEntries: [V3EntryObjectKey: V3EncryptedEntry],
+        currentVaultKey: Data,
+        nextVaultKey: Data,
+        expectedOwner: V3EnrollmentDeviceIdentity
+    ) throws -> V3DeviceWrappedValidatedRevocationTransition {
         let reviewedPlan: V3DeviceWrappedRevocationPlan
         do {
             reviewedPlan = try planner.plan(
@@ -90,9 +124,7 @@ struct V3DeviceWrappedRevocationTransitionValidator: Sendable {
             throw V3DeviceWrappedRevocationValidationError.invalidPlan
         }
         guard reviewedPlan == transition.plan,
-              localIdentity.vaultID == parent.checkpoint.vaultID,
-              localIdentity.publicIdentity
-                == reviewedPlan.authorizingOwner.identity
+              expectedOwner == reviewedPlan.authorizingOwner.identity
         else {
             throw V3DeviceWrappedRevocationValidationError.invalidPlan
         }
@@ -105,7 +137,7 @@ struct V3DeviceWrappedRevocationTransitionValidator: Sendable {
                 currentEntries: currentEntries,
                 currentVaultKey: currentVaultKey,
                 nextVaultKey: nextVaultKey,
-                expectedOwner: reviewedPlan.authorizingOwner.identity
+                expectedOwner: expectedOwner
             ) { authenticatedParent, authenticatedCandidate in
                 guard authenticatedCandidate.body.keyID
                         != authenticatedParent.body.keyID,
@@ -118,12 +150,6 @@ struct V3DeviceWrappedRevocationTransitionValidator: Sendable {
                         .invalidTransition
                 }
             }
-            try keyRotationValidator.validateLocalWrapper(
-                rotation.candidate,
-                identity: localIdentity,
-                nextVaultKey: nextVaultKey,
-                reason: unwrapReason
-            )
         } catch let error as V3DeviceWrappedKeyRotationValidationError {
             throw revocationError(for: error)
         }
