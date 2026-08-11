@@ -180,6 +180,58 @@ struct V3DeviceWrappedVaultRuntimeTests {
         #expect(inner.unlockCount == 0)
     }
 
+    @Test
+    func statusExplainsAuthenticatedCatchUpContentConflict() throws {
+        let trusted = try Self.trustedCheckpoint()
+        let runtime = V3DeviceWrappedVaultRuntime(
+            runtime: RecordingPermanentRuntimeStub(),
+            session: V3DeviceWrappedVaultKeySessionStore(),
+            catchUp: {
+                .contentConflict(
+                    trusted,
+                    manifestDigests: [Data(repeating: 0x31, count: 32)],
+                    progress: V3DeviceWrappedCatchUpProgress(
+                        contentManifestCount: 1,
+                        keyEpochCount: 0
+                    )
+                )
+            },
+            lockSession: {}
+        )
+
+        let status = try runtime.status()
+
+        #expect(status.health == .contentConflicted)
+        #expect(status.entries.basis == .lastTrusted)
+        #expect(status.issues.map(\.code) == [.ambiguousHistory])
+    }
+
+    @Test
+    func statusExplainsAuthenticatedCatchUpSecurityConflict() throws {
+        let trusted = try Self.trustedCheckpoint()
+        let runtime = V3DeviceWrappedVaultRuntime(
+            runtime: RecordingPermanentRuntimeStub(),
+            session: V3DeviceWrappedVaultKeySessionStore(),
+            catchUp: {
+                .securityConflict(
+                    trusted,
+                    manifestDigests: [Data(repeating: 0x32, count: 32)],
+                    progress: V3DeviceWrappedCatchUpProgress(
+                        contentManifestCount: 0,
+                        keyEpochCount: 1
+                    )
+                )
+            },
+            lockSession: {}
+        )
+
+        let status = try runtime.status()
+
+        #expect(status.health == .securityConflicted)
+        #expect(status.entries.basis == .lastTrusted)
+        #expect(status.issues.map(\.code) == [.authorityDiverged])
+    }
+
     private static func trustedCheckpoint() throws
         -> V3DeviceWrappedTrustedCheckpoint
     {

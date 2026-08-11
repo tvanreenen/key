@@ -276,7 +276,7 @@ struct V3DeviceWrappedCatchUpCoordinatorTests {
         let digest = Data(repeating: 0x77, count: 32)
         let gate = V3DeviceWrappedCatchUpAccessGate()
 
-        #expect(throws: V3DeviceWrappedCatchUpError.temporaryUnavailable) {
+        #expect(throws: VaultUXServiceError.catchUpContentConflict) {
             try gate.requireCurrent {
                 .contentConflict(
                     fixture.initial,
@@ -292,7 +292,7 @@ struct V3DeviceWrappedCatchUpCoordinatorTests {
                 progress: progress
             )
         }
-        #expect(throws: V3DeviceWrappedCatchUpError.recoveryRequired) {
+        #expect(throws: VaultUXServiceError.securityConflict) {
             try gate.requireCurrent(allowStale: true) {
                 .securityConflict(
                     fixture.initial,

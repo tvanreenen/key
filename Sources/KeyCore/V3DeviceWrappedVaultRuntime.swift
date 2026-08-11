@@ -112,7 +112,9 @@ struct V3DeviceWrappedVaultRuntime:
 
     func status() throws -> VaultStatus {
         try translatingUnlockErrors {
-            try requireCaughtUp()
+            if let conflictStatus = try catchUpConflictStatus() {
+                return conflictStatus
+            }
             return try runtime.status()
         }
     }
@@ -271,6 +273,50 @@ struct V3DeviceWrappedVaultRuntime:
         try catchUpGate.requireCurrent(
             allowStale: allowStale,
             catchUp: catchUp
+        )
+    }
+
+    private func catchUpConflictStatus() throws -> VaultStatus? {
+        guard let catchUp else {
+            return nil
+        }
+        switch try catchUp() {
+        case .current:
+            return nil
+        case let .contentConflict(trusted, _, _):
+            return conflictStatus(
+                trusted: trusted,
+                health: .contentConflicted,
+                issue: VaultIssue(
+                    code: .ambiguousHistory,
+                    message: "Authenticated content history has competing versions. Key will not choose one automatically; normal writes remain paused, but an explicit stale read can use the version already trusted on this Mac."
+                )
+            )
+        case let .securityConflict(trusted, _, _):
+            return conflictStatus(
+                trusted: trusted,
+                health: .securityConflicted,
+                issue: VaultIssue(
+                    code: .authorityDiverged,
+                    message: "Authenticated history contains competing vault-key or membership changes. Key will not choose one automatically."
+                )
+            )
+        }
+    }
+
+    private func conflictStatus(
+        trusted: V3DeviceWrappedTrustedCheckpoint,
+        health: VaultHealth,
+        issue: VaultIssue
+    ) -> VaultStatus {
+        VaultStatus(
+            format: .version3,
+            health: health,
+            entries: .lastTrusted(trusted.envelope.body.entries.count),
+            trustedVersionID: String(
+                v3LowercaseHex(trusted.checkpoint.envelopeDigest).prefix(16)
+            ),
+            issues: [issue]
         )
     }
 

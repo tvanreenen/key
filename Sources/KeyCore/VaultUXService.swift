@@ -20,6 +20,7 @@ extension VaultConflictKind {
 enum VaultUXServiceError: Error, Equatable, LocalizedError {
     case vaultIncomplete
     case contentConflict
+    case catchUpContentConflict
     case securityConflict
     case rollbackDetected
     case recoveryRequired
@@ -34,6 +35,8 @@ enum VaultUXServiceError: Error, Equatable, LocalizedError {
             "Newer vault files are not available yet. Wait for the file provider and retry, or use --allow-stale for an explicit read of the last complete version."
         case .contentConflict:
             "That entry has multiple authenticated versions. Use `key conflict show` and select a version explicitly."
+        case .catchUpContentConflict:
+            "Authenticated newer vault history has competing content versions. Key will not choose one automatically. Normal writes are paused; use --allow-stale only for an explicit read of the version already trusted on this Mac."
         case .securityConflict:
             "Authenticated vault versions disagree about authority. Key will not choose one automatically."
         case .rollbackDetected:

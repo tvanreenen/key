@@ -52,9 +52,9 @@ struct V3DeviceWrappedCatchUpAccessGate: Sendable {
             guard !allowStale else {
                 return
             }
-            throw V3DeviceWrappedCatchUpError.temporaryUnavailable
+            throw VaultUXServiceError.catchUpContentConflict
         case .securityConflict:
-            throw V3DeviceWrappedCatchUpError.recoveryRequired
+            throw VaultUXServiceError.securityConflict
         }
     }
 }
