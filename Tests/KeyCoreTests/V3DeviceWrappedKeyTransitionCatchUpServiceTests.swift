@@ -19,7 +19,7 @@ struct V3DeviceWrappedKeyTransitionCatchUpServiceTests {
     func commitsCheckpointBeforeReplacingTheResidentKey() throws {
         let fixture = try Fixture()
 
-        let trusted = try fixture.service.advance(
+        let trusted = try fixture.service.advanceOneEpoch(
             manifestData: fixture.candidate.manifestData,
             manifestDigest: fixture.candidate.manifestDigest
         )
@@ -43,7 +43,7 @@ struct V3DeviceWrappedKeyTransitionCatchUpServiceTests {
         let fixture = try Fixture(changeCheckpointDuringUnwrap: true)
 
         #expect(throws: V3DeviceWrappedCatchUpError.checkpointChanged) {
-            _ = try fixture.service.advance(
+            _ = try fixture.service.advanceOneEpoch(
                 manifestData: fixture.candidate.manifestData,
                 manifestDigest: fixture.candidate.manifestDigest
             )
@@ -65,7 +65,7 @@ struct V3DeviceWrappedKeyTransitionCatchUpServiceTests {
         #expect(
             throws: V3DeviceWrappedCatchUpError.authenticationCancelled
         ) {
-            _ = try fixture.service.advance(
+            _ = try fixture.service.advanceOneEpoch(
                 manifestData: fixture.candidate.manifestData,
                 manifestDigest: fixture.candidate.manifestDigest
             )
@@ -84,7 +84,7 @@ struct V3DeviceWrappedKeyTransitionCatchUpServiceTests {
     func cacheFailureCannotUndoTheCheckpointOrSessionAdvance() throws {
         let fixture = try Fixture(cacheFailure: true)
 
-        let trusted = try fixture.service.advance(
+        let trusted = try fixture.service.advanceOneEpoch(
             manifestData: fixture.candidate.manifestData,
             manifestDigest: fixture.candidate.manifestDigest
         )
@@ -108,7 +108,7 @@ struct V3DeviceWrappedKeyTransitionCatchUpServiceTests {
         let didAdvance = DispatchSemaphore(value: 0)
         Task.detached {
             advanceResult.store(Result {
-                try fixture.service.advance(
+                try fixture.service.advanceOneEpoch(
                     manifestData: fixture.candidate.manifestData,
                     manifestDigest: fixture.candidate.manifestDigest
                 )

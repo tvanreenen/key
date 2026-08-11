@@ -1,21 +1,65 @@
 import Foundation
 
-/// Advances the local device through one exact owner-authorized key epoch.
+/// Serializes one exact owner-authorized key-epoch advancement with ordinary
+/// vault mutations.
 ///
-/// Candidate discovery remains read-only and outside this type. Once a direct
-/// child has been selected, this service serializes the complete trust change
-/// with ordinary vault mutations, reopens the exact local parent, authenticates
-/// the addressed wrapper and complete resealed snapshot, and advances the
-/// checkpoint with an expected-value guard. The checkpoint commits authority
-/// before the derived in-memory session and best-effort cache are updated.
+/// Candidate discovery remains read-only and outside this type. The reusable
+/// step service performs the trust change after this wrapper acquires the
+/// helper's mutation owner.
 struct V3DeviceWrappedKeyTransitionCatchUpService: Sendable {
+    private let mutationOwner: any VaultTransactionMutationOwning
+    private let stepService: V3DeviceWrappedKeyTransitionCatchUpStepService
+
+    init(
+        vaultID: String,
+        mutationOwner: any VaultTransactionMutationOwning,
+        stateManager: any V3DeviceWrappedKeyTransitionStateManaging,
+        source: any V3ImmutableObjectReading,
+        cache: any V3CheckpointManifestCaching,
+        loadIdentity: @escaping
+            V3DeviceWrappedKeyTransitionCatchUpStepService.IdentityLoader,
+        limits: V3ManifestRepositoryLimits = .standard
+    ) {
+        precondition(isValidV3UUID(vaultID))
+        self.mutationOwner = mutationOwner
+        stepService = V3DeviceWrappedKeyTransitionCatchUpStepService(
+            vaultID: vaultID,
+            stateManager: stateManager,
+            source: source,
+            cache: cache,
+            loadIdentity: loadIdentity,
+            limits: limits
+        )
+    }
+
+    func advanceOneEpoch(
+        manifestData: Data,
+        manifestDigest: Data
+    ) throws -> V3DeviceWrappedTrustedCheckpoint {
+        try mutationOwner.perform(.catchUpVault) { _ in
+            try stepService.advanceOneEpoch(
+                manifestData: manifestData,
+                manifestDigest: manifestDigest
+            )
+        }
+    }
+}
+
+/// Reopens and commits one selected key transition while its caller owns
+/// mutation serialization.
+///
+/// The exact local parent is reopened by the state manager. The selected
+/// transition must authenticate its owner authorization, addressed wrapper,
+/// and complete resealed snapshot before the checkpoint changes. The checkpoint
+/// commits authority before the derived in-memory session and best-effort cache
+/// are updated.
+struct V3DeviceWrappedKeyTransitionCatchUpStepService: Sendable {
     typealias IdentityLoader = @Sendable (
         _ vaultID: String,
         _ reason: String
     ) throws -> (any V3DeviceWrappedVaultKeyUnwrapping)?
 
     private let vaultID: String
-    private let mutationOwner: any VaultTransactionMutationOwning
     private let stateManager: any V3DeviceWrappedKeyTransitionStateManaging
     private let cache: any V3CheckpointManifestCaching
     private let loadIdentity: IdentityLoader
@@ -23,7 +67,6 @@ struct V3DeviceWrappedKeyTransitionCatchUpService: Sendable {
 
     init(
         vaultID: String,
-        mutationOwner: any VaultTransactionMutationOwning,
         stateManager: any V3DeviceWrappedKeyTransitionStateManaging,
         source: any V3ImmutableObjectReading,
         cache: any V3CheckpointManifestCaching,
@@ -32,7 +75,6 @@ struct V3DeviceWrappedKeyTransitionCatchUpService: Sendable {
     ) {
         precondition(isValidV3UUID(vaultID))
         self.vaultID = vaultID
-        self.mutationOwner = mutationOwner
         self.stateManager = stateManager
         self.cache = cache
         self.loadIdentity = loadIdentity
@@ -42,19 +84,7 @@ struct V3DeviceWrappedKeyTransitionCatchUpService: Sendable {
         )
     }
 
-    func advance(
-        manifestData: Data,
-        manifestDigest: Data
-    ) throws -> V3DeviceWrappedTrustedCheckpoint {
-        try mutationOwner.perform(.catchUpVault) { _ in
-            try advanceWithinMutationOwner(
-                manifestData: manifestData,
-                manifestDigest: manifestDigest
-            )
-        }
-    }
-
-    private func advanceWithinMutationOwner(
+    func advanceOneEpoch(
         manifestData: Data,
         manifestDigest: Data
     ) throws -> V3DeviceWrappedTrustedCheckpoint {
