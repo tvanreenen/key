@@ -7,8 +7,9 @@ shipping helper. `ENR-510` first and later enrollment now use that permanent
 profile and one key-rotating roster-addition transition. The signed alpha.7
 Preview release physically qualified migration, wrapper-backed restart,
 owner-to-second-device enrollment, and a joining-device write on two Macs.
-Remaining-device catch-up, revocation, recovery, and final review remain
-pending.
+Authenticated remaining-device catch-up is implemented for the next Preview
+build. Revocation, recovery, physical catch-up qualification, and final review
+remain pending.
 
 This document defines the intended final key-management model for version 3
 vaults. It replaces the prerelease design in which the raw vault key is stored
@@ -263,8 +264,11 @@ recovery. Key must never select an unauthenticated newest wrapper merely
 because it appears latest in provider storage.
 
 Competing key or membership transitions are security conflicts and are never
-automatically merged. Content-only forks within one key epoch retain the
-existing reconciliation behavior.
+automatically merged. The current permanent-profile catch-up implementation
+detects content-only forks, pauses writes, and preserves the local checkpoint
+for explicit stale reads. It does not yet expose entry-level conflict
+inspection or resolution; parity with the existing reconciliation UX remains
+a full-release requirement.
 
 ## Recovery
 
@@ -384,10 +388,16 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 
 ### `ENR-511` — Revocation and rotation
 
-- Add explicit device revocation.
-- Rotate and re-encrypt the complete current snapshot.
-- Add remaining-device catch-up and key-transition conflict UX.
-- Prove old-or-new crash recovery across every publication phase.
+- [ ] Add explicit device revocation.
+- [ ] Rotate and re-encrypt the complete current snapshot.
+- [x] Add authenticated remaining-device catch-up across ordered content and
+  key epochs.
+- [x] Distinguish provider delay, content divergence, and competing authority
+  transitions without allowing stale writes.
+- [ ] Bring permanent-profile entry-level conflict inspection and resolution
+  to parity with the existing version 3 UX.
+- [ ] Prove old-or-new crash recovery across every revocation publication
+  phase.
 
 ### `REC-512` — Offline recovery and final qualification
 

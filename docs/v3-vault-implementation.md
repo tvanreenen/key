@@ -8,14 +8,14 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-alpha.7` released through the isolated Preview track; permanent-profile migration, device-bound restart, two-device enrollment, and a member write passed on physical Macs; remaining-device catch-up remains `ENR-511` |
+| Status | `v0.2.0-alpha.7` remains the latest Preview release; authenticated remaining-device catch-up is implemented for the next Preview build, while revocation, recovery, and physical catch-up qualification remain pending |
 | Latest release | `v0.2.0-alpha.7 (12)` at `7829acc` |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
 | Permanent key architecture | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Current prerelease format | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | Implement authenticated remaining-device catch-up, then revocation, without treating provider arrival as authority |
-| Next work | `ENR-511` revocation and remaining-device catch-up, followed by `REC-512` offline recovery |
+| Active work | Implement explicit device revocation and key rotation on top of authenticated remaining-device catch-up |
+| Next work | Complete `ENR-511` revocation, then implement `REC-512` offline recovery |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
 profile MUST not ship as stable until every release gate below passes.
@@ -133,7 +133,7 @@ security or durability boundary and updates this tracker before it merges.
 | `ARCH-508` | Complete | Select the permanent device-wrapped, session-only key profile, macOS 14 floor, and breaking-alpha path |
 | `KEY-509` | Complete; PRs #54–#56; physically qualified in alpha.7 | Ship one-device genesis, durable HPKE wrappers, explicit migration, wrapper-backed sessions, exact reads, and recoverable ordinary writes without persisting the raw vault key |
 | `ENR-510` | Complete; PR #57; two-device ceremony physically qualified in alpha.7 | Use one owner-approved, key-rotating roster-addition path for first and later enrollment |
-| `ENR-511` | Planned | Revoke devices, rotate the key, re-encrypt the current snapshot, and catch remaining devices up safely |
+| `ENR-511` | In progress; catch-up complete, revocation pending | Revoke devices, rotate the key, re-encrypt the current snapshot, and catch remaining devices up safely |
 | `REC-512` | Planned | Add the single offline recovery kit and qualify destructive-loss behavior |
 
 #### `ARCH-508` / `KEY-509` — Permanent Profile Runtime
@@ -185,6 +185,32 @@ This increment deliberately does not revoke devices, create a recovery kit, or
 automatically advance another enrolled Mac that was offline during the key
 rotation. The new manifest already carries a wrapper for every active device;
 `ENR-511` adds the remaining-device catch-up UX and revocation transition.
+
+#### `ENR-511` — Authenticated Remaining-Device Catch-Up
+
+Status: implemented for the next Preview build; physical multi-device
+qualification and the revocation half of `ENR-511` remain pending.
+
+A returning device now starts from its exact device-local checkpoint and
+authenticates forward content and owner-authorized key transitions in order.
+At each key epoch it verifies the parent owner signature, opens only the HPKE
+wrapper addressed to its Secure Enclave identity, authenticates the complete
+resealed snapshot, and advances the checkpoint with an expected-value guard.
+The complete operation shares the helper mutation boundary with ordinary
+writes, so catch-up and publication cannot interleave.
+
+Unlock, reads, status, and writes invoke catch-up automatically. Missing
+provider objects remain temporary-unavailable, invalid or substituted objects
+require recovery, and competing key or membership transitions are security
+conflicts. An explicit `--allow-stale` read may use only the exact version
+already trusted on this Mac; writes never bypass catch-up.
+
+This increment detects content-only forks and pauses normal writes without
+discarding either authenticated branch. It does not yet claim permanent-profile
+entry-level conflict inspection or resolution; that UX must be brought to
+parity before full release. The catch-up-specific error therefore explains the
+safe stale-read option without directing users to unavailable conflict-detail
+commands.
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -1361,6 +1387,9 @@ formats or transport stacks:
   helper restart across physical Macs before releasing alpha.7.
 - [ ] `ENR-511` Revoke a selected device, rotate the vault key, re-encrypt the
   current snapshot, and wrap the new key only for remaining active devices.
+- [x] `ENR-511` Authenticate and apply ordered content and key-epoch catch-up
+  before normal access, preserving explicit stale reads and fail-closed
+  authority conflicts.
 - [ ] `REC-512` Add the single offline recovery kit and recovery-authorized
   replacement transition.
 - [x] Reject replay, substitution, wrong-vault, and role confusion.
@@ -1439,8 +1468,9 @@ formats or transport stacks:
   survives lock or helper restart.
 - [ ] Membership-addition and revocation tests proving new devices cannot open
   prior epochs and revoked devices cannot open the new current snapshot.
-- [ ] Offline multi-epoch catch-up, missing-transition, and competing-rotation
-  tests.
+- [x] Offline multi-epoch catch-up, missing-transition, and competing-rotation
+  unit tests.
+- [ ] Physical multi-device catch-up through provider delay and key rotation.
 - [ ] Recovery-kit creation, use, replacement, wrong-code, substitution, and
   all-devices-lost tests.
 - [x] Installed XPC tests for intended and unintended signing identities.
@@ -1557,10 +1587,9 @@ The member write and its parent manifest uploaded successfully and arrived on
 the owner Mac as materialized, digest-matching immutable objects. Alpha.7
 correctly kept the owner on its exact device-local checkpoint instead of
 trusting newly arrived bytes, so the owner did not expose the new value or
-publish a competing write. Advancing that remaining device through the
-authenticated key epoch is deliberately `ENR-511`, not an iCloud timing fix.
-Until that increment ships, do not write from a device whose checkpoint has
-not caught up after another device advances the permanent-profile vault.
+publish a competing write. The catch-up implementation now provides the
+authenticated advancement that alpha.7 lacked; it remains unshipped and must
+pass this same two-device exercise before the next Preview release.
 
 - [ ] All security and durability invariants pass.
 - [x] The v3 reader ships before any v3 writer is enabled.
@@ -1574,17 +1603,16 @@ not caught up after another device advances the permanent-profile vault.
 
 ## Immediate Next Action
 
-Implement `ENR-511` in reviewable increments, beginning with authenticated
-remaining-device catch-up. A device must start from its exact local checkpoint,
-verify every forward content manifest and owner-authorized key transition in
-order, open only its addressed wrapper, validate the complete snapshot, and
-advance its checkpoint with an expected-value guard. Missing provider objects
-remain temporary-unavailable; invalid transitions and competing rotations fail
-closed.
+Complete `ENR-511` with explicit owner-authorized device revocation. The
+transition must create a fresh vault key, re-encrypt the complete current
+snapshot, give wrappers only to remaining active devices, publish entries
+before the signed manifest, and advance the owner's checkpoint last. The
+catch-up path implemented here then becomes the only routine way another
+remaining device accepts that new epoch.
 
-Add revocation only after that catch-up path is proven, then implement
-`REC-512` offline recovery. Cut alpha.8 after enrollment, revocation,
-multi-epoch catch-up, recovery, restart, and provider-delay tests pass on
-multiple physical Macs. Provider qualification, realistic migration and
-rollback copies, a third-device ceremony, and independent security review
+After revocation, implement `REC-512` offline recovery. Cut alpha.8 only after
+enrollment, revocation, multi-epoch catch-up, recovery, restart, and
+provider-delay tests pass on multiple physical Macs. Permanent-profile
+entry-level conflict inspection, provider qualification, realistic migration
+and rollback copies, a third-device ceremony, and independent security review
 remain beta or stable gates.
