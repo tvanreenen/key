@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 
@@ -132,6 +133,138 @@ struct V3DeviceWrappedCatchUpPlannerTests {
             _ = try V3DeviceWrappedCatchUpPlanner(limits: limits).plan(
                 observation,
                 vaultID: Self.vaultID
+            )
+        }
+    }
+
+    @Test
+    func authorityPlannerSelectsContentOnlyAfterKeyDiscoveryIsEmpty() throws {
+        let checkpoint = try V3ManifestCheckpoint(
+            vaultID: Self.vaultID,
+            envelopeDigest: Self.checkpointDigest
+        )
+        let content = V3DeviceWrappedCatchUpPlan.advance(
+            expectedCheckpoint: checkpoint,
+            manifestDigests: [Self.firstChildDigest]
+        )
+
+        let action = try V3DeviceWrappedCatchUpAuthorityPlanner().plan(
+            content: content,
+            keyTransition: .none
+        )
+
+        #expect(action == .advanceContent(
+            expectedCheckpoint: checkpoint,
+            manifestDigest: Self.firstChildDigest
+        ))
+    }
+
+    @Test
+    func authorityPlannerAdvancesOnlyToTheNextContentManifest() throws {
+        let checkpoint = try V3ManifestCheckpoint(
+            vaultID: Self.vaultID,
+            envelopeDigest: Self.checkpointDigest
+        )
+
+        let action = try V3DeviceWrappedCatchUpAuthorityPlanner().plan(
+            content: .advance(
+                expectedCheckpoint: checkpoint,
+                manifestDigests: [
+                    Self.firstChildDigest,
+                    Self.secondChildDigest
+                ]
+            ),
+            keyTransition: .none
+        )
+
+        #expect(action == .advanceContent(
+            expectedCheckpoint: checkpoint,
+            manifestDigest: Self.firstChildDigest
+        ))
+    }
+
+    @Test
+    func authorityPlannerSelectsOneKeyTransitionFromAnExactHead() throws {
+        let manifestData = Data("owner-authorized transition".utf8)
+        let manifestDigest = Data(SHA256.hash(data: manifestData))
+
+        let action = try V3DeviceWrappedCatchUpAuthorityPlanner().plan(
+            content: .upToDate,
+            keyTransition: .candidate(
+                manifestData: manifestData,
+                manifestDigest: manifestDigest
+            )
+        )
+
+        #expect(action == .advanceKey(
+            manifestData: manifestData,
+            manifestDigest: manifestDigest
+        ))
+    }
+
+    @Test
+    func authorityPlannerRejectsAContentAndKeyTransitionFork() throws {
+        let checkpoint = try V3ManifestCheckpoint(
+            vaultID: Self.vaultID,
+            envelopeDigest: Self.checkpointDigest
+        )
+        let manifestData = Data("owner-authorized transition".utf8)
+        let keyDigest = Data(SHA256.hash(data: manifestData))
+        let expected = [Self.firstChildDigest, keyDigest].sorted(by: {
+            $0.lexicographicallyPrecedes($1)
+        })
+
+        let action = try V3DeviceWrappedCatchUpAuthorityPlanner().plan(
+            content: .advance(
+                expectedCheckpoint: checkpoint,
+                manifestDigests: [Self.firstChildDigest]
+            ),
+            keyTransition: .candidate(
+                manifestData: manifestData,
+                manifestDigest: keyDigest
+            )
+        )
+
+        #expect(action == .securityConflict(expected))
+    }
+
+    @Test
+    func authorityPlannerKeepsSameKeyForksAsContentConflicts() throws {
+        let heads = [Self.secondChildDigest, Self.forkDigest].sorted(by: {
+            $0.lexicographicallyPrecedes($1)
+        })
+
+        let action = try V3DeviceWrappedCatchUpAuthorityPlanner().plan(
+            content: .multipleHeads(heads),
+            keyTransition: .none
+        )
+
+        #expect(action == .contentConflict(heads))
+    }
+
+    @Test
+    func authorityPlannerPreservesCompetingKeyTransitionsAsSecurityConflict()
+        throws
+    {
+        let digests = [Self.firstChildDigest, Self.secondChildDigest]
+
+        let action = try V3DeviceWrappedCatchUpAuthorityPlanner().plan(
+            content: .upToDate,
+            keyTransition: .competingCandidates(digests)
+        )
+
+        #expect(action == .securityConflict(digests))
+    }
+
+    @Test
+    func authorityPlannerRejectsAnUnboundCandidateDigest() throws {
+        #expect(throws: V3ImmutableTransactionError.invalidAncestryProof) {
+            _ = try V3DeviceWrappedCatchUpAuthorityPlanner().plan(
+                content: .upToDate,
+                keyTransition: .candidate(
+                    manifestData: Data("candidate".utf8),
+                    manifestDigest: Self.firstChildDigest
+                )
             )
         }
     }
