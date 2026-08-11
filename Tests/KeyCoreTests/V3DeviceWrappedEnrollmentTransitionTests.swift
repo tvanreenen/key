@@ -496,6 +496,176 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
     }
 
     @Test
+    func catchUpDiscoverySelectsOneOwnerAuthorizedDirectChild() throws {
+        let fixture = try Fixture()
+        let candidate = try Self.catchUpCandidate(fixture, nonce: 0x7E)
+        let unrelated = Data("unrelated provider object".utf8)
+        let unrelatedDigest = Data(SHA256.hash(data: unrelated))
+        let source = CatchUpTransitionObjectSource(
+            entries: [:],
+            manifests: [
+                fixture.base.checkpoint.envelopeDigest: .available(
+                    fixture.base.envelope.canonicalBytes
+                ),
+                candidate.manifestDigest: .available(
+                    candidate.manifestData
+                ),
+                unrelatedDigest: .available(unrelated),
+            ]
+        )
+
+        let outcome = try V3DeviceWrappedKeyTransitionDiscovery(
+            source: source
+        ).discover(
+            from: fixture.base,
+            currentVaultKey: Self.currentKey
+        )
+
+        #expect(outcome == .candidate(
+            manifestData: candidate.manifestData,
+            manifestDigest: candidate.manifestDigest
+        ))
+    }
+
+    @Test
+    func catchUpDiscoveryPreservesCompetingOwnerAuthorizedChildren() throws {
+        let fixture = try Fixture()
+        let first = try Self.catchUpCandidate(fixture, nonce: 0x7F)
+        let second = try Self.catchUpCandidate(fixture, nonce: 0x80)
+        let expected = [
+            first.manifestDigest,
+            second.manifestDigest,
+        ].sorted(by: { $0.lexicographicallyPrecedes($1) })
+        let source = CatchUpTransitionObjectSource(
+            entries: [:],
+            manifests: [
+                first.manifestDigest: .available(first.manifestData),
+                second.manifestDigest: .available(second.manifestData),
+            ]
+        )
+
+        let outcome = try V3DeviceWrappedKeyTransitionDiscovery(
+            source: source
+        ).discover(
+            from: fixture.base,
+            currentVaultKey: Self.currentKey
+        )
+
+        #expect(outcome == .competingCandidates(expected))
+    }
+
+    @Test
+    func catchUpDiscoveryIgnoresUnauthenticatedProviderChildren() throws {
+        let fixture = try Fixture()
+        let candidate = try Self.catchUpCandidate(fixture, nonce: 0x81)
+        var alteredData = candidate.manifestData
+        alteredData[alteredData.index(before: alteredData.endIndex)] ^= 1
+        let alteredDigest = Data(SHA256.hash(data: alteredData))
+        let source = CatchUpTransitionObjectSource(
+            entries: [:],
+            manifests: [alteredDigest: .available(alteredData)]
+        )
+
+        let outcome = try V3DeviceWrappedKeyTransitionDiscovery(
+            source: source
+        ).discover(
+            from: fixture.base,
+            currentVaultKey: Self.currentKey
+        )
+
+        #expect(outcome == .none)
+    }
+
+    @Test
+    func catchUpDiscoveryWaitsForEveryListedManifest() throws {
+        let fixture = try Fixture()
+        let source = CatchUpTransitionObjectSource(
+            entries: [:],
+            manifests: [
+                Data(repeating: 0xEE, count: 32): .unavailable,
+            ]
+        )
+
+        #expect(throws: V3DeviceWrappedCatchUpError.temporaryUnavailable) {
+            _ = try V3DeviceWrappedKeyTransitionDiscovery(
+                source: source
+            ).discover(
+                from: fixture.base,
+                currentVaultKey: Self.currentKey
+            )
+        }
+    }
+
+    @Test
+    func unavailableManifestPreventsSelectingOneOfCompetingChildren() throws {
+        let fixture = try Fixture()
+        let candidate = try Self.catchUpCandidate(fixture, nonce: 0x82)
+        let source = CatchUpTransitionObjectSource(
+            entries: [:],
+            manifests: [
+                candidate.manifestDigest: .available(
+                    candidate.manifestData
+                ),
+                Data(repeating: 0xEF, count: 32): .unavailable,
+            ]
+        )
+
+        #expect(throws: V3DeviceWrappedCatchUpError.temporaryUnavailable) {
+            _ = try V3DeviceWrappedKeyTransitionDiscovery(
+                source: source
+            ).discover(
+                from: fixture.base,
+                currentVaultKey: Self.currentKey
+            )
+        }
+    }
+
+    @Test
+    func catchUpDiscoveryRejectsAnUntrustedParentKey() throws {
+        let fixture = try Fixture()
+        let source = CatchUpTransitionObjectSource(entries: [:])
+
+        #expect(throws: V3DeviceWrappedCatchUpError.recoveryRequired) {
+            _ = try V3DeviceWrappedKeyTransitionDiscovery(
+                source: source
+            ).discover(
+                from: fixture.base,
+                currentVaultKey: Self.nextKey
+            )
+        }
+    }
+
+    @Test
+    func catchUpDiscoveryEnforcesAggregateManifestBytesWhileScanning() throws {
+        let first = Data(repeating: 0x11, count: 40)
+        let second = Data(repeating: 0x22, count: 40)
+        let source = CatchUpTransitionObjectSource(
+            entries: [:],
+            manifests: [
+                Data(SHA256.hash(data: first)): .available(first),
+                Data(SHA256.hash(data: second)): .available(second),
+            ]
+        )
+        let limits = V3ManifestRepositoryLimits(
+            maximumManifestObjects: 2,
+            maximumHistoryDepth: 1,
+            maximumManifestBytes: 64,
+            maximumTotalManifestBytes: 64
+        )
+        let fixture = try Fixture()
+
+        #expect(throws: V3DeviceWrappedCatchUpError.recoveryRequired) {
+            _ = try V3DeviceWrappedKeyTransitionDiscovery(
+                source: source,
+                limits: limits
+            ).discover(
+                from: fixture.base,
+                currentVaultKey: Self.currentKey
+            )
+        }
+    }
+
+    @Test
     func catchUpOpenerAuthenticatesTheAddressedKeyAndCompleteReseal() throws {
         let fixture = try Fixture()
         let candidate = try Self.catchUpCandidate(fixture, nonce: 0x78)
@@ -1327,11 +1497,16 @@ private final class CatchUpTransitionObjectSource:
     @unchecked Sendable
 {
     private let entries: [V3EntryObjectKey: V3RepositoryObjectRead]
+    private let manifests: [Data: V3RepositoryObjectRead]
     private let lock = NSLock()
     private var reads = 0
 
-    init(entries: [V3EntryObjectKey: V3RepositoryObjectRead]) {
+    init(
+        entries: [V3EntryObjectKey: V3RepositoryObjectRead],
+        manifests: [Data: V3RepositoryObjectRead] = [:]
+    ) {
         self.entries = entries
+        self.manifests = manifests
     }
 
     var entryReadCount: Int {
@@ -1339,16 +1514,24 @@ private final class CatchUpTransitionObjectSource:
     }
 
     func manifestDigests(
-        maximumCount _: Int
+        maximumCount: Int
     ) throws -> V3RepositoryDirectoryListing {
-        .invalid
+        guard manifests.count <= maximumCount else {
+            return .limitExceeded
+        }
+        return .available(
+            digests: manifests.keys.sorted(by: {
+                $0.lexicographicallyPrecedes($1)
+            }),
+            objectCount: manifests.count
+        )
     }
 
     func readManifest(
-        digest _: Data,
+        digest: Data,
         maximumBytes _: Int
     ) throws -> V3RepositoryObjectRead {
-        .invalid
+        manifests[digest] ?? .unavailable
     }
 
     func readEntry(
