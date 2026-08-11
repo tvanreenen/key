@@ -9,6 +9,7 @@ struct V3DeviceWrappedRevocationTransitionPublisher: Sendable {
     private let mutationOwner: any VaultTransactionMutationOwning
     private let validator: V3DeviceWrappedRevocationTransitionValidator
     private let publisher: V3DeviceWrappedKeyRotationTransitionPublisher
+    private let recoverer: V3DeviceWrappedRevocationTransitionRecoverer
 
     init(
         mutationOwner: any VaultTransactionMutationOwning,
@@ -35,6 +36,31 @@ struct V3DeviceWrappedRevocationTransitionPublisher: Sendable {
             limits: limits,
             phaseObserver: phaseObserver
         )
+        recoverer = V3DeviceWrappedRevocationTransitionRecoverer(
+            repositoryObserver: repositoryObserver,
+            objectStore: objectStore,
+            checkpointStore: checkpointStore,
+            recoveryAnchorStore: recoveryAnchorStore,
+            cache: cache,
+            limits: limits
+        )
+    }
+
+    func recoverInterruptedTransaction(
+        vaultID: String,
+        localIdentity: any V3DeviceWrappedVaultKeyUnwrapping,
+        unwrapReason: String,
+        afterCheckpointAdvance: @escaping
+            V3DeviceWrappedRevocationCommitHandler = { _, _ in }
+    ) throws -> V3DeviceWrappedRevocationRecoveryResult {
+        try mutationOwner.perform(.recoverInterruptedTransaction) { _ in
+            try recoverer.recover(
+                vaultID: vaultID,
+                localIdentity: localIdentity,
+                unwrapReason: unwrapReason,
+                afterCheckpointAdvance: afterCheckpointAdvance
+            )
+        }
     }
 
     func publish(

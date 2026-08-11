@@ -1,13 +1,14 @@
 import Foundation
 
-typealias V3DeviceWrappedEnrollmentRecoveryResult =
+typealias V3DeviceWrappedRevocationRecoveryResult =
     V3DeviceWrappedKeyRotationRecoveryResult
 
-/// Supplies enrollment's ceremony binding and roster policy to the shared
+/// Supplies revocation's exact one-device roster policy to the shared
 /// device-roster key-rotation recovery engine.
-struct V3DeviceWrappedEnrollmentTransitionRecoverer: Sendable {
+struct V3DeviceWrappedRevocationTransitionRecoverer: Sendable {
     private let recoverer: V3DeviceWrappedKeyRotationTransitionRecoverer
-    private let validator: V3DeviceWrappedEnrollmentTransitionValidator
+    private let validator: V3DeviceWrappedRevocationTransitionValidator
+    private let planner = V3DeviceWrappedRevocationPlanner()
 
     init(
         repositoryObserver: any V3DeviceWrappedRepositoryObserving,
@@ -26,45 +27,40 @@ struct V3DeviceWrappedEnrollmentTransitionRecoverer: Sendable {
             cache: cache,
             limits: limits
         )
-        validator = V3DeviceWrappedEnrollmentTransitionValidator(
+        validator = V3DeviceWrappedRevocationTransitionValidator(
             limits: limits
         )
     }
 
     func recover(
         vaultID: String,
-        expectedTranscriptDigest: Data,
         localIdentity: any V3DeviceWrappedVaultKeyUnwrapping,
         unwrapReason: String,
         afterCheckpointAdvance:
-            V3DeviceWrappedEnrollmentCommitHandler = { _, _ in }
-    ) throws -> V3DeviceWrappedEnrollmentRecoveryResult {
-        guard expectedTranscriptDigest.count == 32 else {
-            throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(
-                vaultID: vaultID
-            )
-        }
+            V3DeviceWrappedRevocationCommitHandler = { _, _ in }
+    ) throws -> V3DeviceWrappedRevocationRecoveryResult {
         do {
             return try recoverer.recover(
                 vaultID: vaultID,
-                kind: .enrollDevice,
+                kind: .revokeDevice,
                 localIdentity: localIdentity,
                 unwrapReason: unwrapReason,
                 validateIntent: {
-                    $0.enrollmentTranscriptDigest
-                        == expectedTranscriptDigest
+                    $0.enrollmentTranscriptDigest == nil
                 },
                 validate: { context in
+                    let plan = try recoveryPlan(
+                        context,
+                        authorizingOwner: localIdentity.publicIdentity
+                    )
                     let candidate =
-                        V3DeviceWrappedEnrollmentTransitionCandidate(
-                            expectedCheckpoint:
-                                context.intent.expectedCheckpoint,
+                        V3DeviceWrappedRevocationTransitionCandidate(
+                            plan: plan,
                             body: context.candidate.body,
                             manifestData: context.manifestData,
                             manifestDigest:
                                 context.intent.candidateManifestDigest,
-                            stagedEntries: context.stagedEntries,
-                            transcriptDigest: expectedTranscriptDigest
+                            stagedEntries: context.stagedEntries
                         )
                     let validated = try validator.validateAnchored(
                         candidate,
@@ -85,8 +81,42 @@ struct V3DeviceWrappedEnrollmentTransitionRecoverer: Sendable {
             )
         } catch V3DeviceWrappedKeyRotationRecoveryValidationError
                     .authenticationCancelled {
-            throw V3DeviceWrappedEnrollmentValidationError
+            throw V3DeviceWrappedRevocationValidationError
                 .authenticationCancelled
+        }
+    }
+
+    private func recoveryPlan(
+        _ context: V3DeviceWrappedKeyRotationRecoveryContext,
+        authorizingOwner: V3EnrollmentDeviceIdentity
+    ) throws -> V3DeviceWrappedRevocationPlan {
+        let candidateByID = Dictionary(
+            grouping: context.candidate.body.devices,
+            by: { $0.identity.deviceID }
+        )
+        let revoked = context.parent.envelope.body.devices.filter { parent in
+            guard parent.status == .active,
+                  let matches = candidateByID[parent.identity.deviceID],
+                  matches.count == 1,
+                  let candidate = matches.first
+            else {
+                return false
+            }
+            return candidate.identity == parent.identity
+                && candidate.role == parent.role
+                && candidate.status == .revoked
+        }
+        guard revoked.count == 1, let device = revoked.first else {
+            throw V3DeviceWrappedRevocationValidationError.invalidPlan
+        }
+        do {
+            return try planner.plan(
+                from: context.parent,
+                authorizingDeviceID: authorizingOwner.deviceID,
+                revoking: device.identity.deviceID
+            )
+        } catch {
+            throw V3DeviceWrappedRevocationValidationError.invalidPlan
         }
     }
 }

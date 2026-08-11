@@ -341,6 +341,88 @@ struct V3DeviceWrappedRevocationTransitionPublisherTests {
         try fixture.requireCandidateObjectsPublished()
     }
 
+    @Test
+    func everyInterruptionRecoversToTheCompleteOldOrRevokedEpoch() throws {
+        let transition = try RevocationTransitionFixture()
+        let candidate = try transition.makeCandidate()
+        let cases: [(
+            phase: V3ImmutableTransactionPhase,
+            expectsRevokedCheckpoint: Bool
+        )] = [
+            (.recoveryAnchorPrepared, false),
+            (.recoveryIntentPersisted, false),
+            (.recoveryArmed, false),
+            (.entryStaged(index: 0), false),
+            (.manifestStaged, true),
+            (.repositoryStateRechecked, true),
+            (.entryPublished(index: 0), true),
+            (.publishedEntriesValidated, true),
+            (.manifestPublished, true),
+            (.publishedManifestValidated, true),
+            (.checkpointAdvanced, true),
+            (.cleanupCompleted, true),
+        ]
+
+        for testCase in cases {
+            let fixture = try RevocationPublicationFixture(
+                transition: transition,
+                candidate: candidate
+            )
+            defer { fixture.removeRoot() }
+            let interrupted = fixture.publisher(
+                observer: RevocationPublicationInterruptingObserver(
+                    target: testCase.phase
+                )
+            )
+            #expect(throws: RevocationPublicationTestError.interrupted) {
+                _ = try interrupted.publish(
+                    fixture.candidate,
+                    parent: fixture.transition.base,
+                    currentEntries: fixture.transition.currentEntries,
+                    currentVaultKey:
+                        V3DeviceWrappedRevocationTransitionTests.currentKey,
+                    nextVaultKey:
+                        V3DeviceWrappedRevocationTransitionTests.nextKey,
+                    localIdentity: fixture.transition.owner,
+                    unwrapReason: "Verify the owner's rotated-key wrapper."
+                )
+            }
+
+            let recovered = try fixture.publisher(
+                observer: RevocationPublicationObserver()
+            ).recoverInterruptedTransaction(
+                vaultID: V3DeviceWrappedRevocationTransitionTests.vaultID,
+                localIdentity: fixture.transition.owner,
+                unwrapReason: "Resume the exact approved revocation."
+            )
+            let expected = testCase.expectsRevokedCheckpoint
+                ? try V3ManifestCheckpoint(
+                    vaultID:
+                        V3DeviceWrappedRevocationTransitionTests.vaultID,
+                    envelopeDigest: fixture.candidate.manifestDigest
+                )
+                : fixture.transition.base.checkpoint
+
+            #expect(fixture.checkpointStore.checkpoint
+                == expected.canonicalBytes)
+            #expect(fixture.anchorStore.anchor == nil)
+            if testCase.expectsRevokedCheckpoint {
+                if recovered.outcome != .nothingToRecover {
+                    #expect(recovered.trustedCheckpoint?.checkpoint == expected)
+                    #expect(recovered.vaultKey
+                        == V3DeviceWrappedRevocationTransitionTests.nextKey)
+                }
+                try fixture.requireCandidateObjectsPublished()
+            } else {
+                #expect(recovered.outcome == .abandoned(
+                    operationID: Self.operationID
+                ))
+                #expect(recovered.trustedCheckpoint == nil)
+                #expect(recovered.vaultKey == nil)
+            }
+        }
+    }
+
     private final class RevocationPublicationFixture:
         V3DeviceWrappedRepositoryObserving,
         @unchecked Sendable
@@ -353,9 +435,20 @@ struct V3DeviceWrappedRevocationTransitionPublisherTests {
         let transition: RevocationTransitionFixture
         let candidate: V3DeviceWrappedRevocationTransitionCandidate
 
-        init() throws {
-            transition = try RevocationTransitionFixture()
-            candidate = try transition.makeCandidate()
+        convenience init() throws {
+            let transition = try RevocationTransitionFixture()
+            try self.init(
+                transition: transition,
+                candidate: transition.makeCandidate()
+            )
+        }
+
+        init(
+            transition: RevocationTransitionFixture,
+            candidate: V3DeviceWrappedRevocationTransitionCandidate
+        ) throws {
+            self.transition = transition
+            self.candidate = candidate
             rootURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
             try FileManager.default.createDirectory(
@@ -718,6 +811,36 @@ private final class RevocationPublicationObserver:
         operationID _: VaultTransactionOperationID
     ) throws {
         lock.withLock { recorded.append(phase) }
+    }
+}
+
+private enum RevocationPublicationTestError: Error {
+    case interrupted
+}
+
+private final class RevocationPublicationInterruptingObserver:
+    V3ImmutableTransactionPhaseObserving,
+    @unchecked Sendable
+{
+    private let target: V3ImmutableTransactionPhase
+    private let lock = NSLock()
+    private var interrupted = false
+
+    init(target: V3ImmutableTransactionPhase) {
+        self.target = target
+    }
+
+    func didReach(
+        _ phase: V3ImmutableTransactionPhase,
+        operationID _: VaultTransactionOperationID
+    ) throws {
+        try lock.withLock {
+            guard !interrupted, phase == target else {
+                return
+            }
+            interrupted = true
+            throw RevocationPublicationTestError.interrupted
+        }
     }
 }
 
