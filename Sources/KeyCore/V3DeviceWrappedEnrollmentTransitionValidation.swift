@@ -53,6 +53,21 @@ struct V3DeviceWrappedValidatedEnrollmentTransition: Sendable {
     let stagedEntries: [V3EntryObjectKey: V3EncryptedEntry]
 }
 
+/// An untrusted candidate whose exact parent, roster shape, and active-owner
+/// signature have been verified before invoking a local key wrapper.
+///
+/// This is authority to attempt the addressed unwrap, not authority to advance
+/// the checkpoint. The candidate HMAC and complete resealed entry snapshot
+/// still require validation with the recovered key.
+struct V3DeviceWrappedOwnerAuthorizedEnrollmentTransition:
+    Equatable,
+    Sendable
+{
+    let candidate: V3DeviceWrappedManifestEnvelope
+    let manifestDigest: Data
+    let authorizingOwner: V3EnrollmentDeviceIdentity
+}
+
 /// Independently verifies an unpublished permanent-profile roster addition.
 ///
 /// The builder is not an authority boundary. Initial publication uses this
@@ -68,6 +83,110 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
 
     init(limits: V3ManifestRepositoryLimits = .standard) {
         self.limits = limits
+    }
+
+    /// Proves that one provider-supplied enrollment candidate is an exact,
+    /// owner-authorized child of the authenticated parent before catch-up asks
+    /// the Secure Enclave to open this device's addressed wrapper.
+    ///
+    /// The returned candidate remains untrusted until `validateAnchored`
+    /// authenticates it with the opened next key and compares every resealed
+    /// entry with the parent snapshot.
+    func preflightOwnerAuthorizedCandidate(
+        manifestData: Data,
+        manifestDigest: Data,
+        parent: V3DeviceWrappedTrustedCheckpoint,
+        currentVaultKey: Data
+    ) throws -> V3DeviceWrappedOwnerAuthorizedEnrollmentTransition {
+        guard manifestData.count <= limits.maximumManifestBytes,
+              manifestDigest.count == 32,
+              Data(SHA256.hash(data: manifestData)) == manifestDigest
+        else {
+            throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
+        }
+        let authenticatedParent = try validateParent(
+            parent,
+            expectedCheckpoint: parent.checkpoint,
+            currentVaultKey: currentVaultKey
+        )
+        let candidate: V3DeviceWrappedManifestEnvelope
+        do {
+            candidate = try envelopeCodec.parse(manifestData)
+        } catch let error as V3DeviceWrappedUnlockError {
+            switch error {
+            case .unsupportedEnvelopeVersion,
+                    .unsupportedProfileVersion:
+                throw error
+            case .invalidManifest, .checkpointMismatch,
+                    .deviceIdentityMismatch, .deviceNotEnrolled,
+                    .deviceRevoked, .wrapperMissing,
+                    .authenticationCancelled, .keyUnwrapFailed,
+                    .authenticationFailed:
+                throw V3DeviceWrappedEnrollmentValidationError
+                    .invalidTransition
+            }
+        } catch {
+            throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
+        }
+        guard candidate.parents == [parent.checkpoint.envelopeDigest],
+              candidate.body.vaultID == authenticatedParent.body.vaultID
+        else {
+            throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
+        }
+        try validateRosterTransition(
+            from: authenticatedParent,
+            to: candidate,
+            expectedAddition: nil
+        )
+        let owner = try authorizingOwner(
+            of: candidate,
+            parent: authenticatedParent
+        )
+        return V3DeviceWrappedOwnerAuthorizedEnrollmentTransition(
+            candidate: candidate,
+            manifestDigest: manifestDigest,
+            authorizingOwner: owner
+        )
+    }
+
+    /// Authenticates the supported outer envelope of a direct child whose
+    /// manifest-body profile is newer than this client understands.
+    ///
+    /// A valid active-owner signature is enough to require an upgrade before
+    /// this client publishes a competing child. It is not authority to open or
+    /// advance to the unknown profile.
+    func isOwnerAuthorizedDirectChildEnvelope(
+        manifestData: Data,
+        manifestDigest: Data,
+        parent: V3DeviceWrappedTrustedCheckpoint,
+        currentVaultKey: Data
+    ) throws -> Bool {
+        guard manifestData.count <= limits.maximumManifestBytes,
+              manifestDigest.count == 32,
+              Data(SHA256.hash(data: manifestData)) == manifestDigest
+        else {
+            throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
+        }
+        let authenticatedParent = try validateParent(
+            parent,
+            expectedCheckpoint: parent.checkpoint,
+            currentVaultKey: currentVaultKey
+        )
+        let metadata: V3DeviceWrappedManifestEnvelopeMetadata
+        do {
+            metadata = try envelopeCodec.metadata(manifestData)
+        } catch {
+            throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
+        }
+        guard metadata.parents == [parent.checkpoint.envelopeDigest] else {
+            return false
+        }
+        _ = try authorizingOwner(
+            authorizations: metadata.authorizations,
+            canonicalContentBytes: metadata.canonicalContentBytes,
+            parent: authenticatedParent
+        )
+        return true
     }
 
     func validate(
@@ -332,12 +451,35 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         parent: V3DeviceWrappedManifestEnvelope,
         expectedOwner: V3EnrollmentDeviceIdentity
     ) throws {
-        guard candidate.authorizations.count == 1,
-              let authorization = candidate.authorizations.first,
+        guard try authorizingOwner(of: candidate, parent: parent)
+                == expectedOwner
+        else {
+            throw V3DeviceWrappedEnrollmentValidationError
+                .invalidOwnerAuthorization
+        }
+    }
+
+    private func authorizingOwner(
+        of candidate: V3DeviceWrappedManifestEnvelope,
+        parent: V3DeviceWrappedManifestEnvelope
+    ) throws -> V3EnrollmentDeviceIdentity {
+        try authorizingOwner(
+            authorizations: candidate.authorizations,
+            canonicalContentBytes: candidate.canonicalContentBytes,
+            parent: parent
+        )
+    }
+
+    private func authorizingOwner(
+        authorizations: [V3ManifestAuthorization],
+        canonicalContentBytes: Data,
+        parent: V3DeviceWrappedManifestEnvelope
+    ) throws -> V3EnrollmentDeviceIdentity {
+        guard authorizations.count == 1,
+              let authorization = authorizations.first,
               let owner = parent.body.devices.first(where: {
                   $0.identity.deviceID == authorization.signerDeviceID
               }),
-              owner.identity == expectedOwner,
               owner.role == .owner,
               owner.status == .active,
               let signatureBytes = Base64URL.decodeCanonical(
@@ -354,7 +496,7 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
                   signature,
                   for: SHA256.hash(data:
                       V3ManifestAuthenticator.authenticationInput(
-                          for: candidate.canonicalContentBytes
+                          for: canonicalContentBytes
                       )
                   )
               )
@@ -362,6 +504,7 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
             throw V3DeviceWrappedEnrollmentValidationError
                 .invalidOwnerAuthorization
         }
+        return owner.identity
     }
 
     private func validateLocalWrapper(

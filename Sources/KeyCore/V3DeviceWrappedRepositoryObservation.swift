@@ -20,6 +20,27 @@ protocol V3DeviceWrappedRepositoryObserving: Sendable {
         vaultID: String,
         vaultKeys: [Data]
     ) throws -> V3DeviceWrappedRepositoryObservation
+
+    func observeRepository(
+        from trusted: V3DeviceWrappedTrustedCheckpoint,
+        vaultKeys: [Data]
+    ) throws -> V3DeviceWrappedRepositoryObservation
+}
+
+extension V3DeviceWrappedRepositoryObserving {
+    func observeRepository(
+        from trusted: V3DeviceWrappedTrustedCheckpoint,
+        vaultKeys: [Data]
+    ) throws -> V3DeviceWrappedRepositoryObservation {
+        let observation = try observeRepository(
+            vaultID: trusted.checkpoint.vaultID,
+            vaultKeys: vaultKeys
+        )
+        guard observation.checkpoint == trusted.checkpoint else {
+            throw V3ImmutableTransactionError.expectedHeadsChanged
+        }
+        return observation
+    }
 }
 
 struct V3DeviceWrappedExpectedRepositoryState: Equatable, Sendable {

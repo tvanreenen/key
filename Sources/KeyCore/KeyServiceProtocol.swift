@@ -464,7 +464,7 @@ public struct KeyServiceResponse: Codable, Equatable {
         switch error {
         case .vaultIncomplete:
             code = .vaultIncomplete
-        case .contentConflict:
+        case .contentConflict, .catchUpContentConflict:
             code = .contentConflict
         case .securityConflict:
             code = .securityConflict

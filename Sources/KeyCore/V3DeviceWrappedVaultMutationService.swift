@@ -15,10 +15,6 @@ protocol V3DeviceWrappedVaultMutationServicing:
     func authorizeMutation() throws
 }
 
-extension V3DeviceWrappedVaultUnlockRuntime:
-    V3DeviceWrappedMutationStateLoading
-{}
-
 /// Plans ordinary permanent-profile mutations from one exact authenticated
 /// checkpoint and delegates durability to the device-wrapped publisher.
 ///
@@ -35,6 +31,9 @@ struct V3DeviceWrappedVaultMutationService:
         _ operationID: VaultTransactionOperationID
     ) -> any V3DeviceWrappedContentMutationPublishing
     typealias EntryIDGenerator = @Sendable () -> String
+    typealias CatchUp = @Sendable (
+        _ operationID: VaultTransactionOperationID
+    ) throws -> V3DeviceWrappedCatchUpCoordinatorOutcome
 
     private struct Base {
         let trusted: V3DeviceWrappedTrustedCheckpoint
@@ -46,8 +45,10 @@ struct V3DeviceWrappedVaultMutationService:
     private let source: any V3ImmutableObjectReading
     private let makePublisher: PublisherFactory
     private let makeEntryID: EntryIDGenerator
+    private let catchUp: CatchUp?
     private let limits: V3ManifestRepositoryLimits
     private let builder = V3DeviceWrappedManifestCandidateBuilder()
+    private let catchUpGate = V3DeviceWrappedCatchUpAccessGate()
     private let contentValidator: V3DeviceWrappedCheckpointContentValidator
 
     init(
@@ -57,12 +58,14 @@ struct V3DeviceWrappedVaultMutationService:
         makeEntryID: @escaping EntryIDGenerator = {
             UUID().uuidString.lowercased()
         },
+        catchUp: CatchUp? = nil,
         limits: V3ManifestRepositoryLimits = .standard
     ) {
         self.stateLoader = stateLoader
         self.source = source
         self.makePublisher = makePublisher
         self.makeEntryID = makeEntryID
+        self.catchUp = catchUp
         self.limits = limits
         contentValidator = V3DeviceWrappedCheckpointContentValidator(
             source: source,
@@ -77,6 +80,7 @@ struct V3DeviceWrappedVaultMutationService:
         recoveryAnchorStore:
             any V3ImmutableTransactionRecoveryAnchorStoring,
         cache: any V3CheckpointManifestCaching,
+        catchUp: CatchUp? = nil,
         limits: V3ManifestRepositoryLimits = .standard
     ) {
         self.init(
@@ -94,6 +98,7 @@ struct V3DeviceWrappedVaultMutationService:
                     limits: limits
                 )
             },
+            catchUp: catchUp,
             limits: limits
         )
     }
@@ -227,6 +232,7 @@ struct V3DeviceWrappedVaultMutationService:
         build: (Base) throws -> V3DeviceWrappedContentMutationCandidate
     ) throws {
         do {
+            try requireCaughtUp(operationID: operationID)
             let base = try prepareBase(operationID: operationID)
             let candidate = try build(base)
             _ = try base.publisher.publish(
@@ -234,6 +240,8 @@ struct V3DeviceWrappedVaultMutationService:
                 vaultKey: base.vaultKey
             )
         } catch let error as V3DeviceWrappedContentMutationError {
+            throw serviceError(for: error)
+        } catch let error as V3DeviceWrappedCatchUpError {
             throw serviceError(for: error)
         } catch is V3EncryptedEntryError {
             throw VaultUXServiceError.recoveryRequired
@@ -245,6 +253,17 @@ struct V3DeviceWrappedVaultMutationService:
             throw serviceError(for: error)
         } catch is V3ImmutableTransactionRecoveryAnchorError {
             throw VaultUXServiceError.recoveryRequired
+        }
+    }
+
+    private func requireCaughtUp(
+        operationID: VaultTransactionOperationID
+    ) throws {
+        guard let catchUp else {
+            return
+        }
+        try catchUpGate.requireCurrent {
+            try catchUp(operationID)
         }
     }
 
@@ -370,6 +389,21 @@ struct V3DeviceWrappedVaultMutationService:
         case .invalidTrustedCheckpoint, .invalidVaultKey, .invalidEntryID,
             .invalidCandidate:
             VaultUXServiceError.recoveryRequired
+        }
+    }
+
+    private func serviceError(
+        for error: V3DeviceWrappedCatchUpError
+    ) -> any Error {
+        switch error {
+        case .temporaryUnavailable, .checkpointChanged:
+            VaultUXServiceError.vaultIncomplete
+        case .authenticationCancelled:
+            AppError.authFailed(error.localizedDescription)
+        case .deviceRevoked, .recoveryRequired:
+            VaultUXServiceError.recoveryRequired
+        case .upgradeRequired:
+            AppError.operationRefused(error.localizedDescription)
         }
     }
 

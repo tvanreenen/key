@@ -351,6 +351,18 @@ struct VaultUXCLITests {
         )
     }
 
+    @Test
+    func catchUpContentConflictRetainsThePublicConflictContract() {
+        let response = KeyServiceResponse.failure(
+            VaultUXServiceError.catchUpContentConflict
+        )
+
+        #expect(response.errorCode == .contentConflict)
+        #expect(response.exitCode == KeyExitCode.conflict.rawValue)
+        #expect(response.errorMessage?.contains("--allow-stale") == true)
+        #expect(response.errorMessage?.contains("conflict show") == false)
+    }
+
     @Test(arguments: [
         ["status"],
         ["conflict", "list"],

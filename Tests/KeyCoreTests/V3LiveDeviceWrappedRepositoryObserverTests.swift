@@ -55,6 +55,40 @@ struct V3LiveDeviceWrappedRepositoryObserverTests {
     }
 
     @Test
+    func observesFromAnExplicitAuthenticatedCheckpoint() throws {
+        let fixture = try Fixture()
+        defer { fixture.removeRoot() }
+        let child = try V3DeviceWrappedManifestCandidateBuilder().add(
+            to: fixture.base,
+            entryID: Self.secondEntryID,
+            name: "second/password",
+            type: .secret,
+            plaintext: "another secret",
+            vaultKey: Self.currentKey
+        )
+        try fixture.publish(child)
+        let checkpoint = try V3ManifestCheckpoint(
+            vaultID: Self.vaultID,
+            envelopeDigest: child.manifestDigest
+        )
+        let trusted = V3DeviceWrappedTrustedCheckpoint(
+            checkpoint: checkpoint,
+            envelope: try V3DeviceWrappedManifestEnvelopeCodec().parse(
+                child.manifestData
+            )
+        )
+
+        let observed = try fixture.observer.observeRepository(
+            from: trusted,
+            vaultKeys: [Self.currentKey]
+        )
+
+        #expect(observed.checkpoint == checkpoint)
+        #expect(observed.heads == [child.manifestDigest])
+        #expect(observed.parentsByManifestDigest[child.manifestDigest] == [])
+    }
+
+    @Test
     func discoversAnOwnerAuthorizedKeyRotation() throws {
         let fixture = try Fixture()
         defer { fixture.removeRoot() }

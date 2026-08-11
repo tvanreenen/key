@@ -10,13 +10,64 @@ struct V3DeviceWrappedManifestEnvelope: Equatable, Sendable {
     let canonicalContentBytes: Data
 }
 
+/// The current outer envelope fields that remain verifiable before this
+/// version of Key understands a newer manifest-body profile.
+struct V3DeviceWrappedManifestEnvelopeMetadata: Equatable, Sendable {
+    let parents: [Data]
+    let authorizations: [V3ManifestAuthorization]
+    let canonicalContentBytes: Data
+}
+
 struct V3DeviceWrappedManifestEnvelopeCodec: Sendable {
     private static let format = "key-vault-manifest-envelope"
     private static let version: UInt64 = 3
     private static let authenticationAlgorithm = "HKDF-SHA256+HMAC-SHA256"
     private static let authorizationAlgorithm = "P-256-ECDSA-SHA256"
 
+    private struct ParsedContainer {
+        let manifestValue: CanonicalJSONValue
+        let authenticationTag: Data
+        let metadata: V3DeviceWrappedManifestEnvelopeMetadata
+    }
+
     func parse(_ data: Data) throws -> V3DeviceWrappedManifestEnvelope {
+        let container = try parseContainer(data)
+        let body: V3DeviceWrappedManifestBody
+        do {
+            body = try V3DeviceWrappedManifestCodec().decodeBody(
+                container.manifestValue,
+                path: "$.content.manifest"
+            )
+        } catch let error as V3DeviceWrappedManifestError {
+            if case let .unsupportedProfileVersion(version) = error {
+                throw V3DeviceWrappedUnlockError.unsupportedProfileVersion(
+                    version
+                )
+            }
+            throw V3DeviceWrappedUnlockError.invalidManifest
+        } catch {
+            throw V3DeviceWrappedUnlockError.invalidManifest
+        }
+        return V3DeviceWrappedManifestEnvelope(
+            parents: container.metadata.parents,
+            body: body,
+            authenticationTag: container.authenticationTag,
+            authorizations: container.metadata.authorizations,
+            canonicalBytes: data,
+            canonicalContentBytes: container.metadata.canonicalContentBytes
+        )
+    }
+
+    /// Parses only the supported outer envelope. This lets discovery verify
+    /// the direct-parent relationship and owner signature of a newer body
+    /// profile without interpreting that unknown body as current state.
+    func metadata(
+        _ data: Data
+    ) throws -> V3DeviceWrappedManifestEnvelopeMetadata {
+        try parseContainer(data).metadata
+    }
+
+    private func parseContainer(_ data: Data) throws -> ParsedContainer {
         let value: CanonicalJSONValue
         do {
             value = try CanonicalJSON.parse(data)
@@ -63,30 +114,14 @@ struct V3DeviceWrappedManifestEnvelopeCodec: Sendable {
             throw V3DeviceWrappedUnlockError.invalidManifest
         }
 
-        let parents = try decodeParents(parentValues)
-        let body: V3DeviceWrappedManifestBody
-        do {
-            body = try V3DeviceWrappedManifestCodec().decodeBody(
-                manifestValue,
-                path: "$.content.manifest"
-            )
-        } catch let error as V3DeviceWrappedManifestError {
-            if case let .unsupportedProfileVersion(version) = error {
-                throw V3DeviceWrappedUnlockError.unsupportedProfileVersion(
-                    version
-                )
-            }
-            throw V3DeviceWrappedUnlockError.invalidManifest
-        } catch {
-            throw V3DeviceWrappedUnlockError.invalidManifest
-        }
-        return V3DeviceWrappedManifestEnvelope(
-            parents: parents,
-            body: body,
+        return try ParsedContainer(
+            manifestValue: manifestValue,
             authenticationTag: authenticationTag,
-            authorizations: try decodeAuthorizations(authorizationValues),
-            canonicalBytes: data,
-            canonicalContentBytes: CanonicalJSON.encode(contentValue)
+            metadata: V3DeviceWrappedManifestEnvelopeMetadata(
+                parents: decodeParents(parentValues),
+                authorizations: decodeAuthorizations(authorizationValues),
+                canonicalContentBytes: CanonicalJSON.encode(contentValue)
+            )
         )
     }
 
