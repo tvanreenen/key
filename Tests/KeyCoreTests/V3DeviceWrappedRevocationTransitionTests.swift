@@ -171,9 +171,125 @@ struct V3DeviceWrappedRevocationTransitionTests {
             )
         }
     }
+
+    @Test
+    func independentlyValidatesTheReviewedRevocation() throws {
+        let fixture = try Fixture()
+        let candidate = try fixture.makeCandidate()
+
+        let validated = try V3DeviceWrappedRevocationTransitionValidator()
+            .validate(
+                candidate,
+                parent: fixture.base,
+                currentEntries: fixture.currentEntries,
+                currentVaultKey: Self.currentKey,
+                nextVaultKey: Self.nextKey,
+                localIdentity: fixture.owner,
+                unwrapReason: "Confirm the new vault key."
+            )
+
+        #expect(validated.plan == fixture.plan)
+        #expect(validated.candidate.body == candidate.body)
+        #expect(validated.manifestDigest == candidate.manifestDigest)
+        #expect(validated.stagedEntries.count == 1)
+    }
+
+    @Test
+    func validatorRejectsAChangedReviewedPlan() throws {
+        let fixture = try Fixture()
+        let candidate = try fixture.makeCandidate()
+        let alteredPlan = V3DeviceWrappedRevocationPlan(
+            expectedCheckpoint: candidate.plan.expectedCheckpoint,
+            authorizingOwner: candidate.plan.authorizingOwner,
+            revokedDevice: candidate.plan.authorizingOwner,
+            resultingDevices: candidate.plan.resultingDevices
+        )
+        let altered = V3DeviceWrappedRevocationTransitionCandidate(
+            plan: alteredPlan,
+            body: candidate.body,
+            manifestData: candidate.manifestData,
+            manifestDigest: candidate.manifestDigest,
+            stagedEntries: candidate.stagedEntries
+        )
+
+        #expect(
+            throws: V3DeviceWrappedRevocationValidationError.invalidPlan
+        ) {
+            _ = try V3DeviceWrappedRevocationTransitionValidator().validate(
+                altered,
+                parent: fixture.base,
+                currentEntries: fixture.currentEntries,
+                currentVaultKey: Self.currentKey,
+                nextVaultKey: Self.nextKey,
+                localIdentity: fixture.owner,
+                unwrapReason: "Confirm the new vault key."
+            )
+        }
+    }
+
+    @Test
+    func validatorRejectsSubstitutedStagedEntryBytes() throws {
+        let fixture = try Fixture()
+        let candidate = try fixture.makeCandidate()
+        let current = try #require(fixture.currentEntries.values.first)
+        let altered = V3DeviceWrappedRevocationTransitionCandidate(
+            plan: candidate.plan,
+            body: candidate.body,
+            manifestData: candidate.manifestData,
+            manifestDigest: candidate.manifestDigest,
+            stagedEntries: [current]
+        )
+
+        #expect(
+            throws:
+                V3DeviceWrappedRevocationValidationError.invalidStagedEntry
+        ) {
+            _ = try V3DeviceWrappedRevocationTransitionValidator().validate(
+                altered,
+                parent: fixture.base,
+                currentEntries: fixture.currentEntries,
+                currentVaultKey: Self.currentKey,
+                nextVaultKey: Self.nextKey,
+                localIdentity: fixture.owner,
+                unwrapReason: "Confirm the new vault key."
+            )
+        }
+    }
+
+    @Test
+    func validatorEnforcesEntryResourceLimitsBeforeOpening() throws {
+        let fixture = try Fixture()
+        let candidate = try fixture.makeCandidate()
+        let staged = try #require(candidate.stagedEntries.first)
+        let limits = V3ManifestRepositoryLimits(
+            maximumManifestObjects: 4_096,
+            maximumHistoryDepth: 1_024,
+            maximumEntryBytes: staged.canonicalBytes.count - 1,
+            maximumTotalEntryBytes: staged.canonicalBytes.count - 1
+        )
+
+        #expect(
+            throws: V3DeviceWrappedRevocationValidationError.objectTooLarge
+        ) {
+            _ = try V3DeviceWrappedRevocationTransitionValidator(
+                limits: limits
+            ).validate(
+                candidate,
+                parent: fixture.base,
+                currentEntries: fixture.currentEntries,
+                currentVaultKey: Self.currentKey,
+                nextVaultKey: Self.nextKey,
+                localIdentity: fixture.owner,
+                unwrapReason: "Confirm the new vault key."
+            )
+        }
+    }
 }
 
-private struct RevocationTestDevice: V3EnrollmentMessageSigning {
+private struct RevocationTestDevice:
+    V3EnrollmentMessageSigning,
+    V3DeviceWrappedVaultKeyUnwrapping
+{
     let vaultID = V3DeviceWrappedRevocationTransitionTests.vaultID
     let identity: V3EnrollmentDeviceIdentity
     let signingPrivateKey: P256.Signing.PrivateKey
@@ -197,6 +313,18 @@ private struct RevocationTestDevice: V3EnrollmentMessageSigning {
 
     func signature(for input: Data, reason _: String) throws -> Data {
         try signingPrivateKey.signature(for: input).rawRepresentation
+    }
+
+    func unwrapDeviceWrappedVaultKey(
+        _ wrappedKey: V3HPKEWrappedVaultKey,
+        context: V3VaultKeyHPKEContext,
+        reason _: String
+    ) throws -> Data {
+        try V3VaultKeyHPKE().unwrap(
+            wrappedKey,
+            recipientPrivateKey: wrappingPrivateKey,
+            context: context
+        )
     }
 
     private static func scalar(_ value: UInt8) -> Data {
@@ -332,6 +460,24 @@ private struct RevocationTransitionFixture {
             from: base,
             authorizingDeviceID: owner.identity.deviceID,
             revoking: member.identity.deviceID
+        )
+    }
+
+    func makeCandidate() throws
+        -> V3DeviceWrappedRevocationTransitionCandidate
+    {
+        try V3DeviceWrappedRevocationTransitionBuilder().build(
+            from: base,
+            currentEntries: currentEntries,
+            plan: plan,
+            currentVaultKey:
+                V3DeviceWrappedRevocationTransitionTests.currentKey,
+            nextVaultKey: V3DeviceWrappedRevocationTransitionTests.nextKey,
+            authorityTransitionID:
+                V3DeviceWrappedRevocationTransitionTests
+                    .revocationTransitionID,
+            owner: owner,
+            authorizationReason: "Revoke the selected Mac."
         )
     }
 }
