@@ -743,6 +743,168 @@ struct V3DeviceWrappedRevocationServiceTests {
     }
 }
 
+@Suite(.serialized)
+struct V3DeviceWrappedRevocationWorkflowTests {
+    private static let operationID = try! VaultTransactionOperationID(
+        validating: "018f4d38-7d5a-7b20-b0f1-97d6e96c94ba"
+    )
+
+    @Test
+    func reviewProjectsTheExactAuthenticatedDecision() throws {
+        let fixture = try RevocationTransitionFixture()
+        let service = RecordingRevocationWorkflowService(
+            plan: fixture.plan,
+            trusted: fixture.base
+        )
+        let workflow = V3DeviceWrappedRevocationWorkflow(service: service)
+
+        let review = try workflow.review(
+            revoking: fixture.member.identity.deviceID
+        )
+
+        #expect(review.vaultID
+            == V3DeviceWrappedRevocationTransitionTests.vaultID)
+        #expect(review.checkpointID == v3LowercaseHex(
+            fixture.base.checkpoint.envelopeDigest
+        ))
+        #expect(review.confirmationToken.utf8.count == 64)
+        #expect(review.confirmationToken != review.checkpointID)
+        #expect(review.authorizingDevice.deviceID
+            == fixture.owner.identity.deviceID)
+        #expect(review.revokedDevice.deviceID
+            == fixture.member.identity.deviceID)
+        #expect(review.remainingActiveDevices.map(\.deviceID) == [
+            fixture.owner.identity.deviceID,
+        ])
+        #expect(service.preparedDeviceIDs == [
+            fixture.member.identity.deviceID,
+        ])
+    }
+
+    @Test
+    func executionRequiresAndForwardsTheExactReviewedCheckpoint() throws {
+        let fixture = try RevocationTransitionFixture()
+        let service = RecordingRevocationWorkflowService(
+            plan: fixture.plan,
+            trusted: fixture.base
+        )
+        let workflow = V3DeviceWrappedRevocationWorkflow(service: service)
+        let review = try workflow.review(
+            revoking: fixture.member.identity.deviceID
+        )
+
+        let trusted = try workflow.revoke(
+            deviceID: fixture.member.identity.deviceID,
+            confirmationToken: review.confirmationToken,
+            operationID: Self.operationID
+        )
+
+        #expect(trusted == fixture.base)
+        #expect(service.revokedPlans == [fixture.plan])
+        #expect(service.operationIDs == [Self.operationID])
+    }
+
+    @Test
+    func changedTargetOrMalformedConfirmationNeverStartsRevocation() throws {
+        let fixture = try RevocationTransitionFixture()
+        let service = RecordingRevocationWorkflowService(
+            plan: fixture.plan,
+            trusted: fixture.base
+        )
+        let workflow = V3DeviceWrappedRevocationWorkflow(service: service)
+        let review = try workflow.review(
+            revoking: fixture.member.identity.deviceID
+        )
+
+        #expect(
+            throws: V3DeviceWrappedRevocationWorkflowError
+                .invalidConfirmationToken
+        ) {
+            _ = try workflow.revoke(
+                deviceID: fixture.member.identity.deviceID,
+                confirmationToken: "not-a-token",
+                operationID: Self.operationID
+            )
+        }
+        #expect(
+            throws: V3DeviceWrappedRevocationWorkflowError
+                .reviewedStateChanged
+        ) {
+            _ = try workflow.revoke(
+                deviceID: fixture.member.identity.deviceID,
+                confirmationToken: String(repeating: "0", count: 64),
+                operationID: Self.operationID
+            )
+        }
+        #expect(
+            throws: V3DeviceWrappedRevocationWorkflowError
+                .reviewedStateChanged
+        ) {
+            _ = try workflow.revoke(
+                deviceID: fixture.owner.identity.deviceID,
+                confirmationToken: review.confirmationToken,
+                operationID: Self.operationID
+            )
+        }
+        #expect(service.preparedDeviceIDs == [
+            fixture.member.identity.deviceID,
+            fixture.member.identity.deviceID,
+            fixture.owner.identity.deviceID,
+        ])
+        #expect(service.revokedPlans.isEmpty)
+    }
+}
+
+private final class RecordingRevocationWorkflowService:
+    V3DeviceWrappedRevocationServicing,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private let plan: V3DeviceWrappedRevocationPlan
+    private let trusted: V3DeviceWrappedTrustedCheckpoint
+    private var prepared: [String] = []
+    private var revoked: [V3DeviceWrappedRevocationPlan] = []
+    private var operations: [VaultTransactionOperationID] = []
+
+    init(
+        plan: V3DeviceWrappedRevocationPlan,
+        trusted: V3DeviceWrappedTrustedCheckpoint
+    ) {
+        self.plan = plan
+        self.trusted = trusted
+    }
+
+    var preparedDeviceIDs: [String] {
+        lock.withLock { prepared }
+    }
+
+    var revokedPlans: [V3DeviceWrappedRevocationPlan] {
+        lock.withLock { revoked }
+    }
+
+    var operationIDs: [VaultTransactionOperationID] {
+        lock.withLock { operations }
+    }
+
+    func prepare(
+        revoking deviceID: String
+    ) throws -> V3DeviceWrappedRevocationPlan {
+        lock.withLock { prepared.append(deviceID) }
+        return plan
+    }
+
+    func revoke(
+        _ plan: V3DeviceWrappedRevocationPlan,
+        operationID: VaultTransactionOperationID
+    ) throws -> V3DeviceWrappedTrustedCheckpoint {
+        lock.withLock {
+            revoked.append(plan)
+            operations.append(operationID)
+        }
+        return trusted
+    }
+}
+
 private enum RevocationServiceTestError: Error {
     case unexpectedCheckpointLoad
 }
