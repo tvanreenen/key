@@ -597,6 +597,304 @@ struct V3DeviceWrappedRevocationTransitionPublisherTests {
     }
 }
 
+@Suite(.serialized)
+struct V3DeviceWrappedRevocationServiceTests {
+    private static let operationID = try! VaultTransactionOperationID(
+        validating: "018f4d38-7d5a-7b20-b0f1-97d6e96c94b9"
+    )
+
+    @Test
+    func executesTheExactReviewedPlanAndCommitsTheNewSession() throws {
+        let fixture = try RevocationTransitionFixture()
+        let state = RevocationServiceStateLoader(
+            checkpoints: [fixture.base, fixture.base],
+            vaultKey: V3DeviceWrappedRevocationTransitionTests.currentKey
+        )
+        let publisher = RecordingRevocationServicePublisher()
+        let session = V3DeviceWrappedVaultKeySessionStore()
+        let service = makeService(
+            fixture: fixture,
+            state: state,
+            publisher: publisher,
+            session: session
+        )
+
+        let plan = try service.prepare(
+            revoking: fixture.member.identity.deviceID
+        )
+        let trusted = try service.revoke(plan, operationID: Self.operationID)
+
+        #expect(publisher.events == [.recovered, .published])
+        #expect(publisher.candidate?.plan == plan)
+        #expect(trusted.envelope.body.devices == plan.resultingDevices)
+        #expect(try session.load(
+            vaultID: V3DeviceWrappedRevocationTransitionTests.vaultID,
+            keyID: trusted.envelope.body.keyID
+        ) == V3DeviceWrappedRevocationTransitionTests.nextKey)
+    }
+
+    @Test
+    func refusesExecutionAfterTheReviewedCheckpointChanges() throws {
+        let fixture = try RevocationTransitionFixture()
+        let changed = try trustedCheckpoint(for: fixture.makeCandidate())
+        let state = RevocationServiceStateLoader(
+            checkpoints: [fixture.base, changed],
+            vaultKey: V3DeviceWrappedRevocationTransitionTests.currentKey
+        )
+        let publisher = RecordingRevocationServicePublisher()
+        let service = makeService(
+            fixture: fixture,
+            state: state,
+            publisher: publisher
+        )
+        let plan = try service.prepare(
+            revoking: fixture.member.identity.deviceID
+        )
+
+        #expect(throws: V3ImmutableTransactionError.expectedHeadsChanged) {
+            _ = try service.revoke(plan, operationID: Self.operationID)
+        }
+        #expect(publisher.events == [.recovered])
+        #expect(publisher.candidate == nil)
+    }
+
+    @Test
+    func resumesTheExactInterruptedRevocationWithoutRepublishing() throws {
+        let fixture = try RevocationTransitionFixture()
+        let recovered = try trustedCheckpoint(for: fixture.makeCandidate())
+        let state = RevocationServiceStateLoader(
+            checkpoints: [fixture.base],
+            vaultKey: V3DeviceWrappedRevocationTransitionTests.currentKey
+        )
+        let publisher = RecordingRevocationServicePublisher(
+            recovery: V3DeviceWrappedRevocationRecoveryResult(
+                outcome: .completed(operationID: Self.operationID),
+                trustedCheckpoint: recovered,
+                vaultKey: V3DeviceWrappedRevocationTransitionTests.nextKey
+            )
+        )
+        let session = V3DeviceWrappedVaultKeySessionStore()
+        let service = makeService(
+            fixture: fixture,
+            state: state,
+            publisher: publisher,
+            session: session,
+            makeVaultKey: {
+                Issue.record("Recovery generated an unnecessary vault key.")
+                return Data()
+            }
+        )
+        let plan = try service.prepare(
+            revoking: fixture.member.identity.deviceID
+        )
+
+        let trusted = try service.revoke(plan, operationID: Self.operationID)
+
+        #expect(trusted == recovered)
+        #expect(state.checkpointLoadCount == 1)
+        #expect(publisher.events == [.recovered])
+        #expect(try session.load(
+            vaultID: V3DeviceWrappedRevocationTransitionTests.vaultID,
+            keyID: recovered.envelope.body.keyID
+        ) == V3DeviceWrappedRevocationTransitionTests.nextKey)
+    }
+
+    private func makeService(
+        fixture: RevocationTransitionFixture,
+        state: RevocationServiceStateLoader,
+        publisher: RecordingRevocationServicePublisher,
+        session: V3DeviceWrappedVaultKeySessionStore =
+            V3DeviceWrappedVaultKeySessionStore(),
+        makeVaultKey: @escaping V3DeviceWrappedRevocationService
+            .VaultKeyGenerator = {
+                V3DeviceWrappedRevocationTransitionTests.nextKey
+            }
+    ) -> V3DeviceWrappedRevocationService {
+        V3DeviceWrappedRevocationService(
+            vaultID: V3DeviceWrappedRevocationTransitionTests.vaultID,
+            stateLoader: state,
+            source: RevocationServiceObjectSource(
+                entries: fixture.currentEntries
+            ),
+            loadIdentity: { _, _ in fixture.owner },
+            loadPublicIdentity: { _ in fixture.owner.identity },
+            session: session,
+            makePublisher: { _ in publisher },
+            makeVaultKey: makeVaultKey,
+            makeTransitionID: {
+                V3DeviceWrappedRevocationTransitionTests
+                    .revocationTransitionID
+            }
+        )
+    }
+
+    private func trustedCheckpoint(
+        for candidate: V3DeviceWrappedRevocationTransitionCandidate
+    ) throws -> V3DeviceWrappedTrustedCheckpoint {
+        V3DeviceWrappedTrustedCheckpoint(
+            checkpoint: try V3ManifestCheckpoint(
+                vaultID: V3DeviceWrappedRevocationTransitionTests.vaultID,
+                envelopeDigest: candidate.manifestDigest
+            ),
+            envelope: try V3DeviceWrappedManifestEnvelopeCodec().parse(
+                candidate.manifestData
+            )
+        )
+    }
+}
+
+private enum RevocationServiceTestError: Error {
+    case unexpectedCheckpointLoad
+}
+
+private final class RevocationServiceStateLoader:
+    V3DeviceWrappedMutationStateLoading,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var checkpoints: [V3DeviceWrappedTrustedCheckpoint]
+    private let vaultKey: Data
+    private var checkpointLoads = 0
+
+    init(
+        checkpoints: [V3DeviceWrappedTrustedCheckpoint],
+        vaultKey: Data
+    ) {
+        self.checkpoints = checkpoints
+        self.vaultKey = vaultKey
+    }
+
+    var checkpointLoadCount: Int {
+        lock.withLock { checkpointLoads }
+    }
+
+    func authenticatedCheckpoint(
+        reason _: String
+    ) throws -> V3DeviceWrappedTrustedCheckpoint {
+        try lock.withLock {
+            guard !checkpoints.isEmpty else {
+                throw RevocationServiceTestError.unexpectedCheckpointLoad
+            }
+            checkpointLoads += 1
+            return checkpoints.removeFirst()
+        }
+    }
+
+    func loadVaultKey(keyID _: V3VaultKeyID) throws -> Data {
+        vaultKey
+    }
+}
+
+private struct RevocationServiceObjectSource: V3ImmutableObjectReading {
+    let entries: [V3EntryObjectKey: V3EncryptedEntry]
+
+    func manifestDigests(
+        maximumCount _: Int
+    ) throws -> V3RepositoryDirectoryListing {
+        .available(digests: [], objectCount: 0)
+    }
+
+    func readManifest(
+        digest _: Data,
+        maximumBytes _: Int
+    ) throws -> V3RepositoryObjectRead {
+        .unavailable
+    }
+
+    func readEntry(
+        entryID: String,
+        digest: Data,
+        maximumBytes _: Int
+    ) throws -> V3RepositoryObjectRead {
+        guard let entry = entries[V3EntryObjectKey(
+            entryID: entryID,
+            digest: digest
+        )] else {
+            return .unavailable
+        }
+        return .available(entry.canonicalBytes)
+    }
+}
+
+private final class RecordingRevocationServicePublisher:
+    V3DeviceWrappedRevocationPublishing,
+    @unchecked Sendable
+{
+    enum Event: Equatable {
+        case recovered
+        case published
+    }
+
+    private let lock = NSLock()
+    private let recovery: V3DeviceWrappedRevocationRecoveryResult
+    private var recordedEvents: [Event] = []
+    private var recordedCandidate:
+        V3DeviceWrappedRevocationTransitionCandidate?
+
+    init(
+        recovery: V3DeviceWrappedRevocationRecoveryResult =
+            V3DeviceWrappedRevocationRecoveryResult(
+                outcome: .nothingToRecover,
+                trustedCheckpoint: nil,
+                vaultKey: nil
+            )
+    ) {
+        self.recovery = recovery
+    }
+
+    var events: [Event] {
+        lock.withLock { recordedEvents }
+    }
+
+    var candidate: V3DeviceWrappedRevocationTransitionCandidate? {
+        lock.withLock { recordedCandidate }
+    }
+
+    func recoverInterruptedTransaction(
+        vaultID _: String,
+        localIdentity _: any V3DeviceWrappedVaultKeyUnwrapping,
+        unwrapReason _: String,
+        afterCheckpointAdvance: @escaping
+            V3DeviceWrappedRevocationCommitHandler
+    ) throws -> V3DeviceWrappedRevocationRecoveryResult {
+        lock.withLock { recordedEvents.append(.recovered) }
+        if let trusted = recovery.trustedCheckpoint,
+           let vaultKey = recovery.vaultKey
+        {
+            try afterCheckpointAdvance(trusted, vaultKey)
+        }
+        return recovery
+    }
+
+    func publish(
+        _ candidate: V3DeviceWrappedRevocationTransitionCandidate,
+        parent _: V3DeviceWrappedTrustedCheckpoint,
+        currentEntries _: [V3EntryObjectKey: V3EncryptedEntry],
+        currentVaultKey _: Data,
+        nextVaultKey: Data,
+        localIdentity _: any V3DeviceWrappedVaultKeyUnwrapping,
+        unwrapReason _: String,
+        afterCheckpointAdvance: @escaping
+            V3DeviceWrappedRevocationCommitHandler
+    ) throws -> V3DeviceWrappedTrustedCheckpoint {
+        lock.withLock {
+            recordedEvents.append(.published)
+            recordedCandidate = candidate
+        }
+        let trusted = V3DeviceWrappedTrustedCheckpoint(
+            checkpoint: try V3ManifestCheckpoint(
+                vaultID: candidate.body.vaultID,
+                envelopeDigest: candidate.manifestDigest
+            ),
+            envelope: try V3DeviceWrappedManifestEnvelopeCodec().parse(
+                candidate.manifestData
+            )
+        )
+        try afterCheckpointAdvance(trusted, nextVaultKey)
+        return trusted
+    }
+}
+
 private struct RevocationTestDevice:
     V3EnrollmentMessageSigning,
     V3DeviceWrappedVaultKeyUnwrapping

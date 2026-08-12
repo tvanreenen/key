@@ -3,9 +3,34 @@ import Foundation
 typealias V3DeviceWrappedRevocationCommitHandler =
     V3DeviceWrappedKeyRotationCommitHandler
 
+protocol V3DeviceWrappedRevocationPublishing: Sendable {
+    func recoverInterruptedTransaction(
+        vaultID: String,
+        localIdentity: any V3DeviceWrappedVaultKeyUnwrapping,
+        unwrapReason: String,
+        afterCheckpointAdvance: @escaping
+            V3DeviceWrappedRevocationCommitHandler
+    ) throws -> V3DeviceWrappedRevocationRecoveryResult
+
+    func publish(
+        _ candidate: V3DeviceWrappedRevocationTransitionCandidate,
+        parent: V3DeviceWrappedTrustedCheckpoint,
+        currentEntries: [V3EntryObjectKey: V3EncryptedEntry],
+        currentVaultKey: Data,
+        nextVaultKey: Data,
+        localIdentity: any V3DeviceWrappedVaultKeyUnwrapping,
+        unwrapReason: String,
+        afterCheckpointAdvance: @escaping
+            V3DeviceWrappedRevocationCommitHandler
+    ) throws -> V3DeviceWrappedTrustedCheckpoint
+}
+
 /// Applies the exact reviewed revocation policy before delegating the common
 /// immutable key-rotation transaction to its shared publisher.
-struct V3DeviceWrappedRevocationTransitionPublisher: Sendable {
+struct V3DeviceWrappedRevocationTransitionPublisher:
+    V3DeviceWrappedRevocationPublishing,
+    Sendable
+{
     private let mutationOwner: any VaultTransactionMutationOwning
     private let validator: V3DeviceWrappedRevocationTransitionValidator
     private let publisher: V3DeviceWrappedKeyRotationTransitionPublisher
