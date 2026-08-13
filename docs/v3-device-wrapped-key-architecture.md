@@ -6,11 +6,11 @@ durable content-publication runtime are implemented and connected to the
 shipping helper. `ENR-510` first and later enrollment now use that permanent
 profile and one key-rotating roster-addition transition. The signed alpha.7
 Preview release physically qualified migration, wrapper-backed restart,
-owner-to-second-device enrollment, and a joining-device write on two Macs.
-Authenticated remaining-device catch-up and owner-reviewed revocation are
+first-to-second-device enrollment, and a joining-device write on two Macs.
+Authenticated remaining-device catch-up and device revocation are
 implemented for the next Preview build. Continuity UX, physical multi-device
 qualification, and final review remain pending. Catastrophe recovery after
-every enrolled owner is lost is explicitly deferred beyond `0.2.0`.
+every enrolled device is lost is explicitly deferred beyond `0.2.0`.
 
 This document defines the intended final key-management model for version 3
 vaults. It replaces the prerelease design in which the raw vault key is stored
@@ -23,11 +23,11 @@ release qualification.
 Encrypted vault files may live in any ordinary file provider. In `0.2.0`,
 access belongs only to explicitly enrolled devices.
 
-Each enrolled Mac owns non-exportable Secure Enclave keys. The current vault
-key is encrypted separately to every active device and exists in plaintext only
-inside Key Agent's authenticated, short-lived memory session. Adding or
-removing a device creates a new key epoch and a newly encrypted current vault
-snapshot.
+Each enrolled Mac has equal authority backed by non-exportable Secure Enclave
+keys. The current vault key is encrypted separately to every active device and
+exists in plaintext only inside Key Agent's authenticated, short-lived memory
+session. Adding or removing a device creates a new key epoch and a newly
+encrypted current vault snapshot.
 
 The file provider may delay, omit, replay, or fork bytes. It can deny service,
 but it cannot silently grant access, choose trusted history, or authorize a
@@ -37,8 +37,12 @@ membership change.
 
 There is one device-managed vault mode.
 
-- A new vault begins with one active owner device.
+- A new vault begins with one active device.
 - A one-device vault and a multi-device vault use the same manifest semantics.
+- Every active device may authorize enrollment or revocation after the
+  operation's explicit local-presence and confirmation checks.
+- The permanent manifest has no owner/member role field. A device is active or
+  revoked; status, not a hierarchy, determines its continuing authority.
 - The second, third, and later enrollments use the same roster-addition
   transition.
 - There is no permanent local-to-shared exception or separate signature
@@ -54,7 +58,7 @@ The ordinary CLI remains small:
   device.
 - `key share revoke` removes a selected device after explicit confirmation.
 - `key lock` destroys the in-memory vault-key session.
-- Key recommends at least two enrolled owners and identifies a one-device
+- Key recommends at least two enrolled devices and identifies a one-device
   vault as at risk of permanent loss.
 
 ## Trust And Storage Boundaries
@@ -91,7 +95,7 @@ The vault root contains only immutable, content-addressed objects:
 - transaction artifacts that carry no authority until authenticated
   publication completes.
 
-Device names, roles, public keys, revocation status, object sizes, and history
+Device names, public keys, revocation status, object sizes, and history
 shape are metadata, not secret plaintext.
 
 ### Session state
@@ -111,7 +115,7 @@ compromised helper during an unlocked session.
 
 Every device has separate Secure Enclave P-256 keys for:
 
-- ECDSA owner authorization; and
+- ECDSA device authorization; and
 - ECDH/HPKE vault-key unwrapping.
 
 Private keys are generated on the device and are never exportable. Public keys
@@ -137,7 +141,7 @@ minimum deployment target from macOS 13 to macOS 14. Do not retain or add a
 parallel custom ECIES implementation or availability fallback.
 
 HPKE base mode is sufficient because the complete authority-changing manifest
-is separately signed by an active owner. Each wrapper is additionally bound
+is separately signed by an active device. Each wrapper is additionally bound
 through HPKE `info` and authenticated data to a canonical context containing:
 
 - wrapper format and version;
@@ -171,7 +175,7 @@ current entry snapshot:
 A pure key rotation preserves each entry's logical ID, name, type, and content
 revision while changing its key ID, nonce, ciphertext, and ciphertext digest.
 The manifest verifier permits this same-revision reseal only inside an exact
-owner-authorized key transition that covers the complete current snapshot.
+device-authorized key transition that covers the complete current snapshot.
 Ordinary same-revision substitution remains a security error.
 
 ## Lifecycle
@@ -180,7 +184,7 @@ Ordinary same-revision substitution remains a security error.
 
 1. Create this Mac's Secure Enclave signing and key-agreement keys.
 2. Create a random vault ID, authority-transition ID, and vault key.
-3. Build a one-device roster with this Mac as active owner.
+3. Build a one-device roster with this Mac active.
 4. HPKE-wrap the vault key to this Mac.
 5. Publish and authenticate the one-device genesis manifest.
 6. Persist its exact checkpoint and local manifest cache.
@@ -212,7 +216,7 @@ They may branch and use the existing content reconciliation rules.
 
 ### Enrollment
 
-1. Require one complete authenticated current head and an active local owner.
+1. Require one complete authenticated current head and an active local device.
 2. Perform the existing invitation, signed request, device-name, and comparison
    ceremony.
 3. Generate a new vault key and derive the authority-transition ID from the
@@ -221,23 +225,22 @@ They may branch and use the existing content reconciliation rules.
 5. Preserve existing active devices and add exactly the compared identity.
 6. HPKE-wrap the new key to every resulting active device and the recovery
    identity, if present.
-7. Sign the complete transition with the inviting owner's Secure Enclave key.
+7. Sign the complete transition with the inviting device's Secure Enclave key.
 8. Publish entries first, the manifest last, and checkpoint under an expected
    old value.
-9. Each existing device advances by authenticating the owner transition and
-   opening its new wrapper. The joining device establishes first trust through
-   the compared ceremony and selects the vault last.
+9. Each existing device advances by authenticating the device-authorized
+   transition and opening its new wrapper. The joining device establishes
+   first trust through the compared ceremony and selects the vault last.
 
-No device must be online during approval except the approving owner and joining
-device. Existing offline devices already have authenticated public wrapping
+No device must be online during approval except the approving and joining
+devices. Existing offline devices already have authenticated public wrapping
 keys in the parent roster.
 
 ### Revocation
 
-1. Show the exact device name, stable ID, role, and status.
+1. Show the exact device name, stable ID, and status.
 2. Require explicit confirmation and one complete authenticated current head.
-3. Refuse to revoke the last active owner unless recovery is immediately
-   establishing a replacement owner.
+3. Refuse to revoke the last active device.
 4. Generate a new key and re-encrypt the complete current snapshot.
 5. Mark the selected device revoked and omit its wrapper.
 6. Create wrappers only for remaining active devices and recovery.
@@ -251,9 +254,9 @@ by the revoked device.
 
 The local checkpoint remains the bootstrap trust anchor. A returning device
 opens its checkpoint wrapper, authenticates forward history under that key,
-and processes each owner-authorized key transition in order. At a transition it
-verifies the parent-owner signature before opening its addressed new wrapper,
-then authenticates the candidate with the recovered key.
+and processes each device-authorized key transition in order. At a transition
+it verifies the parent-device signature before opening its addressed new
+wrapper, then authenticates the candidate with the recovered key.
 
 Missing transition objects or provider placeholders stop catch-up as
 temporary-unavailable while preserving the last trusted checkpoint for
@@ -272,9 +275,9 @@ a full-release requirement.
 
 Continuity and catastrophe recovery are different capabilities.
 
-When at least one enrolled owner survives, that device can enroll a replacement,
+When at least one enrolled device survives, it can enroll a replacement,
 rotate the vault key, and revoke the lost device. Key recommends at least two
-enrolled owners so ordinary device loss does not strand the vault. A
+enrolled devices so ordinary device loss does not strand the vault. A
 one-device vault remains valid but must be presented as at risk.
 
 `0.2.0` has no catastrophe-recovery authority. If every enrolled Secure Enclave
@@ -286,7 +289,7 @@ escrow, support override, security question, or hidden Apple-account fallback.
 This is an intentional release boundary rather than an incomplete hidden
 feature. It is safer than adding a portable authority before its theft, loss,
 and operational behavior has been physically qualified. The CLI and migration
-cleanup UX must state the boundary plainly, especially when only one owner
+cleanup UX must state the boundary plainly, especially when only one device
 remains.
 
 [Offline Recovery Models](offline-recovery-models.md) preserves the later
@@ -303,12 +306,12 @@ review; it is not part of the stable `0.2.0` format promise.
 | Checkpoint manifest or required transition is missing | Temporary-unavailable; retain local trust |
 | Cached manifest does not match the local checkpoint | Ignore the cache; require exact provider bytes |
 | Provider bytes are malformed, substituted, or exceed limits | Recovery-required; release no plaintext |
-| Recorded Secure Enclave identity is inaccessible | Re-enroll through a surviving owner; if none survives, report permanent loss |
+| Recorded Secure Enclave identity is inaccessible | Re-enroll through a surviving device; if none survives, report permanent loss |
 | Current authenticated roster marks this device revoked | Explicit revoked-device error; no unwrap attempt |
 | Two key or membership transitions compete | Security conflict; no automatic merge or key choice |
 | Rotation cannot decrypt every current entry | Abort before publishing new authority |
 | Rotation is interrupted | Recover to the complete old or complete new checkpoint |
-| Every owner is lost | Permanent loss, stated without offering destructive repair or password recovery |
+| Every enrolled device is lost | Permanent loss, stated without offering destructive repair or password recovery |
 
 ## Alpha Compatibility Policy
 
@@ -317,8 +320,14 @@ It stores the raw vault key after enrollment, distinguishes local and shared
 manifests, uses a custom wrapper construction, and retains a special first-peer
 authorization convention.
 
-The permanent profile intentionally breaks that prerelease behavior:
+The permanent profile intentionally breaks that prerelease behavior. The
+role-free profile revision introduced during the alpha series is another
+intentional break: manifests and enrollment transcripts that grant an
+owner/member role are not valid role-free state.
 
+- the role-free permanent profile and enrollment protocol use required version
+  `2` discriminators;
+- new binaries clearly refuse earlier role-bearing alpha state;
 - new binaries recognize and clearly refuse the old alpha profile;
 - old binaries reject the permanent profile through strict required fields;
 - no indefinite dual reader/writer or cryptographic fallback is retained;
@@ -344,7 +353,7 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 
 - [x] Specify and validate the exact permanent manifest, wrapper, and
   local-cache schemas before enabling a permanent-profile writer.
-- [x] Create every vault with one owner and one durable HPKE wrapper.
+- [x] Create every vault with one active device and one durable HPKE wrapper.
 - [x] Add the exact local checkpoint-manifest cache.
 - [x] Open wrappers into helper memory and remove persistent raw v3 vault-key
   storage.
@@ -362,7 +371,7 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 - [x] Bind the signed transition and every wrapper to the complete compared
   transcript.
 - [x] Remove the local-to-shared exception and legacy wrapper implementation.
-- [x] Qualify the owner-to-second-device ceremony and joining-device restart
+- [x] Qualify the first-to-second-device ceremony and joining-device restart
   and write paths with the signed alpha.7 Preview release.
 - [ ] Qualify a third-device ceremony before beta; it uses the same transition
   but requires another physical identity or a completed revocation/re-enrollment
@@ -370,7 +379,7 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 
 ### `ENR-511` — Revocation and rotation
 
-- [x] Add explicit owner-reviewed device revocation.
+- [x] Add explicit device revocation.
 - [x] Rotate and re-encrypt the complete current snapshot.
 - [x] Add authenticated remaining-device catch-up across ordered content and
   key epochs.
@@ -381,11 +390,24 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 - [x] Prove old-or-new crash recovery across every revocation publication
   phase.
 
+### `AUTH-513` — Equal enrolled-device authority
+
+- Remove owner/member roles from the permanent manifest and enrollment
+  transcript schemas.
+- Treat every active enrolled device as eligible to authorize enrollment and
+  revocation; retain explicit local presence, comparison, and confirmation.
+- Require at least one active device and one exact current-key wrapper per
+  active device.
+- Give the role-free schema required profile/protocol version `2` and clearly
+  reject role-bearing alpha state rather than silently translating it.
+- Update catch-up, revocation, status, and CLI output to describe devices and
+  statuses without implying a hierarchy.
+
 ### `REC-512` — Continuity UX and explicit permanent loss
 
-- Report whether a vault has one or multiple enrolled owner devices.
-- Recommend at least two owners without preventing one-device use.
-- Warn prominently before revocation leaves only one owner.
+- Report whether a vault has one or multiple enrolled devices.
+- Recommend at least two devices without preventing one-device use.
+- Warn prominently before revocation leaves only one device.
 - Explain during migration cleanup that provider bytes alone cannot recover a
   device-wrapped vault.
 - Report permanent loss honestly when no enrolled Secure Enclave identity
@@ -420,8 +442,8 @@ notarization, and independent security review gates.
   conflicts never auto-merge.
 - Missing bytes remain availability failures; invalid bytes remain security
   failures; neither releases plaintext or changes local trust.
-- A surviving owner can authorize a replacement; provider bytes alone cannot.
-- Loss of every enrolled owner is permanent in `0.2.0` and is stated plainly.
+- A surviving device can authorize a replacement; provider bytes alone cannot.
+- Loss of every enrolled device is permanent in `0.2.0` and is stated plainly.
 - There is no implicit password, iCloud Keychain, Apple-account, support, or
   provider recovery path.
 - The older alpha profile is never silently upgraded, interpreted, or written

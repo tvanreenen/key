@@ -2,7 +2,7 @@
 
 Status: design record for recovery after every enrolled device is lost. The
 `0.2.0` release does not implement catastrophe recovery; it relies on explicit
-multi-device continuity and states that loss of every enrolled owner means
+multi-device continuity and states that loss of every enrolled device means
 permanent loss. This document preserves the later recovery candidates and the
 tradeoffs that must be resolved before a recovery schema becomes permanent.
 
@@ -12,11 +12,11 @@ Continuity and catastrophe recovery are separate product capabilities.
 
 ### Device continuity
 
-At least one enrolled owner survives. That Mac can authorize a replacement,
+At least one enrolled device survives. That Mac can authorize a replacement,
 rotate the vault key, and revoke the lost device without exporting its Secure
 Enclave private keys. This is the supported `0.2.0` continuity model.
 
-Key recommends at least two enrolled owner devices. Provider storage alone is
+Key recommends at least two enrolled devices. Provider storage alone is
 not a recoverable backup because it contains ciphertext but none of the
 device-bound authority needed to open it.
 
@@ -34,7 +34,7 @@ The user has:
 The recovery design must not assume a Key service, Apple-account escrow,
 provider honesty, or access to any previous device.
 
-`0.2.0` deliberately implements no such authority. If every enrolled owner is
+`0.2.0` deliberately implements no such authority. If every enrolled device is
 lost, the vault is permanently inaccessible. This is safer than weakening the
 device-bound model with a recovery mechanism that has not been settled and
 physically qualified.
@@ -74,7 +74,8 @@ the vault; neither token contains an exportable clone of the other.
 1. Install Key on a new Mac and select the existing provider-backed vault.
 2. Insert either registered recovery key.
 3. Enter its activation PIN and physically touch the token.
-4. Authenticate locally while Key creates a new Secure Enclave owner.
+4. Authenticate locally while Key creates a new enrolled Secure Enclave
+   identity.
 5. Key recovers the current vault key, revokes the lost roster, rotates the
    vault key, and asks the user to restore two-key recovery redundancy.
 
@@ -115,7 +116,8 @@ checksummed words, a QR code, or a small file.
 
 1. Install Key on a new Mac and select the existing provider-backed vault.
 2. Scan, enter, or import any two recovery shares.
-3. Authenticate locally while Key creates a new Secure Enclave owner.
+3. Authenticate locally while Key creates a new enrolled Secure Enclave
+   identity.
 4. Key recovers the current vault key, revokes the lost roster, rotates the
    vault key, and creates a replacement recovery kit.
 
@@ -131,7 +133,7 @@ checksummed words, a QR code, or a small file.
 
 The user must keep the shares in separate places. Storing all three together
 quietly reduces the practical protection to that of one bearer document.
-Anyone who obtains the vault and any two shares can take ownership. The model
+Anyone who obtains the vault and any two shares can take control. The model
 has good loss and theft properties but asks the user to become a careful
 backup operator.
 
@@ -147,7 +149,7 @@ are required.
 1. Select the provider-backed vault.
 2. Attach or import the recovery file.
 3. Enter or scan the printed code.
-4. Create the replacement Secure Enclave owner.
+4. Create the replacement enrolled Secure Enclave identity.
 
 **Why this is stronger than a password**
 
@@ -171,7 +173,7 @@ characters, and/or a QR code.
 
 1. Select the provider-backed vault.
 2. Scan or enter the recovery key.
-3. Create the replacement Secure Enclave owner.
+3. Create the replacement enrolled Secure Enclave identity.
 
 **Why this is stronger than a password**
 
@@ -237,11 +239,11 @@ store.
 
 `0.2.0` selects the following deliberately small model:
 
-1. Recommend at least two enrolled owner devices.
-2. Use any surviving owner to enroll a replacement and revoke a lost device.
+1. Recommend at least two enrolled devices.
+2. Use any surviving device to enroll a replacement and revoke a lost device.
 3. State plainly that provider storage alone is not a recoverable backup.
-4. If every owner is unavailable, report permanent loss without offering a
-   password, cloud escrow, destructive repair, or hidden fallback.
+4. If every enrolled device is unavailable, report permanent loss without
+   offering a password, cloud escrow, destructive repair, or hidden fallback.
 
 One enrolled device is allowed, but Key must describe it as an at-risk
 configuration. Revoking from two devices down to one requires a prominent
@@ -274,7 +276,7 @@ available to the new Mac. It cannot prove that the provider is not withholding
 a later authentic state.
 
 For any selected model, possession of the vault plus sufficient recovery
-material is equivalent to ownership. Successful recovery must replace that
+material is equivalent to control. Successful recovery must replace that
 material rather than treating it as a reusable ordinary unlock credential.
 
 ## References
