@@ -375,6 +375,18 @@ struct VaultUXCLITests {
         #expect(response.errorMessage?.contains("permanently inaccessible") == true)
     }
 
+    @Test
+    func revokedDeviceRetainsTheExplicitSecurityFailureContract() {
+        let response = KeyServiceResponse.failure(
+            VaultUXServiceError.deviceRevoked
+        )
+
+        #expect(response.errorCode == .recoveryRequired)
+        #expect(response.exitCode == KeyExitCode.securityFailure.rawValue)
+        #expect(response.errorMessage?.contains("revoked") == true)
+        #expect(response.errorMessage?.contains("replacement device") == true)
+    }
+
     @Test(arguments: [
         ["status"],
         ["conflict", "list"],
