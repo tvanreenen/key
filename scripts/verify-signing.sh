@@ -40,6 +40,26 @@ if [[ ! -f "${launch_agent_plist}" ]]; then
   exit 1
 fi
 
+codesign --verify --strict --verbose=2 "${helper_path}"
+helper_signing_metadata="$(codesign -dv --verbose=4 "${helper_path}" 2>&1)"
+helper_signing_identifier="$(
+  printf '%s\n' "${helper_signing_metadata}" \
+    | awk -F= '/^Identifier=/ { print $2; exit }'
+)"
+helper_team_identifier="$(
+  printf '%s\n' "${helper_signing_metadata}" \
+    | awk -F= '/^TeamIdentifier=/ { print $2; exit }'
+)"
+
+if [[ "${helper_signing_identifier}" != "${expected_helper_signing_identifier}" ]]; then
+  echo "unexpected helper signing identifier: expected ${expected_helper_signing_identifier}, found ${helper_signing_identifier:-missing}" >&2
+  exit 1
+fi
+if [[ "${helper_team_identifier}" != "${expected_team_identifier}" ]]; then
+  echo "unexpected helper signing team: expected ${expected_team_identifier}, found ${helper_team_identifier:-missing}" >&2
+  exit 1
+fi
+
 require_plist_value() {
   local description="$1"
   local key_path="$2"
@@ -56,11 +76,11 @@ require_plist_value() {
 require_plist_value \
   "LaunchAgent signing constraint" \
   "SpawnConstraint.signing-identifier" \
-  "${expected_helper_signing_identifier}"
+  "${helper_signing_identifier}"
 require_plist_value \
   "LaunchAgent team constraint" \
   "SpawnConstraint.team-identifier" \
-  "${expected_team_identifier}"
+  "${helper_team_identifier}"
 
 validation_categories="$(
   plutil -extract 'SpawnConstraint.validation-category.$in' json -o - "${launch_agent_plist}" \
