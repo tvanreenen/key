@@ -12,6 +12,7 @@ enum V3EnrollmentDeviceIdentityStoreError:
     case invalidRecord
     case invalidIdentityRequest
     case identityAlreadyExists
+    case conflict
     case identityMismatch
     case secureEnclaveUnavailable
     case authenticationCancelled
@@ -27,6 +28,8 @@ enum V3EnrollmentDeviceIdentityStoreError:
             "The version 3 enrollment identity request is invalid."
         case .identityAlreadyExists:
             "This device already has a version 3 enrollment identity for the vault."
+        case .conflict:
+            "The device-local version 3 enrollment identity changed concurrently."
         case .identityMismatch:
             "The stored Secure Enclave keys do not match the device enrollment identity."
         case .secureEnclaveUnavailable:
@@ -148,8 +151,18 @@ protocol V3EnrollmentDeviceKeyRecordStoring: Sendable {
     func insertRecord(_ record: Data, vaultID: String) throws
 }
 
+/// Narrow destructive capability reserved for helper-owned replacement
+/// enrollment. Ordinary enrollment code receives only the read/insert store.
+protocol V3EnrollmentDeviceKeyRecordDeleting: Sendable {
+    func deleteRecord(
+        expectedRecordDigest: Data,
+        vaultID: String
+    ) throws
+}
+
 final class V3EnrollmentDeviceKeyRecordKeychainStore:
     V3EnrollmentDeviceKeyRecordStoring,
+    V3EnrollmentDeviceKeyRecordDeleting,
     @unchecked Sendable
 {
     private let configuration: RuntimeConfiguration
@@ -163,6 +176,10 @@ final class V3EnrollmentDeviceKeyRecordKeychainStore:
         lock.lock()
         defer { lock.unlock() }
 
+        return try loadRecordWithoutLock(vaultID: vaultID)
+    }
+
+    private func loadRecordWithoutLock(vaultID: String) throws -> Data? {
         var query = try baseQuery(vaultID: vaultID)
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         query[kSecReturnData as String] = true
@@ -206,6 +223,32 @@ final class V3EnrollmentDeviceKeyRecordKeychainStore:
                 .identityAlreadyExists
         }
         guard status == errSecSuccess else {
+            throw V3EnrollmentDeviceIdentityStoreError.keychainStatus(status)
+        }
+    }
+
+    func deleteRecord(
+        expectedRecordDigest: Data,
+        vaultID: String
+    ) throws {
+        guard expectedRecordDigest.count == SHA256.byteCount else {
+            throw V3EnrollmentDeviceIdentityStoreError
+                .invalidIdentityRequest
+        }
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let current = try loadRecordWithoutLock(vaultID: vaultID) else {
+            return
+        }
+        guard Data(SHA256.hash(data: current)) == expectedRecordDigest else {
+            throw V3EnrollmentDeviceIdentityStoreError.conflict
+        }
+        let status = SecItemDelete(
+            try baseQuery(vaultID: vaultID) as CFDictionary
+        )
+        guard status == errSecSuccess || status == errSecItemNotFound else {
             throw V3EnrollmentDeviceIdentityStoreError.keychainStatus(status)
         }
     }
@@ -680,6 +723,68 @@ struct V3EnrollmentDeviceIdentityManager: Sendable {
             throw V3EnrollmentDeviceIdentityStoreError.invalidRecord
         }
         return record.identity
+    }
+}
+
+struct V3EnrollmentDeviceIdentityDeletionTarget: Equatable, Sendable {
+    let vaultID: String
+    let identity: V3EnrollmentDeviceIdentity
+    fileprivate let recordDigest: Data
+
+    init(recordData: Data) throws {
+        let record = try V3EnrollmentDeviceKeyRecord(
+            canonicalBytes: recordData
+        )
+        vaultID = record.vaultID
+        identity = record.identity
+        recordDigest = Data(SHA256.hash(data: recordData))
+    }
+}
+
+struct V3EnrollmentDeviceIdentityDeleter: Sendable {
+    private let recordStore:
+        any V3EnrollmentDeviceKeyRecordStoring
+        & V3EnrollmentDeviceKeyRecordDeleting
+
+    init(
+        recordStore:
+            any V3EnrollmentDeviceKeyRecordStoring
+            & V3EnrollmentDeviceKeyRecordDeleting
+    ) {
+        self.recordStore = recordStore
+    }
+
+    func deletionTarget(
+        vaultID: String
+    ) throws -> V3EnrollmentDeviceIdentityDeletionTarget? {
+        guard isValidV3UUID(vaultID) else {
+            throw V3EnrollmentDeviceIdentityStoreError
+                .invalidIdentityRequest
+        }
+        guard let recordData = try recordStore.loadRecord(
+            vaultID: vaultID
+        ) else {
+            return nil
+        }
+        let target = try V3EnrollmentDeviceIdentityDeletionTarget(
+            recordData: recordData
+        )
+        guard target.vaultID == vaultID else {
+            throw V3EnrollmentDeviceIdentityStoreError.invalidRecord
+        }
+        return target
+    }
+
+    /// Removes only the exact private enrollment record reviewed by the
+    /// replacement workflow. Missing state means a retry already completed;
+    /// different current bytes fail rather than deleting a newer identity.
+    func deleteIdentity(
+        _ target: V3EnrollmentDeviceIdentityDeletionTarget
+    ) throws {
+        try recordStore.deleteRecord(
+            expectedRecordDigest: target.recordDigest,
+            vaultID: target.vaultID
+        )
     }
 }
 

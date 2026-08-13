@@ -115,6 +115,80 @@ struct V3EnrollmentDeviceIdentityStoreTests {
     }
 
     @Test
+    func deletingIdentityIsExactAndIdempotent() throws {
+        let store = MemoryEnrollmentDeviceKeyRecordStore()
+        let operations = SoftwareEnrollmentDeviceKeyOperations()
+        let manager = V3EnrollmentDeviceIdentityManager(
+            recordStore: store,
+            keyOperations: operations
+        )
+        let created = try manager.createIdentity(
+            vaultID: Self.vaultID,
+            displayName: "Office Mac",
+            reason: "Create device identity"
+        )
+        let otherVaultID = "028f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
+        store.records[otherVaultID] = Data("other".utf8)
+
+        let deleter = V3EnrollmentDeviceIdentityDeleter(recordStore: store)
+        let deletionTarget = try deleter.deletionTarget(
+            vaultID: Self.vaultID
+        )
+        let target = try #require(deletionTarget)
+        #expect(target.identity == created.publicIdentity)
+        try deleter.deleteIdentity(target)
+        try deleter.deleteIdentity(target)
+
+        #expect(store.records[Self.vaultID] == nil)
+        #expect(store.records[otherVaultID] == Data("other".utf8))
+        #expect(operations.generateCount == 1)
+        #expect(operations.publicKeyLoadCount == 0)
+    }
+
+    @Test
+    func deletingIdentityPreservesAChangedRecord() throws {
+        let store = MemoryEnrollmentDeviceKeyRecordStore()
+        let operations = SoftwareEnrollmentDeviceKeyOperations()
+        let manager = V3EnrollmentDeviceIdentityManager(
+            recordStore: store,
+            keyOperations: operations
+        )
+        _ = try manager.createIdentity(
+            vaultID: Self.vaultID,
+            displayName: "Office Mac",
+            reason: "Create device identity"
+        )
+        let deleter = V3EnrollmentDeviceIdentityDeleter(recordStore: store)
+        let deletionTarget = try deleter.deletionTarget(
+            vaultID: Self.vaultID
+        )
+        let target = try #require(deletionTarget)
+        let changedRecord = try replacementRecord(
+            operations: operations
+        )
+        store.records[Self.vaultID] = changedRecord
+
+        #expect(throws: V3EnrollmentDeviceIdentityStoreError.conflict) {
+            try deleter.deleteIdentity(target)
+        }
+        #expect(store.records[Self.vaultID] == changedRecord)
+    }
+
+    @Test
+    func deletingIdentityRejectsInvalidVaultBeforeStorage() {
+        let store = MemoryEnrollmentDeviceKeyRecordStore()
+        let deleter = V3EnrollmentDeviceIdentityDeleter(recordStore: store)
+
+        #expect(
+            throws:
+                V3EnrollmentDeviceIdentityStoreError.invalidIdentityRequest
+        ) {
+            try deleter.deletionTarget(vaultID: "not-a-vault")
+        }
+        #expect(store.deletedVaultIDs.isEmpty)
+    }
+
+    @Test
     func corruptRecordFailsWithoutGeneratingAReplacement() throws {
         let store = MemoryEnrollmentDeviceKeyRecordStore()
         store.records[Self.vaultID] = Data("{}".utf8)
@@ -348,6 +422,25 @@ struct V3EnrollmentDeviceIdentityStoreTests {
                 .utf8
         )
     }
+
+    private func replacementRecord(
+        operations: SoftwareEnrollmentDeviceKeyOperations
+    ) throws -> Data {
+        let keys = try operations.keys(
+            signingScalar: 3,
+            wrappingScalar: 4
+        )
+        return try V3EnrollmentDeviceKeyRecord(
+            vaultID: Self.vaultID,
+            identity: V3EnrollmentDeviceIdentity(
+                displayName: "Replacement Mac",
+                signingPublicKey: keys.signingPublicKey,
+                wrappingPublicKey: keys.wrappingPublicKey
+            ),
+            signingKeyRepresentation: keys.signingKeyRepresentation,
+            wrappingKeyRepresentation: keys.wrappingKeyRepresentation
+        ).canonicalBytes
+    }
 }
 
 private enum TestIdentityError: Error {
@@ -356,9 +449,11 @@ private enum TestIdentityError: Error {
 
 private final class MemoryEnrollmentDeviceKeyRecordStore:
     V3EnrollmentDeviceKeyRecordStoring,
+    V3EnrollmentDeviceKeyRecordDeleting,
     @unchecked Sendable
 {
     var records: [String: Data] = [:]
+    private(set) var deletedVaultIDs: [String] = []
 
     func loadRecord(vaultID: String) throws -> Data? {
         records[vaultID]
@@ -370,6 +465,20 @@ private final class MemoryEnrollmentDeviceKeyRecordStore:
                 .identityAlreadyExists
         }
         records[vaultID] = record
+    }
+
+    func deleteRecord(
+        expectedRecordDigest: Data,
+        vaultID: String
+    ) throws {
+        deletedVaultIDs.append(vaultID)
+        guard let current = records[vaultID] else {
+            return
+        }
+        guard Data(SHA256.hash(data: current)) == expectedRecordDigest else {
+            throw V3EnrollmentDeviceIdentityStoreError.conflict
+        }
+        records[vaultID] = nil
     }
 }
 

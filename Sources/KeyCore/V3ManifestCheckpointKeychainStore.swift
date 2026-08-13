@@ -6,6 +6,7 @@ import Security
 /// not prompt for user presence.
 final class V3ManifestCheckpointKeychainStore:
     V3ManifestCheckpointStoring,
+    V3ManifestCheckpointDeleting,
     @unchecked Sendable
 {
     private let configuration: RuntimeConfiguration
@@ -63,6 +64,36 @@ final class V3ManifestCheckpointKeychainStore:
             throw V3ManifestCheckpointStoreError.conflict
         }
         guard status == errSecSuccess else {
+            throw V3ManifestCheckpointStoreError.keychainStatus(status)
+        }
+    }
+
+    func deleteCheckpoint(
+        expectedCheckpoint: Data,
+        vaultID: String
+    ) throws {
+        let decodedCheckpoint = try V3ManifestCheckpoint(
+            canonicalBytes: expectedCheckpoint
+        )
+        guard decodedCheckpoint.vaultID == vaultID else {
+            throw V3ManifestReplayError.vaultMismatch
+        }
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let current = try loadCheckpointWithoutLock(
+            vaultID: vaultID
+        ) else {
+            return
+        }
+        guard current == expectedCheckpoint else {
+            throw V3ManifestCheckpointStoreError.conflict
+        }
+        let status = SecItemDelete(
+            try baseQuery(vaultID: vaultID) as CFDictionary
+        )
+        guard status == errSecSuccess || status == errSecItemNotFound else {
             throw V3ManifestCheckpointStoreError.keychainStatus(status)
         }
     }
