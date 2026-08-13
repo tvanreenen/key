@@ -392,28 +392,28 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 
 ### `AUTH-513` — Equal enrolled-device authority
 
-- Remove owner/member roles from the permanent manifest and enrollment
+- [x] Remove owner/member roles from the permanent manifest and enrollment
   transcript schemas.
-- Treat every active enrolled device as eligible to authorize enrollment and
-  revocation; retain explicit local presence, comparison, and confirmation.
-- Require at least one active device and one exact current-key wrapper per
+- [x] Treat every active enrolled device as eligible to authorize enrollment
+  and revocation; retain explicit local presence, comparison, and confirmation.
+- [x] Require at least one active device and one exact current-key wrapper per
   active device.
-- Give the role-free schema required profile/protocol version `2` and clearly
-  reject role-bearing alpha state rather than silently translating it.
-- Update catch-up, revocation, status, and CLI output to describe devices and
+- [x] Give the role-free schema required profile/protocol version `2` and
+  clearly reject role-bearing alpha state rather than silently translating it.
+- [x] Update catch-up, revocation, status, and CLI output to describe devices and
   statuses without implying a hierarchy.
 
 ### `REC-512` — Continuity UX and explicit permanent loss
 
-- Report whether a vault has one or multiple enrolled devices.
-- Recommend at least two devices without preventing one-device use.
-- Warn prominently before revocation leaves only one device.
-- Explain during migration cleanup that provider bytes alone cannot recover a
-  device-wrapped vault.
-- Report permanent loss honestly when no enrolled Secure Enclave identity
+- [x] Report whether a vault has one or multiple enrolled devices.
+- [x] Recommend at least two devices without preventing one-device use.
+- [x] Warn prominently before revocation leaves only one device.
+- [x] Explain during migration cleanup that provider bytes alone cannot recover
+  a device-wrapped vault.
+- [x] Report permanent loss honestly when no enrolled Secure Enclave identity
   survives; offer no destructive repair or password fallback.
-- Release alpha.8 only after enrollment, revocation, replacement continuity,
-  and restart tests pass on multiple physical Macs.
+- [ ] Release alpha.8 only after enrollment, revocation, replacement
+  continuity, and restart tests pass on multiple physical Macs.
 
 ### Later recovery track — Catastrophe recovery
 
