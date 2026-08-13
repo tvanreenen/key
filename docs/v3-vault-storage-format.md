@@ -1,15 +1,19 @@
 # Key Vault Version 3 Storage Format
 
-Status: shipping version 3 specification through guarded two-device writes and
-explicit conflict resolution in `v0.2.0-alpha.6`.
+Status: historical specification for the role-bearing version 3 profile
+shipped through guarded two-device writes and explicit conflict resolution in
+`v0.2.0-alpha.6`.
 
-This is the current prerelease profile, not the selected permanent key
-profile. [`ARCH-508`](v3-device-wrapped-key-architecture.md) intentionally
-replaces persistent raw vault-key storage, separate local/shared modes, the
-custom wrapper construction, and the first-peer authorization exception before
-stable release. New key-lifecycle work must follow that architecture and then
-update this normative specification and its schemas as each format increment
-lands.
+This is not the current permanent prerelease profile. It is retained to define
+the released alpha.6 objects and explain why newer builds reject them instead
+of silently translating security state. The
+[`ARCH-508` device-wrapped profile](v3-device-wrapped-key-architecture.md)
+shipped for qualification in alpha.7 and intentionally replaces persistent raw
+vault-key storage, separate local/shared modes, the custom wrapper
+construction, the first-peer authorization exception, and the owner/member
+role model. Consolidating that permanent profile into an exact normative
+storage specification and machine-readable schemas remains a beta release
+gate.
 
 This document defines the current data model and canonical encoding
 for the version 3 vault manifest body, authenticated manifest envelope, and
@@ -24,7 +28,8 @@ Deliberately Deferred and must update this specification before implementation.
 The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHOULD**, **SHOULD NOT**,
 and **MAY** are normative.
 
-The machine-readable schemas live beside this document:
+The machine-readable schemas beside this document describe this historical
+role-bearing alpha profile:
 
 - [`v3-common.schema.json`](schemas/v3-common.schema.json)
 - [`v3-manifest-body.schema.json`](schemas/v3-manifest-body.schema.json)

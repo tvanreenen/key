@@ -11,8 +11,8 @@ state.
 | Status | `v0.2.0-alpha.7` remains the latest Preview release; role-free authority, authenticated catch-up, device revocation, and continuity UX are implemented for the next Preview, while physical multi-device qualification remains pending; catastrophe recovery is deferred beyond `0.2.0` |
 | Latest release | `v0.2.0-alpha.7 (12)` at `7829acc` |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
-| Permanent key architecture | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
-| Current prerelease format | [Version 3 vault storage format](v3-vault-storage-format.md) |
+| Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
+| Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
 | Active work | Review and merge the `AUTH-513` equal-authority and `REC-512` continuity UX branch |
 | Next work | Physically qualify replacement continuity, catch-up, revocation, and restart behavior before alpha.8; prototype PIV recovery separately for a later minor release |
@@ -1472,6 +1472,8 @@ formats or transport stacks:
   exit codes.
 - [ ] Validate supported providers and realistic migration copies.
 - [ ] Document the implemented security model and recovery limits.
+- [ ] Consolidate the permanent device-wrapped profile into an exact normative
+  storage specification and machine-readable schemas before beta.
 
 ## Decision Log
 
