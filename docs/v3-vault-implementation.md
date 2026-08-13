@@ -8,14 +8,14 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-alpha.7` remains the latest Preview release; authenticated remaining-device catch-up is implemented for the next Preview build, while revocation, recovery, and physical catch-up qualification remain pending |
+| Status | `v0.2.0-alpha.7` remains the latest Preview release; authenticated catch-up and owner-reviewed device revocation are implemented for the next Preview build, while offline recovery and physical multi-device qualification remain pending |
 | Latest release | `v0.2.0-alpha.7 (12)` at `7829acc` |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
 | Permanent key architecture | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Current prerelease format | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | Implement explicit device revocation and key rotation on top of authenticated remaining-device catch-up |
-| Next work | Complete `ENR-511` revocation, then implement `REC-512` offline recovery |
+| Active work | Finalize and review the complete `ENR-511` catch-up and revocation increment |
+| Next work | Implement `REC-512` offline recovery, then physically qualify both increments before alpha.8 |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
 profile MUST not ship as stable until every release gate below passes.
@@ -28,7 +28,7 @@ profile MUST not ship as stable until every release gate below passes.
   fresh nonces, and an independently compared transcript.
 - [x] `INV-03` Membership, exact vault-key identity, wrapped keys, and committed entries form
   one authenticated state.
-- [ ] `INV-04` Revocation rotates the vault key and removes future decrypt
+- [x] `INV-04` Revocation rotates the vault key and removes future decrypt
   authority from the revoked device.
 - [x] `INV-05` Every entry authenticates vault ID, normalized name, type,
   format version, exact vault-key ID, and revision.
@@ -40,9 +40,9 @@ profile MUST not ship as stable until every release gate below passes.
 - [ ] `INV-10` Loss of all enrolled devices has an explicit recovery outcome.
 - [x] `INV-11` A raw v3 vault key exists only in an unlocked Key Agent session
   and is never persisted or synchronized.
-- [ ] `INV-12` Every membership change creates a fresh key and re-encrypts the
+- [x] `INV-12` Every membership change creates a fresh key and re-encrypts the
   complete current snapshot.
-- [ ] `INV-13` Every vault has one authenticated device roster and durable
+- [x] `INV-13` Every vault has one authenticated device roster and durable
   device wrapper from genesis; there is no local-to-shared trust exception.
 
 ## PR Sequence
@@ -133,7 +133,7 @@ security or durability boundary and updates this tracker before it merges.
 | `ARCH-508` | Complete | Select the permanent device-wrapped, session-only key profile, macOS 14 floor, and breaking-alpha path |
 | `KEY-509` | Complete; PRs #54–#56; physically qualified in alpha.7 | Ship one-device genesis, durable HPKE wrappers, explicit migration, wrapper-backed sessions, exact reads, and recoverable ordinary writes without persisting the raw vault key |
 | `ENR-510` | Complete; PR #57; two-device ceremony physically qualified in alpha.7 | Use one owner-approved, key-rotating roster-addition path for first and later enrollment |
-| `ENR-511` | In progress; catch-up complete, revocation pending | Revoke devices, rotate the key, re-encrypt the current snapshot, and catch remaining devices up safely |
+| `ENR-511` | Implementation complete; physical qualification pending | Revoke devices, rotate the key, re-encrypt the current snapshot, and catch remaining devices up safely |
 | `REC-512` | Planned | Add the single offline recovery kit and qualify destructive-loss behavior |
 
 #### `ARCH-508` / `KEY-509` — Permanent Profile Runtime
@@ -156,8 +156,8 @@ content-only child manifest, publishes immutable entries before the manifest,
 and compare-and-swap advances the checkpoint last. It cannot fall through to
 legacy `.secret` files or persistent raw version 3 key storage.
 
-This is the permanent runtime foundation used by the enrollment work below.
-Revocation remains `ENR-511`, and offline recovery remains `REC-512`.
+This is the permanent runtime foundation used by the enrollment and revocation
+work below. Offline recovery remains `REC-512`.
 
 #### `ENR-510` — Permanent Key-Rotating Enrollment
 
@@ -181,15 +181,16 @@ complete comparison transcript, so an otherwise valid transition from another
 ceremony cannot be substituted. Exact retries remain safe across provider
 delay, invitation expiry, and interruption.
 
-This increment deliberately does not revoke devices, create a recovery kit, or
+This increment deliberately did not revoke devices, create a recovery kit, or
 automatically advance another enrolled Mac that was offline during the key
-rotation. The new manifest already carries a wrapper for every active device;
-`ENR-511` adds the remaining-device catch-up UX and revocation transition.
+rotation. The new manifest already carried a wrapper for every active device;
+`ENR-511` now supplies the remaining-device catch-up UX and revocation
+transition.
 
-#### `ENR-511` — Authenticated Remaining-Device Catch-Up
+#### `ENR-511` — Authenticated Catch-Up And Device Revocation
 
 Status: implemented for the next Preview build; physical multi-device
-qualification and the revocation half of `ENR-511` remain pending.
+qualification remains pending.
 
 A returning device now starts from its exact device-local checkpoint and
 authenticates forward content and owner-authorized key transitions in order.
@@ -211,6 +212,22 @@ entry-level conflict inspection or resolution; that UX must be brought to
 parity before full release. The catch-up-specific error therefore explains the
 safe stale-read option without directing users to unavailable conflict-detail
 commands.
+
+An owner can inspect authenticated device IDs with `key share devices`, then
+run `key share revoke <device-id>`. Key catches the owner up before showing the
+exact selected device and remaining active roster. Execution requires the
+literal interactive confirmation `REVOKE`, catches up again, and accepts only
+the confirmation token bound to that exact checkpoint and device.
+
+The accepted transition generates a fresh vault key, re-encrypts the complete
+current snapshot, marks the selected device revoked, and creates wrappers only
+for remaining active devices. It publishes immutable entries before the
+owner-signed manifest and advances the device-local checkpoint last. Every
+publication phase recovers to the complete old or new epoch; an exact retry
+also finishes post-checkpoint cleanup without publishing a second rotation.
+Remaining devices accept the new epoch only through authenticated catch-up.
+The revoked device keeps any past material it already possessed but receives
+no wrapper for the new current snapshot or future epochs.
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -1378,14 +1395,14 @@ formats or transport stacks:
 - [x] `KEY-509` Connect permanent genesis, migration, session-only unlock,
   reads, and recoverable ordinary writes to the shipping helper without
   persistent raw v3 key use.
-- [ ] `KEY-509` Qualify lock, helper restart, and the installed permanent
+- [x] `KEY-509` Qualify lock, helper restart, and the installed permanent
   runtime on a physical Mac.
 - [x] `ENR-510` Use one owner-approved transition for first and later
   enrollment, rotate the key, re-encrypt the current snapshot, and remove the
   local-to-shared exception.
 - [ ] `ENR-510` Qualify first and later enrollment, exact retry, lock, and
   helper restart across physical Macs before releasing alpha.7.
-- [ ] `ENR-511` Revoke a selected device, rotate the vault key, re-encrypt the
+- [x] `ENR-511` Revoke a selected device, rotate the vault key, re-encrypt the
   current snapshot, and wrap the new key only for remaining active devices.
 - [x] `ENR-511` Authenticate and apply ordered content and key-epoch catch-up
   before normal access, preserving explicit stale reads and fail-closed
@@ -1393,8 +1410,8 @@ formats or transport stacks:
 - [ ] `REC-512` Add the single offline recovery kit and recovery-authorized
   replacement transition.
 - [x] Reject replay, substitution, wrong-vault, and role confusion.
-- [ ] Add revoke/rotate commands.
-- [ ] Re-encrypt on every membership change.
+- [x] Add the reviewed revoke-and-rotate command.
+- [x] Re-encrypt on every membership change.
 
 ### Release Track
 
@@ -1466,7 +1483,7 @@ formats or transport stacks:
 - [ ] CryptoKit HPKE interoperability and exact wrapper-context vectors.
 - [ ] One-device genesis and wrapper-only unlock tests proving no raw v3 key
   survives lock or helper restart.
-- [ ] Membership-addition and revocation tests proving new devices cannot open
+- [x] Membership-addition and revocation tests proving new devices cannot open
   prior epochs and revoked devices cannot open the new current snapshot.
 - [x] Offline multi-epoch catch-up, missing-transition, and competing-rotation
   unit tests.
@@ -1487,7 +1504,7 @@ formats or transport stacks:
 - [x] Shipping v3 runtime selection, exact read, stale read, conflict read,
   no-key-creation, and read-only enforcement tests.
 - [ ] Local-v2 migration and rollback tests.
-- [ ] Revocation tests with retained old keys.
+- [x] Revocation tests with retained old keys.
 - [x] Recovery tests for unavailable provider content and corrupt or
   conflicting state.
 
@@ -1603,14 +1620,8 @@ pass this same two-device exercise before the next Preview release.
 
 ## Immediate Next Action
 
-Complete `ENR-511` with explicit owner-authorized device revocation. The
-transition must create a fresh vault key, re-encrypt the complete current
-snapshot, give wrappers only to remaining active devices, publish entries
-before the signed manifest, and advance the owner's checkpoint last. The
-catch-up path implemented here then becomes the only routine way another
-remaining device accepts that new epoch.
-
-After revocation, implement `REC-512` offline recovery. Cut alpha.8 only after
+Finalize `ENR-511` through full branch review and merge, then implement
+`REC-512` offline recovery. Cut alpha.8 only after
 enrollment, revocation, multi-epoch catch-up, recovery, restart, and
 provider-delay tests pass on multiple physical Macs. Permanent-profile
 entry-level conflict inspection, provider qualification, realistic migration

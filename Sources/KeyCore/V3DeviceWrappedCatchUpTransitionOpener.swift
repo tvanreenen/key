@@ -25,7 +25,7 @@ enum V3DeviceWrappedCatchUpTransitionOpeningError:
     }
 }
 
-/// One fully authenticated enrollment transition and its transient next key.
+/// One fully authenticated key transition and its transient next key.
 /// The caller still owns checkpoint comparison and in-memory session change.
 struct V3DeviceWrappedOpenedCatchUpTransition: Equatable, Sendable {
     let trustedCheckpoint: V3DeviceWrappedTrustedCheckpoint
@@ -33,7 +33,7 @@ struct V3DeviceWrappedOpenedCatchUpTransition: Equatable, Sendable {
     let authorizingOwner: V3EnrollmentDeviceIdentity
 }
 
-/// Opens one owner-authorized enrollment transition without changing trust.
+/// Opens one owner-authorized key transition without changing trust.
 ///
 /// Provider bytes must first pass the public owner-signature preflight. Only
 /// then may this type invoke the wrapper addressed to the exact local device.
@@ -48,7 +48,10 @@ struct V3DeviceWrappedCatchUpTransitionOpener: Sendable {
 
     private let source: any V3ImmutableObjectReading
     private let limits: V3ManifestRepositoryLimits
-    private let validator: V3DeviceWrappedEnrollmentTransitionValidator
+    private let enrollmentValidator:
+        V3DeviceWrappedEnrollmentTransitionValidator
+    private let revocationValidator:
+        V3DeviceWrappedRevocationTransitionValidator
     private let entryCipher = V3EntryCipher()
 
     init(
@@ -57,7 +60,10 @@ struct V3DeviceWrappedCatchUpTransitionOpener: Sendable {
     ) {
         self.source = source
         self.limits = limits
-        validator = V3DeviceWrappedEnrollmentTransitionValidator(
+        enrollmentValidator = V3DeviceWrappedEnrollmentTransitionValidator(
+            limits: limits
+        )
+        revocationValidator = V3DeviceWrappedRevocationTransitionValidator(
             limits: limits
         )
     }
@@ -70,12 +76,13 @@ struct V3DeviceWrappedCatchUpTransitionOpener: Sendable {
         identity: any V3DeviceWrappedVaultKeyUnwrapping,
         reason: String
     ) throws -> V3DeviceWrappedOpenedCatchUpTransition {
-        let authorized = try validator.preflightOwnerAuthorizedCandidate(
-            manifestData: manifestData,
-            manifestDigest: manifestDigest,
-            parent: parent,
-            currentVaultKey: currentVaultKey
-        )
+        let authorized = try enrollmentValidator
+            .preflightOwnerAuthorizedKeyTransition(
+                manifestData: manifestData,
+                manifestDigest: manifestDigest,
+                parent: parent,
+                currentVaultKey: currentVaultKey
+            )
         let nextVaultKey = try openAddressedVaultKey(
             authorized.candidate,
             identity: identity,
@@ -109,26 +116,51 @@ struct V3DeviceWrappedCatchUpTransitionOpener: Sendable {
             }
             return entry
         }
-        let transition = V3DeviceWrappedEnrollmentTransitionCandidate(
-            expectedCheckpoint: parent.checkpoint,
-            body: authorized.candidate.body,
-            manifestData: manifestData,
-            manifestDigest: manifestDigest,
-            stagedEntries: stagedEntries,
-            // Catch-up revalidates immutable owner authorization and does not
-            // depend on the expired interactive enrollment transcript.
-            transcriptDigest: Data(repeating: 0, count: 32)
-        )
-        let validated: V3DeviceWrappedValidatedEnrollmentTransition
+        let validatedCandidate: V3DeviceWrappedManifestEnvelope
+        let validatedDigest: Data
         do {
-            validated = try validator.validateAnchored(
-                transition,
-                parent: parent,
-                currentEntries: currentEntries,
-                currentVaultKey: currentVaultKey,
-                nextVaultKey: nextVaultKey,
-                expectedOwner: authorized.authorizingOwner
-            )
+            switch authorized.kind {
+            case .enrollment:
+                let transition =
+                    V3DeviceWrappedEnrollmentTransitionCandidate(
+                        expectedCheckpoint: parent.checkpoint,
+                        body: authorized.candidate.body,
+                        manifestData: manifestData,
+                        manifestDigest: manifestDigest,
+                        stagedEntries: stagedEntries,
+                        // Catch-up revalidates immutable owner authorization
+                        // without the expired interactive transcript.
+                        transcriptDigest: Data(repeating: 0, count: 32)
+                    )
+                let validated = try enrollmentValidator.validateAnchored(
+                    transition,
+                    parent: parent,
+                    currentEntries: currentEntries,
+                    currentVaultKey: currentVaultKey,
+                    nextVaultKey: nextVaultKey,
+                    expectedOwner: authorized.authorizingOwner
+                )
+                validatedCandidate = validated.candidate
+                validatedDigest = validated.manifestDigest
+            case let .revocation(plan):
+                let transition = V3DeviceWrappedRevocationTransitionCandidate(
+                    plan: plan,
+                    body: authorized.candidate.body,
+                    manifestData: manifestData,
+                    manifestDigest: manifestDigest,
+                    stagedEntries: stagedEntries
+                )
+                let validated = try revocationValidator.validateAnchored(
+                    transition,
+                    parent: parent,
+                    currentEntries: currentEntries,
+                    currentVaultKey: currentVaultKey,
+                    nextVaultKey: nextVaultKey,
+                    expectedOwner: authorized.authorizingOwner
+                )
+                validatedCandidate = validated.candidate
+                validatedDigest = validated.manifestDigest
+            }
         } catch {
             throw V3DeviceWrappedCatchUpTransitionOpeningError
                 .recoveryRequired
@@ -136,8 +168,8 @@ struct V3DeviceWrappedCatchUpTransitionOpener: Sendable {
         let checkpoint: V3ManifestCheckpoint
         do {
             checkpoint = try V3ManifestCheckpoint(
-                vaultID: validated.candidate.body.vaultID,
-                envelopeDigest: validated.manifestDigest
+                vaultID: validatedCandidate.body.vaultID,
+                envelopeDigest: validatedDigest
             )
         } catch {
             throw V3DeviceWrappedCatchUpTransitionOpeningError
@@ -146,7 +178,7 @@ struct V3DeviceWrappedCatchUpTransitionOpener: Sendable {
         return V3DeviceWrappedOpenedCatchUpTransition(
             trustedCheckpoint: V3DeviceWrappedTrustedCheckpoint(
                 checkpoint: checkpoint,
-                envelope: validated.candidate
+                envelope: validatedCandidate
             ),
             vaultKey: nextVaultKey,
             authorizingOwner: authorized.authorizingOwner

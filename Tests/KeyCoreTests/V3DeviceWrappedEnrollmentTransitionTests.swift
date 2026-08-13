@@ -393,7 +393,7 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         )
 
         let authorized = try V3DeviceWrappedEnrollmentTransitionValidator()
-            .preflightOwnerAuthorizedCandidate(
+            .preflightOwnerAuthorizedKeyTransition(
                 manifestData: candidate.manifestData,
                 manifestDigest: candidate.manifestDigest,
                 parent: fixture.base,
@@ -426,7 +426,7 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
                 .invalidTransition
         ) {
             try V3DeviceWrappedEnrollmentTransitionValidator()
-                .preflightOwnerAuthorizedCandidate(
+                .preflightOwnerAuthorizedKeyTransition(
                     manifestData: candidate.manifestData,
                     manifestDigest: candidate.manifestDigest,
                     parent: otherParent,
@@ -486,7 +486,7 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
                 .unsupportedProfileVersion(2)
         ) {
             try V3DeviceWrappedEnrollmentTransitionValidator()
-                .preflightOwnerAuthorizedCandidate(
+                .preflightOwnerAuthorizedKeyTransition(
                     manifestData: futureData,
                     manifestDigest: Data(SHA256.hash(data: futureData)),
                     parent: fixture.base,
@@ -1010,7 +1010,7 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
                 .invalidOwnerAuthorization
         ) {
             try V3DeviceWrappedEnrollmentTransitionValidator()
-                .preflightOwnerAuthorizedCandidate(
+                .preflightOwnerAuthorizedKeyTransition(
                     manifestData: altered.manifestData,
                     manifestDigest: altered.manifestDigest,
                     parent: fixture.base,

@@ -59,13 +59,19 @@ struct V3DeviceWrappedValidatedEnrollmentTransition: Sendable {
 /// This is authority to attempt the addressed unwrap, not authority to advance
 /// the checkpoint. The candidate HMAC and complete resealed entry snapshot
 /// still require validation with the recovered key.
-struct V3DeviceWrappedOwnerAuthorizedEnrollmentTransition:
+enum V3DeviceWrappedOwnerAuthorizedKeyTransitionKind: Equatable, Sendable {
+    case enrollment
+    case revocation(V3DeviceWrappedRevocationPlan)
+}
+
+struct V3DeviceWrappedOwnerAuthorizedKeyTransition:
     Equatable,
     Sendable
 {
     let candidate: V3DeviceWrappedManifestEnvelope
     let manifestDigest: Data
     let authorizingOwner: V3EnrollmentDeviceIdentity
+    let kind: V3DeviceWrappedOwnerAuthorizedKeyTransitionKind
 }
 
 /// Independently verifies an unpublished permanent-profile roster addition.
@@ -73,31 +79,36 @@ struct V3DeviceWrappedOwnerAuthorizedEnrollmentTransition:
 /// The builder is not an authority boundary. Initial publication uses this
 /// validator to prove that the exact checkpoint moves to one owner-approved
 /// key epoch containing the same complete plaintext snapshot and exactly one
-/// additional active device. Durable recovery can reuse the structural proof
-/// only after the exact candidate was anchored while the ceremony was valid.
+/// additional active device. Its public preflight also classifies supported
+/// enrollment and revocation children before catch-up opens a device wrapper.
+/// Durable recovery can reuse the structural proof only after the exact
+/// candidate was anchored while the ceremony was valid.
 struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
     private let limits: V3ManifestRepositoryLimits
     private let envelopeCodec = V3DeviceWrappedManifestEnvelopeCodec()
-    private let entryCipher = V3EntryCipher()
+    private let keyRotationValidator: V3DeviceWrappedKeyRotationValidator
     private let messageAuthenticator = V3EnrollmentMessageAuthenticator()
 
     init(limits: V3ManifestRepositoryLimits = .standard) {
         self.limits = limits
+        keyRotationValidator = V3DeviceWrappedKeyRotationValidator(
+            limits: limits
+        )
     }
 
-    /// Proves that one provider-supplied enrollment candidate is an exact,
+    /// Proves that one provider-supplied key transition is an exact,
     /// owner-authorized child of the authenticated parent before catch-up asks
     /// the Secure Enclave to open this device's addressed wrapper.
     ///
     /// The returned candidate remains untrusted until `validateAnchored`
     /// authenticates it with the opened next key and compares every resealed
     /// entry with the parent snapshot.
-    func preflightOwnerAuthorizedCandidate(
+    func preflightOwnerAuthorizedKeyTransition(
         manifestData: Data,
         manifestDigest: Data,
         parent: V3DeviceWrappedTrustedCheckpoint,
         currentVaultKey: Data
-    ) throws -> V3DeviceWrappedOwnerAuthorizedEnrollmentTransition {
+    ) throws -> V3DeviceWrappedOwnerAuthorizedKeyTransition {
         guard manifestData.count <= limits.maximumManifestBytes,
               manifestDigest.count == 32,
               Data(SHA256.hash(data: manifestData)) == manifestDigest
@@ -133,19 +144,21 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         else {
             throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
         }
-        try validateRosterTransition(
-            from: authenticatedParent,
-            to: candidate,
-            expectedAddition: nil
-        )
         let owner = try authorizingOwner(
             of: candidate,
             parent: authenticatedParent
         )
-        return V3DeviceWrappedOwnerAuthorizedEnrollmentTransition(
+        let kind = try keyTransitionKind(
+            from: parent,
+            authenticatedParent: authenticatedParent,
+            to: candidate,
+            authorizingOwner: owner
+        )
+        return V3DeviceWrappedOwnerAuthorizedKeyTransition(
             candidate: candidate,
             manifestDigest: manifestDigest,
-            authorizingOwner: owner
+            authorizingOwner: owner,
+            kind: kind
         )
     }
 
@@ -219,12 +232,16 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
                 transcript.invitation.invitedRole
             )
         )
-        try validateLocalWrapper(
-            validated.candidate,
-            identity: localIdentity,
-            nextVaultKey: nextVaultKey,
-            reason: unwrapReason
-        )
+        do {
+            try keyRotationValidator.validateLocalWrapper(
+                validated.candidate,
+                identity: localIdentity,
+                nextVaultKey: nextVaultKey,
+                reason: unwrapReason
+            )
+        } catch let error as V3DeviceWrappedKeyRotationValidationError {
+            throw enrollmentError(for: error)
+        }
         return validated
     }
 
@@ -263,49 +280,30 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
             role: V3DeviceRole
         )?
     ) throws -> V3DeviceWrappedValidatedEnrollmentTransition {
-        guard transition.manifestData.count <= limits.maximumManifestBytes,
-              transition.stagedEntries.count
-                <= limits.maximumReferencedEntryObjects
-        else {
-            throw V3DeviceWrappedEnrollmentValidationError.objectTooLarge
+        let rotation: V3DeviceWrappedValidatedKeyRotation
+        do {
+            rotation = try keyRotationValidator.validate(
+                transition.keyRotationValidationInput,
+                parent: parent,
+                currentEntries: currentEntries,
+                currentVaultKey: currentVaultKey,
+                nextVaultKey: nextVaultKey,
+                expectedOwner: expectedOwner
+            ) { authenticatedParent, authenticatedCandidate in
+                try validateRosterTransition(
+                    from: authenticatedParent,
+                    to: authenticatedCandidate,
+                    expectedAddition: expectedAddition
+                )
+            }
+        } catch let error as V3DeviceWrappedKeyRotationValidationError {
+            throw enrollmentError(for: error)
         }
-        guard transition.manifestDigest.count == 32 else {
-            throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
-        }
-
-        let authenticatedParent = try validateParent(
-            parent,
-            expectedCheckpoint: transition.expectedCheckpoint,
-            currentVaultKey: currentVaultKey
-        )
-        let authenticatedCandidate = try validateCandidate(
-            transition,
-            parent: authenticatedParent,
-            nextVaultKey: nextVaultKey
-        )
-        try validateRosterTransition(
-            from: authenticatedParent,
-            to: authenticatedCandidate,
-            expectedAddition: expectedAddition
-        )
-        try validateOwnerAuthorization(
-            authenticatedCandidate,
-            parent: authenticatedParent,
-            expectedOwner: expectedOwner
-        )
-        let staged = try validateEntries(
-            parent: authenticatedParent,
-            candidate: authenticatedCandidate,
-            currentEntries: currentEntries,
-            stagedEntries: transition.stagedEntries,
-            currentVaultKey: currentVaultKey,
-            nextVaultKey: nextVaultKey
-        )
         return V3DeviceWrappedValidatedEnrollmentTransition(
-            parent: authenticatedParent,
-            candidate: authenticatedCandidate,
-            manifestDigest: transition.manifestDigest,
-            stagedEntries: staged
+            parent: rotation.parent,
+            candidate: rotation.candidate,
+            manifestDigest: rotation.manifestDigest,
+            stagedEntries: rotation.stagedEntries
         )
     }
 
@@ -376,41 +374,6 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         return reparsed
     }
 
-    private func validateCandidate(
-        _ transition: V3DeviceWrappedEnrollmentTransitionCandidate,
-        parent: V3DeviceWrappedManifestEnvelope,
-        nextVaultKey: Data
-    ) throws -> V3DeviceWrappedManifestEnvelope {
-        guard Data(SHA256.hash(data: transition.manifestData))
-                == transition.manifestDigest,
-              let candidate = try? envelopeCodec.parse(
-                  transition.manifestData
-              ),
-              candidate.body == transition.body,
-              candidate.parents
-                == [transition.expectedCheckpoint.envelopeDigest],
-              candidate.body.vaultID == parent.body.vaultID
-        else {
-            throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
-        }
-        guard nextVaultKey.count == 32,
-              (try? V3VaultKeyID.derive(
-                  vaultKey: nextVaultKey,
-                  vaultID: candidate.body.vaultID
-              )) == candidate.body.keyID,
-              (try? V3ManifestAuthenticator.isValidAuthenticationTag(
-                  candidate.authenticationTag,
-                  canonicalContent: candidate.canonicalContentBytes,
-                  vaultID: candidate.body.vaultID,
-                  vaultKey: nextVaultKey
-              )) == true
-        else {
-            throw V3DeviceWrappedEnrollmentValidationError
-                .invalidNextVaultKey
-        }
-        return candidate
-    }
-
     private func validateRosterTransition(
         from parent: V3DeviceWrappedManifestEnvelope,
         to candidate: V3DeviceWrappedManifestEnvelope,
@@ -446,17 +409,49 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         }
     }
 
-    private func validateOwnerAuthorization(
-        _ candidate: V3DeviceWrappedManifestEnvelope,
-        parent: V3DeviceWrappedManifestEnvelope,
-        expectedOwner: V3EnrollmentDeviceIdentity
-    ) throws {
-        guard try authorizingOwner(of: candidate, parent: parent)
-                == expectedOwner
-        else {
-            throw V3DeviceWrappedEnrollmentValidationError
-                .invalidOwnerAuthorization
+    private func keyTransitionKind(
+        from parent: V3DeviceWrappedTrustedCheckpoint,
+        authenticatedParent: V3DeviceWrappedManifestEnvelope,
+        to candidate: V3DeviceWrappedManifestEnvelope,
+        authorizingOwner: V3EnrollmentDeviceIdentity
+    ) throws -> V3DeviceWrappedOwnerAuthorizedKeyTransitionKind {
+        if (try? validateRosterTransition(
+            from: authenticatedParent,
+            to: candidate,
+            expectedAddition: nil
+        )) != nil {
+            return .enrollment
         }
+
+        let revokedDeviceIDs = authenticatedParent.body.devices.compactMap {
+            parentDevice -> String? in
+            guard parentDevice.status == .active,
+                  let candidateDevice = candidate.body.devices.first(where: {
+                      $0.identity.deviceID == parentDevice.identity.deviceID
+                  }),
+                  candidateDevice.identity == parentDevice.identity,
+                  candidateDevice.role == parentDevice.role,
+                  candidateDevice.status == .revoked
+            else {
+                return nil
+            }
+            return parentDevice.identity.deviceID
+        }
+        guard candidate.body.keyID != authenticatedParent.body.keyID,
+              candidate.body.authorityTransitionID
+                != authenticatedParent.body.authorityTransitionID,
+              revokedDeviceIDs.count == 1,
+              let revokedDeviceID = revokedDeviceIDs.first,
+              let plan = try? V3DeviceWrappedRevocationPlanner().plan(
+                  from: parent,
+                  authorizingDeviceID: authorizingOwner.deviceID,
+                  revoking: revokedDeviceID
+              ),
+              candidate.body.devices == plan.resultingDevices
+        else {
+            throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
+        }
+        return .revocation(plan)
     }
 
     private func authorizingOwner(
@@ -507,213 +502,30 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         return owner.identity
     }
 
-    private func validateLocalWrapper(
-        _ candidate: V3DeviceWrappedManifestEnvelope,
-        identity: any V3DeviceWrappedVaultKeyUnwrapping,
-        nextVaultKey: Data,
-        reason: String
-    ) throws {
-        let deviceID = identity.publicIdentity.deviceID
-        guard !reason.isEmpty,
-              identity.vaultID == candidate.body.vaultID,
-              let device = candidate.body.devices.first(where: {
-                  $0.identity.deviceID == deviceID
-              }),
-              device.identity == identity.publicIdentity,
-              device.role == .owner,
-              device.status == .active,
-              let wrapped = candidate.body.wrappedKeys.first(where: {
-                  $0.recipientDeviceID == deviceID
-              }),
-              let context = try? V3VaultKeyHPKEContext(
-                  vaultID: candidate.body.vaultID,
-                  keyID: candidate.body.keyID,
-                  authorityTransitionID:
-                    candidate.body.authorityTransitionID,
-                  recipientDeviceID: deviceID
-              )
-        else {
-            throw V3DeviceWrappedEnrollmentValidationError
-                .localWrapperInvalid
+    private func enrollmentError(
+        for error: V3DeviceWrappedKeyRotationValidationError
+    ) -> V3DeviceWrappedEnrollmentValidationError {
+        switch error {
+        case .invalidTrustedCheckpoint:
+            .invalidTrustedCheckpoint
+        case .invalidCurrentVaultKey:
+            .invalidCurrentVaultKey
+        case .invalidNextVaultKey:
+            .invalidNextVaultKey
+        case .invalidTransition:
+            .invalidTransition
+        case .invalidOwnerAuthorization:
+            .invalidOwnerAuthorization
+        case .authenticationCancelled:
+            .authenticationCancelled
+        case .localWrapperInvalid:
+            .localWrapperInvalid
+        case .invalidCurrentEntry:
+            .invalidCurrentEntry
+        case .invalidStagedEntry:
+            .invalidStagedEntry
+        case .objectTooLarge:
+            .objectTooLarge
         }
-        let opened: Data
-        do {
-            opened = try identity.unwrapDeviceWrappedVaultKey(
-                wrapped.wrappedKey,
-                context: context,
-                reason: reason
-            )
-        } catch V3EnrollmentDeviceIdentityStoreError.authenticationCancelled {
-            throw V3DeviceWrappedEnrollmentValidationError
-                .authenticationCancelled
-        } catch {
-            throw V3DeviceWrappedEnrollmentValidationError
-                .localWrapperInvalid
-        }
-        guard opened == nextVaultKey else {
-            throw V3DeviceWrappedEnrollmentValidationError
-                .localWrapperInvalid
-        }
-    }
-
-    private func validateEntries(
-        parent: V3DeviceWrappedManifestEnvelope,
-        candidate: V3DeviceWrappedManifestEnvelope,
-        currentEntries: [V3EntryObjectKey: V3EncryptedEntry],
-        stagedEntries: [V3EncryptedEntry],
-        currentVaultKey: Data,
-        nextVaultKey: Data
-    ) throws -> [V3EntryObjectKey: V3EncryptedEntry] {
-        guard parent.body.entries.count == candidate.body.entries.count,
-              parent.body.entries.count
-                <= limits.maximumReferencedEntryObjects
-        else {
-            throw V3DeviceWrappedEnrollmentValidationError.objectTooLarge
-        }
-
-        let parentByID = Dictionary(uniqueKeysWithValues:
-            parent.body.entries.map { ($0.entryID, $0) }
-        )
-        let candidateByID = Dictionary(uniqueKeysWithValues:
-            candidate.body.entries.map { ($0.entryID, $0) }
-        )
-        guard parentByID.keys == candidateByID.keys,
-              parent.body.entries.allSatisfy({ old in
-                  guard let new = candidateByID[old.entryID] else {
-                      return false
-                  }
-                  return new.name == old.name
-                      && new.type == old.type
-                      && new.revision == old.revision
-                      && new.keyID == candidate.body.keyID
-                      && new.ciphertextDigest != old.ciphertextDigest
-              })
-        else {
-            throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
-        }
-
-        let expectedCurrent = try entryMap(parent.body.entries)
-        guard Set(currentEntries.keys) == Set(expectedCurrent.keys) else {
-            throw V3DeviceWrappedEnrollmentValidationError.invalidCurrentEntry
-        }
-        let staged = try stagedEntryMap(stagedEntries)
-        let expectedStaged = try entryMap(candidate.body.entries)
-        guard Set(staged.keys) == Set(expectedStaged.keys) else {
-            throw V3DeviceWrappedEnrollmentValidationError.invalidStagedEntry
-        }
-
-        var currentBytes = 0
-        var stagedBytes = 0
-        for old in parent.body.entries {
-            guard let new = candidateByID[old.entryID],
-                  let oldKey = try? entryObjectKey(old),
-                  let newKey = try? entryObjectKey(new),
-                  let current = currentEntries[oldKey],
-                  let resealed = staged[newKey]
-            else {
-                throw V3DeviceWrappedEnrollmentValidationError
-                    .invalidStagedEntry
-            }
-            currentBytes = try boundedTotal(
-                currentBytes,
-                adding: current.canonicalBytes.count
-            )
-            stagedBytes = try boundedTotal(
-                stagedBytes,
-                adding: resealed.canonicalBytes.count
-            )
-            let oldPlaintext: Data
-            do {
-                oldPlaintext = try entryCipher.openPlaintextDataTrusted(
-                    current.canonicalBytes,
-                    vaultID: parent.body.vaultID,
-                    manifestEntry: old,
-                    vaultKey: currentVaultKey
-                )
-            } catch {
-                throw V3DeviceWrappedEnrollmentValidationError
-                    .invalidCurrentEntry
-            }
-            let newPlaintext: Data
-            do {
-                newPlaintext = try entryCipher.openPlaintextDataTrusted(
-                    resealed.canonicalBytes,
-                    vaultID: candidate.body.vaultID,
-                    manifestEntry: new,
-                    vaultKey: nextVaultKey
-                )
-            } catch {
-                throw V3DeviceWrappedEnrollmentValidationError
-                    .invalidStagedEntry
-            }
-            guard newPlaintext == oldPlaintext else {
-                throw V3DeviceWrappedEnrollmentValidationError
-                    .invalidStagedEntry
-            }
-        }
-        return staged
-    }
-
-    private func entryMap(
-        _ entries: [V3ManifestEntry]
-    ) throws -> [V3EntryObjectKey: V3ManifestEntry] {
-        var result: [V3EntryObjectKey: V3ManifestEntry] = [:]
-        for entry in entries {
-            let key = try entryObjectKey(entry)
-            guard result.updateValue(entry, forKey: key) == nil else {
-                throw V3DeviceWrappedEnrollmentValidationError
-                    .invalidTransition
-            }
-        }
-        return result
-    }
-
-    private func stagedEntryMap(
-        _ entries: [V3EncryptedEntry]
-    ) throws -> [V3EntryObjectKey: V3EncryptedEntry] {
-        var result: [V3EntryObjectKey: V3EncryptedEntry] = [:]
-        for entry in entries {
-            guard entry.canonicalBytes.count <= limits.maximumEntryBytes else {
-                throw V3DeviceWrappedEnrollmentValidationError.objectTooLarge
-            }
-            guard let digest = Base64URL.decodeCanonical(
-                entry.ciphertextDigest
-            ), digest.count == 32 else {
-                throw V3DeviceWrappedEnrollmentValidationError
-                    .invalidStagedEntry
-            }
-            let key = V3EntryObjectKey(
-                entryID: entry.context.entryID,
-                digest: digest
-            )
-            guard result.updateValue(entry, forKey: key) == nil else {
-                throw V3DeviceWrappedEnrollmentValidationError
-                    .invalidStagedEntry
-            }
-        }
-        return result
-    }
-
-    private func entryObjectKey(
-        _ entry: V3ManifestEntry
-    ) throws -> V3EntryObjectKey {
-        guard let digest = Base64URL.decodeCanonical(
-            entry.ciphertextDigest
-        ), digest.count == 32 else {
-            throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
-        }
-        return V3EntryObjectKey(entryID: entry.entryID, digest: digest)
-    }
-
-    private func boundedTotal(
-        _ total: Int,
-        adding count: Int
-    ) throws -> Int {
-        guard count <= limits.maximumEntryBytes,
-              count <= limits.maximumTotalEntryBytes - total
-        else {
-            throw V3DeviceWrappedEnrollmentValidationError.objectTooLarge
-        }
-        return total + count
     }
 }

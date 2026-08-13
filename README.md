@@ -79,10 +79,12 @@ Beginning with the next alpha, that channel installs the isolated
 own helper, configuration, default vault, and Keychain namespace, so testing a
 prerelease does not replace the installation you rely on.
 
-The preview currently supports explicit migration, one additional Mac,
-guarded reads and writes, and conflict resolution. It is not yet a stable or
-complete recovery story: adding more devices, revocation, key rotation, and
-recovery after losing every enrolled device remain unfinished. See the
+The next preview supports explicit migration, multiple approved Macs,
+authenticated catch-up, guarded reads and writes, conflict resolution, and
+owner-reviewed revocation with forward key rotation. It is not yet a stable or
+complete recovery story: recovery after losing every enrolled device remains
+unfinished, and the new multi-device paths still require physical release
+qualification. See the
 [version 3 implementation tracker](docs/v3-vault-implementation.md) for the
 current scope, limitations, and release-qualification results.
 

@@ -7,9 +7,9 @@ shipping helper. `ENR-510` first and later enrollment now use that permanent
 profile and one key-rotating roster-addition transition. The signed alpha.7
 Preview release physically qualified migration, wrapper-backed restart,
 owner-to-second-device enrollment, and a joining-device write on two Macs.
-Authenticated remaining-device catch-up is implemented for the next Preview
-build. Revocation, recovery, physical catch-up qualification, and final review
-remain pending.
+Authenticated remaining-device catch-up and owner-reviewed revocation are
+implemented for the next Preview build. Offline recovery, physical
+multi-device qualification, and final review remain pending.
 
 This document defines the intended final key-management model for version 3
 vaults. It replaces the prerelease design in which the raw vault key is stored
@@ -388,15 +388,15 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 
 ### `ENR-511` — Revocation and rotation
 
-- [ ] Add explicit device revocation.
-- [ ] Rotate and re-encrypt the complete current snapshot.
+- [x] Add explicit owner-reviewed device revocation.
+- [x] Rotate and re-encrypt the complete current snapshot.
 - [x] Add authenticated remaining-device catch-up across ordered content and
   key epochs.
 - [x] Distinguish provider delay, content divergence, and competing authority
   transitions without allowing stale writes.
 - [ ] Bring permanent-profile entry-level conflict inspection and resolution
   to parity with the existing version 3 UX.
-- [ ] Prove old-or-new crash recovery across every revocation publication
+- [x] Prove old-or-new crash recovery across every revocation publication
   phase.
 
 ### `REC-512` — Offline recovery and final qualification

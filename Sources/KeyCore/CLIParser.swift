@@ -63,6 +63,7 @@ public enum CLIParser {
       conflict copy <id> <version>       Copy one conflicted secret version.
       conflict resolve <id>=<version>…   Resolve every listed conflict together.
       share devices [--json]              List authenticated vault devices.
+      share revoke <device-id>            Review and revoke one vault device.
       share invitations                   List short-lived vault invitations.
       share invite --name <name>          Invite a member from the current v3 Mac.
       share join <invite> --name <name>   Answer one exact invitation.
@@ -287,6 +288,13 @@ public enum CLIParser {
                 remaining,
                 commandName: "share devices"
             )))
+        case "revoke":
+            guard remaining.count == 1 else {
+                throw AppError.usage(
+                    "Use `key share revoke <device-id>`.\n\n\(usageText)"
+                )
+            }
+            return .share(.revoke(deviceID: remaining[0]))
         case "invitations":
             guard remaining.isEmpty else {
                 throw AppError.usage(

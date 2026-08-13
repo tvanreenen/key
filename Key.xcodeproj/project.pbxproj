@@ -115,6 +115,17 @@
 		D52400000000000000000002 /* V3DeviceWrappedKeyTransitionCatchUpService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52400000000000000000001 /* V3DeviceWrappedKeyTransitionCatchUpService.swift */; };
 		D52500000000000000000002 /* V3DeviceWrappedKeyTransitionDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52500000000000000000001 /* V3DeviceWrappedKeyTransitionDiscovery.swift */; };
 		D52600000000000000000002 /* V3DeviceWrappedCatchUpCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52600000000000000000001 /* V3DeviceWrappedCatchUpCoordinator.swift */; };
+		D52700000000000000000002 /* V3DeviceWrappedRevocationPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52700000000000000000001 /* V3DeviceWrappedRevocationPlanner.swift */; };
+		D52800000000000000000002 /* V3DeviceWrappedKeyRotationTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52800000000000000000001 /* V3DeviceWrappedKeyRotationTransition.swift */; };
+		D52900000000000000000002 /* V3DeviceWrappedRevocationTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52900000000000000000001 /* V3DeviceWrappedRevocationTransition.swift */; };
+		D53000000000000000000002 /* V3DeviceWrappedKeyRotationValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53000000000000000000001 /* V3DeviceWrappedKeyRotationValidation.swift */; };
+		D53100000000000000000002 /* V3DeviceWrappedRevocationTransitionValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */; };
+		D53200000000000000000002 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */; };
+		D53300000000000000000002 /* V3DeviceWrappedRevocationTransitionPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53300000000000000000001 /* V3DeviceWrappedRevocationTransitionPublisher.swift */; };
+		D53400000000000000000002 /* V3DeviceWrappedRevocationTransitionRecoverer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53400000000000000000001 /* V3DeviceWrappedRevocationTransitionRecoverer.swift */; };
+		D53500000000000000000002 /* V3DeviceWrappedKeyRotationTransitionRecoverer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53500000000000000000001 /* V3DeviceWrappedKeyRotationTransitionRecoverer.swift */; };
+		D53600000000000000000002 /* V3DeviceWrappedRevocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53600000000000000000001 /* V3DeviceWrappedRevocationService.swift */; };
+		D53700000000000000000002 /* V3DeviceWrappedRevocationWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53700000000000000000001 /* V3DeviceWrappedRevocationWorkflow.swift */; };
 		A5000011A5000011A5000011 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000012A5000012A5000012 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000013A5000013A5000013 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
@@ -280,6 +291,17 @@
 		D52400000000000000000001 /* V3DeviceWrappedKeyTransitionCatchUpService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedKeyTransitionCatchUpService.swift; sourceTree = "<group>"; };
 		D52500000000000000000001 /* V3DeviceWrappedKeyTransitionDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedKeyTransitionDiscovery.swift; sourceTree = "<group>"; };
 		D52600000000000000000001 /* V3DeviceWrappedCatchUpCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedCatchUpCoordinator.swift; sourceTree = "<group>"; };
+		D52700000000000000000001 /* V3DeviceWrappedRevocationPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedRevocationPlanner.swift; sourceTree = "<group>"; };
+		D52800000000000000000001 /* V3DeviceWrappedKeyRotationTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedKeyRotationTransition.swift; sourceTree = "<group>"; };
+		D52900000000000000000001 /* V3DeviceWrappedRevocationTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedRevocationTransition.swift; sourceTree = "<group>"; };
+		D53000000000000000000001 /* V3DeviceWrappedKeyRotationValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedKeyRotationValidation.swift; sourceTree = "<group>"; };
+		D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedRevocationTransitionValidation.swift; sourceTree = "<group>"; };
+		D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedKeyRotationTransitionPublisher.swift; sourceTree = "<group>"; };
+		D53300000000000000000001 /* V3DeviceWrappedRevocationTransitionPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedRevocationTransitionPublisher.swift; sourceTree = "<group>"; };
+		D53400000000000000000001 /* V3DeviceWrappedRevocationTransitionRecoverer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedRevocationTransitionRecoverer.swift; sourceTree = "<group>"; };
+		D53500000000000000000001 /* V3DeviceWrappedKeyRotationTransitionRecoverer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedKeyRotationTransitionRecoverer.swift; sourceTree = "<group>"; };
+		D53600000000000000000001 /* V3DeviceWrappedRevocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedRevocationService.swift; sourceTree = "<group>"; };
+		D53700000000000000000001 /* V3DeviceWrappedRevocationWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedRevocationWorkflow.swift; sourceTree = "<group>"; };
 		A5500002A5500002A5500002 /* V3DeviceWrappedGenesisInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedGenesisInstaller.swift; sourceTree = "<group>"; };
 		A5510002A5510002A5510002 /* V3DeviceWrappedManifestCandidateBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedManifestCandidateBuilder.swift; sourceTree = "<group>"; };
 		A5520002A5520002A5520002 /* V3DeviceWrappedTransactionValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedTransactionValidation.swift; sourceTree = "<group>"; };
@@ -421,6 +443,17 @@
 				D52400000000000000000001 /* V3DeviceWrappedKeyTransitionCatchUpService.swift */,
 				D52500000000000000000001 /* V3DeviceWrappedKeyTransitionDiscovery.swift */,
 				D52600000000000000000001 /* V3DeviceWrappedCatchUpCoordinator.swift */,
+				D52700000000000000000001 /* V3DeviceWrappedRevocationPlanner.swift */,
+				D52800000000000000000001 /* V3DeviceWrappedKeyRotationTransition.swift */,
+				D52900000000000000000001 /* V3DeviceWrappedRevocationTransition.swift */,
+				D53000000000000000000001 /* V3DeviceWrappedKeyRotationValidation.swift */,
+				D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */,
+				D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */,
+				D53300000000000000000001 /* V3DeviceWrappedRevocationTransitionPublisher.swift */,
+				D53400000000000000000001 /* V3DeviceWrappedRevocationTransitionRecoverer.swift */,
+				D53500000000000000000001 /* V3DeviceWrappedKeyRotationTransitionRecoverer.swift */,
+				D53600000000000000000001 /* V3DeviceWrappedRevocationService.swift */,
+				D53700000000000000000001 /* V3DeviceWrappedRevocationWorkflow.swift */,
 				A5500002A5500002A5500002 /* V3DeviceWrappedGenesisInstaller.swift */,
 				A5510002A5510002A5510002 /* V3DeviceWrappedManifestCandidateBuilder.swift */,
 				A5520002A5520002A5520002 /* V3DeviceWrappedTransactionValidation.swift */,
@@ -827,6 +860,17 @@
 				D52400000000000000000002 /* V3DeviceWrappedKeyTransitionCatchUpService.swift in Sources */,
 				D52500000000000000000002 /* V3DeviceWrappedKeyTransitionDiscovery.swift in Sources */,
 				D52600000000000000000002 /* V3DeviceWrappedCatchUpCoordinator.swift in Sources */,
+				D52700000000000000000002 /* V3DeviceWrappedRevocationPlanner.swift in Sources */,
+				D52800000000000000000002 /* V3DeviceWrappedKeyRotationTransition.swift in Sources */,
+				D52900000000000000000002 /* V3DeviceWrappedRevocationTransition.swift in Sources */,
+				D53000000000000000000002 /* V3DeviceWrappedKeyRotationValidation.swift in Sources */,
+				D53100000000000000000002 /* V3DeviceWrappedRevocationTransitionValidation.swift in Sources */,
+				D53200000000000000000002 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift in Sources */,
+				D53300000000000000000002 /* V3DeviceWrappedRevocationTransitionPublisher.swift in Sources */,
+				D53400000000000000000002 /* V3DeviceWrappedRevocationTransitionRecoverer.swift in Sources */,
+				D53500000000000000000002 /* V3DeviceWrappedKeyRotationTransitionRecoverer.swift in Sources */,
+				D53600000000000000000002 /* V3DeviceWrappedRevocationService.swift in Sources */,
+				D53700000000000000000002 /* V3DeviceWrappedRevocationWorkflow.swift in Sources */,
 				A5500001A5500001A5500001 /* V3DeviceWrappedGenesisInstaller.swift in Sources */,
 				A5510001A5510001A5510001 /* V3DeviceWrappedManifestCandidateBuilder.swift in Sources */,
 				A5520001A5520001A5520001 /* V3DeviceWrappedTransactionValidation.swift in Sources */,
