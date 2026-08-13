@@ -35,6 +35,19 @@ struct V3DeviceWrappedVaultRuntimeTests {
     }
 
     @Test
+    func preservesRevokedDeviceGuidance() throws {
+        let runtime = makeRuntime(failure: .deviceRevoked)
+        do {
+            try runtime.unlock()
+            Issue.record("Expected the revoked device to be refused.")
+        } catch let error as VaultUXServiceError {
+            #expect(error == .deviceRevoked)
+            #expect(error.localizedDescription.contains("revoked"))
+            #expect(error.localizedDescription.contains("replacement device"))
+        }
+    }
+
+    @Test
     func refusesTheReplacedAlphaProfileExplicitly() throws {
         let runtime = makeRuntime(failure: .legacyAlphaProfile)
         do {
@@ -146,6 +159,40 @@ struct V3DeviceWrappedVaultRuntimeTests {
             _ = try runtime.read(name: "account/password", allowStale: false)
         }
         #expect(inner.readCount == 0)
+    }
+
+    @Test
+    func revokedCatchUpStopsAReadWithExplicitGuidance() throws {
+        let inner = RecordingPermanentRuntimeStub()
+        let runtime = V3DeviceWrappedVaultRuntime(
+            runtime: inner,
+            session: V3DeviceWrappedVaultKeySessionStore(),
+            catchUp: {
+                throw V3DeviceWrappedCatchUpError.deviceRevoked
+            },
+            lockSession: {}
+        )
+
+        #expect(throws: VaultUXServiceError.deviceRevoked) {
+            _ = try runtime.read(name: "account/password", allowStale: false)
+        }
+        #expect(inner.readCount == 0)
+    }
+
+    @Test
+    func revokedCatchUpStopsStatusWithExplicitGuidance() throws {
+        let runtime = V3DeviceWrappedVaultRuntime(
+            runtime: RecordingPermanentRuntimeStub(),
+            session: V3DeviceWrappedVaultKeySessionStore(),
+            catchUp: {
+                throw V3DeviceWrappedCatchUpError.deviceRevoked
+            },
+            lockSession: {}
+        )
+
+        #expect(throws: VaultUXServiceError.deviceRevoked) {
+            _ = try runtime.status()
+        }
     }
 
     @Test

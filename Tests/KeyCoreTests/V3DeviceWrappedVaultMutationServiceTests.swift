@@ -162,6 +162,35 @@ struct V3DeviceWrappedVaultMutationServiceTests {
         #expect(publisher.events.isEmpty)
     }
 
+    @Test
+    func revokedCatchUpStopsBeforeMutationStateIsOpened() throws {
+        let fixture = try Fixture()
+        let publisher = RecordingPermanentMutationPublisher()
+        let factory = RecordingPermanentMutationPublisherFactory(
+            publisher: publisher
+        )
+        let service = fixture.service(
+            factory: factory,
+            entryID: Self.addedID,
+            catchUp: { _ in
+                throw V3DeviceWrappedCatchUpError.deviceRevoked
+            }
+        )
+
+        #expect(throws: VaultUXServiceError.deviceRevoked) {
+            try service.add(
+                name: "service/new",
+                secret: "new value",
+                type: .secret,
+                operationID: Self.operationID
+            )
+        }
+
+        #expect(fixture.stateLoader.checkpointLoadCount == 0)
+        #expect(factory.operationIDs.isEmpty)
+        #expect(publisher.events.isEmpty)
+    }
+
     private final class Fixture: @unchecked Sendable {
         let trusted: V3DeviceWrappedTrustedCheckpoint
         let stateLoader: PermanentMutationStateLoader

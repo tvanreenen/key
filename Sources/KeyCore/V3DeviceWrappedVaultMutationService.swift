@@ -400,7 +400,9 @@ struct V3DeviceWrappedVaultMutationService:
             VaultUXServiceError.vaultIncomplete
         case .authenticationCancelled:
             AppError.authFailed(error.localizedDescription)
-        case .deviceRevoked, .recoveryRequired:
+        case .deviceRevoked:
+            VaultUXServiceError.deviceRevoked
+        case .recoveryRequired:
             VaultUXServiceError.recoveryRequired
         case .upgradeRequired:
             AppError.operationRefused(error.localizedDescription)

@@ -342,8 +342,10 @@ struct V3DeviceWrappedVaultRuntime:
             AppError.authFailed(error.localizedDescription)
         case .temporaryUnavailable, .checkpointChanged:
             VaultUXServiceError.vaultIncomplete
-        case .recoveryRequired, .deviceRevoked:
+        case .recoveryRequired:
             VaultUXServiceError.recoveryRequired
+        case .deviceRevoked:
+            VaultUXServiceError.deviceRevoked
         case .deviceIdentityUnavailable:
             VaultUXServiceError.deviceIdentityUnavailable
         case .legacyAlphaProfile, .upgradeRequired:
@@ -359,7 +361,9 @@ struct V3DeviceWrappedVaultRuntime:
             VaultUXServiceError.vaultIncomplete
         case .authenticationCancelled:
             AppError.authFailed(error.localizedDescription)
-        case .deviceRevoked, .recoveryRequired:
+        case .deviceRevoked:
+            VaultUXServiceError.deviceRevoked
+        case .recoveryRequired:
             VaultUXServiceError.recoveryRequired
         case .upgradeRequired:
             AppError.operationRefused(error.localizedDescription)

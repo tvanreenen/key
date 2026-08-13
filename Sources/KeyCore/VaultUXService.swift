@@ -25,6 +25,7 @@ enum VaultUXServiceError: Error, Equatable, LocalizedError {
     case rollbackDetected
     case recoveryRequired
     case deviceIdentityUnavailable
+    case deviceRevoked
     case conflictNotFound
     case conflictVersionNotFound
     case expectedHeadsChanged
@@ -46,6 +47,8 @@ enum VaultUXServiceError: Error, Equatable, LocalizedError {
             "The vault requires recovery before this operation can continue."
         case .deviceIdentityUnavailable:
             "This Mac has no usable enrolled device identity for this vault. Use a surviving enrolled Mac to enroll this Mac again. If no enrolled Mac survives, the vault is permanently inaccessible; synchronized vault files alone cannot recover it."
+        case .deviceRevoked:
+            "This Mac has been revoked from the vault and cannot unlock its current key. Use a surviving active Mac to enroll a replacement device."
         case .conflictNotFound:
             "That conflict is no longer present. Run `key conflict list` again."
         case .conflictVersionNotFound:
