@@ -82,7 +82,9 @@ struct V3LocalMigrationReport: Equatable, Sendable {
             "This Mac now uses permanent version 3 vault '\(vaultID)'.",
             "Its new vault key is wrapped to this Mac's Secure Enclave identity and exists in plaintext only in Key Agent's unlocked memory session.",
             "The version 2 source files were retained unchanged. No cleanup was performed.",
-            "Other devices are not converted automatically. Enroll each device explicitly after it has the permanent-profile release."
+            "Keep that version 2 copy while you validate the migration. It can help you return to version 2, but it cannot recover this version 3 vault.",
+            "Other devices are not converted automatically. After they install a compatible release, enroll at least one other Mac before relying on version 3.",
+            "If every enrolled Mac is lost, synchronized version 3 files cannot unlock or recover the vault."
         ].joined(separator: "\n") + "\n"
     }
 }
