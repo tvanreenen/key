@@ -284,6 +284,95 @@ struct V3DeviceWrappedRevocationTransitionTests {
             )
         }
     }
+
+    @Test
+    func catchUpDiscoversAndOpensAnOwnerAuthorizedRevocation() throws {
+        let fixture = try Fixture()
+        let candidate = try fixture.makeCandidate()
+        let source = RevocationCatchUpObjectSource(
+            entries: Self.catchUpEntries(
+                currentEntries: fixture.currentEntries,
+                candidate: candidate
+            ),
+            manifests: [
+                // A provider may evict bytes that remain trusted in the local
+                // checkpoint cache. Discovery must not reread that parent.
+                fixture.base.checkpoint.envelopeDigest: .unavailable,
+                candidate.manifestDigest: .available(candidate.manifestData),
+            ]
+        )
+
+        let discovered = try V3DeviceWrappedKeyTransitionDiscovery(
+            source: source
+        ).discover(
+            from: fixture.base,
+            currentVaultKey: Self.currentKey
+        )
+        #expect(discovered == .candidate(
+            manifestData: candidate.manifestData,
+            manifestDigest: candidate.manifestDigest
+        ))
+
+        let opened = try V3DeviceWrappedCatchUpTransitionOpener(
+            source: source
+        ).open(
+            manifestData: candidate.manifestData,
+            manifestDigest: candidate.manifestDigest,
+            parent: fixture.base,
+            currentVaultKey: Self.currentKey,
+            identity: fixture.owner,
+            reason: "Open the owner-authorized revocation."
+        )
+
+        #expect(opened.trustedCheckpoint.envelope.body == candidate.body)
+        #expect(opened.vaultKey == Self.nextKey)
+        #expect(opened.authorizingOwner == fixture.owner.identity)
+    }
+
+    @Test
+    func revokedDeviceReceivesTheRevokedCatchUpOutcome() throws {
+        let fixture = try Fixture()
+        let candidate = try fixture.makeCandidate()
+        let source = RevocationCatchUpObjectSource(
+            entries: Self.catchUpEntries(
+                currentEntries: fixture.currentEntries,
+                candidate: candidate
+            )
+        )
+
+        #expect(
+            throws: V3DeviceWrappedCatchUpTransitionOpeningError.deviceRevoked
+        ) {
+            _ = try V3DeviceWrappedCatchUpTransitionOpener(
+                source: source
+            ).open(
+                manifestData: candidate.manifestData,
+                manifestDigest: candidate.manifestDigest,
+                parent: fixture.base,
+                currentVaultKey: Self.currentKey,
+                identity: fixture.member,
+                reason: "Check this Mac's membership."
+            )
+        }
+    }
+
+    private static func catchUpEntries(
+        currentEntries: [V3EntryObjectKey: V3EncryptedEntry],
+        candidate: V3DeviceWrappedRevocationTransitionCandidate
+    ) -> [V3EntryObjectKey: V3RepositoryObjectRead] {
+        var entries = Dictionary(uniqueKeysWithValues:
+            currentEntries.map { key, entry in
+                (key, V3RepositoryObjectRead.available(entry.canonicalBytes))
+            }
+        )
+        for entry in candidate.stagedEntries {
+            entries[V3EntryObjectKey(
+                entryID: entry.context.entryID,
+                digest: Data(SHA256.hash(data: entry.canonicalBytes))
+            )] = .available(entry.canonicalBytes)
+        }
+        return entries
+    }
 }
 
 @Suite(.serialized)
@@ -1597,6 +1686,49 @@ private struct RevocationTransitionFixture {
 }
 
 private typealias Fixture = RevocationTransitionFixture
+
+private struct RevocationCatchUpObjectSource: V3ImmutableObjectReading {
+    let entries: [V3EntryObjectKey: V3RepositoryObjectRead]
+    let manifests: [Data: V3RepositoryObjectRead]
+
+    init(
+        entries: [V3EntryObjectKey: V3RepositoryObjectRead],
+        manifests: [Data: V3RepositoryObjectRead] = [:]
+    ) {
+        self.entries = entries
+        self.manifests = manifests
+    }
+
+    func manifestDigests(
+        maximumCount: Int
+    ) throws -> V3RepositoryDirectoryListing {
+        guard manifests.count <= maximumCount else {
+            return .limitExceeded
+        }
+        return .available(
+            digests: manifests.keys.sorted(by: {
+                $0.lexicographicallyPrecedes($1)
+            }),
+            objectCount: manifests.count
+        )
+    }
+
+    func readManifest(
+        digest: Data,
+        maximumBytes _: Int
+    ) throws -> V3RepositoryObjectRead {
+        manifests[digest] ?? .unavailable
+    }
+
+    func readEntry(
+        entryID: String,
+        digest: Data,
+        maximumBytes _: Int
+    ) throws -> V3RepositoryObjectRead {
+        entries[V3EntryObjectKey(entryID: entryID, digest: digest)]
+            ?? .unavailable
+    }
+}
 
 private final class RevocationPublicationObserver:
     V3ImmutableTransactionPhaseObserving,

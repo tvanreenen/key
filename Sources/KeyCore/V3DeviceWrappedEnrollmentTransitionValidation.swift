@@ -59,13 +59,19 @@ struct V3DeviceWrappedValidatedEnrollmentTransition: Sendable {
 /// This is authority to attempt the addressed unwrap, not authority to advance
 /// the checkpoint. The candidate HMAC and complete resealed entry snapshot
 /// still require validation with the recovered key.
-struct V3DeviceWrappedOwnerAuthorizedEnrollmentTransition:
+enum V3DeviceWrappedOwnerAuthorizedKeyTransitionKind: Equatable, Sendable {
+    case enrollment
+    case revocation(V3DeviceWrappedRevocationPlan)
+}
+
+struct V3DeviceWrappedOwnerAuthorizedKeyTransition:
     Equatable,
     Sendable
 {
     let candidate: V3DeviceWrappedManifestEnvelope
     let manifestDigest: Data
     let authorizingOwner: V3EnrollmentDeviceIdentity
+    let kind: V3DeviceWrappedOwnerAuthorizedKeyTransitionKind
 }
 
 /// Independently verifies an unpublished permanent-profile roster addition.
@@ -73,8 +79,10 @@ struct V3DeviceWrappedOwnerAuthorizedEnrollmentTransition:
 /// The builder is not an authority boundary. Initial publication uses this
 /// validator to prove that the exact checkpoint moves to one owner-approved
 /// key epoch containing the same complete plaintext snapshot and exactly one
-/// additional active device. Durable recovery can reuse the structural proof
-/// only after the exact candidate was anchored while the ceremony was valid.
+/// additional active device. Its public preflight also classifies supported
+/// enrollment and revocation children before catch-up opens a device wrapper.
+/// Durable recovery can reuse the structural proof only after the exact
+/// candidate was anchored while the ceremony was valid.
 struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
     private let limits: V3ManifestRepositoryLimits
     private let envelopeCodec = V3DeviceWrappedManifestEnvelopeCodec()
@@ -88,19 +96,19 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         )
     }
 
-    /// Proves that one provider-supplied enrollment candidate is an exact,
+    /// Proves that one provider-supplied key transition is an exact,
     /// owner-authorized child of the authenticated parent before catch-up asks
     /// the Secure Enclave to open this device's addressed wrapper.
     ///
     /// The returned candidate remains untrusted until `validateAnchored`
     /// authenticates it with the opened next key and compares every resealed
     /// entry with the parent snapshot.
-    func preflightOwnerAuthorizedCandidate(
+    func preflightOwnerAuthorizedKeyTransition(
         manifestData: Data,
         manifestDigest: Data,
         parent: V3DeviceWrappedTrustedCheckpoint,
         currentVaultKey: Data
-    ) throws -> V3DeviceWrappedOwnerAuthorizedEnrollmentTransition {
+    ) throws -> V3DeviceWrappedOwnerAuthorizedKeyTransition {
         guard manifestData.count <= limits.maximumManifestBytes,
               manifestDigest.count == 32,
               Data(SHA256.hash(data: manifestData)) == manifestDigest
@@ -136,19 +144,21 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         else {
             throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
         }
-        try validateRosterTransition(
-            from: authenticatedParent,
-            to: candidate,
-            expectedAddition: nil
-        )
         let owner = try authorizingOwner(
             of: candidate,
             parent: authenticatedParent
         )
-        return V3DeviceWrappedOwnerAuthorizedEnrollmentTransition(
+        let kind = try keyTransitionKind(
+            from: parent,
+            authenticatedParent: authenticatedParent,
+            to: candidate,
+            authorizingOwner: owner
+        )
+        return V3DeviceWrappedOwnerAuthorizedKeyTransition(
             candidate: candidate,
             manifestDigest: manifestDigest,
-            authorizingOwner: owner
+            authorizingOwner: owner,
+            kind: kind
         )
     }
 
@@ -397,6 +407,51 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         else {
             throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
         }
+    }
+
+    private func keyTransitionKind(
+        from parent: V3DeviceWrappedTrustedCheckpoint,
+        authenticatedParent: V3DeviceWrappedManifestEnvelope,
+        to candidate: V3DeviceWrappedManifestEnvelope,
+        authorizingOwner: V3EnrollmentDeviceIdentity
+    ) throws -> V3DeviceWrappedOwnerAuthorizedKeyTransitionKind {
+        if (try? validateRosterTransition(
+            from: authenticatedParent,
+            to: candidate,
+            expectedAddition: nil
+        )) != nil {
+            return .enrollment
+        }
+
+        let revokedDeviceIDs = authenticatedParent.body.devices.compactMap {
+            parentDevice -> String? in
+            guard parentDevice.status == .active,
+                  let candidateDevice = candidate.body.devices.first(where: {
+                      $0.identity.deviceID == parentDevice.identity.deviceID
+                  }),
+                  candidateDevice.identity == parentDevice.identity,
+                  candidateDevice.role == parentDevice.role,
+                  candidateDevice.status == .revoked
+            else {
+                return nil
+            }
+            return parentDevice.identity.deviceID
+        }
+        guard candidate.body.keyID != authenticatedParent.body.keyID,
+              candidate.body.authorityTransitionID
+                != authenticatedParent.body.authorityTransitionID,
+              revokedDeviceIDs.count == 1,
+              let revokedDeviceID = revokedDeviceIDs.first,
+              let plan = try? V3DeviceWrappedRevocationPlanner().plan(
+                  from: parent,
+                  authorizingDeviceID: authorizingOwner.deviceID,
+                  revoking: revokedDeviceID
+              ),
+              candidate.body.devices == plan.resultingDevices
+        else {
+            throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
+        }
+        return .revocation(plan)
     }
 
     private func authorizingOwner(

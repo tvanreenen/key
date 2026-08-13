@@ -81,6 +81,11 @@ struct V3DeviceWrappedKeyTransitionDiscovery:
         for digest in listing.digests.sorted(by: {
             $0.lexicographicallyPrecedes($1)
         }) {
+            // The authenticated parent is already available from the local
+            // checkpoint cache and cannot also be a competing direct child.
+            guard digest != parent.checkpoint.envelopeDigest else {
+                continue
+            }
             let read: V3RepositoryObjectRead
             do {
                 read = try source.readManifest(
@@ -115,11 +120,8 @@ struct V3DeviceWrappedKeyTransitionDiscovery:
             guard Data(SHA256.hash(data: data)) == digest else {
                 continue
             }
-            guard digest != parent.checkpoint.envelopeDigest else {
-                continue
-            }
             do {
-                _ = try validator.preflightOwnerAuthorizedCandidate(
+                _ = try validator.preflightOwnerAuthorizedKeyTransition(
                     manifestData: data,
                     manifestDigest: digest,
                     parent: parent,
