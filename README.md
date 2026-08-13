@@ -81,10 +81,11 @@ prerelease does not replace the installation you rely on.
 
 The next preview supports explicit migration, multiple approved Macs,
 authenticated catch-up, guarded reads and writes, conflict resolution, and
-owner-reviewed revocation with forward key rotation. It is not yet a stable or
-complete recovery story: recovery after losing every enrolled device remains
-unfinished, and the new multi-device paths still require physical release
-qualification. See the
+owner-reviewed revocation with forward key rotation. Keep at least two owner
+Macs enrolled: either can authorize a replacement if the other is lost.
+Provider storage alone is not a recoverable backup, and `0.2.0` will not recover
+a vault after every enrolled device is lost. The new multi-device paths still
+require physical release qualification. See the
 [version 3 implementation tracker](docs/v3-vault-implementation.md) for the
 current scope, limitations, and release-qualification results.
 

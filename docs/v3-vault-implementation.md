@@ -8,14 +8,14 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-alpha.7` remains the latest Preview release; authenticated catch-up and owner-reviewed device revocation are implemented for the next Preview build, while offline recovery and physical multi-device qualification remain pending |
+| Status | `v0.2.0-alpha.7` remains the latest Preview release; authenticated catch-up and owner-reviewed device revocation are implemented for the next Preview build, while continuity UX and physical multi-device qualification remain pending; catastrophe recovery is deferred beyond `0.2.0` |
 | Latest release | `v0.2.0-alpha.7 (12)` at `7829acc` |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
 | Permanent key architecture | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Current prerelease format | [Version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | Finalize and review the complete `ENR-511` catch-up and revocation increment |
-| Next work | Implement `REC-512` offline recovery, then physically qualify both increments before alpha.8 |
+| Active work | Add `REC-512` multi-device continuity and explicit permanent-loss UX |
+| Next work | Physically qualify replacement continuity, catch-up, and revocation before alpha.8; prototype PIV recovery separately for a later minor release |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
 profile MUST not ship as stable until every release gate below passes.
@@ -37,7 +37,8 @@ profile MUST not ship as stable until every release gate below passes.
 - [x] `INV-08` Recovery observes one complete old or new authenticated head,
   never a mixed-key vault.
 - [x] `INV-09` Every filesystem effect remains beneath the opened vault root.
-- [ ] `INV-10` Loss of all enrolled devices has an explicit recovery outcome.
+- [x] `INV-10` Loss of all enrolled devices has an explicit outcome: permanent
+  loss in `0.2.0`, with no weaker fallback.
 - [x] `INV-11` A raw v3 vault key exists only in an unlocked Key Agent session
   and is never persisted or synchronized.
 - [x] `INV-12` Every membership change creates a fresh key and re-encrypts the
@@ -134,7 +135,8 @@ security or durability boundary and updates this tracker before it merges.
 | `KEY-509` | Complete; PRs #54–#56; physically qualified in alpha.7 | Ship one-device genesis, durable HPKE wrappers, explicit migration, wrapper-backed sessions, exact reads, and recoverable ordinary writes without persisting the raw vault key |
 | `ENR-510` | Complete; PR #57; two-device ceremony physically qualified in alpha.7 | Use one owner-approved, key-rotating roster-addition path for first and later enrollment |
 | `ENR-511` | Implementation complete; physical qualification pending | Revoke devices, rotate the key, re-encrypt the current snapshot, and catch remaining devices up safely |
-| `REC-512` | Planned | Add the single offline recovery kit and qualify destructive-loss behavior |
+| `REC-512` | Planned | Add multi-device continuity guidance, one-owner risk warnings, and explicit permanent-loss behavior |
+| Later recovery track | Deferred beyond `0.2.0` | Prototype primary and backup PIV P-256 recovery keys before selecting a permanent catastrophe-recovery schema or release |
 
 #### `ARCH-508` / `KEY-509` — Permanent Profile Runtime
 
@@ -157,7 +159,8 @@ and compare-and-swap advances the checkpoint last. It cannot fall through to
 legacy `.secret` files or persistent raw version 3 key storage.
 
 This is the permanent runtime foundation used by the enrollment and revocation
-work below. Offline recovery remains `REC-512`.
+work below. `REC-512` now completes the continuity and explicit permanent-loss
+UX without adding catastrophe-recovery authority to `0.2.0`.
 
 #### `ENR-510` — Permanent Key-Rotating Enrollment
 
@@ -1157,8 +1160,8 @@ Historical caveats at the end of `ENR-505`:
   were enabled and qualified in alpha.6; authority changes remain explicit
   enrollment or revocation operations.
 - Loss of every enrolled Secure Enclave identity still has no recovery path.
-  That unresolved policy remains a release gate and must be plainly documented
-  before a stable release.
+  `DEC-033` now makes that permanent loss the explicit `0.2.0` policy; its UX
+  and documentation remain release gates.
 
 Acceptance gate:
 
@@ -1407,17 +1410,17 @@ formats or transport stacks:
 - [x] `ENR-511` Authenticate and apply ordered content and key-epoch catch-up
   before normal access, preserving explicit stale reads and fail-closed
   authority conflicts.
-- [ ] `REC-512` Add the single offline recovery kit and recovery-authorized
-  replacement transition.
+- [ ] `REC-512` Add continuity status, one-owner warnings, migration-cleanup
+  guidance, and explicit permanent-loss behavior.
 - [x] Reject replay, substitution, wrong-vault, and role confusion.
 - [x] Add the reviewed revoke-and-rotate command.
 - [x] Re-encrypt on every membership change.
 
 ### Release Track
 
-- [x] Decide the all-devices-lost policy: one optional, strongly recommended
-  offline recovery kit; explicit permanent loss when declined.
-- [ ] Implement and test the recovery kit and permanent-loss behavior.
+- [x] Set the `0.2.0` all-devices-lost policy: no catastrophe-recovery
+  authority; provider bytes alone cannot recover the vault.
+- [ ] Implement and test continuity guidance and permanent-loss UX.
 - [ ] Add doctor, transaction, recovery, and device diagnostics.
 - [x] Add conflict diagnostics, stable JSON status output, and machine-readable
   exit codes.
@@ -1461,7 +1464,7 @@ formats or transport stacks:
 | `DEC-030` | Accepted | Replace the prerelease custom wrapper with RFC 9180 HPKE through CryptoKit using P-256, HKDF-SHA256, and AES-GCM. Bind a self-contained canonical wrapper context to the vault ID, exact key ID, authenticated authority-transition ID, recipient device ID, format, version, and suite. Use a random transition ID for genesis and derive enrollment transition IDs from the complete compared transcript. Raise the minimum deployment target from macOS 13 to macOS 14, where CryptoKit HPKE and its Secure Enclave P-256 conformance become available, instead of retaining a custom cryptographic fallback. |
 | `DEC-031` | Accepted | Rotate the vault key and re-encrypt the complete current snapshot on every device-roster addition or removal. Preserve logical entry revisions during a pure owner-authorized reseal, while ordinary same-revision substitution remains invalid. |
 | `DEC-032` | Accepted | Cache the exact checkpoint manifest in device-local Key-owned storage so routine unlock does not depend on provider hydration. The cache carries no authority unless its SHA-256 digest and vault ID match the non-synchronizing device-local checkpoint. |
-| `DEC-033` | Accepted | Offer one optional, strongly recommended offline recovery kit. Authenticate a special recovery public identity, store only its encrypted private material with the vault, keep the random 256-bit recovery secret offline, and require recovery to enroll a new Secure Enclave owner, rotate the key, revoke lost devices, and replace the kit. Declining recovery means permanent loss when every owner is unavailable. |
+| `DEC-033` | Accepted | Ship `0.2.0` with device continuity but no catastrophe-recovery authority. Recommend at least two enrolled owners; let a surviving owner enroll a replacement and revoke a lost device; and state that provider bytes alone are not a recoverable backup. Losing every owner means permanent loss without a password, cloud escrow, support override, or hidden fallback. Evaluate two independent PIV P-256 recovery keys for a later minor release without making their schema part of the stable `0.2.0` promise. |
 | `DEC-034` | Accepted | Treat the current local/shared raw-key alpha profile as intentionally replaceable prerelease state. Give the permanent profile an unambiguous required discriminator, clearly refuse old alpha state, support explicit reset/remigration where possible, and retain no indefinite dual cryptographic reader or writer. |
 
 ## Validation Matrix
@@ -1537,8 +1540,8 @@ explicit migration rather than another implicit synchronized-key repair.
 | `v0.2.0-alpha.5` | 10 | Released | Resume the exact authenticated owner-approved enrollment after invitation expiry or delayed provider delivery |
 | `v0.2.0-alpha.6` | 11 | Released | Enable guarded multi-device writes and conflict resolution |
 | `v0.2.0-alpha.7` | 12 | Released | Introduce the side-by-side Preview track and ship the permanent device-wrapped profile for physical multi-device qualification without replacing Stable Key |
-| `v0.2.0-alpha.8` | 13 | Planned | Add revocation, remaining-device catch-up, offline recovery, and multi-epoch physical-device validation |
-| `v0.2.0-beta.1` | 14 | Planned | Complete provider qualification, migration and rollback validation, recovery documentation, signing checks, and the required security-review gates |
+| `v0.2.0-alpha.8` | 13 | Planned | Add revocation, remaining-device catch-up, continuity and permanent-loss UX, and multi-epoch physical-device validation |
+| `v0.2.0-beta.1` | 14 | Planned | Complete provider qualification, migration and rollback validation, continuity and permanent-loss documentation, signing checks, and the required security-review gates |
 
 Urgent fixes may add an intervening prerelease and advance the build counter,
 but they do not redefine the security checkpoint assigned to a version above.
@@ -1615,15 +1618,16 @@ pass this same two-device exercise before the next Preview release.
 - [ ] Migration and rollback pass with realistic vault copies.
 - [ ] Recovery limitations are visible in CLI help and documentation.
 - [ ] An independent security review signs off on identity, enrollment,
-  authentication, revocation, and recovery.
+  authentication, revocation, continuity, and permanent-loss behavior.
 - [x] Signing, notarization, and installed-helper verification pass.
 
 ## Immediate Next Action
 
-Finalize `ENR-511` through full branch review and merge, then implement
-`REC-512` offline recovery. Cut alpha.8 only after
-enrollment, revocation, multi-epoch catch-up, recovery, restart, and
-provider-delay tests pass on multiple physical Macs. Permanent-profile
+Implement `REC-512` continuity and permanent-loss UX without adding a portable
+recovery authority. Cut alpha.8 only after enrollment, replacement continuity,
+revocation, multi-epoch catch-up, restart, and provider-delay tests pass on
+multiple physical Macs. Permanent-profile
 entry-level conflict inspection, provider qualification, realistic migration
 and rollback copies, a third-device ceremony, and independent security review
-remain beta or stable gates.
+remain beta or stable gates. Prototype PIV catastrophe recovery separately and
+assign no release until physical feasibility and security review support it.
