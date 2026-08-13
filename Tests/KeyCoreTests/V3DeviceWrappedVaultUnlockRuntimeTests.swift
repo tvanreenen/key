@@ -139,7 +139,7 @@ struct V3DeviceWrappedVaultUnlockRuntimeTests {
     }
 
     @Test
-    func missingLocalIdentityRequiresRecovery() throws {
+    func missingLocalIdentityExplainsThePermanentLossBoundary() throws {
         let fixture = try Self.fixture()
         let runtime = Self.runtime(
             checkpoint: fixture.checkpoint,
@@ -150,10 +150,14 @@ struct V3DeviceWrappedVaultUnlockRuntimeTests {
             identityLoader: TestIdentityLoader(identity: nil)
         )
 
-        #expect(
-            throws: V3DeviceWrappedVaultUnlockRuntimeError.recoveryRequired
-        ) {
-            try runtime.unlock(reason: "Unlock the vault")
+        do {
+            _ = try runtime.unlock(reason: "Unlock the vault")
+            Issue.record("Expected the missing device identity to be refused.")
+        } catch let error as V3DeviceWrappedVaultUnlockRuntimeError {
+            #expect(error == .deviceIdentityUnavailable)
+            #expect(error.localizedDescription.contains("surviving enrolled Mac"))
+            #expect(error.localizedDescription.contains("permanently inaccessible"))
+            #expect(error.localizedDescription.contains("files alone cannot recover"))
         }
     }
 

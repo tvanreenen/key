@@ -486,7 +486,7 @@ public struct KeyServiceResponse: Codable, Equatable {
             code = .securityConflict
         case .rollbackDetected:
             code = .rollbackDetected
-        case .recoveryRequired:
+        case .recoveryRequired, .deviceIdentityUnavailable:
             code = .recoveryRequired
         case .conflictNotFound:
             code = .conflictNotFound

@@ -1379,7 +1379,7 @@ private func revocationFailure(
         .failure(error.localizedDescription, code: .authenticationFailed)
     case .temporaryUnavailable, .checkpointChanged:
         .failure(error.localizedDescription, code: .vaultIncomplete)
-    case .recoveryRequired, .deviceRevoked:
+    case .recoveryRequired, .deviceIdentityUnavailable, .deviceRevoked:
         .failure(error.localizedDescription, code: .recoveryRequired)
     case .legacyAlphaProfile, .upgradeRequired:
         .failure(error.localizedDescription, code: .operationRefused)

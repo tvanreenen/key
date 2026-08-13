@@ -22,6 +22,19 @@ struct V3DeviceWrappedVaultRuntimeTests {
     }
 
     @Test
+    func preservesMissingDeviceIdentityGuidance() throws {
+        let runtime = makeRuntime(failure: .deviceIdentityUnavailable)
+        do {
+            try runtime.unlock()
+            Issue.record("Expected the missing device identity to be refused.")
+        } catch let error as VaultUXServiceError {
+            #expect(error == .deviceIdentityUnavailable)
+            #expect(error.localizedDescription.contains("surviving enrolled Mac"))
+            #expect(error.localizedDescription.contains("permanently inaccessible"))
+        }
+    }
+
+    @Test
     func refusesTheReplacedAlphaProfileExplicitly() throws {
         let runtime = makeRuntime(failure: .legacyAlphaProfile)
         do {
