@@ -9,6 +9,60 @@ struct V3EnrollmentAuthenticationTests {
         "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
 
     @Test
+    func canonicalizationAlwaysPreservesSignatureValidity() throws {
+        let signer = try makeSigner(
+            name: "Office Mac",
+            signingScalar: 0x11,
+            wrappingScalar: 0x12
+        )
+        let invitation = try makeInvitation(identity: signer.publicIdentity)
+        let authenticator = V3EnrollmentMessageAuthenticator()
+        let verified = try authenticator.verify(authenticator.sign(
+            invitation,
+            using: signer,
+            reason: "Create the enrollment invitation"
+        ))
+        let joiner = try makeSigner(
+            name: "Travel Mac",
+            signingScalar: 3,
+            wrappingScalar: 4
+        )
+        let request = try V3EnrollmentJoinRequest(
+            invitationDigest: invitation.digest,
+            joiningDevice: joiner.publicIdentity,
+            nonce: Data(repeating: 0xB1, count: 32)
+        )
+
+        for _ in 0..<512 {
+            _ = try authenticator.sign(
+                invitation,
+                using: signer,
+                reason: "Exercise canonical enrollment signatures"
+            )
+            _ = try authenticator.sign(
+                request,
+                answering: verified,
+                using: joiner,
+                reason: "Exercise canonical join signatures"
+            )
+
+            let input = Data("canonical manifest authorization".utf8)
+            let raw = try signer.privateKey.signature(for: input)
+            let canonical = try V3P256Signature.canonicalize(
+                raw.rawRepresentation
+            )
+            let signature = try P256.Signing.ECDSASignature(
+                rawRepresentation: canonical
+            )
+            let digest = SHA256.hash(data: input)
+            #expect(signer.privateKey.publicKey.isValidSignature(
+                signature,
+                for: digest
+            ))
+        }
+    }
+
+    @Test
     func signedMessagesRoundTripAndVerifyExactParticipants() throws {
         let inviter = try makeSigner(
             name: "Office Mac",
@@ -83,7 +137,6 @@ struct V3EnrollmentAuthenticationTests {
             vaultID: otherVaultID,
             parentManifestDigest: Data(repeating: 0x91, count: 32),
             invitingDevice: inviter.publicIdentity,
-            invitedRole: .member,
             nonce: Data(repeating: 0xA1, count: 32),
             expiresAt: 1_900_000_000
         )
@@ -206,7 +259,6 @@ struct V3EnrollmentAuthenticationTests {
             vaultID: Self.vaultID,
             parentManifestDigest: Data(repeating: 0x92, count: 32),
             invitingDevice: inviter.publicIdentity,
-            invitedRole: .member,
             nonce: Data(repeating: 0xA1, count: 32),
             expiresAt: 1_900_000_000
         )
@@ -308,8 +360,8 @@ struct V3EnrollmentAuthenticationTests {
 
         let extended = replacing(
             signed.canonicalBytes,
-            "\"version\":1",
-            with: "\"extra\":true,\"version\":1"
+            "\"version\":2",
+            with: "\"extra\":true,\"version\":2"
         )
         #expect(throws: V3EnrollmentAuthenticationError.invalidFormat) {
             try V3SignedEnrollmentInvitation(canonicalBytes: extended)
@@ -356,12 +408,12 @@ struct V3EnrollmentAuthenticationTests {
         )
         let futureVersion = replacingLast(
             futureSchema,
-            "\"version\":1}",
-            with: "\"version\":2}"
+            "\"version\":2}",
+            with: "\"version\":3}"
         )
 
         #expect(
-            throws: V3EnrollmentAuthenticationError.unsupportedVersion(2)
+            throws: V3EnrollmentAuthenticationError.unsupportedVersion(3)
         ) {
             try V3SignedEnrollmentInvitation(canonicalBytes: futureVersion)
         }
@@ -374,7 +426,6 @@ struct V3EnrollmentAuthenticationTests {
             vaultID: Self.vaultID,
             parentManifestDigest: Data(repeating: 0x91, count: 32),
             invitingDevice: identity,
-            invitedRole: .member,
             nonce: Data(repeating: 0xA1, count: 32),
             expiresAt: 1_900_000_000
         )
@@ -405,9 +456,7 @@ struct V3EnrollmentAuthenticationTests {
     }
 
     private func privateKeyBytes(_ scalar: UInt8) -> Data {
-        var bytes = Data(repeating: 0, count: 32)
-        bytes[31] = scalar
-        return bytes
+        Data(SHA256.hash(data: Data([scalar])))
     }
 
     private func replacing(

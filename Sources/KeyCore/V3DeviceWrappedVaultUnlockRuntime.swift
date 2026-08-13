@@ -446,9 +446,12 @@ final class V3DeviceWrappedVaultUnlockRuntime:
         switch error {
         case .deviceRevoked:
             return .deviceRevoked
-        case .unsupportedEnvelopeVersion,
-                .unsupportedProfileVersion:
+        case .unsupportedEnvelopeVersion:
             return .upgradeRequired
+        case let .unsupportedProfileVersion(version):
+            return version < V3DeviceWrappedManifestBody.profileVersion
+                ? .legacyAlphaProfile
+                : .upgradeRequired
         case .authenticationCancelled:
             return .locked
         case .invalidManifest:

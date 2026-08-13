@@ -46,12 +46,11 @@ enum V3DeviceWrappedEnrollmentAdoptionError:
 struct V3DeviceWrappedEnrollmentAdoptionReport: Equatable, Sendable {
     let vaultID: String
     let deviceName: String
-    let role: V3DeviceRole
 
     var rendered: String {
         [
             "Enrollment completed.",
-            "This Mac (\(deviceName)) is now an active \(role.rawValue) of version 3 vault '\(vaultID)'.",
+            "This Mac (\(deviceName)) is now an active device in version 3 vault '\(vaultID)'.",
             "Its Secure Enclave identity can open only this Mac's wrapped copy of the current vault key.",
             "The raw vault key remains only in the running helper session."
         ].joined(separator: "\n") + "\n"
@@ -204,8 +203,7 @@ struct V3DeviceWrappedEnrollmentAdoptionService:
         selected = true
         return V3DeviceWrappedEnrollmentAdoptionReport(
             vaultID: vaultID,
-            deviceName: identity.publicIdentity.displayName,
-            role: transcript.invitation.invitedRole
+            deviceName: identity.publicIdentity.displayName
         )
     }
 
@@ -402,13 +400,10 @@ private struct V3DeviceWrappedEnrollmentFirstTrustVerifier: Sendable {
                 == [transcript.invitation.parentManifestDigest]
             && candidate.body.vaultID == transcript.invitation.vaultID
             && candidate.body.devices.contains(where: {
-                $0.identity == owner && $0.role == .owner
-                    && $0.status == .active
+                $0.identity == owner && $0.status == .active
             })
             && candidate.body.devices.contains(where: {
-                $0.identity == joiner
-                    && $0.role == transcript.invitation.invitedRole
-                    && $0.status == .active
+                $0.identity == joiner && $0.status == .active
             })
             && candidate.body.wrappedKeys.filter({
                 $0.recipientDeviceID == joiner.deviceID
@@ -516,13 +511,11 @@ private struct V3DeviceWrappedEnrollmentFirstTrustVerifier: Sendable {
               parent.body.authorityTransitionID
                 != candidate.body.authorityTransitionID,
               parent.body.devices.contains(where: {
-                  $0.identity == owner && $0.role == .owner
-                    && $0.status == .active
+                  $0.identity == owner && $0.status == .active
               }),
               candidate.body.devices.count == parent.body.devices.count + 1,
               additions.count == 1,
               additions[0].identity == joiner,
-              additions[0].role == transcript.invitation.invitedRole,
               additions[0].status == .active,
               parent.body.devices.allSatisfy({ device in
                   candidate.body.devices.first(where: {

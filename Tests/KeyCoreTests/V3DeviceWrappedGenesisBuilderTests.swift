@@ -24,7 +24,7 @@ struct V3DeviceWrappedGenesisBuilderTests {
 
         #expect(candidate.body.devices.count == 1)
         #expect(candidate.body.devices[0].identity == fixture.identity)
-        #expect(candidate.body.devices[0].role == .owner)
+        #expect(candidate.body.devices[0].status == .active)
         #expect(candidate.body.devices[0].status == .active)
         #expect(candidate.body.wrappedKeys.count == 1)
         #expect(candidate.body.entries.isEmpty)

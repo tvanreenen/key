@@ -11,7 +11,7 @@ enum V3DeviceWrappedEnrollmentValidationError:
     case invalidNextVaultKey
     case invalidCeremony
     case invalidTransition
-    case invalidOwnerAuthorization
+    case invalidDeviceAuthorization
     case authenticationCancelled
     case localWrapperInvalid
     case invalidCurrentEntry
@@ -30,8 +30,8 @@ enum V3DeviceWrappedEnrollmentValidationError:
             "The enrollment transition does not match the exact compared device ceremony."
         case .invalidTransition:
             "The enrollment candidate is not one exact key-rotating roster addition."
-        case .invalidOwnerAuthorization:
-            "The enrollment transition lacks a valid active-owner authorization."
+        case .invalidDeviceAuthorization:
+            "The enrollment transition lacks a valid active-device authorization."
         case .authenticationCancelled:
             "Device authentication was cancelled while checking the new local vault-key wrapper."
         case .localWrapperInvalid:
@@ -70,7 +70,7 @@ struct V3DeviceWrappedOwnerAuthorizedKeyTransition:
 {
     let candidate: V3DeviceWrappedManifestEnvelope
     let manifestDigest: Data
-    let authorizingOwner: V3EnrollmentDeviceIdentity
+    let authorizingDevice: V3EnrollmentDeviceIdentity
     let kind: V3DeviceWrappedOwnerAuthorizedKeyTransitionKind
 }
 
@@ -144,7 +144,7 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         else {
             throw V3DeviceWrappedEnrollmentValidationError.invalidTransition
         }
-        let owner = try authorizingOwner(
+        let owner = try authorizingDevice(
             of: candidate,
             parent: authenticatedParent
         )
@@ -152,12 +152,12 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
             from: parent,
             authenticatedParent: authenticatedParent,
             to: candidate,
-            authorizingOwner: owner
+            authorizingDevice: owner
         )
         return V3DeviceWrappedOwnerAuthorizedKeyTransition(
             candidate: candidate,
             manifestDigest: manifestDigest,
-            authorizingOwner: owner,
+            authorizingDevice: owner,
             kind: kind
         )
     }
@@ -194,7 +194,7 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         guard metadata.parents == [parent.checkpoint.envelopeDigest] else {
             return false
         }
-        _ = try authorizingOwner(
+        _ = try authorizingDevice(
             authorizations: metadata.authorizations,
             canonicalContentBytes: metadata.canonicalContentBytes,
             parent: authenticatedParent
@@ -227,10 +227,7 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
             currentVaultKey: currentVaultKey,
             nextVaultKey: nextVaultKey,
             expectedOwner: transcript.invitation.invitingDevice,
-            expectedAddition: (
-                transcript.joinRequest.joiningDevice,
-                transcript.invitation.invitedRole
-            )
+            expectedAddition: transcript.joinRequest.joiningDevice
         )
         do {
             try keyRotationValidator.validateLocalWrapper(
@@ -275,10 +272,7 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         currentVaultKey: Data,
         nextVaultKey: Data,
         expectedOwner: V3EnrollmentDeviceIdentity,
-        expectedAddition: (
-            identity: V3EnrollmentDeviceIdentity,
-            role: V3DeviceRole
-        )?
+        expectedAddition: V3EnrollmentDeviceIdentity?
     ) throws -> V3DeviceWrappedValidatedEnrollmentTransition {
         let rotation: V3DeviceWrappedValidatedKeyRotation
         do {
@@ -377,10 +371,7 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
     private func validateRosterTransition(
         from parent: V3DeviceWrappedManifestEnvelope,
         to candidate: V3DeviceWrappedManifestEnvelope,
-        expectedAddition: (
-            identity: V3EnrollmentDeviceIdentity,
-            role: V3DeviceRole
-        )?
+        expectedAddition: V3EnrollmentDeviceIdentity?
     ) throws {
         let parentBody = parent.body
         let candidateBody = candidate.body
@@ -396,9 +387,8 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
               candidateBody.devices.count == parentBody.devices.count + 1,
               added.count == 1,
               added[0].status == .active,
-              expectedAddition.map({ added[0].identity == $0.identity })
+              expectedAddition.map({ added[0].identity == $0 })
                 ?? true,
-              expectedAddition.map({ added[0].role == $0.role }) ?? true,
               parentBody.devices.allSatisfy({ device in
                   candidateBody.devices.first(where: {
                       $0.identity.deviceID == device.identity.deviceID
@@ -413,7 +403,7 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         from parent: V3DeviceWrappedTrustedCheckpoint,
         authenticatedParent: V3DeviceWrappedManifestEnvelope,
         to candidate: V3DeviceWrappedManifestEnvelope,
-        authorizingOwner: V3EnrollmentDeviceIdentity
+        authorizingDevice: V3EnrollmentDeviceIdentity
     ) throws -> V3DeviceWrappedOwnerAuthorizedKeyTransitionKind {
         if (try? validateRosterTransition(
             from: authenticatedParent,
@@ -430,7 +420,6 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
                       $0.identity.deviceID == parentDevice.identity.deviceID
                   }),
                   candidateDevice.identity == parentDevice.identity,
-                  candidateDevice.role == parentDevice.role,
                   candidateDevice.status == .revoked
             else {
                 return nil
@@ -444,7 +433,7 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
               let revokedDeviceID = revokedDeviceIDs.first,
               let plan = try? V3DeviceWrappedRevocationPlanner().plan(
                   from: parent,
-                  authorizingDeviceID: authorizingOwner.deviceID,
+                  authorizingDeviceID: authorizingDevice.deviceID,
                   revoking: revokedDeviceID
               ),
               candidate.body.devices == plan.resultingDevices
@@ -454,18 +443,18 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
         return .revocation(plan)
     }
 
-    private func authorizingOwner(
+    private func authorizingDevice(
         of candidate: V3DeviceWrappedManifestEnvelope,
         parent: V3DeviceWrappedManifestEnvelope
     ) throws -> V3EnrollmentDeviceIdentity {
-        try authorizingOwner(
+        try authorizingDevice(
             authorizations: candidate.authorizations,
             canonicalContentBytes: candidate.canonicalContentBytes,
             parent: parent
         )
     }
 
-    private func authorizingOwner(
+    private func authorizingDevice(
         authorizations: [V3ManifestAuthorization],
         canonicalContentBytes: Data,
         parent: V3DeviceWrappedManifestEnvelope
@@ -475,7 +464,6 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
               let owner = parent.body.devices.first(where: {
                   $0.identity.deviceID == authorization.signerDeviceID
               }),
-              owner.role == .owner,
               owner.status == .active,
               let signatureBytes = Base64URL.decodeCanonical(
                   authorization.signature
@@ -497,7 +485,7 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
               )
         else {
             throw V3DeviceWrappedEnrollmentValidationError
-                .invalidOwnerAuthorization
+                .invalidDeviceAuthorization
         }
         return owner.identity
     }
@@ -514,8 +502,8 @@ struct V3DeviceWrappedEnrollmentTransitionValidator: Sendable {
             .invalidNextVaultKey
         case .invalidTransition:
             .invalidTransition
-        case .invalidOwnerAuthorization:
-            .invalidOwnerAuthorization
+        case .invalidDeviceAuthorization:
+            .invalidDeviceAuthorization
         case .authenticationCancelled:
             .authenticationCancelled
         case .localWrapperInvalid:

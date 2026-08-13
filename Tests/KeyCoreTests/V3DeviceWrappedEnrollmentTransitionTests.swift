@@ -27,7 +27,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let ceremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: 0x61
         )
 
@@ -101,7 +100,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let firstCeremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: 0x62
         )
         let first = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
@@ -120,7 +118,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let laterCeremony = try fixture.ceremony(
             parentDigest: laterBase.checkpoint.envelopeDigest,
             joiner: fixture.secondJoiner,
-            role: .owner,
             nonce: 0x63
         )
 
@@ -150,7 +147,7 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
 
         #expect(later.body.devices.count == 3)
         #expect(later.body.wrappedKeys.count == 3)
-        #expect(later.body.devices.filter({ $0.role == .owner }).count == 2)
+        #expect(later.body.devices.allSatisfy({ $0.status == .active }))
         #expect(later.body.entries.map(\.revision) == [1])
         #expect(later.body.entries.allSatisfy({ $0.keyID == later.body.keyID }))
         #expect(validated.candidate.body == later.body)
@@ -177,7 +174,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let ceremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: 0x64
         )
 
@@ -205,7 +201,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let ceremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: 0x65
         )
 
@@ -233,7 +228,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let ceremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: 0x66
         )
 
@@ -253,12 +247,11 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
     }
 
     @Test
-    func refusesAnActiveMemberAsEnrollmentAuthorizer() throws {
+    func anyActiveDeviceCanAuthorizeEnrollment() throws {
         let fixture = try Fixture()
         let firstCeremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: 0x67
         )
         let first = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
@@ -277,25 +270,25 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
             parentDigest: laterBase.checkpoint.envelopeDigest,
             inviter: fixture.firstJoiner,
             joiner: fixture.secondJoiner,
-            role: .member,
             nonce: 0x68
         )
 
-        #expect(
-            throws: V3DeviceWrappedEnrollmentTransitionError.invalidOwner
-        ) {
-            try V3DeviceWrappedEnrollmentTransitionBuilder().build(
-                from: laterBase,
-                currentEntries: Self.entryMap(first.stagedEntries),
-                state: memberCeremony.state,
-                currentVaultKey: Self.nextKey,
-                nextVaultKey: Self.laterKey,
-                authorityTransitionID: Self.secondEnrollmentTransitionID,
-                owner: fixture.firstJoiner,
-                at: Self.approvalTime,
-                authorizationReason: "Attempt enrollment as a member."
-            )
-        }
+        let later = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
+            from: laterBase,
+            currentEntries: Self.entryMap(first.stagedEntries),
+            state: memberCeremony.state,
+            currentVaultKey: Self.nextKey,
+            nextVaultKey: Self.laterKey,
+            authorityTransitionID: Self.secondEnrollmentTransitionID,
+            owner: fixture.firstJoiner,
+            at: Self.approvalTime,
+            authorizationReason: "Approve enrollment from an active device."
+        )
+
+        #expect(later.body.devices.contains(where: {
+            $0.identity == fixture.secondJoiner.publicIdentity
+                && $0.status == .active
+        }))
     }
 
     @Test
@@ -304,7 +297,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let ceremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: 0x69
         )
         let object = try #require(fixture.currentEntries.first)
@@ -337,7 +329,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let ceremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: 0x70
         )
         let candidate = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
@@ -377,7 +368,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let ceremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: 0x76
         )
         let candidate = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
@@ -402,7 +392,7 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
 
         #expect(authorized.candidate.body == candidate.body)
         #expect(authorized.manifestDigest == candidate.manifestDigest)
-        #expect(authorized.authorizingOwner == fixture.owner.publicIdentity)
+        #expect(authorized.authorizingDevice == fixture.owner.publicIdentity)
 
         let otherParentCandidate = try V3DeviceWrappedManifestCandidateBuilder()
             .edit(
@@ -441,7 +431,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let ceremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: 0x77
         )
         let candidate = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
@@ -466,7 +455,7 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         )
         let futureBody = body.map { name, value in
             name == "profileVersion"
-                ? (name, CanonicalJSONValue.integer(2))
+                ? (name, CanonicalJSONValue.integer(3))
                 : (name, value)
         }
         let futureContent = content.map { name, value in
@@ -483,7 +472,7 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
 
         #expect(
             throws: V3DeviceWrappedUnlockError
-                .unsupportedProfileVersion(2)
+                .unsupportedProfileVersion(3)
         ) {
             try V3DeviceWrappedEnrollmentTransitionValidator()
                 .preflightOwnerAuthorizedKeyTransition(
@@ -737,7 +726,7 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let expected = try Self.trustedCheckpoint(for: candidate)
         #expect(opened.vaultKey == Self.nextKey)
         #expect(opened.trustedCheckpoint == expected)
-        #expect(opened.authorizingOwner == fixture.owner.publicIdentity)
+        #expect(opened.authorizingDevice == fixture.owner.publicIdentity)
         #expect(identity.unwrapCount == 1)
         #expect(source.entryReadCount == 2)
     }
@@ -751,7 +740,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let ceremony = try fixture.ceremony(
             parentDigest: first.manifestDigest,
             joiner: fixture.secondJoiner,
-            role: .owner,
             nonce: 0x7E
         )
         let later = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
@@ -805,7 +793,7 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
 
         #expect(
             throws: V3DeviceWrappedEnrollmentValidationError
-                .invalidOwnerAuthorization
+                .invalidDeviceAuthorization
         ) {
             try V3DeviceWrappedCatchUpTransitionOpener(source: source).open(
                 manifestData: unauthorized.manifestData,
@@ -914,7 +902,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let ceremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: 0x71
         )
         let candidate = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
@@ -983,7 +970,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let ceremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: 0x72
         )
         let candidate = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
@@ -1007,7 +993,7 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
 
         #expect(
             throws: V3DeviceWrappedEnrollmentValidationError
-                .invalidOwnerAuthorization
+                .invalidDeviceAuthorization
         ) {
             try V3DeviceWrappedEnrollmentTransitionValidator()
                 .preflightOwnerAuthorizedKeyTransition(
@@ -1019,7 +1005,7 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         }
         #expect(
             throws: V3DeviceWrappedEnrollmentValidationError
-                .invalidOwnerAuthorization
+                .invalidDeviceAuthorization
         ) {
             try V3DeviceWrappedEnrollmentTransitionValidator().validate(
                 altered,
@@ -1041,7 +1027,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let firstCeremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: 0x73
         )
         let candidate = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
@@ -1058,7 +1043,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let otherCeremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.secondJoiner,
-            role: .owner,
             nonce: 0x74
         )
         let relabeled = V3DeviceWrappedEnrollmentTransitionCandidate(
@@ -1094,7 +1078,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let ceremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: 0x75
         )
         let candidate = try V3DeviceWrappedEnrollmentTransitionBuilder().build(
@@ -1182,7 +1165,6 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         let ceremony = try fixture.ceremony(
             parentDigest: fixture.base.checkpoint.envelopeDigest,
             joiner: fixture.firstJoiner,
-            role: .member,
             nonce: nonce
         )
         return try V3DeviceWrappedEnrollmentTransitionBuilder().build(
@@ -1213,7 +1195,7 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         )
         let futureBody = body.map { name, value in
             name == "profileVersion"
-                ? (name, CanonicalJSONValue.integer(2))
+                ? (name, CanonicalJSONValue.integer(3))
                 : (name, value)
         }
         let futureContent = CanonicalJSONValue.object(content.map {
@@ -1454,7 +1436,6 @@ private struct Fixture {
         parentDigest: Data,
         inviter: SoftwareDevice? = nil,
         joiner: SoftwareDevice,
-        role: V3DeviceRole,
         nonce: UInt8
     ) throws -> (
         state: V3EnrollmentCeremonyState,
@@ -1465,7 +1446,6 @@ private struct Fixture {
             vaultID: V3DeviceWrappedEnrollmentTransitionTests.vaultID,
             parentManifestDigest: parentDigest,
             invitingDevice: inviter.publicIdentity,
-            invitedRole: role,
             nonce: Data(repeating: nonce, count: 32),
             expiresAt: 4_102_444_800
         )

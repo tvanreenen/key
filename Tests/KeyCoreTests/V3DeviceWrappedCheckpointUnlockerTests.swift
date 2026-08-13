@@ -98,12 +98,10 @@ struct V3DeviceWrappedCheckpointUnlockerTests {
             devices: [
                 V3DeviceWrappedManifestDevice(
                     identity: revoked.publicIdentity,
-                    role: .owner,
                     status: .revoked
                 ),
                 V3DeviceWrappedManifestDevice(
                     identity: active.publicIdentity,
-                    role: .owner,
                     status: .active
                 ),
             ].sorted { $0.identity.deviceID < $1.identity.deviceID },
@@ -170,7 +168,6 @@ struct V3DeviceWrappedCheckpointUnlockerTests {
         let invalidData = try Self.manifest(
             devices: [V3DeviceWrappedManifestDevice(
                 identity: fixture.unwrapper.publicIdentity,
-                role: .owner,
                 status: .active
             )],
             activeRecipients: [fixture.unwrapper],
@@ -214,7 +211,7 @@ struct V3DeviceWrappedCheckpointUnlockerTests {
         )
         let futureBody = body.map { name, value in
             name == "profileVersion"
-                ? (name, CanonicalJSONValue.integer(2))
+                ? (name, CanonicalJSONValue.integer(3))
                 : (name, value)
         }
         let futureContent = content.map { name, value in
@@ -235,7 +232,7 @@ struct V3DeviceWrappedCheckpointUnlockerTests {
 
         #expect(
             throws: V3DeviceWrappedUnlockError
-                .unsupportedProfileVersion(2)
+                .unsupportedProfileVersion(3)
         ) {
             try V3DeviceWrappedCheckpointUnlocker().unlock(
                 checkpoint: checkpoint,

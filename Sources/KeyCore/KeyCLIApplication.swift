@@ -171,10 +171,10 @@ public final class KeyCLIApplication {
             return response.exitCode
         case .invitations:
             return try executeSimpleShareCommand(command, request: .invitations)
-        case let .invite(deviceName, role):
+        case let .invite(deviceName):
             return try executeSimpleShareCommand(
                 command,
-                request: .invite(deviceName: deviceName, role: role)
+                request: .invite(deviceName: deviceName)
             )
         case let .join(invitationID, deviceName):
             return try executeSimpleShareCommand(
@@ -266,7 +266,7 @@ public final class KeyCLIApplication {
     ) {
         var lines = [
             "Review device revocation:",
-            "Device: \(review.revokedDevice.displayName) — \(review.revokedDevice.role.rawValue)",
+            "Device: \(review.revokedDevice.displayName)",
             "  ID: \(review.revokedDevice.deviceID)",
             "Authorized by: \(review.authorizingDevice.displayName)",
             "",
@@ -275,7 +275,7 @@ public final class KeyCLIApplication {
             "Remaining active devices: \(review.remainingActiveDevices.count)"
         ]
         lines.append(contentsOf: review.remainingActiveDevices.map {
-            "  \($0.displayName) — \($0.role.rawValue)"
+            "  \($0.displayName)"
         })
         io.writeStdout(lines.joined(separator: "\n") + "\n")
     }
@@ -502,7 +502,7 @@ public final class KeyCLIApplication {
                 ? " (this Mac)"
                 : ""
             lines.append(
-                "\(device.displayName) — \(device.role.rawValue), \(device.status.rawValue)\(current)"
+                "\(device.displayName) — \(device.status.rawValue)\(current)"
             )
             lines.append("  ID: \(device.deviceID)")
         }

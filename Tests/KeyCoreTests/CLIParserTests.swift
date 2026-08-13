@@ -152,12 +152,14 @@ struct CLIParserTests {
         )
         #expect(
             try CLIParser.parse(arguments: [
-                "share", "invite", "--name", "Office Mac", "--owner"
-            ]) == .share(.invite(
-                deviceName: "Office Mac",
-                role: .owner
-            ))
+                "share", "invite", "--name", "Office Mac"
+            ]) == .share(.invite(deviceName: "Office Mac"))
         )
+        #expect(throws: AppError.self) {
+            _ = try CLIParser.parse(arguments: [
+                "share", "invite", "--name", "Office Mac", "--owner"
+            ])
+        }
         #expect(
             try CLIParser.parse(arguments: [
                 "share", "join", "invite-id", "--name", "Laptop"

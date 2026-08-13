@@ -197,8 +197,9 @@ struct V3DeviceWrappedVaultUnlockRuntimeTests {
     @Test
     func futurePermanentProfileRequiresAnUpgrade() throws {
         let fixture = try Self.fixture()
-        let futureData = try Self.futureProfileManifest(
-            fixture.candidate.manifestData
+        let futureData = try Self.profileManifest(
+            fixture.candidate.manifestData,
+            version: 3
         )
         let checkpoint = try V3ManifestCheckpoint(
             vaultID: Self.vaultID,
@@ -213,6 +214,33 @@ struct V3DeviceWrappedVaultUnlockRuntimeTests {
 
         #expect(
             throws: V3DeviceWrappedVaultUnlockRuntimeError.upgradeRequired
+        ) {
+            try runtime.unlock(reason: "Unlock the vault")
+        }
+        #expect(fixture.identity.unwrapCount == 0)
+    }
+
+    @Test
+    func retiredPermanentProfileRequiresResetOrRemigration() throws {
+        let fixture = try Self.fixture()
+        let retiredData = try Self.profileManifest(
+            fixture.candidate.manifestData,
+            version: 1
+        )
+        let checkpoint = try V3ManifestCheckpoint(
+            vaultID: Self.vaultID,
+            envelopeDigest: Data(SHA256.hash(data: retiredData))
+        )
+        let runtime = Self.runtime(
+            checkpoint: checkpoint,
+            source: TestManifestSource(result: .available(retiredData)),
+            cache: TestCheckpointCache(lookup: .missing),
+            identity: fixture.identity
+        )
+
+        #expect(
+            throws: V3DeviceWrappedVaultUnlockRuntimeError
+                .legacyAlphaProfile
         ) {
             try runtime.unlock(reason: "Unlock the vault")
         }
@@ -235,12 +263,10 @@ struct V3DeviceWrappedVaultUnlockRuntimeTests {
             devices: [
                 V3DeviceWrappedManifestDevice(
                     identity: revoked.publicIdentity,
-                    role: .owner,
                     status: .revoked
                 ),
                 V3DeviceWrappedManifestDevice(
                     identity: active.publicIdentity,
-                    role: .owner,
                     status: .active
                 ),
             ].sorted { $0.identity.deviceID < $1.identity.deviceID },
@@ -518,8 +544,9 @@ struct V3DeviceWrappedVaultUnlockRuntimeTests {
         )
     }
 
-    private static func futureProfileManifest(
-        _ manifestData: Data
+    private static func profileManifest(
+        _ manifestData: Data,
+        version: UInt64
     ) throws -> Data {
         let root = try #require(
             CanonicalJSON.parse(manifestData).objectValue
@@ -530,19 +557,19 @@ struct V3DeviceWrappedVaultUnlockRuntimeTests {
         let body = try #require(
             content.first(where: { $0.0 == "manifest" })?.1.objectValue
         )
-        let futureBody = body.map { name, value in
+        let versionedBody = body.map { name, value in
             name == "profileVersion"
-                ? (name, CanonicalJSONValue.integer(2))
+                ? (name, CanonicalJSONValue.integer(version))
                 : (name, value)
         }
-        let futureContent = content.map { name, value in
+        let versionedContent = content.map { name, value in
             name == "manifest"
-                ? (name, CanonicalJSONValue.object(futureBody))
+                ? (name, CanonicalJSONValue.object(versionedBody))
                 : (name, value)
         }
         return CanonicalJSON.encode(.object(root.map { name, value in
             name == "content"
-                ? (name, CanonicalJSONValue.object(futureContent))
+                ? (name, CanonicalJSONValue.object(versionedContent))
                 : (name, value)
         }))
     }

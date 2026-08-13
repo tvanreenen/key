@@ -20,7 +20,7 @@ enum V3DeviceWrappedCatchUpTransitionOpeningError:
         case .deviceRevoked:
             "This Mac is no longer active in the next vault-key epoch."
         case .recoveryRequired:
-            "The owner-authorized key transition could not be authenticated completely."
+            "The device-authorized key transition could not be authenticated completely."
         }
     }
 }
@@ -30,7 +30,7 @@ enum V3DeviceWrappedCatchUpTransitionOpeningError:
 struct V3DeviceWrappedOpenedCatchUpTransition: Equatable, Sendable {
     let trustedCheckpoint: V3DeviceWrappedTrustedCheckpoint
     let vaultKey: Data
-    let authorizingOwner: V3EnrollmentDeviceIdentity
+    let authorizingDevice: V3EnrollmentDeviceIdentity
 }
 
 /// Opens one owner-authorized key transition without changing trust.
@@ -138,7 +138,7 @@ struct V3DeviceWrappedCatchUpTransitionOpener: Sendable {
                     currentEntries: currentEntries,
                     currentVaultKey: currentVaultKey,
                     nextVaultKey: nextVaultKey,
-                    expectedOwner: authorized.authorizingOwner
+                    expectedOwner: authorized.authorizingDevice
                 )
                 validatedCandidate = validated.candidate
                 validatedDigest = validated.manifestDigest
@@ -156,7 +156,7 @@ struct V3DeviceWrappedCatchUpTransitionOpener: Sendable {
                     currentEntries: currentEntries,
                     currentVaultKey: currentVaultKey,
                     nextVaultKey: nextVaultKey,
-                    expectedOwner: authorized.authorizingOwner
+                    expectedOwner: authorized.authorizingDevice
                 )
                 validatedCandidate = validated.candidate
                 validatedDigest = validated.manifestDigest
@@ -181,7 +181,7 @@ struct V3DeviceWrappedCatchUpTransitionOpener: Sendable {
                 envelope: validatedCandidate
             ),
             vaultKey: nextVaultKey,
-            authorizingOwner: authorized.authorizingOwner
+            authorizingDevice: authorized.authorizingDevice
         )
     }
 

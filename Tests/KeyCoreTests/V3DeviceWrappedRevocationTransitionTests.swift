@@ -109,8 +109,8 @@ struct V3DeviceWrappedRevocationTransitionTests {
         let fixture = try Fixture()
         let alteredPlan = V3DeviceWrappedRevocationPlan(
             expectedCheckpoint: fixture.plan.expectedCheckpoint,
-            authorizingOwner: fixture.plan.authorizingOwner,
-            revokedDevice: fixture.plan.authorizingOwner,
+            authorizingDevice: fixture.plan.authorizingDevice,
+            revokedDevice: fixture.plan.authorizingDevice,
             resultingDevices: fixture.plan.resultingDevices
         )
 
@@ -200,8 +200,8 @@ struct V3DeviceWrappedRevocationTransitionTests {
         let candidate = try fixture.makeCandidate()
         let alteredPlan = V3DeviceWrappedRevocationPlan(
             expectedCheckpoint: candidate.plan.expectedCheckpoint,
-            authorizingOwner: candidate.plan.authorizingOwner,
-            revokedDevice: candidate.plan.authorizingOwner,
+            authorizingDevice: candidate.plan.authorizingDevice,
+            revokedDevice: candidate.plan.authorizingDevice,
             resultingDevices: candidate.plan.resultingDevices
         )
         let altered = V3DeviceWrappedRevocationTransitionCandidate(
@@ -326,7 +326,7 @@ struct V3DeviceWrappedRevocationTransitionTests {
 
         #expect(opened.trustedCheckpoint.envelope.body == candidate.body)
         #expect(opened.vaultKey == Self.nextKey)
-        #expect(opened.authorizingOwner == fixture.owner.identity)
+        #expect(opened.authorizingDevice == fixture.owner.identity)
     }
 
     @Test
@@ -1531,7 +1531,7 @@ private struct RevocationTestDevice:
     }
 
     private static func scalar(_ value: UInt8) -> Data {
-        Data(repeating: 0, count: 31) + Data([value])
+        Data(SHA256.hash(data: Data([value])))
     }
 }
 
@@ -1572,12 +1572,10 @@ private struct RevocationTransitionFixture {
         let devices = [
             V3DeviceWrappedManifestDevice(
                 identity: owner.identity,
-                role: .owner,
                 status: .active
             ),
             V3DeviceWrappedManifestDevice(
                 identity: member.identity,
-                role: .member,
                 status: .active
             ),
         ].sorted {

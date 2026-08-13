@@ -14,7 +14,7 @@ enum V3EnrollmentAuthenticationError: Error, Equatable, LocalizedError {
         case .invalidFormat:
             "The signed version 3 device-enrollment message is invalid."
         case .unsupportedVersion(let version):
-            "Signed device-enrollment message version \(version) requires a newer version of Key."
+            "Signed device-enrollment message version \(version) is not supported by this version of Key."
         case .vaultMismatch:
             "The device enrollment identity belongs to a different vault."
         case .signerMismatch:
@@ -94,7 +94,7 @@ struct V3SignedEnrollmentInvitation: Equatable, Sendable {
         CanonicalJSON.encode(
             .object([
                 ("format", .string("key-vault-enrollment-signed-invitation")),
-                ("version", .integer(1)),
+                ("version", .integer(2)),
                 ("invitation", invitation.canonicalValue),
                 ("authentication", authentication.canonicalValue),
             ]))
@@ -149,7 +149,7 @@ struct V3SignedEnrollmentJoinRequest: Equatable, Sendable {
                     "format",
                     .string("key-vault-enrollment-signed-join-request")
                 ),
-                ("version", .integer(1)),
+                ("version", .integer(2)),
                 ("joinRequest", joinRequest.canonicalValue),
                 ("authentication", authentication.canonicalValue),
             ]))
@@ -368,10 +368,10 @@ private func parseSignedEnrollmentEnvelope(
     else {
         throw V3EnrollmentAuthenticationError.invalidFormat
     }
-    if version > 1 {
+    if version != 2 {
         throw V3EnrollmentAuthenticationError.unsupportedVersion(version)
     }
-    guard version == 1, Set(object.map(\.0)) == fields else {
+    guard Set(object.map(\.0)) == fields else {
         throw V3EnrollmentAuthenticationError.invalidFormat
     }
     return object

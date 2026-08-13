@@ -57,7 +57,6 @@ struct V3DeviceWrappedGenesisInstallerTests {
         #expect(envelope.parents.isEmpty)
         #expect(envelope.authorizations.isEmpty)
         #expect(envelope.body.devices.count == 1)
-        #expect(envelope.body.devices[0].role == .owner)
         #expect(envelope.body.devices[0].status == .active)
         #expect(envelope.body.wrappedKeys.count == 1)
         #expect(envelope.body.entries.map(\.name) == [

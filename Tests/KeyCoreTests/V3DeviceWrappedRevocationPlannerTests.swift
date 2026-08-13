@@ -13,14 +13,14 @@ struct V3DeviceWrappedRevocationPlannerTests {
     private static let vaultKey = Data(0..<32)
 
     @Test
-    func activeOwnerCanRevokeAnActiveMember() throws {
+    func activeDeviceCanRevokeAnotherActiveDevice() throws {
         let owner = try identity("Owner Mac", signing: 1, wrapping: 2)
         let member = try identity("Member Mac", signing: 3, wrapping: 4)
         let earlier = try identity("Old Mac", signing: 5, wrapping: 6)
         let base = try checkpoint([
-            device(owner, role: .owner, status: .active),
-            device(member, role: .member, status: .active),
-            device(earlier, role: .member, status: .revoked),
+            device(owner, status: .active),
+            device(member, status: .active),
+            device(earlier, status: .revoked),
         ])
 
         let plan = try V3DeviceWrappedRevocationPlanner().plan(
@@ -30,7 +30,7 @@ struct V3DeviceWrappedRevocationPlannerTests {
         )
 
         #expect(plan.expectedCheckpoint == base.checkpoint)
-        #expect(plan.authorizingOwner.identity == owner)
+        #expect(plan.authorizingDevice.identity == owner)
         #expect(plan.revokedDevice.identity == member)
         #expect(plan.revokedDevice.status == .active)
         #expect(plan.resultingDevices.count == 3)
@@ -46,12 +46,12 @@ struct V3DeviceWrappedRevocationPlannerTests {
     }
 
     @Test
-    func activeOwnerCanRevokeAnotherOwnerWhenOneOwnerRemains() throws {
+    func revocationPreservesTheRemainingActiveDevice() throws {
         let first = try identity("First Owner", signing: 7, wrapping: 8)
         let second = try identity("Second Owner", signing: 9, wrapping: 10)
         let base = try checkpoint([
-            device(first, role: .owner, status: .active),
-            device(second, role: .owner, status: .active),
+            device(first, status: .active),
+            device(second, status: .active),
         ])
 
         let plan = try V3DeviceWrappedRevocationPlanner().plan(
@@ -65,20 +65,18 @@ struct V3DeviceWrappedRevocationPlannerTests {
         ])
         #expect(plan.resultingDevices.first(where: {
             $0.identity.deviceID == second.deviceID
-        })?.role == .owner)
+        })?.status == .revoked)
     }
 
     @Test
-    func refusesToRemoveTheLastActiveOwner() throws {
+    func refusesToRemoveTheLastActiveDevice() throws {
         let owner = try identity("Owner Mac", signing: 11, wrapping: 12)
-        let member = try identity("Member Mac", signing: 13, wrapping: 14)
         let base = try checkpoint([
-            device(owner, role: .owner, status: .active),
-            device(member, role: .member, status: .active),
+            device(owner, status: .active),
         ])
 
         #expect(
-            throws: V3DeviceWrappedRevocationPlanningError.lastActiveOwner
+            throws: V3DeviceWrappedRevocationPlanningError.lastActiveDevice
         ) {
             _ = try V3DeviceWrappedRevocationPlanner().plan(
                 from: base,
@@ -89,24 +87,22 @@ struct V3DeviceWrappedRevocationPlannerTests {
     }
 
     @Test
-    func requiresAnActiveOwnerToAuthorizeRevocation() throws {
-        let owner = try identity("Owner Mac", signing: 15, wrapping: 16)
-        let member = try identity("Member Mac", signing: 17, wrapping: 18)
+    func anyActiveDeviceCanAuthorizeRevocation() throws {
+        let first = try identity("First Mac", signing: 15, wrapping: 16)
+        let second = try identity("Second Mac", signing: 17, wrapping: 18)
         let base = try checkpoint([
-            device(owner, role: .owner, status: .active),
-            device(member, role: .member, status: .active),
+            device(first, status: .active),
+            device(second, status: .active),
         ])
 
-        #expect(
-            throws: V3DeviceWrappedRevocationPlanningError
-                .invalidAuthorizingOwner
-        ) {
-            _ = try V3DeviceWrappedRevocationPlanner().plan(
-                from: base,
-                authorizingDeviceID: member.deviceID,
-                revoking: owner.deviceID
-            )
-        }
+        let plan = try V3DeviceWrappedRevocationPlanner().plan(
+            from: base,
+            authorizingDeviceID: second.deviceID,
+            revoking: first.deviceID
+        )
+
+        #expect(plan.authorizingDevice.identity == second)
+        #expect(plan.revokedDevice.identity == first)
     }
 
     @Test
@@ -116,9 +112,9 @@ struct V3DeviceWrappedRevocationPlannerTests {
         let revoked = try identity("Revoked Mac", signing: 23, wrapping: 24)
         let unknown = try identity("Unknown Mac", signing: 25, wrapping: 26)
         let base = try checkpoint([
-            device(owner, role: .owner, status: .active),
-            device(active, role: .owner, status: .active),
-            device(revoked, role: .member, status: .revoked),
+            device(owner, status: .active),
+            device(active, status: .active),
+            device(revoked, status: .revoked),
         ])
 
         #expect(
@@ -157,8 +153,8 @@ struct V3DeviceWrappedRevocationPlannerTests {
         let owner = try identity("Owner Mac", signing: 27, wrapping: 28)
         let member = try identity("Member Mac", signing: 29, wrapping: 30)
         let base = try checkpoint([
-            device(owner, role: .owner, status: .active),
-            device(member, role: .member, status: .active),
+            device(owner, status: .active),
+            device(member, status: .active),
         ])
         let altered = V3DeviceWrappedTrustedCheckpoint(
             checkpoint: try V3ManifestCheckpoint(
@@ -231,12 +227,10 @@ struct V3DeviceWrappedRevocationPlannerTests {
 
     private func device(
         _ identity: V3EnrollmentDeviceIdentity,
-        role: V3DeviceRole,
         status: V3DeviceStatus
     ) -> V3DeviceWrappedManifestDevice {
         V3DeviceWrappedManifestDevice(
             identity: identity,
-            role: role,
             status: status
         )
     }

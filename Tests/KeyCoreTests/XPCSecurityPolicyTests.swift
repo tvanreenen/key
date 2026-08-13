@@ -192,7 +192,7 @@ struct XPCSecurityPolicyTests {
     func sharingRequestsRoundTripAndOnlyAcceptanceRestartsTheHelper() throws {
         let requests: [KeyServiceRequest] = [
             .share(.devices),
-            .share(.invite(deviceName: "Office Mac", role: .member)),
+            .share(.invite(deviceName: "Office Mac")),
             .share(.compare(
                 vaultID: "vault",
                 invitationID: "invite",
@@ -230,7 +230,6 @@ struct XPCSecurityPolicyTests {
                     V3VaultDeviceSummary(
                         deviceID: "owner",
                         displayName: "Office Mac",
-                        role: .owner,
                         status: .active
                     )
                 ]
@@ -250,7 +249,6 @@ struct XPCSecurityPolicyTests {
         let owner = V3VaultDeviceSummary(
             deviceID: "owner",
             displayName: "Office Mac",
-            role: .owner,
             status: .active
         )
         let response = KeyServiceResponse.deviceRevocationReview(
@@ -262,7 +260,6 @@ struct XPCSecurityPolicyTests {
                 revokedDevice: V3VaultDeviceSummary(
                     deviceID: "member",
                     displayName: "Laptop",
-                    role: .member,
                     status: .active
                 ),
                 remainingActiveDevices: [owner]

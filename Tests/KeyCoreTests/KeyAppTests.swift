@@ -355,9 +355,9 @@ struct KeyCLIApplicationTests {
         #expect(app.run(arguments: ["share", "devices"]) == EXIT_SUCCESS)
         #expect(io.stdout == """
         Devices in the authenticated vault record:
-        Office Mac — owner, active (this Mac)
+        Office Mac — active (this Mac)
           ID: owner-device-id
-        Laptop — member, active
+        Laptop — active
           ID: member-device-id
 
         """)
@@ -382,7 +382,7 @@ struct KeyCLIApplicationTests {
             "share", "devices", "--json"
         ]) == EXIT_SUCCESS)
         #expect(io.stdout == """
-        {"currentDeviceID":"owner-device-id","devices":[{"deviceID":"owner-device-id","displayName":"Office Mac","role":"owner","status":"active"},{"deviceID":"member-device-id","displayName":"Laptop","role":"member","status":"active"}],"mode":"shared","vaultID":"018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"}
+        {"currentDeviceID":"owner-device-id","devices":[{"deviceID":"owner-device-id","displayName":"Office Mac","status":"active"},{"deviceID":"member-device-id","displayName":"Laptop","status":"active"}],"mode":"shared","vaultID":"018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"}
 
         """)
         let data = try #require(io.stdout.data(using: .utf8))
@@ -431,14 +431,14 @@ struct KeyCLIApplicationTests {
         ])
         #expect(io.stdout == """
         Review device revocation:
-        Device: Laptop — member
+        Device: Laptop
           ID: member-device-id
         Authorized by: Office Mac
 
         This permanently removes the device from future vault versions.
         Key will rotate the vault key and re-encrypt the current vault for the remaining active devices.
         Remaining active devices: 1
-          Office Mac — owner
+          Office Mac
         Device revoked.
 
         """)
@@ -1816,13 +1816,11 @@ private func deviceInventoryFixture() -> V3VaultDeviceInventory {
             V3VaultDeviceSummary(
                 deviceID: "owner-device-id",
                 displayName: "Office Mac",
-                role: .owner,
                 status: .active
             ),
             V3VaultDeviceSummary(
                 deviceID: "member-device-id",
                 displayName: "Laptop",
-                role: .member,
                 status: .active
             )
         ]
@@ -1839,19 +1837,16 @@ private func deviceRevocationReviewFixture()
         authorizingDevice: V3VaultDeviceSummary(
             deviceID: "owner-device-id",
             displayName: "Office Mac",
-            role: .owner,
             status: .active
         ),
         revokedDevice: V3VaultDeviceSummary(
             deviceID: "member-device-id",
             displayName: "Laptop",
-            role: .member,
             status: .active
         ),
         remainingActiveDevices: [V3VaultDeviceSummary(
             deviceID: "owner-device-id",
             displayName: "Office Mac",
-            role: .owner,
             status: .active
         )]
     )

@@ -258,7 +258,7 @@ struct V3EnrollmentOwnerTransitionBuilder: Sendable {
 
         let joiningDevice = enrollmentTransitionDevice(
             joinRequest.joiningDevice,
-            role: invitation.invitedRole
+            role: .member
         )
         let devices: [V3ManifestDevice]
         let identitiesToWrap: [V3EnrollmentDeviceIdentity]
@@ -454,7 +454,7 @@ struct V3EnrollmentOwnerTransitionBuilder: Sendable {
 
         let joiningDevice = enrollmentTransitionDevice(
             joinRequest.joiningDevice,
-            role: invitation.invitedRole
+            role: .member
         )
         let devices: [V3ManifestDevice]
         let expectedWrappedDeviceIDs: [String]

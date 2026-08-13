@@ -421,7 +421,6 @@ struct V3EnrollmentAdoptionTests {
 
         let invitation = try ownerService.createInvitation(
             deviceName: "Existing Mac",
-            role: .member,
             at: Self.activeTime
         )
 
@@ -444,7 +443,6 @@ struct V3EnrollmentAdoptionTests {
                 mailbox: WorkflowEnrollmentMailbox()
             ).createInvitation(
                 deviceName: "Joining Mac",
-                role: .member,
                 at: Self.activeTime
             )
         }
@@ -488,7 +486,6 @@ private struct Fixture {
             vaultID: V3EnrollmentAdoptionTests.vaultID,
             parentManifestDigest: parent.envelopeDigest,
             invitingDevice: inviter.publicIdentity,
-            invitedRole: .member,
             nonce: Data(repeating: 0x41, count: 32),
             expiresAt: V3EnrollmentAdoptionTests.activeTime + 300
         )
@@ -613,7 +610,6 @@ private struct AdditionalAdoptionFixture {
             vaultID: V3EnrollmentAdoptionTests.vaultID,
             parentManifestDigest: genesis.envelopeDigest,
             invitingDevice: owner.publicIdentity,
-            invitedRole: .member,
             nonce: Data(repeating: 0x41, count: 32),
             expiresAt: V3EnrollmentAdoptionTests.activeTime + 300
         )
@@ -669,7 +665,6 @@ private struct AdditionalAdoptionFixture {
             vaultID: V3EnrollmentAdoptionTests.vaultID,
             parentManifestDigest: shared.verifiedManifest.envelopeDigest,
             invitingDevice: owner.publicIdentity,
-            invitedRole: .member,
             nonce: Data(repeating: 0x51, count: 32),
             expiresAt: V3EnrollmentAdoptionTests.activeTime + 300
         )

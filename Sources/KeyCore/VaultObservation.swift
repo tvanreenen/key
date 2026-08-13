@@ -204,25 +204,21 @@ public struct VaultStatus: Codable, Equatable, Sendable {
 public struct V3VaultDeviceSummary: Codable, Equatable, Sendable {
     public let deviceID: String
     public let displayName: String
-    public let role: V3DeviceRole
     public let status: V3DeviceStatus
 
     public init(
         deviceID: String,
         displayName: String,
-        role: V3DeviceRole,
         status: V3DeviceStatus
     ) {
         self.deviceID = deviceID
         self.displayName = displayName
-        self.role = role
         self.status = status
     }
 
     private enum CodingKeys: String, CodingKey {
         case deviceID
         case displayName
-        case role
         case status
     }
 }
