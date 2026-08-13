@@ -481,6 +481,9 @@ struct KeyCLIApplicationTests {
         Key will rotate the vault key and re-encrypt the current vault for the remaining active devices.
         Remaining active devices: 1
           Office Mac
+
+        WARNING: This will leave Office Mac as the vault's only active device.
+        If that Mac is lost, synchronized vault files cannot recover the vault.
         Device revoked.
 
         """)

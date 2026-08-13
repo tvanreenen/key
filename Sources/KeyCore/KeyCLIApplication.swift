@@ -277,6 +277,17 @@ public final class KeyCLIApplication {
         lines.append(contentsOf: review.remainingActiveDevices.map {
             "  \($0.displayName)"
         })
+        if review.remainingActiveDevices.count == 1,
+           let remainingDevice = review.remainingActiveDevices.first
+        {
+            lines.append("")
+            lines.append(
+                "WARNING: This will leave \(remainingDevice.displayName) as the vault's only active device."
+            )
+            lines.append(
+                "If that Mac is lost, synchronized vault files cannot recover the vault."
+            )
+        }
         io.writeStdout(lines.joined(separator: "\n") + "\n")
     }
 
