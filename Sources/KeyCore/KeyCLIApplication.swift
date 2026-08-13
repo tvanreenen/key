@@ -506,6 +506,20 @@ public final class KeyCLIApplication {
             )
             lines.append("  ID: \(device.deviceID)")
         }
+        lines.append("")
+        if inventory.activeDeviceCount == 1 {
+            lines.append("Continuity: 1 active device.")
+            lines.append(
+                "Attention: add another Mac. If the only active device is lost, synchronized vault files cannot recover the vault."
+            )
+        } else {
+            lines.append(
+                "Continuity: \(inventory.activeDeviceCount) active devices."
+            )
+            lines.append(
+                "A surviving enrolled Mac can authorize a replacement if another is lost."
+            )
+        }
         if let currentDeviceID = inventory.currentDeviceID,
            !inventory.devices.contains(where: {
                $0.deviceID == currentDeviceID

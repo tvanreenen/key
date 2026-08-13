@@ -360,7 +360,49 @@ struct KeyCLIApplicationTests {
         Laptop — active
           ID: member-device-id
 
+        Continuity: 2 active devices.
+        A surviving enrolled Mac can authorize a replacement if another is lost.
+
         """)
+        #expect(io.stderr.isEmpty)
+    }
+
+    @Test
+    func shareDevicesWarnsWhenOnlyOneActiveDeviceRemains() {
+        let inventory = V3VaultDeviceInventory(
+            vaultID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
+            mode: .shared,
+            currentDeviceID: "office-device-id",
+            devices: [
+                V3VaultDeviceSummary(
+                    deviceID: "office-device-id",
+                    displayName: "Office Mac",
+                    status: .active
+                ),
+                V3VaultDeviceSummary(
+                    deviceID: "retired-device-id",
+                    displayName: "Retired Mac",
+                    status: .revoked
+                ),
+            ]
+        )
+        let transport = MemoryTransport { request in
+            #expect(request == .share(.devices))
+            return .deviceInventory(inventory)
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: ["share", "devices"]) == EXIT_SUCCESS)
+        #expect(io.stdout.contains("Continuity: 1 active device."))
+        #expect(io.stdout.contains(
+            "Attention: add another Mac. If the only active device is lost, synchronized vault files cannot recover the vault."
+        ))
+        #expect(inventory.activeDeviceCount == 1)
         #expect(io.stderr.isEmpty)
     }
 

@@ -233,6 +233,13 @@ public struct V3VaultDeviceInventory: Codable, Equatable, Sendable {
     public let currentDeviceID: String?
     public let devices: [V3VaultDeviceSummary]
 
+    /// The authenticated devices that can currently preserve continuity.
+    /// Revoked devices remain visible in `devices` as history but do not
+    /// contribute to this count.
+    public var activeDeviceCount: Int {
+        devices.lazy.filter { $0.status == .active }.count
+    }
+
     public init(
         vaultID: String,
         mode: V3VaultMode,
