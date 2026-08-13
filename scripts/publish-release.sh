@@ -19,6 +19,7 @@ if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
 fi
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+release_branch="$("${repo_root}/scripts/resolve-release-branch.sh" "${version}")"
 
 if [[ ! -f "${zip_path}" ]]; then
   echo "missing release zip at ${zip_path}" >&2
@@ -36,8 +37,8 @@ fi
 cd "${repo_root}"
 
 branch="$(git symbolic-ref --quiet --short HEAD || true)"
-if [[ "${branch}" != "main" ]]; then
-  echo "publish-release must run from main (current branch: ${branch:-detached HEAD})" >&2
+if [[ "${branch}" != "${release_branch}" ]]; then
+  echo "${version} publishing must run from ${release_branch} (current branch: ${branch:-detached HEAD})" >&2
   exit 1
 fi
 
@@ -47,7 +48,7 @@ if [[ -z "${head_tag}" ]]; then
   exit 1
 fi
 
-git push origin main
+git push origin "${release_branch}"
 git push origin "${tag}"
 
 if gh release view "${tag}" >/dev/null 2>&1; then

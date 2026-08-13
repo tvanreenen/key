@@ -39,23 +39,32 @@ Use tags and release names like `v0.1.0`, `v0.1.1`, or `v0.2.0-alpha.1`.
 Versions with a prerelease suffix such as `-alpha.1`, `-beta.1`, or `-rc.1` will be published as GitHub prereleases automatically.
 The release tag includes the leading `v`; the app and CLI marketing version do not.
 
-`bump-version.sh` updates Xcode's `MARKETING_VERSION`, auto-increments `CURRENT_PROJECT_VERSION`, commits the version bump on `main`, and creates the local release tag.
+`bump-version.sh` updates Xcode's `MARKETING_VERSION`, auto-increments `CURRENT_PROJECT_VERSION`, commits the version bump on the release line selected for the tag, and creates the local release tag.
 `build-release.sh` builds, notarizes, staples, and zips the app. The final zip includes both `Key.app` and `completions/_key` for Homebrew-installed zsh completion.
-`publish-release.sh` pushes `main` plus the release tag, then uses `gh` to create or update a GitHub release, upload the zip asset, and print the final download URL plus sha256 needed for the tap cask. It uses the tag as the release title and GitHub's generated release notes.
+`publish-release.sh` pushes the selected release line plus the release tag, then uses `gh` to create or update a GitHub release, upload the zip asset, and print the final download URL plus sha256 needed for the tap cask. It uses the tag as the release title and GitHub's generated release notes.
 `update-homebrew-tap.sh` fast-forwards a local tap checkout and then updates `Casks/key.rb`. It defaults to `~/Code/homebrew-tap` and can be overridden with `KEY_TAP_REPO`.
 `publish-homebrew-tap.sh` stages the generated cask, commits it, and pushes it.
-`release.sh` runs the full release flow end to end on `main`: version bump, signed/notarized build, GitHub release publish, Homebrew tap update, and Homebrew tap publish.
+`release.sh` runs the full release flow end to end: version bump, signed/notarized build, GitHub release publish, Homebrew tap update, and Homebrew tap publish.
 `CURRENT_PROJECT_VERSION` is treated as an internal Apple/Xcode build counter and auto-increments with each release bump. The semver or prerelease string remains the primary release identity.
+
+Release tags select their source branch fail-closed:
+
+- `v0.1.x` Stable maintenance releases come from `release/0.1`.
+- All other releases come from `main`.
+
+This keeps Stable maintenance fixes isolated from unreleased work on `main`.
 
 The intended release flow is:
 
-0. Start from a clean, up-to-date `main`:
+0. Start from the clean, up-to-date branch selected for the release tag. For a `v0.1.x` maintenance release:
 
    ```bash
-   git checkout main
+   git checkout release/0.1
    git pull --ff-only
    git status --short
    ```
+
+   For other releases, use `main`.
 
 1. Fast path: `just release vX.Y.Z[-prerelease]`
 
