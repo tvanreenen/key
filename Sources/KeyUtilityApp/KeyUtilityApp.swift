@@ -4,6 +4,8 @@ import KeyCore
 import ServiceManagement
 import SwiftUI
 
+private let registeredHelperBuildDefaultsKey = "registered-helper-build-version"
+
 @main
 struct KeyUtilityApp: App {
     var body: some Scene {
@@ -56,9 +58,17 @@ private final class DashboardModel: ObservableObject {
         let configuration = self.configuration
         let context = self.context
 
-        DispatchQueue.global(qos: .userInitiated).async {
-            let snapshot = Self.loadSnapshot(configuration: configuration, context: context)
-            Task { @MainActor in
+        Task.detached(priority: .userInitiated) {
+            let registrationState = await HelperRegistrationCoordinator.shared.registrationState(
+                for: configuration,
+                buildVersion: context.appVersion.buildVersion
+            )
+            let snapshot = Self.loadSnapshot(
+                configuration: configuration,
+                context: context,
+                registrationState: registrationState
+            )
+            await MainActor.run {
                 self.snapshot = snapshot
                 self.isRefreshing = false
             }
@@ -67,12 +77,13 @@ private final class DashboardModel: ObservableObject {
 
     nonisolated private static func loadSnapshot(
         configuration: RuntimeConfiguration,
-        context: KeyAppDiagnosticsContext
+        context: KeyAppDiagnosticsContext,
+        registrationState: HelperRegistrationState
     ) -> KeyAppDiagnosticsSnapshot {
         let collector = KeyAppDiagnosticsCollector(
             context: context,
             registrationProbe: {
-                registrationState(for: configuration)
+                registrationState
             },
             runningProbe: {
                 helperIsRunning(agentLabel: configuration.helperMachServiceName)
@@ -86,44 +97,6 @@ private final class DashboardModel: ObservableObject {
         )
 
         return collector.load()
-    }
-
-    nonisolated private static func registrationState(for configuration: RuntimeConfiguration) -> HelperRegistrationState {
-        let service = SMAppService.agent(plistName: configuration.launchAgentPlistName)
-
-        do {
-            switch service.status {
-            case .notRegistered, .notFound:
-                try service.register()
-            default:
-                break
-            }
-            return helperRegistrationState(from: service.status, error: nil)
-        } catch {
-            return helperRegistrationState(from: service.status, error: error)
-        }
-    }
-
-    nonisolated private static func helperRegistrationState(
-        from status: SMAppService.Status,
-        error: Error?
-    ) -> HelperRegistrationState {
-        let message = error?.localizedDescription
-
-        switch status {
-        case .enabled:
-            return .registered(detail: "Key Agent is registered and can launch on demand through launchd.")
-        case .requiresApproval:
-            let detail = "Allow Key in System Settings > Login Items & Extensions so Key Agent can launch. \(message ?? "")"
-                .trimmingCharacters(in: .whitespaces)
-            return .requiresApproval(detail: detail)
-        case .notRegistered:
-            return .notRegistered(detail: message ?? "The LaunchAgent helper is not registered yet.")
-        case .notFound:
-            return .notRegistered(detail: message ?? "macOS has not recorded the bundled LaunchAgent yet.")
-        @unknown default:
-            return .unknown(detail: message ?? "ServiceManagement returned an unrecognized helper status.")
-        }
     }
 
     nonisolated private static func helperIsRunning(agentLabel: String) -> Bool {
@@ -275,6 +248,85 @@ private final class DashboardModel: ObservableObject {
             return .homebrewInstall
         default:
             return .homebrewPrefix
+        }
+    }
+}
+
+private actor HelperRegistrationCoordinator {
+    static let shared = HelperRegistrationCoordinator()
+
+    func registrationState(
+        for configuration: RuntimeConfiguration,
+        buildVersion: String
+    ) async -> HelperRegistrationState {
+        let service = SMAppService.agent(plistName: configuration.launchAgentPlistName)
+        let defaults = UserDefaults.standard
+        let registeredBuildVersion = defaults.string(
+            forKey: registeredHelperBuildDefaultsKey
+        )
+
+        do {
+            switch service.status {
+            case .notRegistered, .notFound:
+                try service.register()
+                defaults.set(buildVersion, forKey: registeredHelperBuildDefaultsKey)
+            case .enabled where registeredBuildVersion != buildVersion:
+                try await unregisterForUpdate(service)
+                try service.register()
+                defaults.set(buildVersion, forKey: registeredHelperBuildDefaultsKey)
+            default:
+                break
+            }
+            return helperRegistrationState(from: service.status, error: nil)
+        } catch {
+            return helperRegistrationState(from: service.status, error: error)
+        }
+    }
+
+    private func unregisterForUpdate(_ service: SMAppService) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            service.unregister { error in
+                if let error {
+                    let nsError = error as NSError
+                    if nsError.code == kSMErrorJobNotFound {
+                        continuation.resume()
+                    } else {
+                        continuation.resume(throwing: error)
+                    }
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
+    private func helperRegistrationState(
+        from status: SMAppService.Status,
+        error: Error?
+    ) -> HelperRegistrationState {
+        let message = error?.localizedDescription
+
+        switch status {
+        case .enabled:
+            return .registered(
+                detail: "Key Agent is registered and can launch on demand through launchd."
+            )
+        case .requiresApproval:
+            let detail = "Allow Key in System Settings > Login Items & Extensions so Key Agent can launch. \(message ?? "")"
+                .trimmingCharacters(in: .whitespaces)
+            return .requiresApproval(detail: detail)
+        case .notRegistered:
+            return .notRegistered(
+                detail: message ?? "The LaunchAgent helper is not registered yet."
+            )
+        case .notFound:
+            return .notRegistered(
+                detail: message ?? "macOS has not recorded the bundled LaunchAgent yet."
+            )
+        @unknown default:
+            return .unknown(
+                detail: message ?? "ServiceManagement returned an unrecognized helper status."
+            )
         }
     }
 }
