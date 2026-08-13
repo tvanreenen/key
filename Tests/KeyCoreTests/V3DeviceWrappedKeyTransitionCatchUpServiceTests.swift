@@ -300,7 +300,6 @@ struct V3DeviceWrappedKeyTransitionCatchUpServiceTests {
                 vaultID: parent.checkpoint.vaultID,
                 parentManifestDigest: parent.checkpoint.envelopeDigest,
                 invitingDevice: owner.publicIdentity,
-                invitedRole: .member,
                 nonce: Data(repeating: 0x41, count: 32),
                 expiresAt: V3DeviceWrappedKeyTransitionCatchUpServiceTests
                     .approvalTime

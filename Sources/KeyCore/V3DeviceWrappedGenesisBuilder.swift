@@ -164,7 +164,6 @@ struct V3DeviceWrappedGenesisBuilder: Sendable {
             authorityTransitionID: authorityTransitionID,
             devices: [V3DeviceWrappedManifestDevice(
                 identity: ownerIdentity,
-                role: .owner,
                 status: .active
             )],
             wrappedKeys: [try V3DeviceWrappedManifestKey(

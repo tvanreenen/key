@@ -396,7 +396,7 @@ public struct V3ManifestAuthenticator: Sendable {
 
         let joiningDevice = enrollmentManifestDevice(
             joinRequest.joiningDevice,
-            role: invitation.invitedRole
+            role: .member
         )
         let expectedDevices = (parentBody.devices + [joiningDevice]).sorted {
             utf8Precedes($0.deviceID, $1.deviceID)
@@ -820,7 +820,7 @@ public struct V3ManifestAuthenticator: Sendable {
             ),
             enrollmentManifestDevice(
                 joinRequest.joiningDevice,
-                role: invitation.invitedRole
+                role: .member
             ),
         ].sorted { utf8Precedes($0.deviceID, $1.deviceID) }
         guard candidateBody.devices == expectedDevices,

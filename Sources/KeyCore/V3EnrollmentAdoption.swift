@@ -220,7 +220,7 @@ struct V3EnrollmentAdoptionService: V3EnrollmentAdoptionServicing {
         return V3EnrollmentAdoptionReport(
             vaultID: vaultID,
             deviceName: identity.publicIdentity.displayName,
-            role: transcript.invitation.invitedRole
+            role: .member
         )
     }
 
@@ -392,7 +392,7 @@ private struct V3EnrollmentFirstTrustVerifier: Sendable {
         )
         let expectedJoiner = manifestDevice(
             transcript.joinRequest.joiningDevice,
-            role: transcript.invitation.invitedRole
+            role: .member
         )
         let parent = Base64URL.encode(
             transcript.invitation.parentManifestDigest

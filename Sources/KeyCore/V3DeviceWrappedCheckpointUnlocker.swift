@@ -21,7 +21,11 @@ enum V3DeviceWrappedUnlockError: Error, Equatable, LocalizedError {
         case let .unsupportedEnvelopeVersion(version):
             "Manifest envelope version \(version) requires a newer version of Key."
         case let .unsupportedProfileVersion(version):
-            "Device-wrapped vault profile version \(version) requires a newer version of Key."
+            if version < V3DeviceWrappedManifestBody.profileVersion {
+                "Device-wrapped vault profile version \(version) was replaced during prerelease development."
+            } else {
+                "Device-wrapped vault profile version \(version) requires a newer version of Key."
+            }
         case .checkpointMismatch:
             "The permanent version 3 manifest does not match this device's trusted checkpoint."
         case .deviceIdentityMismatch:

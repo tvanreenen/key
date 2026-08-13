@@ -133,7 +133,6 @@ protocol V3EnrollmentWorkflowServicing {
     func listInvitations() throws -> String
     func createInvitation(
         deviceName: String,
-        role: V3DeviceRole,
         at unixTime: UInt64
     ) throws -> String
     func join(
@@ -187,12 +186,10 @@ struct DeferredV3EnrollmentWorkflowService:
 
     func createInvitation(
         deviceName: String,
-        role: V3DeviceRole,
         at unixTime: UInt64
     ) throws -> String {
         try makeService().createInvitation(
             deviceName: deviceName,
-            role: role,
             at: unixTime
         )
     }
@@ -336,7 +333,6 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
                 V3VaultDeviceSummary(
                     deviceID: $0.deviceID,
                     displayName: $0.displayName,
-                    role: $0.role,
                     status: $0.status
                 )
             }
@@ -355,7 +351,6 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
 
     func createInvitation(
         deviceName: String,
-        role: V3DeviceRole,
         at unixTime: UInt64
     ) throws -> String {
         guard let vaultID = selectedVaultID else {
@@ -402,7 +397,6 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             parentManifestDigest:
                 current.effective.envelopeDigest,
             invitingDevice: identity.publicIdentity,
-            invitedRole: role,
             nonce: randomNonce(),
             expiresAt: unixTime + Self.invitationLifetime
         )
@@ -416,7 +410,6 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             "Enrollment invitation created.",
             "Vault: \(vaultID)",
             "Invitation: \(v3LowercaseHex(invitation.digest))",
-            "Role offered: \(role.rawValue)",
             "Expires in 10 minutes.",
             "On the other Mac, run `key share join \(v3LowercaseHex(invitation.digest)) --name <device-name>`."
         ].joined(separator: "\n") + "\n"
@@ -831,7 +824,6 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             "Vault: \(transcript.invitation.vaultID)",
             "Existing Mac: \(transcript.invitation.invitingDevice.displayName)",
             "Joining Mac: \(transcript.joinRequest.joiningDevice.displayName)",
-            "Role: \(transcript.invitation.invitedRole.rawValue)",
             "Comparison code: \(transcript.comparisonCode)",
             next
         ].joined(separator: "\n") + "\n"

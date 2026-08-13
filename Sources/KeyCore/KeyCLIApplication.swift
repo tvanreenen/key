@@ -171,10 +171,10 @@ public final class KeyCLIApplication {
             return response.exitCode
         case .invitations:
             return try executeSimpleShareCommand(command, request: .invitations)
-        case let .invite(deviceName, role):
+        case let .invite(deviceName):
             return try executeSimpleShareCommand(
                 command,
-                request: .invite(deviceName: deviceName, role: role)
+                request: .invite(deviceName: deviceName)
             )
         case let .join(invitationID, deviceName):
             return try executeSimpleShareCommand(
@@ -266,7 +266,7 @@ public final class KeyCLIApplication {
     ) {
         var lines = [
             "Review device revocation:",
-            "Device: \(review.revokedDevice.displayName) — \(review.revokedDevice.role.rawValue)",
+            "Device: \(review.revokedDevice.displayName)",
             "  ID: \(review.revokedDevice.deviceID)",
             "Authorized by: \(review.authorizingDevice.displayName)",
             "",
@@ -275,8 +275,19 @@ public final class KeyCLIApplication {
             "Remaining active devices: \(review.remainingActiveDevices.count)"
         ]
         lines.append(contentsOf: review.remainingActiveDevices.map {
-            "  \($0.displayName) — \($0.role.rawValue)"
+            "  \($0.displayName)"
         })
+        if review.remainingActiveDevices.count == 1,
+           let remainingDevice = review.remainingActiveDevices.first
+        {
+            lines.append("")
+            lines.append(
+                "WARNING: This will leave \(remainingDevice.displayName) as the vault's only active device."
+            )
+            lines.append(
+                "If that Mac is lost, synchronized vault files cannot recover the vault."
+            )
+        }
         io.writeStdout(lines.joined(separator: "\n") + "\n")
     }
 
@@ -502,9 +513,23 @@ public final class KeyCLIApplication {
                 ? " (this Mac)"
                 : ""
             lines.append(
-                "\(device.displayName) — \(device.role.rawValue), \(device.status.rawValue)\(current)"
+                "\(device.displayName) — \(device.status.rawValue)\(current)"
             )
             lines.append("  ID: \(device.deviceID)")
+        }
+        lines.append("")
+        if inventory.activeDeviceCount == 1 {
+            lines.append("Continuity: 1 active device.")
+            lines.append(
+                "Attention: add another Mac. If the only active device is lost, synchronized vault files cannot recover the vault."
+            )
+        } else {
+            lines.append(
+                "Continuity: \(inventory.activeDeviceCount) active devices."
+            )
+            lines.append(
+                "A surviving enrolled Mac can authorize a replacement if another is lost."
+            )
         }
         if let currentDeviceID = inventory.currentDeviceID,
            !inventory.devices.contains(where: {

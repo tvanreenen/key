@@ -119,7 +119,7 @@ struct V3EnrollmentOwnerTransitionTests {
         #expect(body.devices.count == parentBody.devices.count + 1)
         #expect(body.devices.contains(where: {
             $0.deviceID == third.publicIdentity.deviceID
-                && $0.role == .owner
+                && $0.role == .member
                 && $0.status == .active
         }))
         #expect(parentBody.devices.allSatisfy(body.devices.contains))
@@ -768,7 +768,6 @@ private struct Fixture {
             vaultFormatVersion: 3,
             parentManifestDigest: parent.envelopeDigest,
             invitingDevice: inviter.publicIdentity,
-            invitedRole: .member,
             nonce: Data(repeating: 0x41, count: 32),
             expiresAt: V3EnrollmentOwnerTransitionTests.activeTime + 300
         )
@@ -909,7 +908,6 @@ private struct AdditionalEnrollmentFixture {
             vaultID: V3EnrollmentOwnerTransitionTests.vaultID,
             parentManifestDigest: parent.envelopeDigest,
             invitingDevice: inviter.publicIdentity,
-            invitedRole: role,
             nonce: Data(repeating: 0x51, count: 32),
             expiresAt: V3EnrollmentOwnerTransitionTests.activeTime + 300
         )

@@ -29,15 +29,15 @@ struct V3EnrollmentProtocolTests {
             invitation: invitation,
             joinRequest: joinRequest
         )
-        #expect(transcript.comparisonCode == "7a93-fed2-728e-38ad-d125")
+        #expect(transcript.comparisonCode == "22df-1745-b3dd-e8fb-726a")
         #expect(
             Base64URL.encode(transcript.digest)
-                == "epP-0nKOOK3RJUbdQ4lX_GyMOhBMh8537Ve3BSrryqg"
+                == "It8XRbPd6Ptyalc7xNekLLmjusAUm5pcciof4bmdPY8"
         )
     }
 
     @Test
-    func transcriptBindsVaultHeadRoleExpiryNoncesAndBothDeviceKeys() throws {
+    func transcriptBindsVaultHeadExpiryNoncesAndBothDeviceKeys() throws {
         let invitation = try makeInvitation()
         let joinRequest = try makeJoinRequest(invitation: invitation)
         let baseline = try V3EnrollmentTranscript(
@@ -48,7 +48,6 @@ struct V3EnrollmentProtocolTests {
         let changedInvitations = [
             try makeInvitation(vaultID: Self.alternateVaultID),
             try makeInvitation(parentManifestDigest: Data(repeating: 0xA1, count: 32)),
-            try makeInvitation(invitedRole: .owner),
             try makeInvitation(nonce: Data(repeating: 0xA2, count: 32)),
             try makeInvitation(expiresAt: 1_900_000_001),
             try makeInvitation(
@@ -200,8 +199,8 @@ struct V3EnrollmentProtocolTests {
 
         let futureInvitationVersion = replacing(
             invitation.canonicalBytes,
-            "\"version\":1",
-            with: "\"version\":2"
+            "\"version\":2",
+            with: "\"version\":3"
         )
         let futureInvitationMessage = replacing(
             futureInvitationVersion,
@@ -210,7 +209,7 @@ struct V3EnrollmentProtocolTests {
                 "\"format\":\"key-vault-enrollment-invitation\",\"futureField\":true,"
         )
         #expect(
-            throws: V3EnrollmentProtocolError.unsupportedMessageVersion(2)
+            throws: V3EnrollmentProtocolError.unsupportedMessageVersion(3)
         ) {
             try V3EnrollmentInvitation(
                 canonicalBytes: futureInvitationMessage
@@ -220,8 +219,8 @@ struct V3EnrollmentProtocolTests {
         let joinRequest = try makeJoinRequest(invitation: invitation)
         let futureJoinVersion = replacing(
             joinRequest.canonicalBytes,
-            "\"version\":1",
-            with: "\"version\":2"
+            "\"version\":2",
+            with: "\"version\":3"
         )
         let futureJoinMessage = replacing(
             futureJoinVersion,
@@ -230,7 +229,7 @@ struct V3EnrollmentProtocolTests {
                 "\"format\":\"key-vault-enrollment-join-request\",\"futureField\":true,"
         )
         #expect(
-            throws: V3EnrollmentProtocolError.unsupportedMessageVersion(2)
+            throws: V3EnrollmentProtocolError.unsupportedMessageVersion(3)
         ) {
             try V3EnrollmentJoinRequest(canonicalBytes: futureJoinMessage)
         }
@@ -248,7 +247,6 @@ struct V3EnrollmentProtocolTests {
                     signingScalar: 1,
                     wrappingScalar: 2
                 ),
-                invitedRole: .member,
                 nonce: Data(repeating: 0xA1, count: 32),
                 expiresAt: 1_900_000_000
             )
@@ -266,8 +264,8 @@ struct V3EnrollmentProtocolTests {
 
         let unknownInvitation = replacing(
             invitation.canonicalBytes,
-            "\"version\":1",
-            with: "\"unknown\":true,\"version\":1"
+            "\"version\":2",
+            with: "\"unknown\":true,\"version\":2"
         )
         #expect(throws: V3EnrollmentProtocolError.invalidFormat) {
             try V3EnrollmentInvitation(canonicalBytes: unknownInvitation)
@@ -275,10 +273,12 @@ struct V3EnrollmentProtocolTests {
 
         let invalidOlderMessage = replacing(
             invitation.canonicalBytes,
-            "\"version\":1",
-            with: "\"version\":0"
+            "\"version\":2",
+            with: "\"version\":1"
         )
-        #expect(throws: V3EnrollmentProtocolError.invalidFormat) {
+        #expect(
+            throws: V3EnrollmentProtocolError.unsupportedMessageVersion(1)
+        ) {
             try V3EnrollmentInvitation(canonicalBytes: invalidOlderMessage)
         }
 
@@ -306,7 +306,6 @@ struct V3EnrollmentProtocolTests {
         vaultID: String = Self.vaultID,
         parentManifestDigest: Data = Data(repeating: 0x91, count: 32),
         invitingDevice: V3EnrollmentDeviceIdentity? = nil,
-        invitedRole: V3DeviceRole = .member,
         nonce: Data = Data(repeating: 0xA1, count: 32),
         expiresAt: UInt64 = 1_900_000_000
     ) throws -> V3EnrollmentInvitation {
@@ -319,7 +318,6 @@ struct V3EnrollmentProtocolTests {
                     signingScalar: 1,
                     wrappingScalar: 2
                 ),
-            invitedRole: invitedRole,
             nonce: nonce,
             expiresAt: expiresAt
         )

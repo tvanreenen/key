@@ -21,7 +21,7 @@ enum V3DeviceWrappedManifestError: Error, Equatable, LocalizedError {
         case let .invalidStructure(path):
             "The permanent version 3 manifest has an invalid value at '\(path)'."
         case let .unsupportedProfileVersion(version):
-            "Device-wrapped vault profile version \(version) requires a newer version of Key."
+            "Device-wrapped vault profile version \(version) is not supported by this version of Key."
         case let .semanticViolation(field):
             "The permanent version 3 manifest violates the '\(field)' invariant."
         }
@@ -31,7 +31,6 @@ enum V3DeviceWrappedManifestError: Error, Equatable, LocalizedError {
 /// One authenticated roster member in the permanent device-wrapped profile.
 struct V3DeviceWrappedManifestDevice: Equatable, Sendable {
     let identity: V3EnrollmentDeviceIdentity
-    let role: V3DeviceRole
     let status: V3DeviceStatus
 }
 
@@ -152,11 +151,9 @@ struct V3DeviceWrappedManifestBody: Equatable, Sendable {
             previousDeviceID = deviceID
         }
 
-        guard devices.contains(where: {
-            $0.role == .owner && $0.status == .active
-        }) else {
+        guard devices.contains(where: { $0.status == .active }) else {
             throw V3DeviceWrappedManifestError.semanticViolation(
-                "devices.activeOwner"
+                "devices.active"
             )
         }
 
@@ -195,7 +192,6 @@ struct V3DeviceWrappedManifestBody: Equatable, Sendable {
         .object([
             ("deviceID", .string(device.identity.deviceID)),
             ("displayName", .string(device.identity.displayName)),
-            ("role", .string(device.role.rawValue)),
             ("status", .string(device.status.rawValue)),
             ("signingPublicKey", .object([
                 ("algorithm", .string("P-256-ECDSA")),
@@ -292,14 +288,9 @@ struct V3DeviceWrappedManifestCodec: Sendable {
             in: body,
             path: path
         )
-        guard profileVersion <= V3DeviceWrappedManifestBody.profileVersion else {
+        guard profileVersion == V3DeviceWrappedManifestBody.profileVersion else {
             throw V3DeviceWrappedManifestError.unsupportedProfileVersion(
                 profileVersion
-            )
-        }
-        guard profileVersion == V3DeviceWrappedManifestBody.profileVersion else {
-            throw V3DeviceWrappedManifestError.invalidStructure(
-                "\(path).profileVersion"
             )
         }
         // Dispatch on the permanent-profile discriminator before enforcing
@@ -415,22 +406,18 @@ struct V3DeviceWrappedManifestCodec: Sendable {
         try v3PermanentFields(
             device,
             names: [
-                "deviceID", "displayName", "role", "signingPublicKey",
-                "status", "wrappingPublicKey",
+                "deviceID", "displayName", "signingPublicKey", "status",
+                "wrappingPublicKey",
             ],
             path: path
         )
-        let roleValue = try v3PermanentString("role", in: device, path: path)
         let statusValue = try v3PermanentString("status", in: device, path: path)
-        guard let role = V3DeviceRole(rawValue: roleValue) else {
-            throw V3DeviceWrappedManifestError.invalidStructure("\(path).role")
-        }
         guard let status = V3DeviceStatus(rawValue: statusValue) else {
             throw V3DeviceWrappedManifestError.invalidStructure("\(path).status")
         }
 
         let identityValue = CanonicalJSONValue.object(
-            device.filter { !["role", "status"].contains($0.0) }
+            device.filter { $0.0 != "status" }
         )
         let identity: V3EnrollmentDeviceIdentity
         do {
@@ -440,7 +427,6 @@ struct V3DeviceWrappedManifestCodec: Sendable {
         }
         return V3DeviceWrappedManifestDevice(
             identity: identity,
-            role: role,
             status: status
         )
     }

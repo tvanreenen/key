@@ -19,7 +19,7 @@ enum V3EnrollmentProtocolError: Error, Equatable, LocalizedError {
         case .invalidDeviceIdentity:
             "The version 3 device-enrollment message contains an invalid device identity."
         case .unsupportedMessageVersion(let version):
-            "Device-enrollment message version \(version) requires a newer version of Key."
+            "Device-enrollment message version \(version) is not supported by this version of Key."
         case .unsupportedVaultFormatVersion(let version):
             "Vault format version \(version) is not supported by this version of Key."
         case .invitationMismatch:
@@ -155,7 +155,6 @@ struct V3EnrollmentInvitation: Equatable, Sendable {
     let vaultFormatVersion: UInt64
     let parentManifestDigest: Data
     let invitingDevice: V3EnrollmentDeviceIdentity
-    let invitedRole: V3DeviceRole
     let nonce: Data
     let expiresAt: UInt64
 
@@ -164,7 +163,6 @@ struct V3EnrollmentInvitation: Equatable, Sendable {
         vaultFormatVersion: UInt64 = Self.supportedVaultFormatVersion,
         parentManifestDigest: Data,
         invitingDevice: V3EnrollmentDeviceIdentity,
-        invitedRole: V3DeviceRole,
         nonce: Data,
         expiresAt: UInt64
     ) throws {
@@ -185,7 +183,6 @@ struct V3EnrollmentInvitation: Equatable, Sendable {
         self.vaultFormatVersion = vaultFormatVersion
         self.parentManifestDigest = parentManifestDigest
         self.invitingDevice = invitingDevice
-        self.invitedRole = invitedRole
         self.nonce = nonce
         self.expiresAt = expiresAt
     }
@@ -195,9 +192,9 @@ struct V3EnrollmentInvitation: Equatable, Sendable {
             canonicalBytes,
             maximumBytes: Self.maximumBytes,
             fields: [
-                "expiresAt", "format", "invitedRole", "invitingDevice",
-                "nonce", "parentManifestDigest", "vaultFormatVersion",
-                "vaultID", "version",
+                "expiresAt", "format", "invitingDevice", "nonce",
+                "parentManifestDigest", "vaultFormatVersion", "vaultID",
+                "version",
             ],
             format: "key-vault-enrollment-invitation"
         )
@@ -215,11 +212,6 @@ struct V3EnrollmentInvitation: Equatable, Sendable {
                 "invitingDevice",
                 in: root
             ),
-            let invitedRoleValue = enrollmentString(
-                "invitedRole",
-                in: root
-            ),
-            let invitedRole = V3DeviceRole(rawValue: invitedRoleValue),
             let nonce = enrollmentData("nonce", byteCount: 32, in: root),
             let expiresAt = enrollmentInteger("expiresAt", in: root)
         else {
@@ -233,7 +225,6 @@ struct V3EnrollmentInvitation: Equatable, Sendable {
             vaultFormatVersion: vaultFormatVersion,
             parentManifestDigest: parentManifestDigest,
             invitingDevice: invitingDevice,
-            invitedRole: invitedRole,
             nonce: nonce,
             expiresAt: expiresAt
         )
@@ -256,7 +247,7 @@ struct V3EnrollmentInvitation: Equatable, Sendable {
     var canonicalValue: CanonicalJSONValue {
         .object([
             ("format", .string("key-vault-enrollment-invitation")),
-            ("version", .integer(1)),
+            ("version", .integer(2)),
             ("vaultID", .string(vaultID)),
             ("vaultFormatVersion", .integer(vaultFormatVersion)),
             (
@@ -264,7 +255,6 @@ struct V3EnrollmentInvitation: Equatable, Sendable {
                 .string(Base64URL.encode(parentManifestDigest))
             ),
             ("invitingDevice", invitingDevice.canonicalValue),
-            ("invitedRole", .string(invitedRole.rawValue)),
             ("nonce", .string(Base64URL.encode(nonce))),
             ("expiresAt", .integer(expiresAt)),
         ])
@@ -337,7 +327,7 @@ struct V3EnrollmentJoinRequest: Equatable, Sendable {
     var canonicalValue: CanonicalJSONValue {
         .object([
             ("format", .string("key-vault-enrollment-join-request")),
-            ("version", .integer(1)),
+            ("version", .integer(2)),
             (
                 "invitationDigest",
                 .string(Base64URL.encode(invitationDigest))
@@ -393,7 +383,7 @@ struct V3EnrollmentTranscript: Equatable, Sendable {
         CanonicalJSON.encode(
             .object([
                 ("format", .string("key-vault-enrollment-transcript")),
-                ("version", .integer(1)),
+                ("version", .integer(2)),
                 (
                     "invitationDigest",
                     .string(Base64URL.encode(invitation.digest))
@@ -452,10 +442,10 @@ private func parseEnrollmentObject(
     else {
         throw V3EnrollmentProtocolError.invalidFormat
     }
-    if version > 1 {
+    if version != 2 {
         throw V3EnrollmentProtocolError.unsupportedMessageVersion(version)
     }
-    guard version == 1, Set(object.map(\.0)) == fields else {
+    guard Set(object.map(\.0)) == fields else {
         throw V3EnrollmentProtocolError.invalidFormat
     }
     return object

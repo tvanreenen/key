@@ -502,7 +502,6 @@ struct V3DeviceWrappedKeyRotationTransitionRecoverer: Sendable {
                   $0.identity.deviceID == deviceID
               }),
               device.identity == identity.publicIdentity,
-              device.role == .owner,
               device.status == .active,
               let wrapped = envelope.body.wrappedKeys.first(where: {
                   $0.recipientDeviceID == deviceID

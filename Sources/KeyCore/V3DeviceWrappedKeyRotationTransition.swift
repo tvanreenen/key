@@ -212,11 +212,9 @@ struct V3DeviceWrappedKeyRotationBuilder: Sendable {
                   $0.identity.deviceID == owner.publicIdentity.deviceID
               }),
               parentOwner.identity == owner.publicIdentity,
-              parentOwner.role == .owner,
               parentOwner.status == .active,
               resultingDevices.contains(where: {
                   $0.identity == owner.publicIdentity
-                      && $0.role == .owner
                       && $0.status == .active
               })
         else {

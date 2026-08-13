@@ -6,10 +6,11 @@ durable content-publication runtime are implemented and connected to the
 shipping helper. `ENR-510` first and later enrollment now use that permanent
 profile and one key-rotating roster-addition transition. The signed alpha.7
 Preview release physically qualified migration, wrapper-backed restart,
-owner-to-second-device enrollment, and a joining-device write on two Macs.
-Authenticated remaining-device catch-up and owner-reviewed revocation are
-implemented for the next Preview build. Offline recovery, physical
-multi-device qualification, and final review remain pending.
+first-to-second-device enrollment, and a joining-device write on two Macs.
+Authenticated remaining-device catch-up and device revocation are
+implemented for the next Preview build. Continuity UX, physical multi-device
+qualification, and final review remain pending. Catastrophe recovery after
+every enrolled device is lost is explicitly deferred beyond `0.2.0`.
 
 This document defines the intended final key-management model for version 3
 vaults. It replaces the prerelease design in which the raw vault key is stored
@@ -19,15 +20,14 @@ release qualification.
 
 ## User Promise
 
-Encrypted vault files may live in any ordinary file provider. Access belongs
-only to explicitly enrolled devices and, when configured, one offline recovery
-kit.
+Encrypted vault files may live in any ordinary file provider. In `0.2.0`,
+access belongs only to explicitly enrolled devices.
 
-Each enrolled Mac owns non-exportable Secure Enclave keys. The current vault
-key is encrypted separately to every active device and exists in plaintext only
-inside Key Agent's authenticated, short-lived memory session. Adding or
-removing a device creates a new key epoch and a newly encrypted current vault
-snapshot.
+Each enrolled Mac has equal authority backed by non-exportable Secure Enclave
+keys. The current vault key is encrypted separately to every active device and
+exists in plaintext only inside Key Agent's authenticated, short-lived memory
+session. Adding or removing a device creates a new key epoch and a newly
+encrypted current vault snapshot.
 
 The file provider may delay, omit, replay, or fork bytes. It can deny service,
 but it cannot silently grant access, choose trusted history, or authorize a
@@ -37,8 +37,12 @@ membership change.
 
 There is one device-managed vault mode.
 
-- A new vault begins with one active owner device.
+- A new vault begins with one active device.
 - A one-device vault and a multi-device vault use the same manifest semantics.
+- Every active device may authorize enrollment or revocation after the
+  operation's explicit local-presence and confirmation checks.
+- The permanent manifest has no owner/member role field. A device is active or
+  revoked; status, not a hierarchy, determines its continuing authority.
 - The second, third, and later enrollments use the same roster-addition
   transition.
 - There is no permanent local-to-shared exception or separate signature
@@ -54,7 +58,8 @@ The ordinary CLI remains small:
   device.
 - `key share revoke` removes a selected device after explicit confirmation.
 - `key lock` destroys the in-memory vault-key session.
-- Recovery uses one explicit offline recovery-kit flow.
+- Key recommends at least two enrolled devices and identifies a one-device
+  vault as at risk of permanent loss.
 
 ## Trust And Storage Boundaries
 
@@ -86,13 +91,11 @@ The vault root contains only immutable, content-addressed objects:
 - canonical authenticated manifests;
 - encrypted entry objects;
 - one current-key wrapper for every active device;
-- one recovery wrapper when recovery is enabled;
 - bounded enrollment mailbox objects;
-- the encrypted recovery-identity object; and
 - transaction artifacts that carry no authority until authenticated
   publication completes.
 
-Device names, roles, public keys, revocation status, object sizes, and history
+Device names, public keys, revocation status, object sizes, and history
 shape are metadata, not secret plaintext.
 
 ### Session state
@@ -112,7 +115,7 @@ compromised helper during an unlocked session.
 
 Every device has separate Secure Enclave P-256 keys for:
 
-- ECDSA owner authorization; and
+- ECDSA device authorization; and
 - ECDH/HPKE vault-key unwrapping.
 
 Private keys are generated on the device and are never exportable. Public keys
@@ -138,7 +141,7 @@ minimum deployment target from macOS 13 to macOS 14. Do not retain or add a
 parallel custom ECIES implementation or availability fallback.
 
 HPKE base mode is sufficient because the complete authority-changing manifest
-is separately signed by an active owner. Each wrapper is additionally bound
+is separately signed by an active device. Each wrapper is additionally bound
 through HPKE `info` and authenticated data to a canonical context containing:
 
 - wrapper format and version;
@@ -172,7 +175,7 @@ current entry snapshot:
 A pure key rotation preserves each entry's logical ID, name, type, and content
 revision while changing its key ID, nonce, ciphertext, and ciphertext digest.
 The manifest verifier permits this same-revision reseal only inside an exact
-owner-authorized key transition that covers the complete current snapshot.
+device-authorized key transition that covers the complete current snapshot.
 Ordinary same-revision substitution remains a security error.
 
 ## Lifecycle
@@ -181,12 +184,11 @@ Ordinary same-revision substitution remains a security error.
 
 1. Create this Mac's Secure Enclave signing and key-agreement keys.
 2. Create a random vault ID, authority-transition ID, and vault key.
-3. Build a one-device roster with this Mac as active owner.
+3. Build a one-device roster with this Mac active.
 4. HPKE-wrap the vault key to this Mac.
-5. Optionally create the offline recovery identity and recovery wrapper.
-6. Publish and authenticate the one-device genesis manifest.
-7. Persist its exact checkpoint and local manifest cache.
-8. Retain the raw vault key only in the current helper session.
+5. Publish and authenticate the one-device genesis manifest.
+6. Persist its exact checkpoint and local manifest cache.
+7. Retain the raw vault key only in the current helper session.
 
 ### Routine unlock
 
@@ -214,7 +216,7 @@ They may branch and use the existing content reconciliation rules.
 
 ### Enrollment
 
-1. Require one complete authenticated current head and an active local owner.
+1. Require one complete authenticated current head and an active local device.
 2. Perform the existing invitation, signed request, device-name, and comparison
    ceremony.
 3. Generate a new vault key and derive the authority-transition ID from the
@@ -223,23 +225,22 @@ They may branch and use the existing content reconciliation rules.
 5. Preserve existing active devices and add exactly the compared identity.
 6. HPKE-wrap the new key to every resulting active device and the recovery
    identity, if present.
-7. Sign the complete transition with the inviting owner's Secure Enclave key.
+7. Sign the complete transition with the inviting device's Secure Enclave key.
 8. Publish entries first, the manifest last, and checkpoint under an expected
    old value.
-9. Each existing device advances by authenticating the owner transition and
-   opening its new wrapper. The joining device establishes first trust through
-   the compared ceremony and selects the vault last.
+9. Each existing device advances by authenticating the device-authorized
+   transition and opening its new wrapper. The joining device establishes
+   first trust through the compared ceremony and selects the vault last.
 
-No device must be online during approval except the approving owner and joining
-device. Existing offline devices already have authenticated public wrapping
+No device must be online during approval except the approving and joining
+devices. Existing offline devices already have authenticated public wrapping
 keys in the parent roster.
 
 ### Revocation
 
-1. Show the exact device name, stable ID, role, and status.
+1. Show the exact device name, stable ID, and status.
 2. Require explicit confirmation and one complete authenticated current head.
-3. Refuse to revoke the last active owner unless recovery is immediately
-   establishing a replacement owner.
+3. Refuse to revoke the last active device.
 4. Generate a new key and re-encrypt the complete current snapshot.
 5. Mark the selected device revoked and omit its wrapper.
 6. Create wrappers only for remaining active devices and recovery.
@@ -253,9 +254,9 @@ by the revoked device.
 
 The local checkpoint remains the bootstrap trust anchor. A returning device
 opens its checkpoint wrapper, authenticates forward history under that key,
-and processes each owner-authorized key transition in order. At a transition it
-verifies the parent-owner signature before opening its addressed new wrapper,
-then authenticates the candidate with the recovered key.
+and processes each device-authorized key transition in order. At a transition
+it verifies the parent-device signature before opening its addressed new
+wrapper, then authenticates the candidate with the recovered key.
 
 Missing transition objects or provider placeholders stop catch-up as
 temporary-unavailable while preserving the last trusted checkpoint for
@@ -272,61 +273,45 @@ a full-release requirement.
 
 ## Recovery
 
-There is one optional, strongly recommended recovery mechanism: an offline
-recovery kit.
+Continuity and catastrophe recovery are different capabilities.
 
-At creation, Key generates a software recovery signing/key-agreement identity.
-Its public identity is authenticated as a special recovery authority. Its
-private material is encrypted under a random 256-bit recovery secret, and only
-the encrypted object is stored with the vault. The recovery secret is rendered
-as a checksummed printable/saveable code and is never stored by Key.
+When at least one enrolled device survives, it can enroll a replacement,
+rotate the vault key, and revoke the lost device. Key recommends at least two
+enrolled devices so ordinary device loss does not strand the vault. A
+one-device vault remains valid but must be presented as at risk.
 
-Every key epoch includes one HPKE wrapper for the recovery public key. Recovery
-requires both the provider-backed vault and the offline recovery code.
-
-A successful recovery:
-
-1. decrypts the recovery identity locally;
-2. opens the current recovery wrapper;
-3. enrolls a new Secure Enclave owner;
-4. rotates the vault key and revokes lost devices;
-5. replaces the recovery identity; and
-6. issues a new recovery code.
-
-Recovery authorization is limited to this replacement transition. It is not an
-ordinary device session. Possession of the recovery code and vault files is
-equivalent to ownership of the vault and must be documented plainly.
-
-The user may explicitly decline or remove recovery only after confirming that
-loss of every active owner permanently destroys access. Key offers no cloud
+`0.2.0` has no catastrophe-recovery authority. If every enrolled Secure Enclave
+identity becomes unavailable, provider-backed vault files cannot be opened and
+access is permanently lost. Provider storage contains ciphertext, not a usable
+backup of device authority. Key offers no password, recovery code, cloud
 escrow, support override, security question, or hidden Apple-account fallback.
 
-The recovery identity proves authenticity and decryptability, not freshness
-after every device-local checkpoint has been lost. A provider that withholds
-newer valid objects can present an older authentic recovery state, and no
-provider-neutral offline secret can distinguish that omission without a newer
-external receipt. Recovery must therefore enumerate all available
-authenticated heads, refuse ambiguity, identify the recovered head digest to
-the user, and state that it is the newest complete state currently available,
-not a cryptographic proof that no later state ever existed. Retained backups
-or a separately saved recent checkpoint receipt provide additional rollback
-evidence without becoming required online infrastructure.
+This is an intentional release boundary rather than an incomplete hidden
+feature. It is safer than adding a portable authority before its theft, loss,
+and operational behavior has been physically qualified. The CLI and migration
+cleanup UX must state the boundary plainly, especially when only one device
+remains.
+
+[Offline Recovery Models](offline-recovery-models.md) preserves the later
+catastrophe-recovery candidates. Primary and backup PIV P-256 hardware keys are
+the leading feasibility direction, with threshold shares retained as the
+hardware-free alternative. Any later recovery profile requires its own
+normative schema, compatibility decision, physical qualification, and security
+review; it is not part of the stable `0.2.0` format promise.
 
 ## Required Failure Behavior
 
 | Condition | Required outcome |
 |---|---|
 | Checkpoint manifest or required transition is missing | Temporary-unavailable; retain local trust |
-| Cached manifest does not match the local checkpoint | Ignore the cache; require exact provider bytes or recovery |
+| Cached manifest does not match the local checkpoint | Ignore the cache; require exact provider bytes |
 | Provider bytes are malformed, substituted, or exceed limits | Recovery-required; release no plaintext |
-| Recorded Secure Enclave identity is inaccessible | Recovery-required; re-enroll through an owner or recovery kit |
+| Recorded Secure Enclave identity is inaccessible | Re-enroll through a surviving device; if none survives, report permanent loss |
 | Current authenticated roster marks this device revoked | Explicit revoked-device error; no unwrap attempt |
 | Two key or membership transitions compete | Security conflict; no automatic merge or key choice |
 | Rotation cannot decrypt every current entry | Abort before publishing new authority |
 | Rotation is interrupted | Recover to the complete old or complete new checkpoint |
-| Every owner is lost and no recovery kit exists | Permanent loss, stated without offering destructive repair |
-| Recovery code is wrong or recovery object is substituted | Fail before installing a key, identity, or checkpoint |
-| Recovery has no surviving recent checkpoint | Recover only one complete authenticated available head and disclose that provider omission cannot be ruled out |
+| Every enrolled device is lost | Permanent loss, stated without offering destructive repair or password recovery |
 
 ## Alpha Compatibility Policy
 
@@ -335,8 +320,14 @@ It stores the raw vault key after enrollment, distinguishes local and shared
 manifests, uses a custom wrapper construction, and retains a special first-peer
 authorization convention.
 
-The permanent profile intentionally breaks that prerelease behavior:
+The permanent profile intentionally breaks that prerelease behavior. The
+role-free profile revision introduced during the alpha series is another
+intentional break: manifests and enrollment transcripts that grant an
+owner/member role are not valid role-free state.
 
+- the role-free permanent profile and enrollment protocol use required version
+  `2` discriminators;
+- new binaries clearly refuse earlier role-bearing alpha state;
 - new binaries recognize and clearly refuse the old alpha profile;
 - old binaries reject the permanent profile through strict required fields;
 - no indefinite dual reader/writer or cryptographic fallback is retained;
@@ -362,7 +353,7 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 
 - [x] Specify and validate the exact permanent manifest, wrapper, and
   local-cache schemas before enabling a permanent-profile writer.
-- [x] Create every vault with one owner and one durable HPKE wrapper.
+- [x] Create every vault with one active device and one durable HPKE wrapper.
 - [x] Add the exact local checkpoint-manifest cache.
 - [x] Open wrappers into helper memory and remove persistent raw v3 vault-key
   storage.
@@ -380,7 +371,7 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 - [x] Bind the signed transition and every wrapper to the complete compared
   transcript.
 - [x] Remove the local-to-shared exception and legacy wrapper implementation.
-- [x] Qualify the owner-to-second-device ceremony and joining-device restart
+- [x] Qualify the first-to-second-device ceremony and joining-device restart
   and write paths with the signed alpha.7 Preview release.
 - [ ] Qualify a third-device ceremony before beta; it uses the same transition
   but requires another physical identity or a completed revocation/re-enrollment
@@ -388,7 +379,7 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 
 ### `ENR-511` — Revocation and rotation
 
-- [x] Add explicit owner-reviewed device revocation.
+- [x] Add explicit device revocation.
 - [x] Rotate and re-encrypt the complete current snapshot.
 - [x] Add authenticated remaining-device catch-up across ordered content and
   key epochs.
@@ -399,26 +390,50 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 - [x] Prove old-or-new crash recovery across every revocation publication
   phase.
 
-### `REC-512` — Offline recovery and final qualification
+### `AUTH-513` — Equal enrolled-device authority
 
-- Specify and validate the exact encrypted recovery-object and printable-kit
-  schemas before enabling recovery-kit creation.
-- Implement the single recovery-kit flow and recovery-authorized replacement.
-- Exercise loss, reinstall, provider delay, stale history, concurrent rotation,
-  and recovery-code compromise scenarios.
-- Release alpha.8 only after enrollment, revocation, recovery, and restart tests
-  pass on multiple physical Macs.
+- [x] Remove owner/member roles from the permanent manifest and enrollment
+  transcript schemas.
+- [x] Treat every active enrolled device as eligible to authorize enrollment
+  and revocation; retain explicit local presence, comparison, and confirmation.
+- [x] Require at least one active device and one exact current-key wrapper per
+  active device.
+- [x] Give the role-free schema required profile/protocol version `2` and
+  clearly reject role-bearing alpha state rather than silently translating it.
+- [x] Update catch-up, revocation, status, and CLI output to describe devices and
+  statuses without implying a hierarchy.
+
+### `REC-512` — Continuity UX and explicit permanent loss
+
+- [x] Report whether a vault has one or multiple enrolled devices.
+- [x] Recommend at least two devices without preventing one-device use.
+- [x] Warn prominently before revocation leaves only one device.
+- [x] Explain during migration cleanup that provider bytes alone cannot recover
+  a device-wrapped vault.
+- [x] Report permanent loss honestly when no enrolled Secure Enclave identity
+  survives; offer no destructive repair or password fallback.
+- [ ] Release alpha.8 only after enrollment, revocation, replacement
+  continuity, and restart tests pass on multiple physical Macs.
+
+### Later recovery track — Catastrophe recovery
+
+- Prototype two independent PIV P-256 hardware recovery keys on physical Macs.
+- Prove safe provisioning, non-exportable key agreement, PIN and touch policy,
+  restart, removal, replacement, and blocked-token behavior.
+- Retain two-of-three shares as the hardware-free comparison.
+- Select no permanent recovery schema or release number until feasibility and
+  security review justify one.
 
 Beta begins only after the permanent profile has completed realistic provider,
-migration, rollback, destructive-device-loss, signing, notarization, and
-independent security review gates.
+migration, rollback, device-continuity and permanent-loss, signing,
+notarization, and independent security review gates.
 
 ## Permanent Acceptance Gates
 
 - No raw v3 vault key persists outside an unlocked Key Agent session.
 - Every vault has one authenticated device roster from genesis.
-- Every active device and optional recovery identity has exactly one wrapper
-  for the current key; revoked and unknown devices have none.
+- Every active device has exactly one wrapper for the current key; revoked and
+  unknown devices have none.
 - Every membership change rotates the key and re-encrypts the complete current
   snapshot.
 - The local checkpoint and digest-verified cache are the only routine unlock
@@ -427,10 +442,9 @@ independent security review gates.
   conflicts never auto-merge.
 - Missing bytes remain availability failures; invalid bytes remain security
   failures; neither releases plaintext or changes local trust.
-- Recovery is either the one explicit offline kit or permanent loss. There is
-  no implicit iCloud Keychain or Apple-account recovery path.
-- Catastrophic recovery without a surviving checkpoint proves authenticity,
-  not global freshness; the CLI states that limitation and exact recovered
-  head plainly.
+- A surviving device can authorize a replacement; provider bytes alone cannot.
+- Loss of every enrolled device is permanent in `0.2.0` and is stated plainly.
+- There is no implicit password, iCloud Keychain, Apple-account, support, or
+  provider recovery path.
 - The older alpha profile is never silently upgraded, interpreted, or written
   by the permanent implementation.

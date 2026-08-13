@@ -50,7 +50,7 @@ enum V3DeviceWrappedEnrollmentTransitionError:
         case .invalidNextVaultKey:
             "Permanent enrollment requires a distinct new 32-byte vault key."
         case .invalidOwner:
-            "Permanent enrollment must be authorized by the active inviting owner."
+            "Permanent enrollment must be authorized by the active inviting device."
         case .joiningIdentityConflict:
             "The joining identity is already enrolled or reuses an existing device key."
         case .incompleteEntrySnapshot:
@@ -67,7 +67,7 @@ enum V3DeviceWrappedEnrollmentTransitionError:
 ///
 /// The raw current and next vault keys are intentionally absent. The helper
 /// owns their in-memory lifetime while a later transaction layer publishes
-/// these newly encrypted entry objects and the owner-authorized manifest.
+/// these newly encrypted entry objects and the device-authorized manifest.
 struct V3DeviceWrappedEnrollmentTransitionCandidate: Equatable, Sendable {
     let expectedCheckpoint: V3ManifestCheckpoint
     let body: V3DeviceWrappedManifestBody
@@ -110,8 +110,7 @@ struct V3DeviceWrappedEnrollmentTransitionBuilder: Sendable {
 
         let devices = try resultingDevices(
             parent: base.envelope.body.devices,
-            joining: transcript.joinRequest.joiningDevice,
-            role: transcript.invitation.invitedRole
+            joining: transcript.joinRequest.joiningDevice
         )
         let rotation: V3DeviceWrappedKeyRotationCandidate
         do {
@@ -203,7 +202,6 @@ struct V3DeviceWrappedEnrollmentTransitionBuilder: Sendable {
                   $0.identity.deviceID == owner.publicIdentity.deviceID
               }),
               parentOwner.identity == owner.publicIdentity,
-              parentOwner.role == .owner,
               parentOwner.status == .active
         else {
             throw V3DeviceWrappedEnrollmentTransitionError.invalidOwner
@@ -223,8 +221,7 @@ struct V3DeviceWrappedEnrollmentTransitionBuilder: Sendable {
 
     private func resultingDevices(
         parent: [V3DeviceWrappedManifestDevice],
-        joining: V3EnrollmentDeviceIdentity,
-        role: V3DeviceRole
+        joining: V3EnrollmentDeviceIdentity
     ) throws -> [V3DeviceWrappedManifestDevice] {
         guard !parent.contains(where: {
             $0.identity.deviceID == joining.deviceID
@@ -240,7 +237,6 @@ struct V3DeviceWrappedEnrollmentTransitionBuilder: Sendable {
         }
         return (parent + [V3DeviceWrappedManifestDevice(
             identity: joining,
-            role: role,
             status: .active
         )]).sorted {
             Data($0.identity.deviceID.utf8).lexicographicallyPrecedes(

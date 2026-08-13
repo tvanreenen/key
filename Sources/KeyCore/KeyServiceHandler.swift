@@ -739,10 +739,9 @@ public final class KeyServiceHandler {
             }
         case .invitations:
             return .success(try requiredEnrollmentService().listInvitations())
-        case let .invite(deviceName, role):
+        case let .invite(deviceName):
             return .success(try requiredEnrollmentService().createInvitation(
                 deviceName: deviceName,
-                role: role,
                 at: unixTime
             ))
         case let .join(invitationID, deviceName):
@@ -1322,8 +1321,8 @@ private func revocationFailure(
     switch error {
     case .invalidTrustedCheckpoint:
         .failure(error.localizedDescription, code: .recoveryRequired)
-    case .invalidAuthorizingOwner, .deviceNotFound, .deviceAlreadyRevoked,
-        .cannotRevokeAuthorizingDevice, .lastActiveOwner:
+    case .invalidAuthorizingDevice, .deviceNotFound, .deviceAlreadyRevoked,
+        .cannotRevokeAuthorizingDevice, .lastActiveDevice:
         .failure(error.localizedDescription, code: .operationRefused)
     }
 }
@@ -1351,7 +1350,7 @@ private func revocationFailure(
         .failure(error.localizedDescription, code: .authenticationFailed)
     case .invalidTrustedCheckpoint, .invalidCurrentVaultKey,
         .invalidNextVaultKey, .invalidTransition,
-        .invalidOwnerAuthorization, .localWrapperInvalid,
+        .invalidDeviceAuthorization, .localWrapperInvalid,
         .invalidCurrentEntry, .invalidStagedEntry, .objectTooLarge:
         .failure(error.localizedDescription, code: .recoveryRequired)
     }
@@ -1380,7 +1379,7 @@ private func revocationFailure(
         .failure(error.localizedDescription, code: .authenticationFailed)
     case .temporaryUnavailable, .checkpointChanged:
         .failure(error.localizedDescription, code: .vaultIncomplete)
-    case .recoveryRequired, .deviceRevoked:
+    case .recoveryRequired, .deviceIdentityUnavailable, .deviceRevoked:
         .failure(error.localizedDescription, code: .recoveryRequired)
     case .legacyAlphaProfile, .upgradeRequired:
         .failure(error.localizedDescription, code: .operationRefused)

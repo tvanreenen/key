@@ -25,7 +25,7 @@ enum V3DeviceWrappedRevocationTransitionError:
         case .invalidNextVaultKey:
             "Device revocation requires a distinct new 32-byte vault key."
         case .invalidOwner:
-            "Device revocation must be signed by the active reviewing owner."
+            "Device revocation must be signed by the active reviewing device."
         case .incompleteEntrySnapshot:
             "Device revocation requires every entry in the current authenticated snapshot."
         case .invalidEntry:
@@ -74,14 +74,14 @@ struct V3DeviceWrappedRevocationTransitionBuilder: Sendable {
             reviewedPlan = try planner.plan(
                 from: base,
                 authorizingDeviceID:
-                    plan.authorizingOwner.identity.deviceID,
+                    plan.authorizingDevice.identity.deviceID,
                 revoking: plan.revokedDevice.identity.deviceID
             )
         } catch {
             throw V3DeviceWrappedRevocationTransitionError.invalidPlan
         }
         guard reviewedPlan == plan,
-              owner.publicIdentity == plan.authorizingOwner.identity,
+              owner.publicIdentity == plan.authorizingDevice.identity,
               owner.vaultID == plan.expectedCheckpoint.vaultID
         else {
             throw V3DeviceWrappedRevocationTransitionError.invalidPlan

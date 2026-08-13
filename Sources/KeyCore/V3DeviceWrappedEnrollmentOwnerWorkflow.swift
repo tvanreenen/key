@@ -1,8 +1,8 @@
 import Foundation
 
-/// CLI-facing owner workflow for the permanent device-wrapped profile.
+/// CLI-facing enrollment workflow for the permanent device-wrapped profile.
 /// Joining-side adoption remains a separate increment; this adapter exposes
-/// invitation, comparison, inventory, and durable owner approval on a Mac
+/// invitation, comparison, inventory, and durable device approval on a Mac
 /// that already owns the selected vault.
 struct V3DeviceWrappedEnrollmentOwnerWorkflow:
     V3EnrollmentWorkflowServicing,
@@ -59,7 +59,6 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
                 V3VaultDeviceSummary(
                     deviceID: $0.identity.deviceID,
                     displayName: $0.identity.displayName,
-                    role: $0.role,
                     status: $0.status
                 )
             }
@@ -78,7 +77,6 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
 
     func createInvitation(
         deviceName: String,
-        role: V3DeviceRole,
         at unixTime: UInt64
     ) throws -> String {
         let trusted = try stateLoader.authenticatedCheckpoint(
@@ -92,11 +90,10 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
               let owner = trusted.envelope.body.devices.first(where: {
                   $0.identity.deviceID == identity.publicIdentity.deviceID
               }), owner.identity == identity.publicIdentity,
-              owner.role == .owner,
               owner.status == .active
         else {
             throw AppError.operationRefused(
-                "Only an active owner recorded by this vault can invite another Mac. Use this Mac's existing device name."
+                "Only an active device recorded by this vault can invite another Mac. Use this Mac's existing device name."
             )
         }
         guard unixTime <= UInt64.max - Self.invitationLifetime else {
@@ -106,7 +103,6 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
             vaultID: vaultID,
             parentManifestDigest: trusted.checkpoint.envelopeDigest,
             invitingDevice: identity.publicIdentity,
-            invitedRole: role,
             nonce: randomNonce(),
             expiresAt: unixTime + Self.invitationLifetime
         )
@@ -120,7 +116,6 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
             "Enrollment invitation created.",
             "Vault: \(vaultID)",
             "Invitation: \(v3LowercaseHex(invitation.digest))",
-            "Role offered: \(role.rawValue)",
             "Expires in 10 minutes.",
             "On the other Mac, run `key share join \(v3LowercaseHex(invitation.digest)) --name <device-name>`."
         ].joined(separator: "\n") + "\n"
@@ -245,7 +240,6 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
             "Vault: \(transcript.invitation.vaultID)",
             "Existing Mac: \(transcript.invitation.invitingDevice.displayName)",
             "Joining Mac: \(transcript.joinRequest.joiningDevice.displayName)",
-            "Role: \(transcript.invitation.invitedRole.rawValue)",
             "Comparison code: \(transcript.comparisonCode)",
             next
         ].joined(separator: "\n") + "\n"

@@ -65,7 +65,7 @@ public enum CLIParser {
       share devices [--json]              List authenticated vault devices.
       share revoke <device-id>            Review and revoke one vault device.
       share invitations                   List short-lived vault invitations.
-      share invite --name <name>          Invite a member from the current v3 Mac.
+      share invite --name <name>          Invite a device from the current v3 Mac.
       share join <invite> --name <name>   Answer one exact invitation.
       share requests <invite>             List answers to an invitation.
       share compare <vault> <invite> [request]
@@ -303,21 +303,17 @@ public enum CLIParser {
             }
             return .share(.invitations)
         case "invite":
-            let (name, role) = try parseShareIdentityOptions(remaining)
-            return .share(.invite(deviceName: name, role: role))
+            let name = try parseShareIdentityOptions(remaining)
+            return .share(.invite(deviceName: name))
         case "join":
             guard let invitationID = remaining.first else {
                 throw AppError.usage(
                     "Missing invitation ID for share join.\n\n\(usageText)"
                 )
             }
-            let (name, role) = try parseShareIdentityOptions(
-                Array(remaining.dropFirst()),
-                permitsRole: false
+            let name = try parseShareIdentityOptions(
+                Array(remaining.dropFirst())
             )
-            guard role == .member else {
-                throw AppError.usage(usageText)
-            }
             return .share(.join(
                 invitationID: invitationID,
                 deviceName: name
@@ -367,11 +363,9 @@ public enum CLIParser {
     }
 
     private static func parseShareIdentityOptions(
-        _ arguments: [String],
-        permitsRole: Bool = true
-    ) throws -> (name: String, role: V3DeviceRole) {
+        _ arguments: [String]
+    ) throws -> String {
         var name: String?
-        var role: V3DeviceRole = .member
         var index = 0
         while index < arguments.count {
             switch arguments[index] {
@@ -383,9 +377,6 @@ public enum CLIParser {
                 }
                 name = arguments[index + 1]
                 index += 2
-            case "--owner" where permitsRole:
-                role = .owner
-                index += 1
             default:
                 throw AppError.usage(
                     "Unknown option '\(arguments[index])' for share.\n\n\(usageText)"
@@ -397,7 +388,7 @@ public enum CLIParser {
                 "Provide this Mac's readable name with --name.\n\n\(usageText)"
             )
         }
-        return (name, role)
+        return name
     }
 
     private static func parseOptionalJSON(

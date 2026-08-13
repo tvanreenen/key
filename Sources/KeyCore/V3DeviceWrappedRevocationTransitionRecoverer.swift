@@ -68,7 +68,7 @@ struct V3DeviceWrappedRevocationTransitionRecoverer: Sendable {
                 validate: { context in
                     let plan = try recoveryPlan(
                         context,
-                        authorizingOwner: localIdentity.publicIdentity
+                        authorizingDevice: localIdentity.publicIdentity
                     )
                     recoveredPlan = plan
                     let candidate =
@@ -112,7 +112,7 @@ struct V3DeviceWrappedRevocationTransitionRecoverer: Sendable {
 
     private func recoveryPlan(
         _ context: V3DeviceWrappedKeyRotationRecoveryContext,
-        authorizingOwner: V3EnrollmentDeviceIdentity
+        authorizingDevice: V3EnrollmentDeviceIdentity
     ) throws -> V3DeviceWrappedRevocationPlan {
         let candidateByID = Dictionary(
             grouping: context.candidate.body.devices,
@@ -127,7 +127,6 @@ struct V3DeviceWrappedRevocationTransitionRecoverer: Sendable {
                 return false
             }
             return candidate.identity == parent.identity
-                && candidate.role == parent.role
                 && candidate.status == .revoked
         }
         guard revoked.count == 1, let device = revoked.first else {
@@ -136,7 +135,7 @@ struct V3DeviceWrappedRevocationTransitionRecoverer: Sendable {
         do {
             return try planner.plan(
                 from: context.parent,
-                authorizingDeviceID: authorizingOwner.deviceID,
+                authorizingDeviceID: authorizingDevice.deviceID,
                 revoking: device.identity.deviceID
             )
         } catch {

@@ -148,7 +148,7 @@ struct V3VaultKeyHPKETests {
 
         #expect(
             encoded ==
-                "{\"authorityTransitionID\":\"018f4d38-7d5a-7b20-b0f1-97d6e96c44b4\",\"format\":\"key-vault-wrapped-key-context\",\"hpkeSuite\":{\"aead\":2,\"kdf\":1,\"kem\":16,\"mode\":0},\"keyID\":\"YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA\",\"profile\":\"device-wrapped\",\"profileVersion\":1,\"recipientDeviceID\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\",\"vaultID\":\"018f4d38-7d5a-7b20-b0f1-97d6e96c44b3\",\"version\":1}"
+            "{\"authorityTransitionID\":\"018f4d38-7d5a-7b20-b0f1-97d6e96c44b4\",\"format\":\"key-vault-wrapped-key-context\",\"hpkeSuite\":{\"aead\":2,\"kdf\":1,\"kem\":16,\"mode\":0},\"keyID\":\"YWHJjbH1Mqt6bAtnVdqoT84nrfbogDs7lWSFQT8V8iA\",\"profile\":\"device-wrapped\",\"profileVersion\":2,\"recipientDeviceID\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\",\"vaultID\":\"018f4d38-7d5a-7b20-b0f1-97d6e96c44b3\",\"version\":1}"
         )
     }
 

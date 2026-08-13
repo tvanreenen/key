@@ -197,13 +197,13 @@ struct V3EnrollmentExchangeCoordinatorTests {
                 with:
                     "\"format\":\"key-vault-enrollment-signed-invitation\",\"futureField\":true,\"invitation\":"
             ),
-            "\"version\":1}",
-            with: "\"version\":2}"
+            "\"version\":2}",
+            with: "\"version\":3}"
         )
         mailbox.invitations[fixture.invitation.digest] = futureInvitation
 
         #expect(
-            throws: V3EnrollmentAuthenticationError.unsupportedVersion(2)
+            throws: V3EnrollmentAuthenticationError.unsupportedVersion(3)
         ) {
             try coordinator.receiveInvitation(
                 digest: fixture.invitation.digest,
@@ -222,15 +222,15 @@ struct V3EnrollmentExchangeCoordinatorTests {
                 with:
                     "\"format\":\"key-vault-enrollment-signed-join-request\",\"futureField\":true,\"joinRequest\":"
             ),
-            "\"version\":1}",
-            with: "\"version\":2}"
+            "\"version\":2}",
+            with: "\"version\":3}"
         )
         mailbox.joinRequests[fixture.invitation.digest] = [
             fixture.joinRequest.digest: futureJoinRequest
         ]
 
         #expect(
-            throws: V3EnrollmentAuthenticationError.unsupportedVersion(2)
+            throws: V3EnrollmentAuthenticationError.unsupportedVersion(3)
         ) {
             try coordinator.receiveJoinRequest(
                 vaultID: Self.vaultID,
@@ -553,7 +553,6 @@ struct V3EnrollmentExchangeCoordinatorTests {
                 vaultID: V3EnrollmentExchangeCoordinatorTests.vaultID,
                 parentManifestDigest: Data(repeating: 0x91, count: 32),
                 invitingDevice: inviter.publicIdentity,
-                invitedRole: .member,
                 nonce: Data(repeating: 0xA1, count: 32),
                 expiresAt: 1_900_000_000
             )

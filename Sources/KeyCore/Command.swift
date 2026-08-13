@@ -28,7 +28,7 @@ public enum ShareCommand: Equatable, Sendable {
     case devices(json: Bool)
     case revoke(deviceID: String)
     case invitations
-    case invite(deviceName: String, role: V3DeviceRole)
+    case invite(deviceName: String)
     case join(invitationID: String, deviceName: String)
     case requests(invitationID: String)
     case compare(

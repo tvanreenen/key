@@ -204,25 +204,21 @@ public struct VaultStatus: Codable, Equatable, Sendable {
 public struct V3VaultDeviceSummary: Codable, Equatable, Sendable {
     public let deviceID: String
     public let displayName: String
-    public let role: V3DeviceRole
     public let status: V3DeviceStatus
 
     public init(
         deviceID: String,
         displayName: String,
-        role: V3DeviceRole,
         status: V3DeviceStatus
     ) {
         self.deviceID = deviceID
         self.displayName = displayName
-        self.role = role
         self.status = status
     }
 
     private enum CodingKeys: String, CodingKey {
         case deviceID
         case displayName
-        case role
         case status
     }
 }
@@ -236,6 +232,13 @@ public struct V3VaultDeviceInventory: Codable, Equatable, Sendable {
     public let mode: V3VaultMode
     public let currentDeviceID: String?
     public let devices: [V3VaultDeviceSummary]
+
+    /// The authenticated devices that can currently preserve continuity.
+    /// Revoked devices remain visible in `devices` as history but do not
+    /// contribute to this count.
+    public var activeDeviceCount: Int {
+        devices.lazy.filter { $0.status == .active }.count
+    }
 
     public init(
         vaultID: String,

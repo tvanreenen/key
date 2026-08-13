@@ -22,7 +22,8 @@ struct V3DeviceWrappedManifestTests {
 
         #expect(decoded == body)
         #expect(json.contains(#""profile":"device-wrapped""#))
-        #expect(json.contains(#""profileVersion":1"#))
+        #expect(json.contains(#""profileVersion":2"#))
+        #expect(!json.contains(#""role":"#))
         #expect(json.contains(#""authorityTransitionID":"#))
         #expect(json.contains(#""hpkeSuite":{"aead":2,"kdf":1,"kem":16,"mode":0}"#))
         #expect(!json.contains(#""mode":"local""#))
@@ -56,21 +57,34 @@ struct V3DeviceWrappedManifestTests {
     @Test
     func futureProfileAndSuiteChangesAreFailClosed() throws {
         let body = try Self.makeBody()
-        let future = Self.replacing(
+        let roleBearingAlpha = Self.replacing(
             body.canonicalBytes,
-            #""profileVersion":1"#,
-            with: #""profileFuture":true,"profileVersion":2"#
+            #""profileVersion":2"#,
+            with: #""profileVersion":1"#
         )
         #expect(
-            throws: V3DeviceWrappedManifestError.unsupportedProfileVersion(2)
+            throws: V3DeviceWrappedManifestError.unsupportedProfileVersion(1)
+        ) {
+            try V3DeviceWrappedManifestCodec().parseCanonicalBody(
+                roleBearingAlpha
+            )
+        }
+
+        let future = Self.replacing(
+            body.canonicalBytes,
+            #""profileVersion":2"#,
+            with: #""profileFuture":true,"profileVersion":3"#
+        )
+        #expect(
+            throws: V3DeviceWrappedManifestError.unsupportedProfileVersion(3)
         ) {
             try V3DeviceWrappedManifestCodec().parseCanonicalBody(future)
         }
         let futureWithDifferentFields = Data(
-            #"{"format":"key-vault-manifest","profile":"device-wrapped","profileVersion":2,"version":3}"#.utf8
+            #"{"format":"key-vault-manifest","profile":"device-wrapped","profileVersion":3,"version":3}"#.utf8
         )
         #expect(
-            throws: V3DeviceWrappedManifestError.unsupportedProfileVersion(2)
+            throws: V3DeviceWrappedManifestError.unsupportedProfileVersion(3)
         ) {
             try V3DeviceWrappedManifestCodec().parseCanonicalBody(
                 futureWithDifferentFields
@@ -119,12 +133,10 @@ struct V3DeviceWrappedManifestTests {
         let devices = [
             V3DeviceWrappedManifestDevice(
                 identity: owner,
-                role: .owner,
                 status: .active
             ),
             V3DeviceWrappedManifestDevice(
                 identity: revoked,
-                role: .member,
                 status: .revoked
             ),
         ].sorted { Data($0.identity.deviceID.utf8)
@@ -163,14 +175,14 @@ struct V3DeviceWrappedManifestTests {
     }
 
     @Test
-    func rosterRequiresAnActiveOwnerAndGloballyDistinctKeys() throws {
+    func rosterRequiresAnActiveDeviceAndGloballyDistinctKeys() throws {
         let owner = try Self.identity(signingScalar: 1, wrappingScalar: 2)
         let keyID = try V3VaultKeyID.derive(
             vaultKey: Self.vaultKey,
             vaultID: Self.vaultID
         )
         #expect(throws: V3DeviceWrappedManifestError.semanticViolation(
-            "devices.activeOwner"
+            "devices.active"
         )) {
             try V3DeviceWrappedManifestBody(
                 vaultID: Self.vaultID,
@@ -178,7 +190,6 @@ struct V3DeviceWrappedManifestTests {
                 authorityTransitionID: Self.transitionID,
                 devices: [V3DeviceWrappedManifestDevice(
                     identity: owner,
-                    role: .owner,
                     status: .revoked
                 )],
                 wrappedKeys: [],
@@ -195,7 +206,6 @@ struct V3DeviceWrappedManifestTests {
         let devices = [owner, reused].map {
             V3DeviceWrappedManifestDevice(
                 identity: $0,
-                role: .owner,
                 status: .active
             )
         }.sorted { Data($0.identity.deviceID.utf8)
@@ -255,7 +265,6 @@ struct V3DeviceWrappedManifestTests {
             authorityTransitionID: transitionID,
             devices: [V3DeviceWrappedManifestDevice(
                 identity: owner,
-                role: .owner,
                 status: .active
             )],
             wrappedKeys: [try wrapper(for: owner)],

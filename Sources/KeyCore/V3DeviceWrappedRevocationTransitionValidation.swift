@@ -10,7 +10,7 @@ enum V3DeviceWrappedRevocationValidationError:
     case invalidCurrentVaultKey
     case invalidNextVaultKey
     case invalidTransition
-    case invalidOwnerAuthorization
+    case invalidDeviceAuthorization
     case authenticationCancelled
     case localWrapperInvalid
     case invalidCurrentEntry
@@ -29,12 +29,12 @@ enum V3DeviceWrappedRevocationValidationError:
             "The rotated vault key does not authenticate the revocation candidate."
         case .invalidTransition:
             "The candidate is not exactly one key-rotating device revocation."
-        case .invalidOwnerAuthorization:
-            "The revocation lacks the reviewed active-owner authorization."
+        case .invalidDeviceAuthorization:
+            "The revocation lacks the reviewed active-device authorization."
         case .authenticationCancelled:
-            "Device authentication was cancelled while checking the owner's new vault-key wrapper."
+            "Device authentication was cancelled while checking this Mac's new vault-key wrapper."
         case .localWrapperInvalid:
-            "The approving owner cannot open its new vault-key wrapper."
+            "The approving device cannot open its new vault-key wrapper."
         case .invalidCurrentEntry:
             "A current entry does not match the authenticated parent snapshot."
         case .invalidStagedEntry:
@@ -117,14 +117,14 @@ struct V3DeviceWrappedRevocationTransitionValidator: Sendable {
             reviewedPlan = try planner.plan(
                 from: parent,
                 authorizingDeviceID:
-                    transition.plan.authorizingOwner.identity.deviceID,
+                    transition.plan.authorizingDevice.identity.deviceID,
                 revoking: transition.plan.revokedDevice.identity.deviceID
             )
         } catch {
             throw V3DeviceWrappedRevocationValidationError.invalidPlan
         }
         guard reviewedPlan == transition.plan,
-              expectedOwner == reviewedPlan.authorizingOwner.identity
+              expectedOwner == reviewedPlan.authorizingDevice.identity
         else {
             throw V3DeviceWrappedRevocationValidationError.invalidPlan
         }
@@ -174,8 +174,8 @@ struct V3DeviceWrappedRevocationTransitionValidator: Sendable {
             .invalidNextVaultKey
         case .invalidTransition:
             .invalidTransition
-        case .invalidOwnerAuthorization:
-            .invalidOwnerAuthorization
+        case .invalidDeviceAuthorization:
+            .invalidDeviceAuthorization
         case .authenticationCancelled:
             .authenticationCancelled
         case .localWrapperInvalid:

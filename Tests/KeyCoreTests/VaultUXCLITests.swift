@@ -363,6 +363,18 @@ struct VaultUXCLITests {
         #expect(response.errorMessage?.contains("conflict show") == false)
     }
 
+    @Test
+    func missingDeviceIdentityRetainsTheSecurityFailureContract() {
+        let response = KeyServiceResponse.failure(
+            VaultUXServiceError.deviceIdentityUnavailable
+        )
+
+        #expect(response.errorCode == .recoveryRequired)
+        #expect(response.exitCode == KeyExitCode.securityFailure.rawValue)
+        #expect(response.errorMessage?.contains("surviving enrolled Mac") == true)
+        #expect(response.errorMessage?.contains("permanently inaccessible") == true)
+    }
+
     @Test(arguments: [
         ["status"],
         ["conflict", "list"],

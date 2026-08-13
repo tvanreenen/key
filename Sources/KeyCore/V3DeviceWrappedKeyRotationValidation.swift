@@ -6,7 +6,7 @@ enum V3DeviceWrappedKeyRotationValidationError: Error, Equatable {
     case invalidCurrentVaultKey
     case invalidNextVaultKey
     case invalidTransition
-    case invalidOwnerAuthorization
+    case invalidDeviceAuthorization
     case authenticationCancelled
     case localWrapperInvalid
     case invalidCurrentEntry
@@ -139,7 +139,6 @@ struct V3DeviceWrappedKeyRotationValidator: Sendable {
                   $0.identity.deviceID == deviceID
               }),
               device.identity == identity.publicIdentity,
-              device.role == .owner,
               device.status == .active,
               let wrapped = candidate.body.wrappedKeys.first(where: {
                   $0.recipientDeviceID == deviceID
@@ -255,7 +254,6 @@ struct V3DeviceWrappedKeyRotationValidator: Sendable {
                   $0.identity.deviceID == authorization.signerDeviceID
               }),
               owner.identity == expectedOwner,
-              owner.role == .owner,
               owner.status == .active,
               let signatureBytes = Base64URL.decodeCanonical(
                   authorization.signature
@@ -277,7 +275,7 @@ struct V3DeviceWrappedKeyRotationValidator: Sendable {
               )
         else {
             throw V3DeviceWrappedKeyRotationValidationError
-                .invalidOwnerAuthorization
+                .invalidDeviceAuthorization
         }
     }
 

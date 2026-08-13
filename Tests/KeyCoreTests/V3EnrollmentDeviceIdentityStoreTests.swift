@@ -48,7 +48,6 @@ struct V3EnrollmentDeviceIdentityStoreTests {
             vaultID: Self.vaultID,
             parentManifestDigest: Data(repeating: 0x91, count: 32),
             invitingDevice: loaded.publicIdentity,
-            invitedRole: .member,
             nonce: Data(repeating: 0xA1, count: 32),
             expiresAt: 1_900_000_000
         )

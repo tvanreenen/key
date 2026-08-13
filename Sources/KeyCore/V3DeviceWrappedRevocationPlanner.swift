@@ -7,26 +7,26 @@ enum V3DeviceWrappedRevocationPlanningError:
     LocalizedError
 {
     case invalidTrustedCheckpoint
-    case invalidAuthorizingOwner
+    case invalidAuthorizingDevice
     case deviceNotFound
     case deviceAlreadyRevoked
     case cannotRevokeAuthorizingDevice
-    case lastActiveOwner
+    case lastActiveDevice
 
     var errorDescription: String? {
         switch self {
         case .invalidTrustedCheckpoint:
             "Device revocation requires the exact authenticated checkpoint."
-        case .invalidAuthorizingOwner:
-            "Device revocation must be authorized by an active owner."
+        case .invalidAuthorizingDevice:
+            "Device revocation must be authorized by an active device."
         case .deviceNotFound:
             "The selected device is not enrolled in this vault."
         case .deviceAlreadyRevoked:
             "The selected device is already revoked."
         case .cannotRevokeAuthorizingDevice:
-            "Use another active owner to revoke this Mac."
-        case .lastActiveOwner:
-            "The vault must retain at least one active owner."
+            "Use another active device to revoke this Mac."
+        case .lastActiveDevice:
+            "The vault must retain at least one active device."
         }
     }
 }
@@ -39,7 +39,7 @@ enum V3DeviceWrappedRevocationPlanningError:
 /// step to the exact authenticated checkpoint reviewed by the owner.
 struct V3DeviceWrappedRevocationPlan: Equatable, Sendable {
     let expectedCheckpoint: V3ManifestCheckpoint
-    let authorizingOwner: V3DeviceWrappedManifestDevice
+    let authorizingDevice: V3DeviceWrappedManifestDevice
     let revokedDevice: V3DeviceWrappedManifestDevice
     let resultingDevices: [V3DeviceWrappedManifestDevice]
 
@@ -63,13 +63,12 @@ struct V3DeviceWrappedRevocationPlanner: Sendable {
         revoking revokedDeviceID: String
     ) throws -> V3DeviceWrappedRevocationPlan {
         let envelope = try validate(base)
-        guard let authorizingOwner = envelope.body.devices.first(where: {
+        guard let authorizingDevice = envelope.body.devices.first(where: {
             $0.identity.deviceID == authorizingDeviceID
-                && $0.role == .owner
                 && $0.status == .active
         }) else {
             throw V3DeviceWrappedRevocationPlanningError
-                .invalidAuthorizingOwner
+                .invalidAuthorizingDevice
         }
         guard let revokedDevice = envelope.body.devices.first(where: {
             $0.identity.deviceID == revokedDeviceID
@@ -87,14 +86,11 @@ struct V3DeviceWrappedRevocationPlanner: Sendable {
             }
             return V3DeviceWrappedManifestDevice(
                 identity: device.identity,
-                role: device.role,
                 status: .revoked
             )
         }
-        guard resultingDevices.contains(where: {
-            $0.role == .owner && $0.status == .active
-        }) else {
-            throw V3DeviceWrappedRevocationPlanningError.lastActiveOwner
+        guard resultingDevices.contains(where: { $0.status == .active }) else {
+            throw V3DeviceWrappedRevocationPlanningError.lastActiveDevice
         }
         guard authorizingDeviceID != revokedDeviceID else {
             // The publishing Mac must remain able to validate and recover the
@@ -106,7 +102,7 @@ struct V3DeviceWrappedRevocationPlanner: Sendable {
 
         return V3DeviceWrappedRevocationPlan(
             expectedCheckpoint: base.checkpoint,
-            authorizingOwner: authorizingOwner,
+            authorizingDevice: authorizingDevice,
             revokedDevice: revokedDevice,
             resultingDevices: resultingDevices
         )

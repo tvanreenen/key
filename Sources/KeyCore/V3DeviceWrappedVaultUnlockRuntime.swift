@@ -10,6 +10,7 @@ enum V3DeviceWrappedVaultUnlockRuntimeError:
     case temporaryUnavailable
     case checkpointChanged
     case recoveryRequired
+    case deviceIdentityUnavailable
     case deviceRevoked
     case legacyAlphaProfile
     case upgradeRequired
@@ -24,6 +25,8 @@ enum V3DeviceWrappedVaultUnlockRuntimeError:
             "The trusted vault state changed during unlock. Retry the operation."
         case .recoveryRequired:
             "This Mac cannot authenticate and open its exact trusted vault state. Recovery or re-enrollment is required."
+        case .deviceIdentityUnavailable:
+            "This Mac has no usable enrolled device identity for this vault. Use a surviving enrolled Mac to enroll this Mac again. If no enrolled Mac survives, the vault is permanently inaccessible; synchronized vault files alone cannot recover it."
         case .deviceRevoked:
             "This Mac has been revoked from the vault and cannot unlock its current key."
         case .legacyAlphaProfile:
@@ -309,7 +312,8 @@ final class V3DeviceWrappedVaultUnlockRuntime:
                 vaultID: vaultID,
                 reason: reason
             ) else {
-                throw V3DeviceWrappedVaultUnlockRuntimeError.recoveryRequired
+                throw V3DeviceWrappedVaultUnlockRuntimeError
+                    .deviceIdentityUnavailable
             }
             identity = loaded
         } catch V3EnrollmentDeviceIdentityStoreError.authenticationCancelled {
@@ -446,9 +450,12 @@ final class V3DeviceWrappedVaultUnlockRuntime:
         switch error {
         case .deviceRevoked:
             return .deviceRevoked
-        case .unsupportedEnvelopeVersion,
-                .unsupportedProfileVersion:
+        case .unsupportedEnvelopeVersion:
             return .upgradeRequired
+        case let .unsupportedProfileVersion(version):
+            return version < V3DeviceWrappedManifestBody.profileVersion
+                ? .legacyAlphaProfile
+                : .upgradeRequired
         case .authenticationCancelled:
             return .locked
         case .invalidManifest:

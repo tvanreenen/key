@@ -151,7 +151,7 @@ struct V3DeviceWrappedRevocationService:
     ) throws -> V3DeviceWrappedRevocationPlan {
         guard let localIdentity = try loadPublicIdentity(vaultID) else {
             throw V3DeviceWrappedRevocationPlanningError
-                .invalidAuthorizingOwner
+                .invalidAuthorizingDevice
         }
         let trusted = try stateLoader.authenticatedCheckpoint(
             reason: "Unlock version 3 vault to review device revocation."
@@ -161,9 +161,9 @@ struct V3DeviceWrappedRevocationService:
             authorizingDeviceID: localIdentity.deviceID,
             revoking: deviceID
         )
-        guard plan.authorizingOwner.identity == localIdentity else {
+        guard plan.authorizingDevice.identity == localIdentity else {
             throw V3DeviceWrappedRevocationPlanningError
-                .invalidAuthorizingOwner
+                .invalidAuthorizingDevice
         }
         return plan
     }
@@ -173,7 +173,7 @@ struct V3DeviceWrappedRevocationService:
     ) throws -> V3DeviceWrappedRevocationRecoveryResult {
         guard let identity = try loadIdentity(
             vaultID,
-            "Load this Mac's permanent owner identity."
+            "Load this Mac's permanent device identity."
         ) else {
             throw V3DeviceWrappedRevocationTransitionError.invalidPlan
         }
@@ -190,9 +190,9 @@ struct V3DeviceWrappedRevocationService:
         guard plan.expectedCheckpoint.vaultID == vaultID,
               let identity = try loadIdentity(
                 vaultID,
-                "Load this Mac's permanent owner identity."
+                "Load this Mac's permanent device identity."
               ),
-              identity.publicIdentity == plan.authorizingOwner.identity
+              identity.publicIdentity == plan.authorizingDevice.identity
         else {
             throw V3DeviceWrappedRevocationTransitionError.invalidPlan
         }
@@ -302,7 +302,7 @@ struct V3DeviceWrappedRevocationService:
               trusted.envelope.body.devices == plan.resultingDevices,
               trusted.envelope.authorizations.count == 1,
               trusted.envelope.authorizations[0].signerDeviceID
-                == plan.authorizingOwner.identity.deviceID
+                == plan.authorizingDevice.identity.deviceID
         else {
             throw V3ImmutableTransactionError.expectedHeadsChanged
         }

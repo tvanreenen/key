@@ -344,6 +344,8 @@ struct V3DeviceWrappedVaultRuntime:
             VaultUXServiceError.vaultIncomplete
         case .recoveryRequired, .deviceRevoked:
             VaultUXServiceError.recoveryRequired
+        case .deviceIdentityUnavailable:
+            VaultUXServiceError.deviceIdentityUnavailable
         case .legacyAlphaProfile, .upgradeRequired:
             AppError.operationRefused(error.localizedDescription)
         }

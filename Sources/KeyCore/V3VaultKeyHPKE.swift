@@ -32,7 +32,7 @@ enum V3VaultKeyHPKEError: Error, Equatable, LocalizedError {
 /// both HPKE `info` and authenticated data.
 struct V3VaultKeyHPKEContext: Equatable, Sendable {
     static let profile = "device-wrapped"
-    static let profileVersion: UInt64 = 1
+    static let profileVersion: UInt64 = 2
 
     // RFC 9180 identifiers: base mode, DHKEM(P-256, HKDF-SHA256),
     // HKDF-SHA256, and AES-256-GCM.

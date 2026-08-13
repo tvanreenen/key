@@ -432,7 +432,6 @@ struct V3LiveDeviceWrappedRepositoryObserverTests {
                 vaultID: vaultID,
                 parentManifestDigest: base.checkpoint.envelopeDigest,
                 invitingDevice: owner.publicIdentity,
-                invitedRole: .member,
                 nonce: Data(repeating: 0x61, count: 32),
                 expiresAt: approvalTime
             )

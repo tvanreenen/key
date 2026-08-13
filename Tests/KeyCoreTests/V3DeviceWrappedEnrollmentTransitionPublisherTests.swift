@@ -810,7 +810,6 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
         )
 
         #expect(report.deviceName == "Joining Mac")
-        #expect(report.role == .member)
         #expect(selection.vaultID == Self.vaultID)
         #expect(cache.storedManifest == fixture.candidate.manifestData)
         #expect(try V3EnrollmentCeremonyState(
@@ -1290,11 +1289,11 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
                 encoding: .utf8
             ))
             let version = try #require(
-                text.range(of: "\"profileVersion\":1")
+                text.range(of: "\"profileVersion\":2")
             )
             text.replaceSubrange(
                 version,
-                with: "\"profileVersion\":2"
+                with: "\"profileVersion\":3"
             )
             return Data(text.utf8)
         }
@@ -1337,7 +1336,6 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
                 vaultID: vaultID,
                 parentManifestDigest: parentDigest,
                 invitingDevice: owner.publicIdentity,
-                invitedRole: .member,
                 nonce: Data(repeating: 0x61, count: 32),
                 expiresAt: approvalTime
             )
@@ -2039,7 +2037,5 @@ private struct SoftwareDevice:
 }
 
 private func privateKeyBytes(_ scalar: UInt8) -> Data {
-    var bytes = Data(repeating: 0, count: 32)
-    bytes[31] = scalar
-    return bytes
+    Data(SHA256.hash(data: Data([scalar])))
 }

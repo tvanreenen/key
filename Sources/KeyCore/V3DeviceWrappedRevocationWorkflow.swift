@@ -199,7 +199,7 @@ struct V3DeviceWrappedRevocationWorkflow:
                 checkpoint: plan.expectedCheckpoint,
                 deviceID: plan.revokedDevice.identity.deviceID
             ),
-            authorizingDevice: summary(plan.authorizingOwner),
+            authorizingDevice: summary(plan.authorizingDevice),
             revokedDevice: summary(plan.revokedDevice),
             remainingActiveDevices: plan.remainingActiveDevices.map(summary)
         )
@@ -211,7 +211,6 @@ struct V3DeviceWrappedRevocationWorkflow:
         V3VaultDeviceSummary(
             deviceID: device.identity.deviceID,
             displayName: device.identity.displayName,
-            role: device.role,
             status: device.status
         )
     }
