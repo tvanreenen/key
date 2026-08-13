@@ -1,7 +1,23 @@
 import Foundation
 
-typealias V3DeviceWrappedRevocationRecoveryResult =
-    V3DeviceWrappedKeyRotationRecoveryResult
+struct V3DeviceWrappedRevocationRecoveryResult: Equatable, Sendable {
+    let outcome: V3ImmutableTransactionRecoveryOutcome
+    let trustedCheckpoint: V3DeviceWrappedTrustedCheckpoint?
+    let vaultKey: Data?
+    let plan: V3DeviceWrappedRevocationPlan?
+
+    init(
+        outcome: V3ImmutableTransactionRecoveryOutcome,
+        trustedCheckpoint: V3DeviceWrappedTrustedCheckpoint?,
+        vaultKey: Data?,
+        plan: V3DeviceWrappedRevocationPlan? = nil
+    ) {
+        self.outcome = outcome
+        self.trustedCheckpoint = trustedCheckpoint
+        self.vaultKey = vaultKey
+        self.plan = plan
+    }
+}
 
 /// Supplies revocation's exact one-device roster policy to the shared
 /// device-roster key-rotation recovery engine.
@@ -39,8 +55,9 @@ struct V3DeviceWrappedRevocationTransitionRecoverer: Sendable {
         afterCheckpointAdvance:
             V3DeviceWrappedRevocationCommitHandler = { _, _ in }
     ) throws -> V3DeviceWrappedRevocationRecoveryResult {
+        var recoveredPlan: V3DeviceWrappedRevocationPlan?
         do {
-            return try recoverer.recover(
+            let recovery = try recoverer.recover(
                 vaultID: vaultID,
                 kind: .revokeDevice,
                 localIdentity: localIdentity,
@@ -53,6 +70,7 @@ struct V3DeviceWrappedRevocationTransitionRecoverer: Sendable {
                         context,
                         authorizingOwner: localIdentity.publicIdentity
                     )
+                    recoveredPlan = plan
                     let candidate =
                         V3DeviceWrappedRevocationTransitionCandidate(
                             plan: plan,
@@ -78,6 +96,12 @@ struct V3DeviceWrappedRevocationTransitionRecoverer: Sendable {
                     )
                 },
                 afterCheckpointAdvance: afterCheckpointAdvance
+            )
+            return V3DeviceWrappedRevocationRecoveryResult(
+                outcome: recovery.outcome,
+                trustedCheckpoint: recovery.trustedCheckpoint,
+                vaultKey: recovery.vaultKey,
+                plan: recoveredPlan
             )
         } catch V3DeviceWrappedKeyRotationRecoveryValidationError
                     .authenticationCancelled {

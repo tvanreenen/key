@@ -147,6 +147,11 @@ struct CLIParserTests {
         )
         #expect(
             try CLIParser.parse(arguments: [
+                "share", "revoke", "member-device-id"
+            ]) == .share(.revoke(deviceID: "member-device-id"))
+        )
+        #expect(
+            try CLIParser.parse(arguments: [
                 "share", "invite", "--name", "Office Mac", "--owner"
             ]) == .share(.invite(
                 deviceName: "Office Mac",
@@ -192,6 +197,9 @@ struct CLIParserTests {
         }
         #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["share", "invite"])
+        }
+        #expect(throws: AppError.self) {
+            try CLIParser.parse(arguments: ["share", "revoke"])
         }
         #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: [

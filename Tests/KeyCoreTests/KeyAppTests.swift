@@ -396,6 +396,79 @@ struct KeyCLIApplicationTests {
     }
 
     @Test
+    func shareRevokeReviewsBeforeSendingTheBoundConfirmation() {
+        let review = deviceRevocationReviewFixture()
+        let transport = MemoryTransport { request in
+            switch request {
+            case .share(.reviewRevocation(deviceID: "member-device-id")):
+                return .deviceRevocationReview(review)
+            case .share(.revoke(
+                deviceID: "member-device-id",
+                confirmationToken: review.confirmationToken
+            )):
+                return .success("Device revoked.\n")
+            default:
+                Issue.record("Unexpected request: \(request)")
+                return .failure("Unexpected request.")
+            }
+        }
+        let io = MemoryIO(stdinIsTTY: true, lineInput: "REVOKE")
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: [
+            "share", "revoke", "member-device-id"
+        ]) == EXIT_SUCCESS)
+        #expect(transport.requests == [
+            .share(.reviewRevocation(deviceID: "member-device-id")),
+            .share(.revoke(
+                deviceID: "member-device-id",
+                confirmationToken: review.confirmationToken
+            ))
+        ])
+        #expect(io.stdout == """
+        Review device revocation:
+        Device: Laptop — member
+          ID: member-device-id
+        Authorized by: Office Mac
+
+        This permanently removes the device from future vault versions.
+        Key will rotate the vault key and re-encrypt the current vault for the remaining active devices.
+        Remaining active devices: 1
+          Office Mac — owner
+        Device revoked.
+
+        """)
+        #expect(io.stderr ==
+            "Type REVOKE to rotate the vault key and continue: ")
+    }
+
+    @Test
+    func shareRevokeRefusesNoninteractiveUseBeforeReview() {
+        let transport = MemoryTransport { request in
+            Issue.record("Unexpected request: \(request)")
+            return .failure("Unexpected request.")
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: [
+            "share", "revoke", "member-device-id"
+        ]) == KeyExitCode.failure.rawValue)
+        #expect(transport.requests.isEmpty)
+        #expect(io.stdout.isEmpty)
+        #expect(io.stderr ==
+            "Device revocation requires interactive confirmation.\n")
+    }
+
+    @Test
     func blockedMigrationPreflightPrintsOnlyToStderr() throws {
         let transport = MemoryTransport { request in
             #expect(request == .migrationPreflight)
@@ -1753,5 +1826,33 @@ private func deviceInventoryFixture() -> V3VaultDeviceInventory {
                 status: .active
             )
         ]
+    )
+}
+
+private func deviceRevocationReviewFixture()
+    -> V3VaultDeviceRevocationReview
+{
+    V3VaultDeviceRevocationReview(
+        vaultID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
+        checkpointID: String(repeating: "a", count: 64),
+        confirmationToken: String(repeating: "b", count: 64),
+        authorizingDevice: V3VaultDeviceSummary(
+            deviceID: "owner-device-id",
+            displayName: "Office Mac",
+            role: .owner,
+            status: .active
+        ),
+        revokedDevice: V3VaultDeviceSummary(
+            deviceID: "member-device-id",
+            displayName: "Laptop",
+            role: .member,
+            status: .active
+        ),
+        remainingActiveDevices: [V3VaultDeviceSummary(
+            deviceID: "owner-device-id",
+            displayName: "Office Mac",
+            role: .owner,
+            status: .active
+        )]
     )
 }

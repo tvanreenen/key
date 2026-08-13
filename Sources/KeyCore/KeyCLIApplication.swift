@@ -148,52 +148,17 @@ public final class KeyCLIApplication {
         return response.exitCode
     }
 
-    private func serviceShareRequest(
-        _ command: ShareCommand
-    ) -> KeyShareRequest {
-        switch command {
-        case .devices:
-            .devices
-        case .invitations:
-            .invitations
-        case let .invite(deviceName, role):
-            .invite(deviceName: deviceName, role: role)
-        case let .join(invitationID, deviceName):
-            .join(invitationID: invitationID, deviceName: deviceName)
-        case let .requests(invitationID):
-            .requests(invitationID: invitationID)
-        case let .compare(vaultID, invitationID, joinRequestID):
-            .compare(
-                vaultID: vaultID,
-                invitationID: invitationID,
-                joinRequestID: joinRequestID
-            )
-        case let .approve(vaultID, invitationID, comparisonCode):
-            .approve(
-                vaultID: vaultID,
-                invitationID: invitationID,
-                comparisonCode: comparisonCode
-            )
-        case let .accept(vaultID, invitationID, comparisonCode):
-            .accept(
-                vaultID: vaultID,
-                invitationID: invitationID,
-                comparisonCode: comparisonCode
-            )
-        }
-    }
-
     private func executeShareCommand(
         _ command: ShareCommand
     ) throws -> Int32 {
-        let response = try transport.send(.share(
-            serviceShareRequest(command)
-        ))
-        guard response.exitCode == EXIT_SUCCESS else {
-            return try handle(response, for: .share(command))
-        }
         switch command {
+        case let .revoke(deviceID):
+            return try executeDeviceRevocation(deviceID: deviceID)
         case let .devices(json):
+            let response = try transport.send(.share(.devices))
+            guard response.exitCode == EXIT_SUCCESS else {
+                return try handle(response, for: .share(command))
+            }
             let inventory = try requiredServicePayload(
                 response.deviceInventory,
                 operation: "device inventory"
@@ -204,9 +169,123 @@ public final class KeyCLIApplication {
                 writeDeviceInventory(inventory)
             }
             return response.exitCode
-        case .invitations, .invite, .join, .requests, .compare,
-            .approve, .accept:
-            return try handle(response, for: .share(command))
+        case .invitations:
+            return try executeSimpleShareCommand(command, request: .invitations)
+        case let .invite(deviceName, role):
+            return try executeSimpleShareCommand(
+                command,
+                request: .invite(deviceName: deviceName, role: role)
+            )
+        case let .join(invitationID, deviceName):
+            return try executeSimpleShareCommand(
+                command,
+                request: .join(
+                    invitationID: invitationID,
+                    deviceName: deviceName
+                )
+            )
+        case let .requests(invitationID):
+            return try executeSimpleShareCommand(
+                command,
+                request: .requests(invitationID: invitationID)
+            )
+        case let .compare(vaultID, invitationID, joinRequestID):
+            return try executeSimpleShareCommand(
+                command,
+                request: .compare(
+                    vaultID: vaultID,
+                    invitationID: invitationID,
+                    joinRequestID: joinRequestID
+                )
+            )
+        case let .approve(vaultID, invitationID, comparisonCode):
+            return try executeSimpleShareCommand(
+                command,
+                request: .approve(
+                    vaultID: vaultID,
+                    invitationID: invitationID,
+                    comparisonCode: comparisonCode
+                )
+            )
+        case let .accept(vaultID, invitationID, comparisonCode):
+            return try executeSimpleShareCommand(
+                command,
+                request: .accept(
+                    vaultID: vaultID,
+                    invitationID: invitationID,
+                    comparisonCode: comparisonCode
+                )
+            )
+        }
+    }
+
+    private func executeSimpleShareCommand(
+        _ command: ShareCommand,
+        request: KeyShareRequest
+    ) throws -> Int32 {
+        try handle(
+            transport.send(.share(request)),
+            for: .share(command)
+        )
+    }
+
+    private func executeDeviceRevocation(deviceID: String) throws -> Int32 {
+        guard io.stdinIsTTY else {
+            throw AppError.operationRefused(
+                "Device revocation requires interactive confirmation."
+            )
+        }
+        let reviewResponse = try transport.send(.share(
+            .reviewRevocation(deviceID: deviceID)
+        ))
+        guard reviewResponse.exitCode == EXIT_SUCCESS else {
+            return try handle(
+                reviewResponse,
+                for: .share(.revoke(deviceID: deviceID))
+            )
+        }
+        let review = try requiredServicePayload(
+            reviewResponse.deviceRevocationReview,
+            operation: "device revocation review"
+        )
+        writeDeviceRevocationReview(review)
+        try confirmDeviceRevocation()
+
+        let response = try transport.send(.share(.revoke(
+            deviceID: deviceID,
+            confirmationToken: review.confirmationToken
+        )))
+        return try handle(
+            response,
+            for: .share(.revoke(deviceID: deviceID))
+        )
+    }
+
+    private func writeDeviceRevocationReview(
+        _ review: V3VaultDeviceRevocationReview
+    ) {
+        var lines = [
+            "Review device revocation:",
+            "Device: \(review.revokedDevice.displayName) — \(review.revokedDevice.role.rawValue)",
+            "  ID: \(review.revokedDevice.deviceID)",
+            "Authorized by: \(review.authorizingDevice.displayName)",
+            "",
+            "This permanently removes the device from future vault versions.",
+            "Key will rotate the vault key and re-encrypt the current vault for the remaining active devices.",
+            "Remaining active devices: \(review.remainingActiveDevices.count)"
+        ]
+        lines.append(contentsOf: review.remainingActiveDevices.map {
+            "  \($0.displayName) — \($0.role.rawValue)"
+        })
+        io.writeStdout(lines.joined(separator: "\n") + "\n")
+    }
+
+    private func confirmDeviceRevocation() throws {
+        let answer = try io.readLine(
+            prompt: "Type REVOKE to rotate the vault key and continue: "
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard answer == "REVOKE" else {
+            throw AppError.operationRefused("Device revocation cancelled.")
         }
     }
 

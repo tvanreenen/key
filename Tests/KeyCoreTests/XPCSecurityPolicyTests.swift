@@ -19,6 +19,11 @@ struct XPCSecurityPolicyTests {
             )
         ]),
         .share(.devices),
+        .share(.reviewRevocation(deviceID: "member")),
+        .share(.revoke(
+            deviceID: "member",
+            confirmationToken: String(repeating: "a", count: 64)
+        )),
         .share(.invitations),
         .list,
         .migrationPreflight,
@@ -147,6 +152,17 @@ struct XPCSecurityPolicyTests {
                 .responseTimeoutSeconds == nil
         )
         #expect(
+            KeyServiceRequest.share(
+                .reviewRevocation(deviceID: "member")
+            ).responseTimeoutSeconds == nil
+        )
+        #expect(
+            KeyServiceRequest.share(.revoke(
+                deviceID: "member",
+                confirmationToken: String(repeating: "a", count: 64)
+            )).responseTimeoutSeconds == nil
+        )
+        #expect(
             KeyServiceRequest.setVaultDirectory(path: "/tmp/vault")
                 .responseTimeoutSeconds == nil
         )
@@ -218,6 +234,38 @@ struct XPCSecurityPolicyTests {
                         status: .active
                     )
                 ]
+            )
+        )
+        let encoded = try JSONEncoder().encode(response)
+        let decoded = try JSONDecoder().decode(
+            KeyServiceResponse.self,
+            from: encoded
+        )
+
+        #expect(decoded == response)
+    }
+
+    @Test
+    func deviceRevocationReviewRoundTripsAcrossXPCEncoding() throws {
+        let owner = V3VaultDeviceSummary(
+            deviceID: "owner",
+            displayName: "Office Mac",
+            role: .owner,
+            status: .active
+        )
+        let response = KeyServiceResponse.deviceRevocationReview(
+            V3VaultDeviceRevocationReview(
+                vaultID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
+                checkpointID: String(repeating: "a", count: 64),
+                confirmationToken: String(repeating: "b", count: 64),
+                authorizingDevice: owner,
+                revokedDevice: V3VaultDeviceSummary(
+                    deviceID: "member",
+                    displayName: "Laptop",
+                    role: .member,
+                    status: .active
+                ),
+                remainingActiveDevices: [owner]
             )
         )
         let encoded = try JSONEncoder().encode(response)

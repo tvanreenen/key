@@ -411,6 +411,7 @@ struct V3DeviceWrappedRevocationTransitionPublisherTests {
                     #expect(recovered.trustedCheckpoint?.checkpoint == expected)
                     #expect(recovered.vaultKey
                         == V3DeviceWrappedRevocationTransitionTests.nextKey)
+                    #expect(recovered.plan == transition.plan)
                 }
                 try fixture.requireCandidateObjectsPublished()
             } else {
@@ -419,6 +420,7 @@ struct V3DeviceWrappedRevocationTransitionPublisherTests {
                 ))
                 #expect(recovered.trustedCheckpoint == nil)
                 #expect(recovered.vaultKey == nil)
+                #expect(recovered.plan == nil)
             }
         }
     }
@@ -759,7 +761,8 @@ struct V3DeviceWrappedRevocationWorkflowTests {
         let workflow = V3DeviceWrappedRevocationWorkflow(service: service)
 
         let review = try workflow.review(
-            revoking: fixture.member.identity.deviceID
+            revoking: fixture.member.identity.deviceID,
+            operationID: Self.operationID
         )
 
         #expect(review.vaultID
@@ -779,6 +782,7 @@ struct V3DeviceWrappedRevocationWorkflowTests {
         #expect(service.preparedDeviceIDs == [
             fixture.member.identity.deviceID,
         ])
+        #expect(service.recoveryOperationIDs == [Self.operationID])
     }
 
     @Test
@@ -790,7 +794,8 @@ struct V3DeviceWrappedRevocationWorkflowTests {
         )
         let workflow = V3DeviceWrappedRevocationWorkflow(service: service)
         let review = try workflow.review(
-            revoking: fixture.member.identity.deviceID
+            revoking: fixture.member.identity.deviceID,
+            operationID: Self.operationID
         )
 
         let trusted = try workflow.revoke(
@@ -805,6 +810,157 @@ struct V3DeviceWrappedRevocationWorkflowTests {
     }
 
     @Test
+    func reviewAndExecutionCatchUpBeforeReadingTheRoster() throws {
+        let fixture = try RevocationTransitionFixture()
+        let service = RecordingRevocationWorkflowService(
+            plan: fixture.plan,
+            trusted: fixture.base
+        )
+        let catchUp = RecordingRevocationCatchUp(
+            outcome: .current(
+                fixture.base,
+                progress: V3DeviceWrappedCatchUpProgress(
+                    contentManifestCount: 0,
+                    keyEpochCount: 0
+                )
+            )
+        )
+        let workflow = V3DeviceWrappedRevocationWorkflow(
+            service: service,
+            catchUp: catchUp.run
+        )
+        let review = try workflow.review(
+            revoking: fixture.member.identity.deviceID,
+            operationID: Self.operationID
+        )
+
+        _ = try workflow.revoke(
+            deviceID: fixture.member.identity.deviceID,
+            confirmationToken: review.confirmationToken,
+            operationID: Self.operationID
+        )
+
+        #expect(catchUp.operationIDs == [
+            Self.operationID,
+            Self.operationID,
+        ])
+        #expect(service.preparedDeviceIDs == [
+            fixture.member.identity.deviceID,
+            fixture.member.identity.deviceID,
+        ])
+    }
+
+    @Test
+    func catchUpConflictPreventsReviewingAStaleRoster() throws {
+        let fixture = try RevocationTransitionFixture()
+        let service = RecordingRevocationWorkflowService(
+            plan: fixture.plan,
+            trusted: fixture.base
+        )
+        let catchUp = RecordingRevocationCatchUp(
+            outcome: .contentConflict(
+                fixture.base,
+                manifestDigests: [Data(repeating: 0x44, count: 32)],
+                progress: V3DeviceWrappedCatchUpProgress(
+                    contentManifestCount: 0,
+                    keyEpochCount: 0
+                )
+            )
+        )
+        let workflow = V3DeviceWrappedRevocationWorkflow(
+            service: service,
+            catchUp: catchUp.run
+        )
+
+        #expect(throws: VaultUXServiceError.catchUpContentConflict) {
+            _ = try workflow.review(
+                revoking: fixture.member.identity.deviceID,
+                operationID: Self.operationID
+            )
+        }
+        #expect(service.preparedDeviceIDs.isEmpty)
+    }
+
+    @Test
+    func exactCompletedRetryReturnsBeforeCatchUpOrReplanning() throws {
+        let fixture = try RevocationTransitionFixture()
+        let reviewService = RecordingRevocationWorkflowService(
+            plan: fixture.plan,
+            trusted: fixture.base
+        )
+        let review = try V3DeviceWrappedRevocationWorkflow(
+            service: reviewService
+        ).review(
+            revoking: fixture.member.identity.deviceID,
+            operationID: Self.operationID
+        )
+        let service = RecordingRevocationWorkflowService(
+            plan: fixture.plan,
+            trusted: fixture.base,
+            recovery: V3DeviceWrappedRevocationRecoveryResult(
+                outcome: .alreadyCompleted(operationID: Self.operationID),
+                trustedCheckpoint: fixture.base,
+                vaultKey: Data(repeating: 0x55, count: 32),
+                plan: fixture.plan
+            )
+        )
+        let catchUp = RecordingRevocationCatchUp(
+            outcome: .current(
+                fixture.base,
+                progress: V3DeviceWrappedCatchUpProgress(
+                    contentManifestCount: 0,
+                    keyEpochCount: 0
+                )
+            )
+        )
+        let workflow = V3DeviceWrappedRevocationWorkflow(
+            service: service,
+            catchUp: catchUp.run
+        )
+
+        let trusted = try workflow.revoke(
+            deviceID: fixture.member.identity.deviceID,
+            confirmationToken: review.confirmationToken,
+            operationID: Self.operationID
+        )
+
+        #expect(trusted == fixture.base)
+        #expect(service.recoveryOperationIDs == [Self.operationID])
+        #expect(catchUp.operationIDs.isEmpty)
+        #expect(service.preparedDeviceIDs.isEmpty)
+        #expect(service.revokedPlans.isEmpty)
+    }
+
+    @Test
+    func completedRetryStillRequiresTheExactReviewedDecision() throws {
+        let fixture = try RevocationTransitionFixture()
+        let service = RecordingRevocationWorkflowService(
+            plan: fixture.plan,
+            trusted: fixture.base,
+            recovery: V3DeviceWrappedRevocationRecoveryResult(
+                outcome: .completed(operationID: Self.operationID),
+                trustedCheckpoint: fixture.base,
+                vaultKey: Data(repeating: 0x55, count: 32),
+                plan: fixture.plan
+            )
+        )
+        let workflow = V3DeviceWrappedRevocationWorkflow(service: service)
+
+        #expect(
+            throws: V3DeviceWrappedRevocationWorkflowError
+                .reviewedStateChanged
+        ) {
+            _ = try workflow.revoke(
+                deviceID: fixture.member.identity.deviceID,
+                confirmationToken: String(repeating: "0", count: 64),
+                operationID: Self.operationID
+            )
+        }
+        #expect(service.preparedDeviceIDs.isEmpty)
+        #expect(service.revokedPlans.isEmpty)
+    }
+
+    @Test
     func changedTargetOrMalformedConfirmationNeverStartsRevocation() throws {
         let fixture = try RevocationTransitionFixture()
         let service = RecordingRevocationWorkflowService(
@@ -813,7 +969,8 @@ struct V3DeviceWrappedRevocationWorkflowTests {
         )
         let workflow = V3DeviceWrappedRevocationWorkflow(service: service)
         let review = try workflow.review(
-            revoking: fixture.member.identity.deviceID
+            revoking: fixture.member.identity.deviceID,
+            operationID: Self.operationID
         )
 
         #expect(
@@ -853,6 +1010,104 @@ struct V3DeviceWrappedRevocationWorkflowTests {
         ])
         #expect(service.revokedPlans.isEmpty)
     }
+
+    @Test
+    func handlerRoutesReviewAndExecutionThroughTheirOwnedBoundaries() throws {
+        let fixture = try RevocationTransitionFixture()
+        let service = RecordingRevocationWorkflowService(
+            plan: fixture.plan,
+            trusted: fixture.base
+        )
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let handler = KeyServiceHandler(
+            keyStore: MemoryVaultKeyStore(),
+            entryStore: EntryStore(rootURL: root),
+            mutationOwner: VaultTransactionMutationOwner(),
+            revocationService: V3DeviceWrappedRevocationWorkflow(
+                service: service
+            )
+        )
+
+        let reviewResponse = handler.handle(.share(
+            .reviewRevocation(
+                deviceID: fixture.member.identity.deviceID
+            )
+        ))
+        let review = try #require(
+            reviewResponse.deviceRevocationReview
+        )
+        #expect(reviewResponse.exitCode == EXIT_SUCCESS)
+        #expect(service.revokedPlans.isEmpty)
+
+        let response = handler.handle(.share(.revoke(
+            deviceID: fixture.member.identity.deviceID,
+            confirmationToken: review.confirmationToken
+        )))
+
+        #expect(response == .success(
+            "Device revoked. The vault key was rotated for the remaining active devices.\n"
+        ))
+        #expect(service.revokedPlans == [fixture.plan])
+        #expect(service.operationIDs.count == 1)
+    }
+
+    @Test
+    func handlerPreservesTypedRevocationFailures() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            UUID().uuidString,
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        func handler(
+            _ failure: RevocationWorkflowFailure
+        ) -> KeyServiceHandler {
+            KeyServiceHandler(
+                keyStore: MemoryVaultKeyStore(),
+                entryStore: EntryStore(rootURL: root),
+                mutationOwner: VaultTransactionMutationOwner(),
+                revocationService: FailingRevocationWorkflow(
+                    failure: failure
+                )
+            )
+        }
+
+        let unavailable = handler(.temporaryUnavailable).handle(.share(
+            .reviewRevocation(deviceID: "member")
+        ))
+        let missing = handler(.missingEntry).handle(.share(.revoke(
+            deviceID: "member",
+            confirmationToken: String(repeating: "a", count: 64)
+        )))
+        let invalid = handler(.invalidEntry).handle(.share(.revoke(
+            deviceID: "member",
+            confirmationToken: String(repeating: "a", count: 64)
+        )))
+        let changed = handler(.headsChanged).handle(.share(.revoke(
+            deviceID: "member",
+            confirmationToken: String(repeating: "a", count: 64)
+        )))
+
+        #expect(unavailable.errorCode == .vaultIncomplete)
+        #expect(unavailable.exitCode == KeyExitCode.temporarilyUnavailable.rawValue)
+        #expect(missing.errorCode == .vaultIncomplete)
+        #expect(missing.exitCode == KeyExitCode.temporarilyUnavailable.rawValue)
+        #expect(invalid.errorCode == .recoveryRequired)
+        #expect(invalid.exitCode == KeyExitCode.securityFailure.rawValue)
+        #expect(changed.errorCode == .expectedHeadsChanged)
+        #expect(changed.exitCode == KeyExitCode.conflict.rawValue)
+    }
 }
 
 private final class RecordingRevocationWorkflowService:
@@ -862,16 +1117,29 @@ private final class RecordingRevocationWorkflowService:
     private let lock = NSLock()
     private let plan: V3DeviceWrappedRevocationPlan
     private let trusted: V3DeviceWrappedTrustedCheckpoint
+    private let recovery: V3DeviceWrappedRevocationRecoveryResult
+    private var recoveryOperations: [VaultTransactionOperationID] = []
     private var prepared: [String] = []
     private var revoked: [V3DeviceWrappedRevocationPlan] = []
     private var operations: [VaultTransactionOperationID] = []
 
     init(
         plan: V3DeviceWrappedRevocationPlan,
-        trusted: V3DeviceWrappedTrustedCheckpoint
+        trusted: V3DeviceWrappedTrustedCheckpoint,
+        recovery: V3DeviceWrappedRevocationRecoveryResult =
+            V3DeviceWrappedRevocationRecoveryResult(
+                outcome: .nothingToRecover,
+                trustedCheckpoint: nil,
+                vaultKey: nil
+            )
     ) {
         self.plan = plan
         self.trusted = trusted
+        self.recovery = recovery
+    }
+
+    var recoveryOperationIDs: [VaultTransactionOperationID] {
+        lock.withLock { recoveryOperations }
     }
 
     var preparedDeviceIDs: [String] {
@@ -884,6 +1152,13 @@ private final class RecordingRevocationWorkflowService:
 
     var operationIDs: [VaultTransactionOperationID] {
         lock.withLock { operations }
+    }
+
+    func recoverInterruptedRevocation(
+        operationID: VaultTransactionOperationID
+    ) throws -> V3DeviceWrappedRevocationRecoveryResult {
+        lock.withLock { recoveryOperations.append(operationID) }
+        return recovery
     }
 
     func prepare(
@@ -902,6 +1177,74 @@ private final class RecordingRevocationWorkflowService:
             operations.append(operationID)
         }
         return trusted
+    }
+}
+
+private final class RecordingRevocationCatchUp: @unchecked Sendable {
+    private let lock = NSLock()
+    private let outcome: V3DeviceWrappedCatchUpCoordinatorOutcome
+    private var operations: [VaultTransactionOperationID] = []
+
+    init(outcome: V3DeviceWrappedCatchUpCoordinatorOutcome) {
+        self.outcome = outcome
+    }
+
+    var operationIDs: [VaultTransactionOperationID] {
+        lock.withLock { operations }
+    }
+
+    func run(
+        _ operationID: VaultTransactionOperationID
+    ) throws -> V3DeviceWrappedCatchUpCoordinatorOutcome {
+        lock.withLock { operations.append(operationID) }
+        return outcome
+    }
+}
+
+private enum RevocationWorkflowFailure: Sendable {
+    case temporaryUnavailable
+    case missingEntry
+    case invalidEntry
+    case headsChanged
+}
+
+private struct FailingRevocationWorkflow:
+    V3DeviceWrappedRevocationWorkflowServicing
+{
+    let failure: RevocationWorkflowFailure
+
+    func review(
+        revoking _: String,
+        operationID _: VaultTransactionOperationID
+    ) throws -> V3VaultDeviceRevocationReview {
+        try fail()
+    }
+
+    func revoke(
+        deviceID _: String,
+        confirmationToken _: String,
+        operationID _: VaultTransactionOperationID
+    ) throws -> V3DeviceWrappedTrustedCheckpoint {
+        try fail()
+    }
+
+    private func fail<Result>() throws -> Result {
+        switch failure {
+        case .temporaryUnavailable:
+            throw V3DeviceWrappedCatchUpError.temporaryUnavailable
+        case .missingEntry:
+            throw V3ImmutableTransactionError.referencedEntryUnavailable(
+                entryID: "entry",
+                digest: "digest"
+            )
+        case .invalidEntry:
+            throw V3ImmutableTransactionError.referencedEntryInvalid(
+                entryID: "entry",
+                digest: "digest"
+            )
+        case .headsChanged:
+            throw V3ImmutableTransactionError.expectedHeadsChanged
+        }
     }
 }
 

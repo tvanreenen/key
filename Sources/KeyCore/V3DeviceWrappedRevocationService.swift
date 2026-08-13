@@ -1,6 +1,10 @@
 import Foundation
 
 protocol V3DeviceWrappedRevocationServicing: Sendable {
+    func recoverInterruptedRevocation(
+        operationID: VaultTransactionOperationID
+    ) throws -> V3DeviceWrappedRevocationRecoveryResult
+
     func prepare(
         revoking deviceID: String
     ) throws -> V3DeviceWrappedRevocationPlan
@@ -164,6 +168,21 @@ struct V3DeviceWrappedRevocationService:
         return plan
     }
 
+    func recoverInterruptedRevocation(
+        operationID: VaultTransactionOperationID
+    ) throws -> V3DeviceWrappedRevocationRecoveryResult {
+        guard let identity = try loadIdentity(
+            vaultID,
+            "Load this Mac's permanent owner identity."
+        ) else {
+            throw V3DeviceWrappedRevocationTransitionError.invalidPlan
+        }
+        return try recoverInterruptedRevocation(
+            operationID: operationID,
+            identity: identity
+        )
+    }
+
     func revoke(
         _ plan: V3DeviceWrappedRevocationPlan,
         operationID: VaultTransactionOperationID
@@ -179,20 +198,9 @@ struct V3DeviceWrappedRevocationService:
         }
 
         let publisher = makePublisher(operationID)
-        let commit: V3DeviceWrappedRevocationCommitHandler = {
-            trusted,
-            vaultKey in
-            try session.install(
-                vaultKey,
-                vaultID: vaultID,
-                keyID: trusted.envelope.body.keyID
-            )
-        }
-        let recovery = try publisher.recoverInterruptedTransaction(
-            vaultID: vaultID,
-            localIdentity: identity,
-            unwrapReason: "Recover this Mac's interrupted device revocation.",
-            afterCheckpointAdvance: commit
+        let recovery = try recoverInterruptedRevocation(
+            publisher: publisher,
+            identity: identity
         )
         switch recovery.outcome {
         case .completed, .alreadyCompleted:
@@ -245,8 +253,42 @@ struct V3DeviceWrappedRevocationService:
             nextVaultKey: nextVaultKey,
             localIdentity: identity,
             unwrapReason: "Verify this Mac can open the rotated vault key.",
-            afterCheckpointAdvance: commit
+            afterCheckpointAdvance: commitHandler()
         )
+    }
+
+    private func recoverInterruptedRevocation(
+        operationID: VaultTransactionOperationID,
+        identity: Identity
+    ) throws -> V3DeviceWrappedRevocationRecoveryResult {
+        try recoverInterruptedRevocation(
+            publisher: makePublisher(operationID),
+            identity: identity
+        )
+    }
+
+    private func recoverInterruptedRevocation(
+        publisher: any V3DeviceWrappedRevocationPublishing,
+        identity: Identity
+    ) throws -> V3DeviceWrappedRevocationRecoveryResult {
+        try publisher.recoverInterruptedTransaction(
+            vaultID: vaultID,
+            localIdentity: identity,
+            unwrapReason: "Recover this Mac's interrupted device revocation.",
+            afterCheckpointAdvance: commitHandler()
+        )
+    }
+
+    private func commitHandler()
+        -> V3DeviceWrappedRevocationCommitHandler
+    {
+        { trusted, vaultKey in
+            try session.install(
+                vaultKey,
+                vaultID: vaultID,
+                keyID: trusted.envelope.body.keyID
+            )
+        }
     }
 
     private func requireRecovered(

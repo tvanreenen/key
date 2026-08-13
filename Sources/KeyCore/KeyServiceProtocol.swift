@@ -2,6 +2,8 @@ import Foundation
 
 public enum KeyShareRequest: Codable, Equatable, Sendable {
     case devices
+    case reviewRevocation(deviceID: String)
+    case revoke(deviceID: String, confirmationToken: String)
     case invitations
     case invite(deviceName: String, role: V3DeviceRole)
     case join(invitationID: String, deviceName: String)
@@ -358,6 +360,7 @@ public struct KeyServiceResponse: Codable, Equatable {
     public let helperStatus: KeyHelperStatus?
     public let vaultStatus: VaultStatus?
     public let deviceInventory: V3VaultDeviceInventory?
+    public let deviceRevocationReview: V3VaultDeviceRevocationReview?
     public let conflicts: [VaultConflictSummary]?
     public let conflict: VaultConflictDetail?
 
@@ -369,6 +372,7 @@ public struct KeyServiceResponse: Codable, Equatable {
         helperStatus: KeyHelperStatus? = nil,
         vaultStatus: VaultStatus? = nil,
         deviceInventory: V3VaultDeviceInventory? = nil,
+        deviceRevocationReview: V3VaultDeviceRevocationReview? = nil,
         conflicts: [VaultConflictSummary]? = nil,
         conflict: VaultConflictDetail? = nil
     ) {
@@ -379,6 +383,7 @@ public struct KeyServiceResponse: Codable, Equatable {
         self.helperStatus = helperStatus
         self.vaultStatus = vaultStatus
         self.deviceInventory = deviceInventory
+        self.deviceRevocationReview = deviceRevocationReview
         self.conflicts = conflicts
         self.conflict = conflict
     }
@@ -426,6 +431,17 @@ public struct KeyServiceResponse: Codable, Equatable {
             value: nil,
             errorMessage: nil,
             deviceInventory: inventory
+        )
+    }
+
+    public static func deviceRevocationReview(
+        _ review: V3VaultDeviceRevocationReview
+    ) -> KeyServiceResponse {
+        KeyServiceResponse(
+            exitCode: EXIT_SUCCESS,
+            value: nil,
+            errorMessage: nil,
+            deviceRevocationReview: review
         )
     }
 
