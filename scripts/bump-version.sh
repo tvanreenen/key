@@ -14,6 +14,7 @@ fi
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 project_file="${repo_root}/Key.xcodeproj/project.pbxproj"
+release_branch="$("${repo_root}/scripts/resolve-release-branch.sh" "${tag}")"
 
 if [[ ! -f "${project_file}" ]]; then
   echo "missing Xcode project at ${project_file}" >&2
@@ -21,8 +22,8 @@ if [[ ! -f "${project_file}" ]]; then
 fi
 
 branch="$(git -C "${repo_root}" symbolic-ref --quiet --short HEAD || true)"
-if [[ "${branch}" != "main" ]]; then
-  echo "version bumps must be created on main (current branch: ${branch:-detached HEAD})" >&2
+if [[ "${branch}" != "${release_branch}" ]]; then
+  echo "${tag} version bumps must be created on ${release_branch} (current branch: ${branch:-detached HEAD})" >&2
   exit 1
 fi
 
@@ -132,5 +133,5 @@ echo "  commit:                ${commit_sha}"
 echo "  tag:                   ${tag}"
 echo
 echo "Next:"
-echo "  git push origin main --follow-tags"
+echo "  git push origin ${release_branch} --follow-tags"
 echo "  just build-release \"${tag}\""

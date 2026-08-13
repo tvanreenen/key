@@ -12,6 +12,8 @@ cli_path="${app_path}/Contents/MacOS/key"
 helper_path="${app_path}/Contents/Helpers/Key Agent.app"
 helper_executable_path="${helper_path}/Contents/MacOS/Key Agent"
 launch_agent_plist="${app_path}/Contents/Library/LaunchAgents/work.tvr.key.agent.plist"
+expected_helper_signing_identifier="work.tvr.key.xpc"
+expected_team_identifier="9Q355KSV85"
 
 if [[ ! -d "${app_path}" ]]; then
   echo "missing app bundle at ${app_path}" >&2
@@ -35,6 +37,57 @@ fi
 
 if [[ ! -f "${launch_agent_plist}" ]]; then
   echo "missing bundled LaunchAgent plist at ${launch_agent_plist}" >&2
+  exit 1
+fi
+
+codesign --verify --strict --verbose=2 "${helper_path}"
+helper_signing_metadata="$(codesign -dv --verbose=4 "${helper_path}" 2>&1)"
+helper_signing_identifier="$(
+  printf '%s\n' "${helper_signing_metadata}" \
+    | awk -F= '/^Identifier=/ { print $2; exit }'
+)"
+helper_team_identifier="$(
+  printf '%s\n' "${helper_signing_metadata}" \
+    | awk -F= '/^TeamIdentifier=/ { print $2; exit }'
+)"
+
+if [[ "${helper_signing_identifier}" != "${expected_helper_signing_identifier}" ]]; then
+  echo "unexpected helper signing identifier: expected ${expected_helper_signing_identifier}, found ${helper_signing_identifier:-missing}" >&2
+  exit 1
+fi
+if [[ "${helper_team_identifier}" != "${expected_team_identifier}" ]]; then
+  echo "unexpected helper signing team: expected ${expected_team_identifier}, found ${helper_team_identifier:-missing}" >&2
+  exit 1
+fi
+
+require_plist_value() {
+  local description="$1"
+  local key_path="$2"
+  local expected="$3"
+  local actual
+
+  actual="$(plutil -extract "${key_path}" raw -o - "${launch_agent_plist}")"
+  if [[ "${actual}" != "${expected}" ]]; then
+    echo "unexpected ${description}: expected ${expected}, found ${actual}" >&2
+    exit 1
+  fi
+}
+
+require_plist_value \
+  "LaunchAgent signing constraint" \
+  "SpawnConstraint.signing-identifier" \
+  "${helper_signing_identifier}"
+require_plist_value \
+  "LaunchAgent team constraint" \
+  "SpawnConstraint.team-identifier" \
+  "${helper_team_identifier}"
+
+validation_categories="$(
+  plutil -extract 'SpawnConstraint.validation-category.$in' json -o - "${launch_agent_plist}" \
+    | tr -d '[:space:]'
+)"
+if [[ "${validation_categories}" != '[3,6]' ]]; then
+  echo "unexpected LaunchAgent validation categories: expected [3,6], found ${validation_categories}" >&2
   exit 1
 fi
 
