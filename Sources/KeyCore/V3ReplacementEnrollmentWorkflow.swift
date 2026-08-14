@@ -1,5 +1,87 @@
 import Foundation
 
+public enum V3VaultDeviceReplacementAuthorityKind:
+    String,
+    Codable,
+    Equatable,
+    Sendable
+{
+    case trustedCheckpoint
+    case survivingDevice
+}
+
+/// CLI-safe projection of one exact revoked-device replacement decision.
+/// Private key representations and internal canonical records never cross
+/// the helper boundary.
+public struct V3VaultDeviceReplacementReview:
+    Codable,
+    Equatable,
+    Sendable
+{
+    public let vaultID: String
+    public let checkpointID: String
+    public let confirmationToken: String
+    public let replacedDevice: V3VaultDeviceSummary
+    public let authorityKind: V3VaultDeviceReplacementAuthorityKind
+    public let authorizingDevice: V3VaultDeviceSummary?
+    public let revocationManifestID: String?
+
+    public init(
+        vaultID: String,
+        checkpointID: String,
+        confirmationToken: String,
+        replacedDevice: V3VaultDeviceSummary,
+        authorityKind: V3VaultDeviceReplacementAuthorityKind,
+        authorizingDevice: V3VaultDeviceSummary?,
+        revocationManifestID: String?
+    ) {
+        self.vaultID = vaultID
+        self.checkpointID = checkpointID
+        self.confirmationToken = confirmationToken
+        self.replacedDevice = replacedDevice
+        self.authorityKind = authorityKind
+        self.authorizingDevice = authorizingDevice
+        self.revocationManifestID = revocationManifestID
+    }
+
+    init(review: V3ReplacementEnrollmentReview) {
+        let authorityKind: V3VaultDeviceReplacementAuthorityKind
+        let authorizingDevice: V3VaultDeviceSummary?
+        let revocationManifestID: String?
+        switch review.authority {
+        case .trustedCheckpoint:
+            authorityKind = .trustedCheckpoint
+            authorizingDevice = nil
+            revocationManifestID = nil
+        case let .ownerAuthorizedRevocation(
+            _,
+            manifestDigest,
+            authorizer
+        ):
+            authorityKind = .survivingDevice
+            authorizingDevice = V3VaultDeviceSummary(
+                deviceID: authorizer.deviceID,
+                displayName: authorizer.displayName,
+                status: .active
+            )
+            revocationManifestID = v3LowercaseHex(manifestDigest)
+        }
+        vaultID = review.vaultID
+        checkpointID = v3LowercaseHex(
+            review.expectedCheckpoint.envelopeDigest
+        )
+        confirmationToken = v3LowercaseHex(review.digest)
+        replacedDevice = V3VaultDeviceSummary(
+            deviceID: review.target.identity.deviceID,
+            displayName: review.target.identity.displayName,
+            status: .revoked
+        )
+        self.authorityKind = authorityKind
+        self.authorizingDevice = authorizingDevice
+        self.revocationManifestID = revocationManifestID
+    }
+}
+
 enum V3ReplacementEnrollmentWorkflowError:
     Error,
     Equatable,

@@ -181,6 +181,92 @@ struct V3ReplacementEnrollmentWorkflowTests {
         #expect(fixture.coordinator.resumeCount == 0)
     }
 
+    @Test
+    func helperExposesExactReviewThenConfirmsCleanup() throws {
+        let fixture = try Fixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = WorkflowService(
+            review: fixture.review,
+            result: fixture.completed
+        )
+        let owner = WorkflowMutationOwner()
+        let session = WorkflowVaultSession()
+        let handler = KeyServiceHandler(
+            keyStore: MemoryVaultKeyStore(),
+            entryStore: EntryStore(rootURL: root),
+            mutationOwner: owner,
+            replacementService: service,
+            vaultSession: session
+        )
+
+        let reviewResponse = handler.handle(
+            .share(.reviewReplacement)
+        )
+        let projected = try #require(
+            reviewResponse.deviceReplacementReview
+        )
+        #expect(projected.vaultID == Fixture.vaultID)
+        #expect(projected.checkpointID == String(repeating: "33", count: 32))
+        #expect(projected.confirmationToken == v3LowercaseHex(
+            fixture.review.digest
+        ))
+        #expect(projected.replacedDevice.deviceID
+            == fixture.target.identity.deviceID)
+        #expect(projected.replacedDevice.status == .revoked)
+        #expect(projected.authorityKind == .trustedCheckpoint)
+        #expect(projected.authorizingDevice == nil)
+        #expect(projected.revocationManifestID == nil)
+        #expect(owner.kinds == [.catchUpVault])
+
+        let replaceResponse = handler.handle(
+            .share(.replaceCurrentDevice(
+                confirmationToken: projected.confirmationToken
+            ))
+        )
+
+        #expect(replaceResponse.exitCode == EXIT_SUCCESS)
+        #expect(service.confirmations == [fixture.review.digest])
+        #expect(session.lockCount == 1)
+        #expect(owner.kinds == [.catchUpVault])
+    }
+
+    @Test
+    func helperRejectsNoncanonicalReplacementTokenBeforeCleanup() throws {
+        let fixture = try Fixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = WorkflowService(
+            review: fixture.review,
+            result: fixture.completed
+        )
+        let handler = KeyServiceHandler(
+            keyStore: MemoryVaultKeyStore(),
+            entryStore: EntryStore(rootURL: root),
+            mutationOwner: WorkflowMutationOwner(),
+            replacementService: service
+        )
+
+        let response = handler.handle(
+            .share(.replaceCurrentDevice(
+                confirmationToken: String(repeating: "A", count: 64)
+            ))
+        )
+
+        #expect(response.errorCode == .invalidUsage)
+        #expect(service.confirmations.isEmpty)
+    }
+
     private final class Fixture {
         static let vaultID =
             "018f4d38-7d5a-7b20-b0f1-97d6e96cc4b3"
@@ -317,5 +403,87 @@ private final class WorkflowCoordinator:
     func resume() throws -> V3ReplacementEnrollmentIntent {
         resumeCount += 1
         return result
+    }
+}
+
+private final class WorkflowService:
+    V3ReplacementEnrollmentWorkflowServicing,
+    @unchecked Sendable
+{
+    let reviewValue: V3ReplacementEnrollmentReview
+    let result: V3ReplacementEnrollmentIntent
+    private let lock = NSLock()
+    private var confirmationStorage: [Data] = []
+
+    var confirmations: [Data] {
+        lock.withLock { confirmationStorage }
+    }
+
+    init(
+        review: V3ReplacementEnrollmentReview,
+        result: V3ReplacementEnrollmentIntent
+    ) {
+        reviewValue = review
+        self.result = result
+    }
+
+    func review() throws -> V3ReplacementEnrollmentReview {
+        reviewValue
+    }
+
+    func replace(
+        confirmedReviewDigest: Data
+    ) throws -> V3ReplacementEnrollmentIntent {
+        lock.withLock {
+            confirmationStorage.append(confirmedReviewDigest)
+        }
+        return result
+    }
+}
+
+private final class WorkflowMutationOwner:
+    VaultTransactionMutationOwning,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var storage: [VaultTransactionMutationKind] = []
+
+    var kinds: [VaultTransactionMutationKind] {
+        lock.withLock { storage }
+    }
+
+    func perform<Result>(
+        _ kind: VaultTransactionMutationKind,
+        _ mutation: (VaultTransactionMutationContext) throws -> Result
+    ) throws -> Result {
+        lock.withLock {
+            storage.append(kind)
+        }
+        return try mutation(
+            VaultTransactionMutationContext(
+                operationID: VaultTransactionOperationID(),
+                kind: kind
+            )
+        )
+    }
+}
+
+private final class WorkflowVaultSession:
+    VaultSessionServicing,
+    @unchecked Sendable
+{
+    private let lockValue = NSLock()
+    private var locks = 0
+
+    var lockCount: Int {
+        lockValue.withLock { locks }
+    }
+
+    func lock() {
+        lockValue.withLock { locks += 1 }
+    }
+
+    func sessionStatus(at _: Date?) -> KeyHelperStatus {
+        .locked(inactivityTimeoutSeconds: 15 * 60)
     }
 }

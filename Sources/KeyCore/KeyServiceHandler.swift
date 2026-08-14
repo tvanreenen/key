@@ -14,6 +14,8 @@ public final class KeyServiceHandler {
     private let enrollmentService: (any V3EnrollmentWorkflowServicing)?
     private let revocationService:
         (any V3DeviceWrappedRevocationWorkflowServicing)?
+    private let replacementService:
+        (any V3ReplacementEnrollmentWorkflowServicing)?
     private let vaultUXService: any VaultUXServicing
     private let vaultReader: (any VaultReadServicing)?
     private let vaultMutator: (any VaultMutationServicing)?
@@ -64,6 +66,8 @@ public final class KeyServiceHandler {
         enrollmentService: (any V3EnrollmentWorkflowServicing)? = nil,
         revocationService:
             (any V3DeviceWrappedRevocationWorkflowServicing)? = nil,
+        replacementService:
+            (any V3ReplacementEnrollmentWorkflowServicing)? = nil,
         vaultUXService: (any VaultUXServicing)? = nil,
         vaultReader: (any VaultReadServicing)? = nil,
         vaultMutator: (any VaultMutationServicing)? = nil,
@@ -79,6 +83,7 @@ public final class KeyServiceHandler {
         self.migrationService = migrationService
         self.enrollmentService = enrollmentService
         self.revocationService = revocationService
+        self.replacementService = replacementService
         self.vaultUXService = vaultUXService
             ?? V2VaultUXService(entryStore: entryStore)
         self.vaultReader = vaultReader
@@ -163,10 +168,12 @@ public final class KeyServiceHandler {
         let cache = try makeV3CheckpointManifestCache(
             keyConfiguration: keyConfiguration
         )
-        let identityManager = V3EnrollmentDeviceIdentityManager(
-            recordStore: V3EnrollmentDeviceKeyRecordKeychainStore(
+        let identityRecordStore =
+            V3EnrollmentDeviceKeyRecordKeychainStore(
                 configuration: runtimeConfiguration
-            ),
+            )
+        let identityManager = V3EnrollmentDeviceIdentityManager(
+            recordStore: identityRecordStore,
             keyOperations: V3SecureEnclaveEnrollmentDeviceKeyOperations()
         )
         let objectStore = V3FilesystemTransactionArtifactStore(
@@ -318,6 +325,39 @@ public final class KeyServiceHandler {
                 ).catchUp()
             }
         )
+        let replacementIntentStore =
+            V3ReplacementEnrollmentIntentKeychainStore(
+                configuration: runtimeConfiguration
+            )
+        let replacementIdentityDeleter =
+            V3EnrollmentDeviceIdentityDeleter(
+                recordStore: identityRecordStore
+            )
+        let replacementAuthority =
+            V3ReplacementDeviceIdentityAuthorityAdapter(
+                vaultID: vaultID,
+                stateManager: unlockRuntime,
+                contentSteps: contentCatchUpSteps,
+                keyTransitionDiscovery: keyTransitionDiscovery
+            )
+        let replacementService = V3ReplacementEnrollmentWorkflow(
+            vaultID: vaultID,
+            loadTarget: { requestedVaultID in
+                try replacementIdentityDeleter.deletionTarget(
+                    vaultID: requestedVaultID
+                )
+            },
+            authorityClassifier: replacementAuthority,
+            intentStore: replacementIntentStore,
+            coordinator: V3ReplacementEnrollmentCoordinator(
+                vaultID: vaultID,
+                mutationOwner: mutationOwner,
+                authorityClassifier: replacementAuthority,
+                identityDeleter: replacementIdentityDeleter,
+                checkpointStore: checkpointStore,
+                intentStore: replacementIntentStore
+            )
+        )
         return KeyServiceHandler(
             keyStore: keyStore,
             entryStore: entryStore,
@@ -326,6 +366,7 @@ public final class KeyServiceHandler {
             mutationOwner: mutationOwner,
             enrollmentService: enrollmentService,
             revocationService: revocationService,
+            replacementService: replacementService,
             vaultUXService: runtime,
             vaultReader: runtime,
             vaultMutator: runtime,
@@ -737,6 +778,38 @@ public final class KeyServiceHandler {
                     "Device revoked. The vault key was rotated for the remaining active devices.\n"
                 )
             }
+        case .reviewReplacement:
+            return replacementResponse {
+                guard let mutationContext,
+                      mutationContext.kind == .catchUpVault
+                else {
+                    throw AppError.operationRefused(
+                        "Device replacement review requires the helper's serialized mutation boundary."
+                    )
+                }
+                return .deviceReplacementReview(
+                    V3VaultDeviceReplacementReview(
+                        review: try requiredReplacementService().review()
+                    )
+                )
+            }
+        case let .replaceCurrentDevice(confirmationToken):
+            return replacementResponse {
+                let intent = try requiredReplacementService().replace(
+                    confirmedReviewDigest: try replacementDigest(
+                        confirmationToken
+                    )
+                )
+                guard intent.phase == .checkpointDeleted else {
+                    throw AppError.operationRefused(
+                        "Device replacement cleanup did not complete."
+                    )
+                }
+                vaultSession?.lock()
+                return .success(
+                    "Revoked device state removed. This Mac is ready to create a new enrollment identity.\n"
+                )
+            }
         case .invitations:
             return .success(try requiredEnrollmentService().listInvitations())
         case let .invite(deviceName):
@@ -823,6 +896,47 @@ public final class KeyServiceHandler {
             )
         }
         return revocationService
+    }
+
+    private func requiredReplacementService() throws
+        -> any V3ReplacementEnrollmentWorkflowServicing
+    {
+        guard let replacementService else {
+            throw AppError.operationRefused(
+                "Device replacement is unavailable in this helper runtime."
+            )
+        }
+        return replacementService
+    }
+
+    private func replacementResponse(
+        _ operation: () throws -> KeyServiceResponse
+    ) -> KeyServiceResponse {
+        do {
+            return try operation()
+        } catch let error as AppError {
+            return .failure(error)
+        } catch let error as VaultUXServiceError {
+            return .failure(error)
+        } catch let error as V3ReplacementEnrollmentWorkflowError {
+            return replacementFailure(error)
+        } catch let error as V3ReplacementDeviceIdentityClassificationError {
+            return replacementFailure(error)
+        } catch let error as V3ReplacementEnrollmentCoordinatorError {
+            return replacementFailure(error)
+        } catch let error as V3ReplacementEnrollmentIntentError {
+            return replacementFailure(error)
+        } catch let error as V3EnrollmentDeviceIdentityStoreError {
+            return replacementFailure(error)
+        } catch let error as V3DeviceWrappedCatchUpError {
+            return revocationFailure(error)
+        } catch let error as V3DeviceWrappedVaultUnlockRuntimeError {
+            return revocationFailure(error)
+        } catch let error as V3ManifestCheckpointStoreError {
+            return revocationFailure(error)
+        } catch {
+            return .failure(error.localizedDescription)
+        }
     }
 
     private func revocationResponse(
@@ -1219,7 +1333,7 @@ private extension KeyServiceRequest {
     var requiresExclusiveRuntimeSelectionChange: Bool {
         switch self {
         case .setVaultDirectory, .migrationApply,
-            .share(.accept):
+            .share(.accept), .share(.replaceCurrentDevice):
             true
         default:
             false
@@ -1252,7 +1366,7 @@ private extension KeyServiceRequest {
             .migrateToV3
         case .share(.approve), .share(.accept):
             .enrollDevice
-        case .share(.reviewRevocation):
+        case .share(.reviewRevocation), .share(.reviewReplacement):
             .catchUpVault
         case .share(.revoke):
             .revokeDevice
@@ -1272,7 +1386,8 @@ private extension KeyServiceRequest {
     var ownsMutationAuthorization: Bool {
         switch self {
         case .share(.approve), .share(.accept),
-            .share(.reviewRevocation), .share(.revoke):
+            .share(.reviewRevocation), .share(.reviewReplacement),
+            .share(.revoke):
             true
         default:
             false
@@ -1302,6 +1417,99 @@ private func enrollmentDigest(_ value: String) throws -> Data {
         index = next
     }
     return result
+}
+
+private func replacementDigest(_ value: String) throws -> Data {
+    guard value.utf8.count == 64,
+        value.utf8.allSatisfy({
+            ($0 >= 48 && $0 <= 57) || ($0 >= 97 && $0 <= 102)
+        })
+    else {
+        throw AppError.usage(
+            "Replacement confirmation tokens must be complete 64-character lowercase hexadecimal values."
+        )
+    }
+    var result = Data()
+    result.reserveCapacity(32)
+    var index = value.startIndex
+    for _ in 0..<32 {
+        let next = value.index(index, offsetBy: 2)
+        guard let byte = UInt8(value[index..<next], radix: 16) else {
+            throw AppError.usage("Invalid replacement confirmation token.")
+        }
+        result.append(byte)
+        index = next
+    }
+    return result
+}
+
+private func replacementFailure(
+    _ error: V3ReplacementEnrollmentWorkflowError
+) -> KeyServiceResponse {
+    switch error {
+    case .noLocalIdentity, .deviceStillActive:
+        .failure(error.localizedDescription, code: .operationRefused)
+    case .identityUnrecognized:
+        .failure(error.localizedDescription, code: .recoveryRequired)
+    case .invalidConfirmation:
+        .failure(error.localizedDescription, code: .invalidUsage)
+    }
+}
+
+private func replacementFailure(
+    _ error: V3ReplacementDeviceIdentityClassificationError
+) -> KeyServiceResponse {
+    switch error {
+    case .conflictingAuthority:
+        .failure(error.localizedDescription, code: .securityConflict)
+    case .upgradeRequired:
+        .failure(error.localizedDescription, code: .operationRefused)
+    case .invalidAuthority, .identityMismatch:
+        .failure(error.localizedDescription, code: .recoveryRequired)
+    }
+}
+
+private func replacementFailure(
+    _ error: V3ReplacementEnrollmentCoordinatorError
+) -> KeyServiceResponse {
+    switch error {
+    case .invalidConfirmation:
+        .failure(error.localizedDescription, code: .invalidUsage)
+    case .reviewedStateChanged:
+        .failure(error.localizedDescription, code: .expectedHeadsChanged)
+    case .invalidRequest, .replacementAlreadyInProgress,
+        .noReplacementInProgress:
+        .failure(error.localizedDescription, code: .operationRefused)
+    }
+}
+
+private func replacementFailure(
+    _ error: V3ReplacementEnrollmentIntentError
+) -> KeyServiceResponse {
+    switch error {
+    case .conflict:
+        .failure(error.localizedDescription, code: .expectedHeadsChanged)
+    case .invalidReview, .invalidIntent, .invalidPhaseTransition,
+        .invalidConfiguration, .keychainStatus:
+        .failure(error.localizedDescription, code: .recoveryRequired)
+    }
+}
+
+private func replacementFailure(
+    _ error: V3EnrollmentDeviceIdentityStoreError
+) -> KeyServiceResponse {
+    switch error {
+    case .authenticationCancelled:
+        .failure(error.localizedDescription, code: .authenticationFailed)
+    case .conflict:
+        .failure(error.localizedDescription, code: .expectedHeadsChanged)
+    case .identityAlreadyExists:
+        .failure(error.localizedDescription, code: .operationRefused)
+    case .invalidRecord, .invalidIdentityRequest, .identityMismatch,
+        .secureEnclaveUnavailable, .invalidConfiguration,
+        .keyOperationFailed, .keychainStatus:
+        .failure(error.localizedDescription, code: .recoveryRequired)
+    }
 }
 
 private func revocationFailure(

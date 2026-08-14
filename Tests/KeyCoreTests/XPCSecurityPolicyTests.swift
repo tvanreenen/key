@@ -24,6 +24,10 @@ struct XPCSecurityPolicyTests {
             deviceID: "member",
             confirmationToken: String(repeating: "a", count: 64)
         )),
+        .share(.reviewReplacement),
+        .share(.replaceCurrentDevice(
+            confirmationToken: String(repeating: "b", count: 64)
+        )),
         .share(.invitations),
         .list,
         .migrationPreflight,
@@ -163,6 +167,15 @@ struct XPCSecurityPolicyTests {
             )).responseTimeoutSeconds == nil
         )
         #expect(
+            KeyServiceRequest.share(.reviewReplacement)
+                .responseTimeoutSeconds == nil
+        )
+        #expect(
+            KeyServiceRequest.share(.replaceCurrentDevice(
+                confirmationToken: String(repeating: "b", count: 64)
+            )).responseTimeoutSeconds == nil
+        )
+        #expect(
             KeyServiceRequest.setVaultDirectory(path: "/tmp/vault")
                 .responseTimeoutSeconds == nil
         )
@@ -189,7 +202,7 @@ struct XPCSecurityPolicyTests {
     }
 
     @Test
-    func sharingRequestsRoundTripAndOnlyAcceptanceRestartsTheHelper() throws {
+    func sharingRequestsRoundTripAndRuntimeChangesRestartTheHelper() throws {
         let requests: [KeyServiceRequest] = [
             .share(.devices),
             .share(.invite(deviceName: "Office Mac")),
@@ -197,6 +210,10 @@ struct XPCSecurityPolicyTests {
                 vaultID: "vault",
                 invitationID: "invite",
                 joinRequestID: "request"
+            )),
+            .share(.reviewReplacement),
+            .share(.replaceCurrentDevice(
+                confirmationToken: String(repeating: "b", count: 64)
             )),
             .share(.accept(
                 vaultID: "vault",
@@ -216,7 +233,9 @@ struct XPCSecurityPolicyTests {
         #expect(!requests[0].requiresHelperShutdownAfterSuccess)
         #expect(!requests[1].requiresHelperShutdownAfterSuccess)
         #expect(!requests[2].requiresHelperShutdownAfterSuccess)
-        #expect(requests[3].requiresHelperShutdownAfterSuccess)
+        #expect(!requests[3].requiresHelperShutdownAfterSuccess)
+        #expect(requests[4].requiresHelperShutdownAfterSuccess)
+        #expect(requests[5].requiresHelperShutdownAfterSuccess)
     }
 
     @Test
@@ -263,6 +282,36 @@ struct XPCSecurityPolicyTests {
                     status: .active
                 ),
                 remainingActiveDevices: [owner]
+            )
+        )
+        let encoded = try JSONEncoder().encode(response)
+        let decoded = try JSONDecoder().decode(
+            KeyServiceResponse.self,
+            from: encoded
+        )
+
+        #expect(decoded == response)
+    }
+
+    @Test
+    func deviceReplacementReviewRoundTripsAcrossXPCEncoding() throws {
+        let response = KeyServiceResponse.deviceReplacementReview(
+            V3VaultDeviceReplacementReview(
+                vaultID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
+                checkpointID: String(repeating: "a", count: 64),
+                confirmationToken: String(repeating: "b", count: 64),
+                replacedDevice: V3VaultDeviceSummary(
+                    deviceID: "retired-mac",
+                    displayName: "Retired Mac",
+                    status: .revoked
+                ),
+                authorityKind: .survivingDevice,
+                authorizingDevice: V3VaultDeviceSummary(
+                    deviceID: "owner",
+                    displayName: "Office Mac",
+                    status: .active
+                ),
+                revocationManifestID: String(repeating: "c", count: 64)
             )
         )
         let encoded = try JSONEncoder().encode(response)
