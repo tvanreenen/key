@@ -159,7 +159,10 @@ struct V3ReplacementEnrollmentIntentTests {
     func intentRoundTripsAndOnlyAdvancesInCleanupOrder() throws {
         let review = try Self.review()
         let prepared = V3ReplacementEnrollmentIntent(review: review)
-        let identityDeleted = try prepared.advanced(
+        let identityDeletionStarted = try prepared.advanced(
+            to: .identityDeletionStarted
+        )
+        let identityDeleted = try identityDeletionStarted.advanced(
             to: .identityDeleted
         )
         let checkpointDeleted = try identityDeleted.advanced(
@@ -178,7 +181,15 @@ struct V3ReplacementEnrollmentIntentTests {
             throws: V3ReplacementEnrollmentIntentError
                 .invalidPhaseTransition
         ) {
-            _ = try prepared.advanced(to: .checkpointDeleted)
+            _ = try prepared.advanced(to: .identityDeleted)
+        }
+        #expect(
+            throws: V3ReplacementEnrollmentIntentError
+                .invalidPhaseTransition
+        ) {
+            _ = try identityDeletionStarted.advanced(
+                to: .checkpointDeleted
+            )
         }
         #expect(
             throws: V3ReplacementEnrollmentIntentError

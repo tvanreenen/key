@@ -274,7 +274,14 @@ struct V3ReplacementEnrollmentReview: Equatable, Sendable {
 }
 
 enum V3ReplacementEnrollmentIntentPhase: String, Equatable, Sendable {
+    /// Confirmation is durable, but current authority must still be checked
+    /// before any destructive operation may begin.
     case prepared
+
+    /// Current authority was revalidated and the exact identity deletion was
+    /// committed. A retry must not require the key this step may have removed.
+    case identityDeletionStarted
+
     case identityDeleted
     case checkpointDeleted
 }
@@ -361,7 +368,8 @@ struct V3ReplacementEnrollmentIntent: Equatable, Sendable {
         to next: V3ReplacementEnrollmentIntentPhase
     ) throws -> V3ReplacementEnrollmentIntent {
         let valid = switch (phase, next) {
-        case (.prepared, .identityDeleted),
+        case (.prepared, .identityDeletionStarted),
+             (.identityDeletionStarted, .identityDeleted),
              (.identityDeleted, .checkpointDeleted):
             true
         default:
