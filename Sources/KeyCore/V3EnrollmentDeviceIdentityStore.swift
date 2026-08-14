@@ -729,15 +729,30 @@ struct V3EnrollmentDeviceIdentityManager: Sendable {
 struct V3EnrollmentDeviceIdentityDeletionTarget: Equatable, Sendable {
     let vaultID: String
     let identity: V3EnrollmentDeviceIdentity
-    fileprivate let recordDigest: Data
+    let recordDigest: Data
+
+    init(
+        vaultID: String,
+        identity: V3EnrollmentDeviceIdentity,
+        recordDigest: Data
+    ) throws {
+        guard isValidV3UUID(vaultID), recordDigest.count == 32 else {
+            throw V3EnrollmentDeviceIdentityStoreError.invalidRecord
+        }
+        self.vaultID = vaultID
+        self.identity = identity
+        self.recordDigest = recordDigest
+    }
 
     init(recordData: Data) throws {
         let record = try V3EnrollmentDeviceKeyRecord(
             canonicalBytes: recordData
         )
-        vaultID = record.vaultID
-        identity = record.identity
-        recordDigest = Data(SHA256.hash(data: recordData))
+        try self.init(
+            vaultID: record.vaultID,
+            identity: record.identity,
+            recordDigest: Data(SHA256.hash(data: recordData))
+        )
     }
 }
 

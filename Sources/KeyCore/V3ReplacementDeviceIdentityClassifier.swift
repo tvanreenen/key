@@ -31,7 +31,7 @@ enum V3ReplacementDeviceIdentityClassificationError:
 /// cannot open the rotated key, so its terminal proof is instead the exact
 /// direct child signed by another active device that revokes this identity.
 enum V3ReplacementDeviceIdentityAuthority: Equatable, Sendable {
-    case trustedCheckpoint(manifestDigest: Data)
+    case trustedCheckpoint(V3ManifestCheckpoint)
     case ownerAuthorizedRevocation(
         parentCheckpoint: V3ManifestCheckpoint,
         manifestDigest: Data,
@@ -74,7 +74,7 @@ struct V3ReplacementDeviceIdentityClassifier: Sendable {
         try validate(trusted, for: target)
         let authority = V3ReplacementDeviceIdentityAuthority
             .trustedCheckpoint(
-                manifestDigest: trusted.checkpoint.envelopeDigest
+                trusted.checkpoint
             )
         return try classify(
             target,
@@ -105,7 +105,7 @@ struct V3ReplacementDeviceIdentityClassifier: Sendable {
             target,
             devices: parent.envelope.body.devices,
             authority: .trustedCheckpoint(
-                manifestDigest: parent.checkpoint.envelopeDigest
+                parent.checkpoint
             )
         )
         let action: V3DeviceWrappedCatchUpAction

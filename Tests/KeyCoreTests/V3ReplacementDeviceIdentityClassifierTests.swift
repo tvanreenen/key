@@ -42,8 +42,7 @@ struct V3ReplacementDeviceIdentityClassifierTests {
                 activeTarget,
                 authority: V3ReplacementDeviceIdentityAuthority
                     .trustedCheckpoint(
-                        manifestDigest:
-                            fixture.base.checkpoint.envelopeDigest
+                        fixture.base.checkpoint
                     )
             )
         #expect(active == expectedActive)
@@ -65,8 +64,7 @@ struct V3ReplacementDeviceIdentityClassifierTests {
                 activeTarget,
                 authority: V3ReplacementDeviceIdentityAuthority
                     .trustedCheckpoint(
-                        manifestDigest:
-                            revokedCheckpoint.checkpoint.envelopeDigest
+                        revokedCheckpoint.checkpoint
                     )
             )
         #expect(revoked == expectedRevoked)
@@ -92,8 +90,7 @@ struct V3ReplacementDeviceIdentityClassifierTests {
                 target,
                 authority: V3ReplacementDeviceIdentityAuthority
                     .trustedCheckpoint(
-                        manifestDigest:
-                            fixture.base.checkpoint.envelopeDigest
+                        fixture.base.checkpoint
                     )
             )
         #expect(result == expected)
