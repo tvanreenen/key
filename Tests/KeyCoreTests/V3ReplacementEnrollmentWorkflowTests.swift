@@ -1,0 +1,321 @@
+import CryptoKit
+import Foundation
+import Testing
+
+@testable import KeyCore
+
+struct V3ReplacementEnrollmentWorkflowTests {
+    @Test
+    func reviewRequiresAuthenticatedRevocation() throws {
+        let fixture = try Fixture()
+
+        #expect(try fixture.workflow.review() == fixture.review)
+        #expect(fixture.authority.classifyCount == 1)
+
+        fixture.authority.classification = .active(
+            fixture.target,
+            authority: fixture.review.authority
+        )
+        #expect(
+            throws: V3ReplacementEnrollmentWorkflowError.deviceStillActive
+        ) {
+            _ = try fixture.workflow.review()
+        }
+
+        fixture.authority.classification = .unrecognized(
+            fixture.target,
+            authority: fixture.review.authority
+        )
+        #expect(
+            throws: V3ReplacementEnrollmentWorkflowError
+                .identityUnrecognized
+        ) {
+            _ = try fixture.workflow.review()
+        }
+    }
+
+    @Test
+    func confirmedCurrentReviewBeginsCoordinatedCleanup() throws {
+        let fixture = try Fixture()
+
+        let result = try fixture.workflow.replace(
+            confirmedReviewDigest: fixture.review.digest
+        )
+
+        #expect(result == fixture.completed)
+        #expect(fixture.coordinator.begunReviews == [fixture.review])
+        #expect(fixture.coordinator.resumeCount == 0)
+        #expect(fixture.authority.classifyCount == 1)
+    }
+
+    @Test
+    func preparedIntentUsesNewlyReviewedAuthority() throws {
+        let fixture = try Fixture()
+        fixture.intents.storage = V3ReplacementEnrollmentIntent(
+            review: fixture.review
+        ).canonicalBytes
+        let newerCheckpoint = try V3ManifestCheckpoint(
+            vaultID: Fixture.vaultID,
+            envelopeDigest: Data(repeating: 0x44, count: 32)
+        )
+        let newerReview = try V3ReplacementEnrollmentReview(
+            classification: .revoked(
+                fixture.target,
+                authority: .trustedCheckpoint(newerCheckpoint)
+            )
+        )
+        fixture.authority.classification = .revoked(
+            fixture.target,
+            authority: newerReview.authority
+        )
+        fixture.coordinator.result = V3ReplacementEnrollmentIntent(
+            review: newerReview,
+            phase: .checkpointDeleted
+        )
+
+        let result = try fixture.workflow.replace(
+            confirmedReviewDigest: newerReview.digest
+        )
+
+        #expect(result.review == newerReview)
+        #expect(fixture.coordinator.begunReviews == [newerReview])
+        #expect(fixture.authority.classifyCount == 1)
+    }
+
+    @Test
+    func destructiveRetryUsesStoredReviewWithoutDeletedIdentity() throws {
+        let fixture = try Fixture()
+        let interrupted = V3ReplacementEnrollmentIntent(
+            review: fixture.review,
+            phase: .identityDeletionStarted
+        )
+        fixture.intents.storage = interrupted.canonicalBytes
+        fixture.targets.target = nil
+        fixture.coordinator.result = fixture.completed
+
+        let result = try fixture.workflow.replace(
+            confirmedReviewDigest: fixture.review.digest
+        )
+
+        #expect(result == fixture.completed)
+        #expect(fixture.coordinator.resumeCount == 1)
+        #expect(fixture.coordinator.begunReviews.isEmpty)
+        #expect(fixture.authority.classifyCount == 0)
+    }
+
+    @Test
+    func destructiveRetryRecoversStoredReviewWithoutDeletedIdentity() throws {
+        let fixture = try Fixture()
+        fixture.intents.storage = V3ReplacementEnrollmentIntent(
+            review: fixture.review,
+            phase: .identityDeleted
+        ).canonicalBytes
+        fixture.targets.target = nil
+
+        let review = try fixture.workflow.review()
+
+        #expect(review == fixture.review)
+        #expect(fixture.authority.classifyCount == 0)
+    }
+
+    @Test
+    func preparedIntentStillReobservesCurrentAuthorityForReview() throws {
+        let fixture = try Fixture()
+        fixture.intents.storage = V3ReplacementEnrollmentIntent(
+            review: fixture.review
+        ).canonicalBytes
+        let newerCheckpoint = try V3ManifestCheckpoint(
+            vaultID: Fixture.vaultID,
+            envelopeDigest: Data(repeating: 0x55, count: 32)
+        )
+        let newerReview = try V3ReplacementEnrollmentReview(
+            classification: .revoked(
+                fixture.target,
+                authority: .trustedCheckpoint(newerCheckpoint)
+            )
+        )
+        fixture.authority.classification = .revoked(
+            fixture.target,
+            authority: newerReview.authority
+        )
+
+        let review = try fixture.workflow.review()
+
+        #expect(review == newerReview)
+        #expect(fixture.authority.classifyCount == 1)
+    }
+
+    @Test
+    func destructiveRetryChecksConfirmationBeforeResuming() throws {
+        let fixture = try Fixture()
+        fixture.intents.storage = V3ReplacementEnrollmentIntent(
+            review: fixture.review,
+            phase: .identityDeleted
+        ).canonicalBytes
+        fixture.targets.target = nil
+
+        #expect(
+            throws: V3ReplacementEnrollmentWorkflowError
+                .invalidConfirmation
+        ) {
+            _ = try fixture.workflow.replace(
+                confirmedReviewDigest: Data(repeating: 0xFF, count: 32)
+            )
+        }
+        #expect(fixture.coordinator.resumeCount == 0)
+    }
+
+    @Test
+    func missingIdentityAndIntentCannotStartReplacement() throws {
+        let fixture = try Fixture()
+        fixture.targets.target = nil
+
+        #expect(
+            throws: V3ReplacementEnrollmentWorkflowError.noLocalIdentity
+        ) {
+            _ = try fixture.workflow.replace(
+                confirmedReviewDigest: fixture.review.digest
+            )
+        }
+        #expect(fixture.coordinator.begunReviews.isEmpty)
+        #expect(fixture.coordinator.resumeCount == 0)
+    }
+
+    private final class Fixture {
+        static let vaultID =
+            "018f4d38-7d5a-7b20-b0f1-97d6e96cc4b3"
+
+        let target: V3EnrollmentDeviceIdentityDeletionTarget
+        let review: V3ReplacementEnrollmentReview
+        let completed: V3ReplacementEnrollmentIntent
+        let targets: WorkflowTargetSource
+        let authority: WorkflowAuthority
+        let intents = WorkflowIntentStore()
+        let coordinator: WorkflowCoordinator
+
+        var workflow: V3ReplacementEnrollmentWorkflow {
+            V3ReplacementEnrollmentWorkflow(
+                vaultID: Self.vaultID,
+                loadTarget: { [targets] _ in targets.target },
+                authorityClassifier: authority,
+                intentStore: intents,
+                coordinator: coordinator
+            )
+        }
+
+        init() throws {
+            let signing = P256.Signing.PrivateKey()
+            let wrapping = P256.KeyAgreement.PrivateKey()
+            let identity = try V3EnrollmentDeviceIdentity(
+                displayName: "Revoked Mac",
+                signingPublicKey: signing.publicKey.x963Representation,
+                wrappingPublicKey: wrapping.publicKey.x963Representation
+            )
+            let record = try V3EnrollmentDeviceKeyRecord(
+                vaultID: Self.vaultID,
+                identity: identity,
+                signingKeyRepresentation: Data([0x01]),
+                wrappingKeyRepresentation: Data([0x02])
+            )
+            target = try V3EnrollmentDeviceIdentityDeletionTarget(
+                recordData: record.canonicalBytes
+            )
+            let checkpoint = try V3ManifestCheckpoint(
+                vaultID: Self.vaultID,
+                envelopeDigest: Data(repeating: 0x33, count: 32)
+            )
+            review = try V3ReplacementEnrollmentReview(
+                classification: .revoked(
+                    target,
+                    authority: .trustedCheckpoint(checkpoint)
+                )
+            )
+            completed = V3ReplacementEnrollmentIntent(
+                review: review,
+                phase: .checkpointDeleted
+            )
+            targets = WorkflowTargetSource(target: target)
+            authority = WorkflowAuthority(classification: .revoked(
+                target,
+                authority: review.authority
+            ))
+            coordinator = WorkflowCoordinator(result: completed)
+        }
+    }
+}
+
+private final class WorkflowTargetSource: @unchecked Sendable {
+    var target: V3EnrollmentDeviceIdentityDeletionTarget?
+
+    init(target: V3EnrollmentDeviceIdentityDeletionTarget?) {
+        self.target = target
+    }
+}
+
+private final class WorkflowAuthority:
+    V3ReplacementDeviceIdentityAuthorityClassifying,
+    @unchecked Sendable
+{
+    var classification: V3ReplacementDeviceIdentityClassification
+    private(set) var classifyCount = 0
+
+    init(classification: V3ReplacementDeviceIdentityClassification) {
+        self.classification = classification
+    }
+
+    func classifyCurrentAuthority(
+        for _: V3EnrollmentDeviceIdentityDeletionTarget
+    ) throws -> V3ReplacementDeviceIdentityClassification {
+        classifyCount += 1
+        return classification
+    }
+}
+
+private final class WorkflowIntentStore:
+    V3ReplacementEnrollmentIntentStoring,
+    @unchecked Sendable
+{
+    var storage: Data?
+
+    func loadReplacementIntent(vaultID _: String) throws -> Data? {
+        storage
+    }
+
+    func replaceReplacementIntent(
+        _ intent: Data?,
+        expectedIntent _: Data?,
+        vaultID _: String
+    ) throws {
+        storage = intent
+    }
+}
+
+private final class WorkflowCoordinator:
+    V3ReplacementEnrollmentCoordinating,
+    @unchecked Sendable
+{
+    var result: V3ReplacementEnrollmentIntent
+    private(set) var begunReviews: [V3ReplacementEnrollmentReview] = []
+    private(set) var resumeCount = 0
+
+    init(result: V3ReplacementEnrollmentIntent) {
+        self.result = result
+    }
+
+    func begin(
+        review: V3ReplacementEnrollmentReview,
+        confirmedReviewDigest: Data
+    ) throws -> V3ReplacementEnrollmentIntent {
+        guard review.digest == confirmedReviewDigest else {
+            throw V3ReplacementEnrollmentCoordinatorError
+                .invalidConfirmation
+        }
+        begunReviews.append(review)
+        return result
+    }
+
+    func resume() throws -> V3ReplacementEnrollmentIntent {
+        resumeCount += 1
+        return result
+    }
+}
