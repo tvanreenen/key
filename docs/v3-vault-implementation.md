@@ -8,14 +8,14 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-alpha.7` remains the latest Preview release; role-free authority, authenticated catch-up, device revocation, and continuity UX are implemented for the next Preview, while physical multi-device qualification remains pending; catastrophe recovery is deferred beyond `0.2.0` |
-| Latest release | `v0.2.0-alpha.7 (12)` at `7829acc` |
+| Status | `v0.2.0-alpha.9` is the latest Preview release; role-free authority, authenticated catch-up, device revocation, and continuity guidance are shipped; restart-safe replacement re-enrollment is implemented on this branch, while its operator CLI and physical multi-device qualification remain pending; catastrophe recovery is deferred beyond `0.2.0` |
+| Latest release | `v0.2.0-alpha.9 (14)` at `ea9cc50` |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
 | Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | Review and merge the `AUTH-513` equal-authority and `REC-512` continuity UX branch |
-| Next work | Physically qualify replacement continuity, catch-up, revocation, and restart behavior before alpha.8; prototype PIV recovery separately for a later minor release |
+| Active work | Review and merge the `REP-514` restart-safe replacement re-enrollment foundation |
+| Next work | Add the narrow replacement review/confirmation CLI, then physically qualify revoke, cleanup, restart, re-enrollment, catch-up, and writes on multiple Macs; prototype PIV recovery separately for a later minor release |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
 profile MUST not ship as stable until every release gate below passes.
@@ -133,10 +133,11 @@ security or durability boundary and updates this tracker before it merges.
 | `ENR-507` | Complete; PR #53 | Enroll additional devices through the same owner-approved comparison ceremony |
 | `ARCH-508` | Complete | Select the permanent device-wrapped, session-only key profile, macOS 14 floor, and breaking-alpha path |
 | `KEY-509` | Complete; PRs #54–#56; physically qualified in alpha.7 | Ship one-device genesis, durable HPKE wrappers, explicit migration, wrapper-backed sessions, exact reads, and recoverable ordinary writes without persisting the raw vault key |
-| `ENR-510` | Complete; PR #57; two-device ceremony physically qualified in alpha.7 | Use one owner-approved, key-rotating roster-addition path for first and later enrollment |
-| `ENR-511` | Implementation complete; physical qualification pending | Revoke devices, rotate the key, re-encrypt the current snapshot, and catch remaining devices up safely |
-| `AUTH-513` | Implementation complete; branch review and merge pending | Remove owner/member roles from the permanent profile and give every active enrolled device equal authority |
-| `REC-512` | Implementation complete; branch review and merge pending | Add multi-device continuity guidance, one-device risk warnings, and explicit permanent-loss behavior |
+| `ENR-510` | Complete; PR #57; two-device ceremony physically qualified in alpha.7 | Use one explicitly approved, key-rotating roster-addition path for first and later enrollment |
+| `ENR-511` | Complete; shipped in alpha.8 | Revoke devices, rotate the key, re-encrypt the current snapshot, and catch remaining devices up safely |
+| `AUTH-513` | Complete; shipped in alpha.8 | Remove owner/member roles from the permanent profile and give every active enrolled device equal authority |
+| `REC-512` | Complete; shipped in alpha.8 | Add multi-device continuity guidance, one-device risk warnings, and explicit permanent-loss behavior |
+| `REP-514` | Helper implementation complete; CLI and physical qualification pending | Safely retire a revoked local identity and rejoin the same vault through the ordinary enrollment ceremony |
 | Later recovery track | Deferred beyond `0.2.0` | Prototype primary and backup PIV P-256 recovery keys before selecting a permanent catastrophe-recovery schema or release |
 
 #### `ARCH-508` / `KEY-509` — Permanent Profile Runtime
@@ -170,20 +171,21 @@ joining-device read, restart, and write paths were physically qualified with
 the signed alpha.7 Preview release. A third-device ceremony remains a later
 beta qualification; its protocol and implementation use this same transition.
 
-First and later device enrollment now use the same user ceremony: the owner
-invites a Mac, both Macs compare the short code, and the owner approves the
-exact request. Approval creates a fresh vault key, reseals the complete current
-snapshot, adds the compared device to the authenticated roster, and gives each
-active device its own HPKE wrapper. Entries are published before the signed
-manifest, and the owner's checkpoint advances last.
+First and later device enrollment now use the same user ceremony: an active
+device invites a Mac, both Macs compare the short code, and the authorizing
+device approves the exact request. Approval creates a fresh vault key, reseals
+the complete current snapshot, adds the compared device to the authenticated
+roster, and gives each active device its own HPKE wrapper. Entries are
+published before the signed manifest, and the authorizing device's checkpoint
+advances last.
 
-The joining Mac accepts only the exact compared and owner-signed transition.
-It verifies the complete encrypted snapshot before asking its Secure Enclave
-key to open its wrapper, keeps the raw vault key only in the helper session,
-and selects the vault last. The authority-transition ID is derived from the
-complete comparison transcript, so an otherwise valid transition from another
-ceremony cannot be substituted. Exact retries remain safe across provider
-delay, invitation expiry, and interruption.
+The joining Mac accepts only the exact compared and authorizer-signed
+transition. It verifies the complete encrypted snapshot before asking its
+Secure Enclave key to open its wrapper, keeps the raw vault key only in the
+helper session, and selects the vault last. The authority-transition ID is
+derived from the complete comparison transcript, so an otherwise valid
+transition from another ceremony cannot be substituted. Exact retries remain
+safe across provider delay, invitation expiry, and interruption.
 
 This increment deliberately did not revoke devices, create a recovery kit, or
 automatically advance another enrolled Mac that was offline during the key
@@ -193,14 +195,14 @@ transition.
 
 #### `ENR-511` — Authenticated Catch-Up And Device Revocation
 
-Status: implemented for the next Preview build; physical multi-device
-qualification remains pending.
+Status: complete and shipped in alpha.8.
 
 A returning device now starts from its exact device-local checkpoint and
-authenticates forward content and owner-authorized key transitions in order.
-At each key epoch it verifies the parent owner signature, opens only the HPKE
-wrapper addressed to its Secure Enclave identity, authenticates the complete
-resealed snapshot, and advances the checkpoint with an expected-value guard.
+authenticates forward content and device-authorized key transitions in order.
+At each key epoch it verifies the parent authorizer signature, opens only the
+HPKE wrapper addressed to its Secure Enclave identity, authenticates the
+complete resealed snapshot, and advances the checkpoint with an expected-value
+guard.
 The complete operation shares the helper mutation boundary with ordinary
 writes, so catch-up and publication cannot interleave.
 
@@ -217,16 +219,17 @@ parity before full release. The catch-up-specific error therefore explains the
 safe stale-read option without directing users to unavailable conflict-detail
 commands.
 
-An owner can inspect authenticated device IDs with `key share devices`, then
-run `key share revoke <device-id>`. Key catches the owner up before showing the
-exact selected device and remaining active roster. Execution requires the
-literal interactive confirmation `REVOKE`, catches up again, and accepts only
-the confirmation token bound to that exact checkpoint and device.
+An active enrolled Mac can inspect authenticated device IDs with
+`key share devices`, then run `key share revoke <device-id>`. Key catches that
+Mac up before showing the exact selected device and remaining active roster.
+Execution requires the literal interactive confirmation `REVOKE`, catches up
+again, and accepts only the confirmation token bound to that exact checkpoint
+and device.
 
 The accepted transition generates a fresh vault key, re-encrypts the complete
 current snapshot, marks the selected device revoked, and creates wrappers only
 for remaining active devices. It publishes immutable entries before the
-owner-signed manifest and advances the device-local checkpoint last. Every
+authorizer-signed manifest and advances the device-local checkpoint last. Every
 publication phase recovers to the complete old or new epoch; an exact retry
 also finishes post-checkpoint cleanup without publishing a second rotation.
 Remaining devices accept the new epoch only through authenticated catch-up.
@@ -235,8 +238,7 @@ no wrapper for the new current snapshot or future epochs.
 
 #### `AUTH-513` — Equal Enrolled-Device Authority
 
-Status: implemented for the next Preview build; branch review and merge remain
-pending.
+Status: complete and shipped in alpha.8.
 
 The permanent profile no longer divides enrolled Macs into owner and member
 roles. Every active enrolled Mac has the same ability to authorize another
@@ -253,8 +255,7 @@ devices without implying a hierarchy.
 
 #### `REC-512` — Continuity UX And Explicit Permanent Loss
 
-Status: implemented for the next Preview build; physical multi-Mac
-qualification remains pending.
+Status: complete and shipped in alpha.8.
 
 `key share devices` now tells the user whether the vault relies on one or
 multiple enrolled Macs and recommends keeping at least two. Revocation review
@@ -274,6 +275,34 @@ specific next step: use a surviving enrolled Mac to enroll this Mac again. It
 states permanent loss only conditionally—when no enrolled Mac survives—and
 offers no password fallback, cloud escrow, support override, or destructive
 repair.
+
+#### `REP-514` — Revoked-Device Replacement Re-enrollment
+
+Status: helper implementation complete on this branch; the operator CLI and
+physical multi-Mac qualification remain pending.
+
+This is continuity through a surviving enrolled Mac, not recovery from the
+loss of every device. The surviving Mac first revokes the old device identity,
+rotating the vault key and removing that identity from future access. The
+revoked Mac can then review the exact authenticated revocation, explicitly
+confirm local cleanup, restart the helper, and use the ordinary invitation,
+comparison, approval, and acceptance ceremony to join with a new Secure
+Enclave identity.
+
+Cleanup never edits synchronized vault history. It removes only the revoked
+Mac's local enrollment identity and checkpoint after binding confirmation to
+the reviewed vault, identity, and authority. Durable device-only intent makes
+each destructive step retry-safe across interruption and helper restart. Key
+admits only cleanup commands while cleanup is incomplete and only enrollment
+commands afterward; normal reads and writes cannot accidentally revive stale
+authority. The intent is consumed last, after the new identity, checkpoint,
+and runtime are usable.
+
+The remaining product increment is deliberately small: expose read-only
+replacement review and explicit confirmation in the CLI, then qualify the
+complete revoke-to-rejoin sequence on disposable Preview vaults. Until that
+ships, alpha.9 can identify a revoked Mac and direct the user toward a
+surviving device, but it does not provide the complete operator path.
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -1589,8 +1618,10 @@ explicit migration rather than another implicit synchronized-key repair.
 | `v0.2.0-alpha.5` | 10 | Released | Resume the exact authenticated owner-approved enrollment after invitation expiry or delayed provider delivery |
 | `v0.2.0-alpha.6` | 11 | Released | Enable guarded multi-device writes and conflict resolution |
 | `v0.2.0-alpha.7` | 12 | Released | Introduce the side-by-side Preview track and ship the permanent device-wrapped profile for physical multi-device qualification without replacing Stable Key |
-| `v0.2.0-alpha.8` | 13 | Planned | Add revocation, remaining-device catch-up, continuity and permanent-loss UX, and multi-epoch physical-device validation |
-| `v0.2.0-beta.1` | 14 | Planned | Complete provider qualification, migration and rollback validation, continuity and permanent-loss documentation, signing checks, and the required security-review gates |
+| `v0.2.0-alpha.8` | 13 | Released | Add revocation, remaining-device catch-up, equal enrolled-device authority, and continuity and permanent-loss UX |
+| `v0.2.0-alpha.9` | 14 | Released | Distinguish a revoked local device from damaged vault state and direct it toward replacement through a surviving active Mac |
+| Next Preview | TBD | Planned | Expose and physically qualify the complete revoked-device cleanup and ordinary re-enrollment path |
+| `v0.2.0-beta.1` | TBD | Planned | Complete provider qualification, migration and rollback validation, continuity and permanent-loss documentation, signing checks, and the required security-review gates |
 
 Urgent fixes may add an intervening prerelease and advance the build counter,
 but they do not redefine the security checkpoint assigned to a version above.
@@ -1672,11 +1703,12 @@ pass this same two-device exercise before the next Preview release.
 
 ## Immediate Next Action
 
-Review and merge the equal-authority and continuity UX branch without adding a
-portable recovery authority. Then cut alpha.8 only after enrollment,
-replacement continuity, revocation, multi-epoch catch-up, restart, and
-provider-delay tests pass on multiple physical Macs. Permanent-profile
-entry-level conflict inspection, provider qualification, realistic migration
-and rollback copies, a third-device ceremony, and independent security review
-remain beta or stable gates. Prototype PIV catastrophe recovery separately and
-assign no release until physical feasibility and security review support it.
+Review and merge the restart-safe replacement foundation without adding a
+portable recovery authority. Next, expose its exact review and confirmation
+through the CLI and physically qualify revoke, cleanup, helper restart,
+ordinary re-enrollment, catch-up, and writes on multiple Macs before the next
+Preview. Permanent-profile entry-level conflict inspection, provider
+qualification, realistic migration and rollback copies, a third-device
+ceremony, and independent security review remain beta or stable gates.
+Prototype PIV catastrophe recovery separately and assign no release until
+physical feasibility and security review support it.
