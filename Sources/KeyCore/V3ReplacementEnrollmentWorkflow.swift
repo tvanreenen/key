@@ -82,6 +82,63 @@ public struct V3VaultDeviceReplacementReview:
     }
 }
 
+enum V3ReplacementEnrollmentAdmissionState: Equatable, Sendable {
+    case inactive
+    case cleanupPending
+    case enrollmentPending
+}
+
+/// Classifies durable replacement progress for helper composition, then
+/// consumes the completed authorization only after the new identity and
+/// checkpoint are usable.
+struct V3ReplacementEnrollmentAdmission: Sendable {
+    private let intentStore: any V3ReplacementEnrollmentIntentStoring
+
+    init(intentStore: any V3ReplacementEnrollmentIntentStoring) {
+        self.intentStore = intentStore
+    }
+
+    func state(
+        vaultID: String
+    ) throws -> V3ReplacementEnrollmentAdmissionState {
+        guard let data = try intentStore.loadReplacementIntent(
+            vaultID: vaultID
+        ) else {
+            return .inactive
+        }
+        let intent = try V3ReplacementEnrollmentIntent(
+            canonicalBytes: data
+        )
+        guard intent.vaultID == vaultID else {
+            throw V3ReplacementEnrollmentIntentError.invalidIntent
+        }
+        return intent.phase == .checkpointDeleted
+            ? .enrollmentPending
+            : .cleanupPending
+    }
+
+    func consumeCompletedIntent(vaultID: String) throws {
+        guard let data = try intentStore.loadReplacementIntent(
+            vaultID: vaultID
+        ) else {
+            return
+        }
+        let intent = try V3ReplacementEnrollmentIntent(
+            canonicalBytes: data
+        )
+        guard intent.vaultID == vaultID,
+              intent.phase == .checkpointDeleted
+        else {
+            throw V3ReplacementEnrollmentIntentError.invalidIntent
+        }
+        try intentStore.replaceReplacementIntent(
+            nil,
+            expectedIntent: data,
+            vaultID: vaultID
+        )
+    }
+}
+
 enum V3ReplacementEnrollmentWorkflowError:
     Error,
     Equatable,

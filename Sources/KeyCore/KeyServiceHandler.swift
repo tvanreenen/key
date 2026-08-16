@@ -21,6 +21,8 @@ public final class KeyServiceHandler {
     private let vaultMutator: (any VaultMutationServicing)?
     private let vaultSession: (any VaultSessionServicing)?
     private let configuredVaultID: String?
+    private let replacementAdmissionState:
+        V3ReplacementEnrollmentAdmissionState
     private let requestQueue = DispatchQueue(
         label: "work.tvr.key.service-handler.requests",
         attributes: .concurrent
@@ -72,7 +74,9 @@ public final class KeyServiceHandler {
         vaultReader: (any VaultReadServicing)? = nil,
         vaultMutator: (any VaultMutationServicing)? = nil,
         vaultSession: (any VaultSessionServicing)? = nil,
-        configuredVaultID: String? = nil
+        configuredVaultID: String? = nil,
+        replacementAdmissionState:
+            V3ReplacementEnrollmentAdmissionState = .inactive
     ) {
         self.keyStore = keyStore
         self.entryStore = entryStore
@@ -90,6 +94,7 @@ public final class KeyServiceHandler {
         self.vaultMutator = vaultMutator
         self.vaultSession = vaultSession
         self.configuredVaultID = configuredVaultID
+        self.replacementAdmissionState = replacementAdmissionState
         self.currentKeychainMode = keychainMode
     }
 
@@ -260,6 +265,13 @@ public final class KeyServiceHandler {
                 configuration: runtimeConfiguration
             )
         )
+        let replacementIntentStore =
+            V3ReplacementEnrollmentIntentKeychainStore(
+                configuration: runtimeConfiguration
+            )
+        let replacementAdmission = V3ReplacementEnrollmentAdmission(
+            intentStore: replacementIntentStore
+        )
         let approvalService =
             V3DeviceWrappedEnrollmentOwnerApprovalService(
                 vaultID: vaultID,
@@ -278,23 +290,40 @@ public final class KeyServiceHandler {
                 },
                 session: session
             )
-        let enrollmentService = V3DeviceWrappedEnrollmentOwnerWorkflow(
-            vaultID: vaultID,
-            stateLoader: unlockRuntime,
-            exchange: exchange,
-            loadIdentity: { requestedVaultID, reason in
-                try identityManager.loadIdentity(
-                    vaultID: requestedVaultID,
-                    reason: reason
-                )
-            },
-            loadPublicIdentity: { requestedVaultID in
-                try identityManager.loadRecordedPublicIdentity(
-                    vaultID: requestedVaultID
-                )
-            },
-            approvalService: approvalService
+        let replacementAdmissionState = try replacementAdmission.state(
+            vaultID: vaultID
         )
+        let enrollmentService: any V3EnrollmentWorkflowServicing
+        if replacementAdmissionState == .enrollmentPending {
+            enrollmentService = try makeLiveV3EnrollmentWorkflowService(
+                rootHandle: rootHandle,
+                selectedVaultID: nil,
+                replacementVaultID: vaultID,
+                replacementAdmission: replacementAdmission,
+                keyStore: keyStore,
+                keyConfiguration: keyConfiguration,
+                configStore: configStore,
+                runtimeConfiguration: runtimeConfiguration
+            )
+        } else {
+            enrollmentService = V3DeviceWrappedEnrollmentOwnerWorkflow(
+                vaultID: vaultID,
+                stateLoader: unlockRuntime,
+                exchange: exchange,
+                loadIdentity: { requestedVaultID, reason in
+                    try identityManager.loadIdentity(
+                        vaultID: requestedVaultID,
+                        reason: reason
+                    )
+                },
+                loadPublicIdentity: { requestedVaultID in
+                    try identityManager.loadRecordedPublicIdentity(
+                        vaultID: requestedVaultID
+                    )
+                },
+                approvalService: approvalService
+            )
+        }
         let revocationService = V3DeviceWrappedRevocationWorkflow(
             service: V3DeviceWrappedRevocationService(
                 vaultID: vaultID,
@@ -325,10 +354,6 @@ public final class KeyServiceHandler {
                 ).catchUp()
             }
         )
-        let replacementIntentStore =
-            V3ReplacementEnrollmentIntentKeychainStore(
-                configuration: runtimeConfiguration
-            )
         let replacementIdentityDeleter =
             V3EnrollmentDeviceIdentityDeleter(
                 recordStore: identityRecordStore
@@ -371,7 +396,8 @@ public final class KeyServiceHandler {
             vaultReader: runtime,
             vaultMutator: runtime,
             vaultSession: runtime,
-            configuredVaultID: vaultID
+            configuredVaultID: vaultID,
+            replacementAdmissionState: replacementAdmissionState
         )
     }
 
@@ -470,6 +496,20 @@ public final class KeyServiceHandler {
     }
 
     public func handle(_ request: KeyServiceRequest) -> KeyServiceResponse {
+        guard request.isAllowed(
+            during: replacementAdmissionState
+        ) else {
+            let message = switch replacementAdmissionState {
+            case .cleanupPending:
+                "Device replacement cleanup is still in progress. Review or resume the pending replacement before using or changing the vault."
+            case .enrollmentPending:
+                "Device replacement enrollment is still in progress. Finish the pending join, comparison, and acceptance before using or changing the vault."
+            case .inactive:
+                preconditionFailure("Inactive replacement cannot block work.")
+            }
+            return .failure(message)
+        }
+
         if request.requiresExclusiveRuntimeSelectionChange {
             return requestQueue.sync(flags: .barrier) {
                 guard !vaultRootChangePending else {
@@ -729,6 +769,8 @@ public final class KeyServiceHandler {
             return enrollmentFailure(error)
         } catch let error as V3DeviceWrappedEnrollmentAdoptionError {
             return deviceWrappedEnrollmentFailure(error)
+        } catch let error as V3ReplacementEnrollmentIntentError {
+            return replacementFailure(error)
         } catch {
             return .failure(error.localizedDescription)
         }
@@ -1330,6 +1372,33 @@ private func v3ReadOnlyOperationError() -> AppError {
 }
 
 private extension KeyServiceRequest {
+    func isAllowed(
+        during state: V3ReplacementEnrollmentAdmissionState
+    ) -> Bool {
+        switch state {
+        case .inactive:
+            true
+        case .cleanupPending:
+            switch self {
+            case .status, .lock,
+                .share(.reviewReplacement),
+                .share(.replaceCurrentDevice):
+                true
+            default:
+                false
+            }
+        case .enrollmentPending:
+            switch self {
+            case .status, .lock,
+                .share(.invitations), .share(.join),
+                .share(.compare), .share(.accept):
+                true
+            default:
+                false
+            }
+        }
+    }
+
     var requiresExclusiveRuntimeSelectionChange: Bool {
         switch self {
         case .setVaultDirectory, .migrationApply,

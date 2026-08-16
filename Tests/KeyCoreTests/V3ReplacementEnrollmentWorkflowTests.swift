@@ -267,6 +267,132 @@ struct V3ReplacementEnrollmentWorkflowTests {
         #expect(service.confirmations.isEmpty)
     }
 
+    @Test
+    func admissionClassifiesResumableCleanupAndConsumesExactIntent() throws {
+        let fixture = try Fixture()
+        let admission = V3ReplacementEnrollmentAdmission(
+            intentStore: fixture.intents
+        )
+        #expect(try admission.state(vaultID: Fixture.vaultID) == .inactive)
+        for phase in [
+            V3ReplacementEnrollmentIntentPhase.prepared,
+            .identityDeletionStarted,
+            .identityDeleted,
+        ] {
+            fixture.intents.storage = V3ReplacementEnrollmentIntent(
+                review: fixture.review,
+                phase: phase
+            ).canonicalBytes
+            #expect(
+                try admission.state(vaultID: Fixture.vaultID)
+                    == .cleanupPending
+            )
+        }
+
+        fixture.intents.storage = fixture.completed.canonicalBytes
+        #expect(
+            try admission.state(vaultID: Fixture.vaultID)
+                == .enrollmentPending
+        )
+
+        try admission.consumeCompletedIntent(vaultID: Fixture.vaultID)
+
+        #expect(fixture.intents.storage == nil)
+        #expect(
+            try admission.state(vaultID: Fixture.vaultID) == .inactive
+        )
+        try admission.consumeCompletedIntent(vaultID: Fixture.vaultID)
+    }
+
+    @Test
+    func interruptedCleanupFencesVaultWorkButKeepsResumeAvailable()
+        throws
+    {
+        let fixture = try Fixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = WorkflowService(
+            review: fixture.review,
+            result: fixture.completed
+        )
+        let handler = KeyServiceHandler(
+            keyStore: MemoryVaultKeyStore(),
+            entryStore: EntryStore(rootURL: root),
+            mutationOwner: WorkflowMutationOwner(),
+            replacementService: service,
+            replacementAdmissionState: .cleanupPending
+        )
+
+        let blocked = handler.handle(.list)
+        #expect(blocked.errorMessage?.contains(
+            "replacement cleanup is still in progress"
+        ) == true)
+
+        let review = handler.handle(.share(.reviewReplacement))
+        let projected = try #require(review.deviceReplacementReview)
+        #expect(projected.confirmationToken == v3LowercaseHex(
+            fixture.review.digest
+        ))
+        let resumed = handler.handle(.share(.replaceCurrentDevice(
+            confirmationToken: projected.confirmationToken
+        )))
+        #expect(resumed.exitCode == EXIT_SUCCESS)
+        #expect(service.confirmations == [fixture.review.digest])
+    }
+
+    @Test
+    func completedReplacementFencesVaultWorkButKeepsEnrollmentRetryable()
+        throws
+    {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let handler = KeyServiceHandler(
+            keyStore: MemoryVaultKeyStore(),
+            entryStore: EntryStore(rootURL: root),
+            mutationOwner: WorkflowMutationOwner(),
+            replacementAdmissionState: .enrollmentPending
+        )
+
+        let invitations = handler.handle(.share(.invitations))
+        #expect(invitations.errorMessage?.contains(
+            "sharing is unavailable"
+        ) == true)
+
+        let invitationID = String(repeating: "11", count: 32)
+        let comparisonCode = "000000"
+        let acceptance = {
+            handler.handle(.share(.accept(
+                vaultID: Fixture.vaultID,
+                invitationID: invitationID,
+                comparisonCode: comparisonCode
+            )))
+        }
+        #expect(acceptance().errorMessage?.contains(
+            "sharing is unavailable"
+        ) == true)
+
+        let blocked = handler.handle(.list)
+        #expect(blocked.exitCode == EXIT_FAILURE)
+        #expect(blocked.errorMessage?.contains(
+            "replacement enrollment is still in progress"
+        ) == true)
+        #expect(handler.handle(.status).exitCode == EXIT_SUCCESS)
+
+        #expect(acceptance().errorMessage?.contains(
+            "sharing is unavailable"
+        ) == true)
+    }
+
     private final class Fixture {
         static let vaultID =
             "018f4d38-7d5a-7b20-b0f1-97d6e96cc4b3"

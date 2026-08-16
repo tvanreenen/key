@@ -776,6 +776,7 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
         let cache = MemoryCheckpointCache()
         let session = V3DeviceWrappedVaultKeySessionStore()
         let selection = AdoptionSelectionRecorder()
+        let replacementCompletion = ReplacementCompletionRecorder()
         let service = V3DeviceWrappedEnrollmentAdoptionService(
             source: fixture.store,
             checkpointStore: checkpointStore,
@@ -797,6 +798,16 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
                 #expect(try V3ManifestCheckpoint(
                     canonicalBytes: checkpoint
                 ).envelopeDigest == fixture.candidate.manifestDigest)
+            },
+            completeReplacement: { vaultID in
+                #expect(selection.vaultID == vaultID)
+                #expect(checkpointStore.checkpoint != nil)
+                let installedKey = try session.load(
+                    vaultID: vaultID,
+                    keyID: fixture.candidate.body.keyID
+                )
+                #expect(installedKey == Self.nextKey)
+                replacementCompletion.complete(vaultID)
             }
         )
         let transcript = try #require(joinerState.transcript)
@@ -811,6 +822,7 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
 
         #expect(report.deviceName == "Joining Mac")
         #expect(selection.vaultID == Self.vaultID)
+        #expect(replacementCompletion.vaultIDs == [Self.vaultID])
         #expect(cache.storedManifest == fixture.candidate.manifestData)
         #expect(try V3EnrollmentCeremonyState(
             canonicalBytes: #require(try stateStore.loadState(
@@ -1768,6 +1780,19 @@ private final class AdoptionSelectionRecorder: @unchecked Sendable {
             }
             selectedVaultID = vaultID
         }
+    }
+}
+
+private final class ReplacementCompletionRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String] = []
+
+    var vaultIDs: [String] {
+        lock.withLock { storage }
+    }
+
+    func complete(_ vaultID: String) {
+        lock.withLock { storage.append(vaultID) }
     }
 }
 

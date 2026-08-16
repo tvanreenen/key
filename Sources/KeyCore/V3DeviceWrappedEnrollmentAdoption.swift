@@ -86,6 +86,9 @@ struct V3DeviceWrappedEnrollmentAdoptionService:
         _ vaultID: String,
         _ session: V3DeviceWrappedVaultKeySessionStore
     ) throws -> Void
+    typealias ReplacementCompletion = @Sendable (
+        _ vaultID: String
+    ) throws -> Void
 
     private let source: any V3ImmutableObjectReading
     private let checkpointStore: any V3ManifestCheckpointStoring
@@ -95,6 +98,7 @@ struct V3DeviceWrappedEnrollmentAdoptionService:
     private let session: V3DeviceWrappedVaultKeySessionStore
     private let selectVault: VaultSelector
     private let verifyRuntime: RuntimeVerifier
+    private let completeReplacement: ReplacementCompletion?
     private let limits: V3ManifestRepositoryLimits
 
     init(
@@ -106,6 +110,7 @@ struct V3DeviceWrappedEnrollmentAdoptionService:
         session: V3DeviceWrappedVaultKeySessionStore,
         selectVault: @escaping VaultSelector,
         verifyRuntime: @escaping RuntimeVerifier,
+        completeReplacement: ReplacementCompletion? = nil,
         limits: V3ManifestRepositoryLimits = .standard
     ) {
         self.source = source
@@ -116,6 +121,7 @@ struct V3DeviceWrappedEnrollmentAdoptionService:
         self.session = session
         self.selectVault = selectVault
         self.verifyRuntime = verifyRuntime
+        self.completeReplacement = completeReplacement
         self.limits = limits
     }
 
@@ -200,6 +206,7 @@ struct V3DeviceWrappedEnrollmentAdoptionService:
         } catch {
             throw V3DeviceWrappedEnrollmentAdoptionError.selectionFailed
         }
+        try completeReplacement?(vaultID)
         selected = true
         return V3DeviceWrappedEnrollmentAdoptionReport(
             vaultID: vaultID,
