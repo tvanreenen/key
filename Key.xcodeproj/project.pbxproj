@@ -126,6 +126,11 @@
 		D53500000000000000000002 /* V3DeviceWrappedKeyRotationTransitionRecoverer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53500000000000000000001 /* V3DeviceWrappedKeyRotationTransitionRecoverer.swift */; };
 		D53600000000000000000002 /* V3DeviceWrappedRevocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53600000000000000000001 /* V3DeviceWrappedRevocationService.swift */; };
 		D53700000000000000000002 /* V3DeviceWrappedRevocationWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53700000000000000000001 /* V3DeviceWrappedRevocationWorkflow.swift */; };
+		D53800000000000000000002 /* V3ReplacementDeviceIdentityClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53800000000000000000001 /* V3ReplacementDeviceIdentityClassifier.swift */; };
+		D53900000000000000000002 /* V3ReplacementEnrollmentIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53900000000000000000001 /* V3ReplacementEnrollmentIntent.swift */; };
+		D54000000000000000000002 /* V3ReplacementEnrollmentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D54000000000000000000001 /* V3ReplacementEnrollmentCoordinator.swift */; };
+		D54100000000000000000002 /* V3ReplacementDeviceIdentityAuthorityAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D54100000000000000000001 /* V3ReplacementDeviceIdentityAuthorityAdapter.swift */; };
+		D54200000000000000000002 /* V3ReplacementEnrollmentWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D54200000000000000000001 /* V3ReplacementEnrollmentWorkflow.swift */; };
 		A5000011A5000011A5000011 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000012A5000012A5000012 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
 		A5000013A5000013A5000013 /* libJSONCanonicalization.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000A0A50000A0A50000A0 /* libJSONCanonicalization.a */; };
@@ -302,6 +307,11 @@
 		D53500000000000000000001 /* V3DeviceWrappedKeyRotationTransitionRecoverer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedKeyRotationTransitionRecoverer.swift; sourceTree = "<group>"; };
 		D53600000000000000000001 /* V3DeviceWrappedRevocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedRevocationService.swift; sourceTree = "<group>"; };
 		D53700000000000000000001 /* V3DeviceWrappedRevocationWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedRevocationWorkflow.swift; sourceTree = "<group>"; };
+		D53800000000000000000001 /* V3ReplacementDeviceIdentityClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ReplacementDeviceIdentityClassifier.swift; sourceTree = "<group>"; };
+		D53900000000000000000001 /* V3ReplacementEnrollmentIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ReplacementEnrollmentIntent.swift; sourceTree = "<group>"; };
+		D54000000000000000000001 /* V3ReplacementEnrollmentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ReplacementEnrollmentCoordinator.swift; sourceTree = "<group>"; };
+		D54100000000000000000001 /* V3ReplacementDeviceIdentityAuthorityAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ReplacementDeviceIdentityAuthorityAdapter.swift; sourceTree = "<group>"; };
+		D54200000000000000000001 /* V3ReplacementEnrollmentWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ReplacementEnrollmentWorkflow.swift; sourceTree = "<group>"; };
 		A5500002A5500002A5500002 /* V3DeviceWrappedGenesisInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedGenesisInstaller.swift; sourceTree = "<group>"; };
 		A5510002A5510002A5510002 /* V3DeviceWrappedManifestCandidateBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedManifestCandidateBuilder.swift; sourceTree = "<group>"; };
 		A5520002A5520002A5520002 /* V3DeviceWrappedTransactionValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedTransactionValidation.swift; sourceTree = "<group>"; };
@@ -454,6 +464,11 @@
 				D53500000000000000000001 /* V3DeviceWrappedKeyRotationTransitionRecoverer.swift */,
 				D53600000000000000000001 /* V3DeviceWrappedRevocationService.swift */,
 				D53700000000000000000001 /* V3DeviceWrappedRevocationWorkflow.swift */,
+				D53800000000000000000001 /* V3ReplacementDeviceIdentityClassifier.swift */,
+				D53900000000000000000001 /* V3ReplacementEnrollmentIntent.swift */,
+				D54000000000000000000001 /* V3ReplacementEnrollmentCoordinator.swift */,
+				D54100000000000000000001 /* V3ReplacementDeviceIdentityAuthorityAdapter.swift */,
+				D54200000000000000000001 /* V3ReplacementEnrollmentWorkflow.swift */,
 				A5500002A5500002A5500002 /* V3DeviceWrappedGenesisInstaller.swift */,
 				A5510002A5510002A5510002 /* V3DeviceWrappedManifestCandidateBuilder.swift */,
 				A5520002A5520002A5520002 /* V3DeviceWrappedTransactionValidation.swift */,
@@ -871,6 +886,11 @@
 				D53500000000000000000002 /* V3DeviceWrappedKeyRotationTransitionRecoverer.swift in Sources */,
 				D53600000000000000000002 /* V3DeviceWrappedRevocationService.swift in Sources */,
 				D53700000000000000000002 /* V3DeviceWrappedRevocationWorkflow.swift in Sources */,
+				D53800000000000000000002 /* V3ReplacementDeviceIdentityClassifier.swift in Sources */,
+				D53900000000000000000002 /* V3ReplacementEnrollmentIntent.swift in Sources */,
+				D54000000000000000000002 /* V3ReplacementEnrollmentCoordinator.swift in Sources */,
+				D54100000000000000000002 /* V3ReplacementDeviceIdentityAuthorityAdapter.swift in Sources */,
+				D54200000000000000000002 /* V3ReplacementEnrollmentWorkflow.swift in Sources */,
 				A5500001A5500001A5500001 /* V3DeviceWrappedGenesisInstaller.swift in Sources */,
 				A5510001A5510001A5510001 /* V3DeviceWrappedManifestCandidateBuilder.swift in Sources */,
 				A5520001A5520001A5520001 /* V3DeviceWrappedTransactionValidation.swift in Sources */,

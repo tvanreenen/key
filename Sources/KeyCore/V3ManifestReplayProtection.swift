@@ -148,6 +148,16 @@ protocol V3ManifestCheckpointStoring: Sendable {
     ) throws
 }
 
+/// Narrow destructive capability used only by helper-owned replacement
+/// enrollment. Keeping it separate prevents ordinary replay-protection users
+/// from gaining checkpoint deletion implicitly.
+protocol V3ManifestCheckpointDeleting: Sendable {
+    func deleteCheckpoint(
+        expectedCheckpoint: Data,
+        vaultID: String
+    ) throws
+}
+
 public struct V3ManifestReplayProtector: Sendable {
     private let store: any V3ManifestCheckpointStoring
     private let authenticator: V3ManifestAuthenticator

@@ -27,16 +27,36 @@ private final class V3EnrollmentVaultSelectionCommitter:
             expectedKeychainMode: keychainMode
         )
     }
+
+    func requireExistingSelection(_ vaultID: String) throws {
+        let current = try configStore.configuredVaultRuntimeSelection()
+        guard current.vaultID == vaultID,
+              current.rootURL.standardizedFileURL
+                == rootHandle.rootURL.standardizedFileURL,
+              current.keychainMode == keychainMode
+        else {
+            throw AppError.operationRefused(
+                "The selected vault changed during replacement enrollment."
+            )
+        }
+        try rootHandle.requireConfiguredRootIdentity()
+    }
 }
 
 func makeLiveV3EnrollmentWorkflowService(
     rootHandle: VaultRootDirectoryHandle,
     selectedVaultID: String?,
+    replacementVaultID: String? = nil,
+    replacementAdmission: V3ReplacementEnrollmentAdmission? = nil,
     keyStore: any VaultKeyStoring,
     keyConfiguration: KeyConfiguration,
     configStore: KeyConfigStore,
     runtimeConfiguration: RuntimeConfiguration
 ) throws -> V3EnrollmentWorkflowService {
+    precondition(selectedVaultID == nil || replacementVaultID == nil)
+    precondition(
+        replacementVaultID == nil || replacementAdmission != nil
+    )
     let objectStore = V3FilesystemTransactionArtifactStore(
         rootHandle: rootHandle
     )
@@ -77,7 +97,11 @@ func makeLiveV3EnrollmentWorkflowService(
         },
         session: session,
         selectVault: { vaultID in
-            try selectionCommitter.select(vaultID)
+            if replacementVaultID == nil {
+                try selectionCommitter.select(vaultID)
+            } else {
+                try selectionCommitter.requireExistingSelection(vaultID)
+            }
         },
         verifyRuntime: { vaultID, adoptionSession in
             let unlockRuntime = V3DeviceWrappedVaultUnlockRuntime(
@@ -92,10 +116,16 @@ func makeLiveV3EnrollmentWorkflowService(
                 source: objectStore,
                 unlockRuntime: unlockRuntime
             ).list(allowStale: false)
+        },
+        completeReplacement: { vaultID in
+            try replacementAdmission?.consumeCompletedIntent(
+                vaultID: vaultID
+            )
         }
     )
     return V3EnrollmentWorkflowService(
         selectedVaultID: selectedVaultID,
+        replacementVaultID: replacementVaultID,
         source: objectStore,
         objectStore: objectStore,
         checkpointStore: checkpointStore,
@@ -104,11 +134,11 @@ func makeLiveV3EnrollmentWorkflowService(
         vaultKeyStore: keyStore,
         keychainMode: keyConfiguration.keychainMode,
         selectVault: { vaultID in
-            _ = try configStore.selectV3Vault(
-                vaultID: vaultID,
-                expectedRootHandle: rootHandle,
-                expectedKeychainMode: keyConfiguration.keychainMode
-            )
+            if replacementVaultID == nil {
+                try selectionCommitter.select(vaultID)
+            } else {
+                try selectionCommitter.requireExistingSelection(vaultID)
+            }
         },
         verifyRuntime: { vaultID in
             try V3ReadOnlyVaultRuntime(
@@ -273,6 +303,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
     private static let maximumMailboxObjects = 4_096
 
     private let selectedVaultID: String?
+    private let replacementVaultID: String?
     private let source: any V3ImmutableObjectReading
     private let objectStore: any V3ImmutableObjectPublishing
     private let checkpointStore: any V3ManifestCheckpointStoring
@@ -287,6 +318,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
 
     init(
         selectedVaultID: String?,
+        replacementVaultID: String? = nil,
         source: any V3ImmutableObjectReading,
         objectStore: any V3ImmutableObjectPublishing,
         checkpointStore: any V3ManifestCheckpointStoring,
@@ -299,7 +331,9 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         deviceWrappedAdoption:
             (any V3DeviceWrappedEnrollmentAdoptionServicing)? = nil
     ) {
+        precondition(selectedVaultID == nil || replacementVaultID == nil)
         self.selectedVaultID = selectedVaultID
+        self.replacementVaultID = replacementVaultID
         self.source = source
         self.objectStore = objectStore
         self.checkpointStore = checkpointStore
@@ -430,6 +464,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             at: unixTime
         )
         let vaultID = invitation.invitation.vaultID
+        try requirePermittedJoiningVault(vaultID)
         if let state = try exchange.resumeJoining(
             answering: invitation,
             at: unixTime
@@ -510,6 +545,9 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
     ) throws -> String {
         let state: V3EnrollmentCeremonyState
         if let joinRequestDigest {
+            guard replacementVaultID == nil else {
+                throw V3EnrollmentCeremonyStateError.wrongRole
+            }
             guard selectedVaultID == vaultID else {
                 throw V3EnrollmentCeremonyStateError.wrongRole
             }
@@ -520,6 +558,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
                 at: unixTime
             )
         } else {
+            try requirePermittedJoiningVault(vaultID)
             state = try exchange.resume(
                 vaultID: vaultID,
                 invitationDigest: invitationDigest,
@@ -605,6 +644,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
                 "This Mac already selects a version 3 vault."
             )
         }
+        try requirePermittedJoiningVault(vaultID)
         let state = try exchange.resumeJoinerAdoption(
             vaultID: vaultID,
             invitationDigest: invitationDigest,
@@ -639,6 +679,18 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             at: unixTime,
             operationID: operationID
         ).rendered
+    }
+
+    private func requirePermittedJoiningVault(
+        _ vaultID: String
+    ) throws {
+        guard replacementVaultID == nil
+                || replacementVaultID == vaultID
+        else {
+            throw AppError.operationRefused(
+                "This Mac can replace its revoked identity only in its currently selected vault."
+            )
+        }
     }
 
     private func currentTrustedState(

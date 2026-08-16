@@ -177,12 +177,9 @@ public final class KeyCLIApplication {
                 request: .invite(deviceName: deviceName)
             )
         case let .join(invitationID, deviceName):
-            return try executeSimpleShareCommand(
-                command,
-                request: .join(
-                    invitationID: invitationID,
-                    deviceName: deviceName
-                )
+            return try executeJoin(
+                invitationID: invitationID,
+                deviceName: deviceName
             )
         case let .requests(invitationID):
             return try executeSimpleShareCommand(
@@ -297,6 +294,105 @@ public final class KeyCLIApplication {
         ).trimmingCharacters(in: .whitespacesAndNewlines)
         guard answer == "REVOKE" else {
             throw AppError.operationRefused("Device revocation cancelled.")
+        }
+    }
+
+    private func executeJoin(
+        invitationID: String,
+        deviceName: String
+    ) throws -> Int32 {
+        let command = ShareCommand.join(
+            invitationID: invitationID,
+            deviceName: deviceName
+        )
+        let request = KeyShareRequest.join(
+            invitationID: invitationID,
+            deviceName: deviceName
+        )
+        let initialResponse = try transport.send(.share(request))
+        guard let review = initialResponse.deviceReplacementReview else {
+            return try handle(initialResponse, for: .share(command))
+        }
+        guard io.stdinIsTTY else {
+            throw AppError.operationRefused(
+                "Rejoining a revoked Mac requires interactive confirmation."
+            )
+        }
+
+        writeDeviceRejoinReview(review)
+        try confirmDeviceRejoin()
+
+        let revalidationResponse = try transport.send(.share(request))
+        guard revalidationResponse.exitCode == EXIT_SUCCESS else {
+            return try handle(
+                revalidationResponse,
+                for: .share(command)
+            )
+        }
+        let currentReview = try requiredServicePayload(
+            revalidationResponse.deviceReplacementReview,
+            operation: "device rejoin revalidation"
+        )
+        guard currentReview == review else {
+            throw AppError.operationRefused(
+                "The vault's replacement state changed while awaiting confirmation. Review the current state by running the join command again."
+            )
+        }
+
+        let cleanupResponse = try transport.send(.share(.replaceCurrentDevice(
+            confirmationToken: currentReview.confirmationToken
+        )))
+        let cleanupExitCode = try handle(
+            cleanupResponse,
+            for: .share(command)
+        )
+        guard cleanupExitCode == EXIT_SUCCESS else {
+            return cleanupExitCode
+        }
+
+        return try handle(
+            transport.send(.share(request)),
+            for: .share(command)
+        )
+    }
+
+    private func writeDeviceRejoinReview(
+        _ review: V3VaultDeviceReplacementReview
+    ) {
+        var lines = [
+            "This Mac previously belonged to this vault and has been revoked.",
+            "Review rejoin:",
+            "Vault ID: \(review.vaultID)",
+            "Previous identity: \(review.replacedDevice.displayName)",
+            "  ID: \(review.replacedDevice.deviceID)"
+        ]
+        switch review.authorityKind {
+        case .trustedCheckpoint:
+            lines.append(
+                "Revocation source: this Mac's authenticated trusted checkpoint"
+            )
+        case .survivingDevice:
+            if let authorizingDevice = review.authorizingDevice {
+                lines.append(
+                    "Revoked by: \(authorizingDevice.displayName)"
+                )
+            }
+        }
+        lines.append(contentsOf: [
+            "",
+            "Rejoining removes this Mac's unusable local enrollment identity and trusted checkpoint, then creates a new identity through this invitation.",
+            "Synchronized vault files will not be changed.",
+            "The other active Mac must still compare and approve the new identity."
+        ])
+        io.writeStdout(lines.joined(separator: "\n") + "\n")
+    }
+
+    private func confirmDeviceRejoin() throws {
+        let answer = try io.readLine(
+            prompt: "Type REJOIN to replace the revoked identity and continue: "
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard answer == "REJOIN" else {
+            throw AppError.operationRefused("Device rejoin cancelled.")
         }
     }
 

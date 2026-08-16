@@ -7,10 +7,12 @@ shipping helper. `ENR-510` first and later enrollment now use that permanent
 profile and one key-rotating roster-addition transition. The signed alpha.7
 Preview release physically qualified migration, wrapper-backed restart,
 first-to-second-device enrollment, and a joining-device write on two Macs.
-Authenticated remaining-device catch-up and device revocation are
-implemented for the next Preview build. Continuity UX, physical multi-device
-qualification, and final review remain pending. Catastrophe recovery after
-every enrolled device is lost is explicitly deferred beyond `0.2.0`.
+Alpha.8 added authenticated catch-up, revocation, equal enrolled-device
+authority, and continuity guidance; alpha.9 clarified revoked-device handling.
+Restart-safe replacement re-enrollment is integrated into the ordinary join
+journey, while physical multi-device qualification remains pending.
+Catastrophe recovery after every enrolled device is lost is explicitly
+deferred beyond `0.2.0`.
 
 This document defines the intended final key-management model for version 3
 vaults. It replaces the prerelease design in which the raw vault key is stored
@@ -55,7 +57,7 @@ The ordinary CLI remains small:
 - `key unlock` or the first key-backed command opens a local device wrapper.
 - `key share devices` shows the authenticated roster and this Mac.
 - `key share invite`, `join`, `compare`, `approve`, and `accept` enroll a
-  device.
+  new Mac or re-enroll a revoked Mac with a new identity.
 - `key share revoke` removes a selected device after explicit confirmation.
 - `key lock` destroys the in-memory vault-key session.
 - Key recommends at least two enrolled devices and identifies a one-device
@@ -275,10 +277,11 @@ a full-release requirement.
 
 Continuity and catastrophe recovery are different capabilities.
 
-When at least one enrolled device survives, it can enroll a replacement,
-rotate the vault key, and revoke the lost device. Key recommends at least two
-enrolled devices so ordinary device loss does not strand the vault. A
-one-device vault remains valid but must be presented as at risk.
+When at least one enrolled device survives, it can revoke a lost identity,
+rotate the vault key, and authorize a returning or replacement Mac as a new
+identity. Key recommends at least two enrolled devices so ordinary device loss
+does not strand the vault. A one-device vault remains valid but must be
+presented as at risk.
 
 `0.2.0` has no catastrophe-recovery authority. If every enrolled Secure Enclave
 identity becomes unavailable, provider-backed vault files cannot be opened and
@@ -412,8 +415,29 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
   a device-wrapped vault.
 - [x] Report permanent loss honestly when no enrolled Secure Enclave identity
   survives; offer no destructive repair or password fallback.
-- [ ] Release alpha.8 only after enrollment, revocation, replacement
-  continuity, and restart tests pass on multiple physical Macs.
+- [x] Ship continuity guidance and explicit permanent-loss behavior in
+  alpha.8.
+
+### `REP-514` — Revoked-device replacement re-enrollment
+
+- [x] Require a surviving active device to revoke the old identity before the
+  revoked Mac can replace its local enrollment state.
+- [x] Bind explicit cleanup confirmation to the exact authenticated vault,
+  revoked identity, checkpoint, and revocation authority.
+- [x] Make local identity and checkpoint cleanup restart-safe without changing
+  synchronized vault history.
+- [x] Restrict the helper to cleanup while cleanup is pending, then to the
+  ordinary enrollment ceremony until the new identity and checkpoint are
+  usable.
+- [x] Consume replacement authorization only after successful enrollment
+  adoption.
+- [x] Integrate replacement review and confirmation into `key share join`
+  without exposing a separate replacement command or its bound confirmation
+  token.
+- [x] Revalidate the invitation and unchanged review immediately before local
+  cleanup, then wait for helper termination before retrying enrollment.
+- [ ] Physically qualify revoke, cleanup, restart, re-enrollment, catch-up, and
+  writes on multiple Macs before the next Preview release.
 
 ### Later recovery track — Catastrophe recovery
 

@@ -4,6 +4,8 @@ public enum KeyShareRequest: Codable, Equatable, Sendable {
     case devices
     case reviewRevocation(deviceID: String)
     case revoke(deviceID: String, confirmationToken: String)
+    case reviewReplacement
+    case replaceCurrentDevice(confirmationToken: String)
     case invitations
     case invite(deviceName: String)
     case join(invitationID: String, deviceName: String)
@@ -68,7 +70,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     public var requiresHelperShutdownAfterSuccess: Bool {
         switch self {
         case .lock, .setVaultDirectory, .migrationApply,
-            .share(.accept):
+            .share(.accept), .share(.replaceCurrentDevice):
             true
         default:
             false
@@ -361,6 +363,7 @@ public struct KeyServiceResponse: Codable, Equatable {
     public let vaultStatus: VaultStatus?
     public let deviceInventory: V3VaultDeviceInventory?
     public let deviceRevocationReview: V3VaultDeviceRevocationReview?
+    public let deviceReplacementReview: V3VaultDeviceReplacementReview?
     public let conflicts: [VaultConflictSummary]?
     public let conflict: VaultConflictDetail?
 
@@ -373,6 +376,7 @@ public struct KeyServiceResponse: Codable, Equatable {
         vaultStatus: VaultStatus? = nil,
         deviceInventory: V3VaultDeviceInventory? = nil,
         deviceRevocationReview: V3VaultDeviceRevocationReview? = nil,
+        deviceReplacementReview: V3VaultDeviceReplacementReview? = nil,
         conflicts: [VaultConflictSummary]? = nil,
         conflict: VaultConflictDetail? = nil
     ) {
@@ -384,6 +388,7 @@ public struct KeyServiceResponse: Codable, Equatable {
         self.vaultStatus = vaultStatus
         self.deviceInventory = deviceInventory
         self.deviceRevocationReview = deviceRevocationReview
+        self.deviceReplacementReview = deviceReplacementReview
         self.conflicts = conflicts
         self.conflict = conflict
     }
@@ -442,6 +447,17 @@ public struct KeyServiceResponse: Codable, Equatable {
             value: nil,
             errorMessage: nil,
             deviceRevocationReview: review
+        )
+    }
+
+    public static func deviceReplacementReview(
+        _ review: V3VaultDeviceReplacementReview
+    ) -> KeyServiceResponse {
+        KeyServiceResponse(
+            exitCode: EXIT_SUCCESS,
+            value: nil,
+            errorMessage: nil,
+            deviceReplacementReview: review
         )
     }
 

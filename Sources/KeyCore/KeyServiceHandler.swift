@@ -12,13 +12,19 @@ public final class KeyServiceHandler {
     private let mutationOwner: any VaultTransactionMutationOwning
     private let migrationService: (any V3LocalMigrationServicing)?
     private let enrollmentService: (any V3EnrollmentWorkflowServicing)?
+    private let validateJoinInvitation:
+        (@Sendable (_ digest: Data, _ unixTime: UInt64) throws -> Void)?
     private let revocationService:
         (any V3DeviceWrappedRevocationWorkflowServicing)?
+    private let replacementService:
+        (any V3ReplacementEnrollmentWorkflowServicing)?
     private let vaultUXService: any VaultUXServicing
     private let vaultReader: (any VaultReadServicing)?
     private let vaultMutator: (any VaultMutationServicing)?
     private let vaultSession: (any VaultSessionServicing)?
     private let configuredVaultID: String?
+    private let replacementAdmissionState:
+        V3ReplacementEnrollmentAdmissionState
     private let requestQueue = DispatchQueue(
         label: "work.tvr.key.service-handler.requests",
         attributes: .concurrent
@@ -62,13 +68,19 @@ public final class KeyServiceHandler {
         mutationOwner: any VaultTransactionMutationOwning,
         migrationService: (any V3LocalMigrationServicing)? = nil,
         enrollmentService: (any V3EnrollmentWorkflowServicing)? = nil,
+        validateJoinInvitation:
+            (@Sendable (Data, UInt64) throws -> Void)? = nil,
         revocationService:
             (any V3DeviceWrappedRevocationWorkflowServicing)? = nil,
+        replacementService:
+            (any V3ReplacementEnrollmentWorkflowServicing)? = nil,
         vaultUXService: (any VaultUXServicing)? = nil,
         vaultReader: (any VaultReadServicing)? = nil,
         vaultMutator: (any VaultMutationServicing)? = nil,
         vaultSession: (any VaultSessionServicing)? = nil,
-        configuredVaultID: String? = nil
+        configuredVaultID: String? = nil,
+        replacementAdmissionState:
+            V3ReplacementEnrollmentAdmissionState = .inactive
     ) {
         self.keyStore = keyStore
         self.entryStore = entryStore
@@ -78,13 +90,16 @@ public final class KeyServiceHandler {
         self.mutationOwner = mutationOwner
         self.migrationService = migrationService
         self.enrollmentService = enrollmentService
+        self.validateJoinInvitation = validateJoinInvitation
         self.revocationService = revocationService
+        self.replacementService = replacementService
         self.vaultUXService = vaultUXService
             ?? V2VaultUXService(entryStore: entryStore)
         self.vaultReader = vaultReader
         self.vaultMutator = vaultMutator
         self.vaultSession = vaultSession
         self.configuredVaultID = configuredVaultID
+        self.replacementAdmissionState = replacementAdmissionState
         self.currentKeychainMode = keychainMode
     }
 
@@ -163,10 +178,12 @@ public final class KeyServiceHandler {
         let cache = try makeV3CheckpointManifestCache(
             keyConfiguration: keyConfiguration
         )
-        let identityManager = V3EnrollmentDeviceIdentityManager(
-            recordStore: V3EnrollmentDeviceKeyRecordKeychainStore(
+        let identityRecordStore =
+            V3EnrollmentDeviceKeyRecordKeychainStore(
                 configuration: runtimeConfiguration
-            ),
+            )
+        let identityManager = V3EnrollmentDeviceIdentityManager(
+            recordStore: identityRecordStore,
             keyOperations: V3SecureEnclaveEnrollmentDeviceKeyOperations()
         )
         let objectStore = V3FilesystemTransactionArtifactStore(
@@ -253,6 +270,13 @@ public final class KeyServiceHandler {
                 configuration: runtimeConfiguration
             )
         )
+        let replacementIntentStore =
+            V3ReplacementEnrollmentIntentKeychainStore(
+                configuration: runtimeConfiguration
+            )
+        let replacementAdmission = V3ReplacementEnrollmentAdmission(
+            intentStore: replacementIntentStore
+        )
         let approvalService =
             V3DeviceWrappedEnrollmentOwnerApprovalService(
                 vaultID: vaultID,
@@ -271,23 +295,40 @@ public final class KeyServiceHandler {
                 },
                 session: session
             )
-        let enrollmentService = V3DeviceWrappedEnrollmentOwnerWorkflow(
-            vaultID: vaultID,
-            stateLoader: unlockRuntime,
-            exchange: exchange,
-            loadIdentity: { requestedVaultID, reason in
-                try identityManager.loadIdentity(
-                    vaultID: requestedVaultID,
-                    reason: reason
-                )
-            },
-            loadPublicIdentity: { requestedVaultID in
-                try identityManager.loadRecordedPublicIdentity(
-                    vaultID: requestedVaultID
-                )
-            },
-            approvalService: approvalService
+        let replacementAdmissionState = try replacementAdmission.state(
+            vaultID: vaultID
         )
+        let enrollmentService: any V3EnrollmentWorkflowServicing
+        if replacementAdmissionState == .enrollmentPending {
+            enrollmentService = try makeLiveV3EnrollmentWorkflowService(
+                rootHandle: rootHandle,
+                selectedVaultID: nil,
+                replacementVaultID: vaultID,
+                replacementAdmission: replacementAdmission,
+                keyStore: keyStore,
+                keyConfiguration: keyConfiguration,
+                configStore: configStore,
+                runtimeConfiguration: runtimeConfiguration
+            )
+        } else {
+            enrollmentService = V3DeviceWrappedEnrollmentOwnerWorkflow(
+                vaultID: vaultID,
+                stateLoader: unlockRuntime,
+                exchange: exchange,
+                loadIdentity: { requestedVaultID, reason in
+                    try identityManager.loadIdentity(
+                        vaultID: requestedVaultID,
+                        reason: reason
+                    )
+                },
+                loadPublicIdentity: { requestedVaultID in
+                    try identityManager.loadRecordedPublicIdentity(
+                        vaultID: requestedVaultID
+                    )
+                },
+                approvalService: approvalService
+            )
+        }
         let revocationService = V3DeviceWrappedRevocationWorkflow(
             service: V3DeviceWrappedRevocationService(
                 vaultID: vaultID,
@@ -318,6 +359,35 @@ public final class KeyServiceHandler {
                 ).catchUp()
             }
         )
+        let replacementIdentityDeleter =
+            V3EnrollmentDeviceIdentityDeleter(
+                recordStore: identityRecordStore
+            )
+        let replacementAuthority =
+            V3ReplacementDeviceIdentityAuthorityAdapter(
+                vaultID: vaultID,
+                stateManager: unlockRuntime,
+                contentSteps: contentCatchUpSteps,
+                keyTransitionDiscovery: keyTransitionDiscovery
+            )
+        let replacementService = V3ReplacementEnrollmentWorkflow(
+            vaultID: vaultID,
+            loadTarget: { requestedVaultID in
+                try replacementIdentityDeleter.deletionTarget(
+                    vaultID: requestedVaultID
+                )
+            },
+            authorityClassifier: replacementAuthority,
+            intentStore: replacementIntentStore,
+            coordinator: V3ReplacementEnrollmentCoordinator(
+                vaultID: vaultID,
+                mutationOwner: mutationOwner,
+                authorityClassifier: replacementAuthority,
+                identityDeleter: replacementIdentityDeleter,
+                checkpointStore: checkpointStore,
+                intentStore: replacementIntentStore
+            )
+        )
         return KeyServiceHandler(
             keyStore: keyStore,
             entryStore: entryStore,
@@ -325,12 +395,25 @@ public final class KeyServiceHandler {
             configStore: configStore,
             mutationOwner: mutationOwner,
             enrollmentService: enrollmentService,
+            validateJoinInvitation: { invitationDigest, unixTime in
+                let invitation = try exchange.receiveInvitation(
+                    digest: invitationDigest,
+                    at: unixTime
+                )
+                guard invitation.invitation.vaultID == vaultID else {
+                    throw AppError.operationRefused(
+                        "The selected invitation belongs to a different vault."
+                    )
+                }
+            },
             revocationService: revocationService,
+            replacementService: replacementService,
             vaultUXService: runtime,
             vaultReader: runtime,
             vaultMutator: runtime,
             vaultSession: runtime,
-            configuredVaultID: vaultID
+            configuredVaultID: vaultID,
+            replacementAdmissionState: replacementAdmissionState
         )
     }
 
@@ -429,6 +512,20 @@ public final class KeyServiceHandler {
     }
 
     public func handle(_ request: KeyServiceRequest) -> KeyServiceResponse {
+        guard request.isAllowed(
+            during: replacementAdmissionState
+        ) else {
+            let message = switch replacementAdmissionState {
+            case .cleanupPending:
+                "Device replacement cleanup is still in progress. Review or resume the pending replacement before using or changing the vault."
+            case .enrollmentPending:
+                "Device replacement enrollment is still in progress. Finish the pending join, comparison, and acceptance before using or changing the vault."
+            case .inactive:
+                preconditionFailure("Inactive replacement cannot block work.")
+            }
+            return .failure(message)
+        }
+
         if request.requiresExclusiveRuntimeSelectionChange {
             return requestQueue.sync(flags: .barrier) {
                 guard !vaultRootChangePending else {
@@ -688,6 +785,8 @@ public final class KeyServiceHandler {
             return enrollmentFailure(error)
         } catch let error as V3DeviceWrappedEnrollmentAdoptionError {
             return deviceWrappedEnrollmentFailure(error)
+        } catch let error as V3ReplacementEnrollmentIntentError {
+            return replacementFailure(error)
         } catch {
             return .failure(error.localizedDescription)
         }
@@ -737,6 +836,38 @@ public final class KeyServiceHandler {
                     "Device revoked. The vault key was rotated for the remaining active devices.\n"
                 )
             }
+        case .reviewReplacement:
+            return replacementResponse {
+                guard let mutationContext,
+                      mutationContext.kind == .catchUpVault
+                else {
+                    throw AppError.operationRefused(
+                        "Device replacement review requires the helper's serialized mutation boundary."
+                    )
+                }
+                return .deviceReplacementReview(
+                    V3VaultDeviceReplacementReview(
+                        review: try requiredReplacementService().review()
+                    )
+                )
+            }
+        case let .replaceCurrentDevice(confirmationToken):
+            return replacementResponse {
+                let intent = try requiredReplacementService().replace(
+                    confirmedReviewDigest: try replacementDigest(
+                        confirmationToken
+                    )
+                )
+                guard intent.phase == .checkpointDeleted else {
+                    throw AppError.operationRefused(
+                        "Device replacement cleanup did not complete."
+                    )
+                }
+                vaultSession?.lock()
+                return .success(
+                    "Revoked device state removed. This Mac is ready to create a new enrollment identity.\n"
+                )
+            }
         case .invitations:
             return .success(try requiredEnrollmentService().listInvitations())
         case let .invite(deviceName):
@@ -745,8 +876,44 @@ public final class KeyServiceHandler {
                 at: unixTime
             ))
         case let .join(invitationID, deviceName):
+            let invitationDigest = try enrollmentDigest(invitationID)
+            if configuredVaultID != nil,
+               replacementAdmissionState != .enrollmentPending
+            {
+                return replacementResponse {
+                    guard let mutationContext,
+                          mutationContext.kind == .catchUpVault
+                    else {
+                        throw AppError.operationRefused(
+                            "Device rejoin review requires the helper's serialized mutation boundary."
+                        )
+                    }
+                    guard let validateJoinInvitation else {
+                        throw AppError.operationRefused(
+                            "Device rejoin invitation validation is unavailable in this helper runtime."
+                        )
+                    }
+                    try validateJoinInvitation(invitationDigest, unixTime)
+                    do {
+                        return .deviceReplacementReview(
+                            V3VaultDeviceReplacementReview(
+                                review: try requiredReplacementService()
+                                    .review()
+                            )
+                        )
+                    } catch V3ReplacementEnrollmentWorkflowError
+                        .deviceStillActive
+                    {
+                        return .success(try requiredEnrollmentService().join(
+                            invitationDigest: invitationDigest,
+                            deviceName: deviceName,
+                            at: unixTime
+                        ))
+                    }
+                }
+            }
             return .success(try requiredEnrollmentService().join(
-                invitationDigest: try enrollmentDigest(invitationID),
+                invitationDigest: invitationDigest,
                 deviceName: deviceName,
                 at: unixTime
             ))
@@ -823,6 +990,47 @@ public final class KeyServiceHandler {
             )
         }
         return revocationService
+    }
+
+    private func requiredReplacementService() throws
+        -> any V3ReplacementEnrollmentWorkflowServicing
+    {
+        guard let replacementService else {
+            throw AppError.operationRefused(
+                "Device replacement is unavailable in this helper runtime."
+            )
+        }
+        return replacementService
+    }
+
+    private func replacementResponse(
+        _ operation: () throws -> KeyServiceResponse
+    ) -> KeyServiceResponse {
+        do {
+            return try operation()
+        } catch let error as AppError {
+            return .failure(error)
+        } catch let error as VaultUXServiceError {
+            return .failure(error)
+        } catch let error as V3ReplacementEnrollmentWorkflowError {
+            return replacementFailure(error)
+        } catch let error as V3ReplacementDeviceIdentityClassificationError {
+            return replacementFailure(error)
+        } catch let error as V3ReplacementEnrollmentCoordinatorError {
+            return replacementFailure(error)
+        } catch let error as V3ReplacementEnrollmentIntentError {
+            return replacementFailure(error)
+        } catch let error as V3EnrollmentDeviceIdentityStoreError {
+            return replacementFailure(error)
+        } catch let error as V3DeviceWrappedCatchUpError {
+            return revocationFailure(error)
+        } catch let error as V3DeviceWrappedVaultUnlockRuntimeError {
+            return revocationFailure(error)
+        } catch let error as V3ManifestCheckpointStoreError {
+            return revocationFailure(error)
+        } catch {
+            return .failure(error.localizedDescription)
+        }
     }
 
     private func revocationResponse(
@@ -1216,10 +1424,37 @@ private func v3ReadOnlyOperationError() -> AppError {
 }
 
 private extension KeyServiceRequest {
+    func isAllowed(
+        during state: V3ReplacementEnrollmentAdmissionState
+    ) -> Bool {
+        switch state {
+        case .inactive:
+            true
+        case .cleanupPending:
+            switch self {
+            case .status, .lock,
+                .share(.reviewReplacement),
+                .share(.replaceCurrentDevice), .share(.join):
+                true
+            default:
+                false
+            }
+        case .enrollmentPending:
+            switch self {
+            case .status, .lock,
+                .share(.invitations), .share(.join),
+                .share(.compare), .share(.accept):
+                true
+            default:
+                false
+            }
+        }
+    }
+
     var requiresExclusiveRuntimeSelectionChange: Bool {
         switch self {
         case .setVaultDirectory, .migrationApply,
-            .share(.accept):
+            .share(.accept), .share(.replaceCurrentDevice):
             true
         default:
             false
@@ -1252,7 +1487,8 @@ private extension KeyServiceRequest {
             .migrateToV3
         case .share(.approve), .share(.accept):
             .enrollDevice
-        case .share(.reviewRevocation):
+        case .share(.reviewRevocation), .share(.reviewReplacement),
+            .share(.join):
             .catchUpVault
         case .share(.revoke):
             .revokeDevice
@@ -1272,7 +1508,8 @@ private extension KeyServiceRequest {
     var ownsMutationAuthorization: Bool {
         switch self {
         case .share(.approve), .share(.accept),
-            .share(.reviewRevocation), .share(.revoke):
+            .share(.reviewRevocation), .share(.reviewReplacement),
+            .share(.revoke), .share(.join):
             true
         default:
             false
@@ -1302,6 +1539,99 @@ private func enrollmentDigest(_ value: String) throws -> Data {
         index = next
     }
     return result
+}
+
+private func replacementDigest(_ value: String) throws -> Data {
+    guard value.utf8.count == 64,
+        value.utf8.allSatisfy({
+            ($0 >= 48 && $0 <= 57) || ($0 >= 97 && $0 <= 102)
+        })
+    else {
+        throw AppError.usage(
+            "Replacement confirmation tokens must be complete 64-character lowercase hexadecimal values."
+        )
+    }
+    var result = Data()
+    result.reserveCapacity(32)
+    var index = value.startIndex
+    for _ in 0..<32 {
+        let next = value.index(index, offsetBy: 2)
+        guard let byte = UInt8(value[index..<next], radix: 16) else {
+            throw AppError.usage("Invalid replacement confirmation token.")
+        }
+        result.append(byte)
+        index = next
+    }
+    return result
+}
+
+private func replacementFailure(
+    _ error: V3ReplacementEnrollmentWorkflowError
+) -> KeyServiceResponse {
+    switch error {
+    case .noLocalIdentity, .deviceStillActive:
+        .failure(error.localizedDescription, code: .operationRefused)
+    case .identityUnrecognized:
+        .failure(error.localizedDescription, code: .recoveryRequired)
+    case .invalidConfirmation:
+        .failure(error.localizedDescription, code: .invalidUsage)
+    }
+}
+
+private func replacementFailure(
+    _ error: V3ReplacementDeviceIdentityClassificationError
+) -> KeyServiceResponse {
+    switch error {
+    case .conflictingAuthority:
+        .failure(error.localizedDescription, code: .securityConflict)
+    case .upgradeRequired:
+        .failure(error.localizedDescription, code: .operationRefused)
+    case .invalidAuthority, .identityMismatch:
+        .failure(error.localizedDescription, code: .recoveryRequired)
+    }
+}
+
+private func replacementFailure(
+    _ error: V3ReplacementEnrollmentCoordinatorError
+) -> KeyServiceResponse {
+    switch error {
+    case .invalidConfirmation:
+        .failure(error.localizedDescription, code: .invalidUsage)
+    case .reviewedStateChanged:
+        .failure(error.localizedDescription, code: .expectedHeadsChanged)
+    case .invalidRequest, .replacementAlreadyInProgress,
+        .noReplacementInProgress:
+        .failure(error.localizedDescription, code: .operationRefused)
+    }
+}
+
+private func replacementFailure(
+    _ error: V3ReplacementEnrollmentIntentError
+) -> KeyServiceResponse {
+    switch error {
+    case .conflict:
+        .failure(error.localizedDescription, code: .expectedHeadsChanged)
+    case .invalidReview, .invalidIntent, .invalidPhaseTransition,
+        .invalidConfiguration, .keychainStatus:
+        .failure(error.localizedDescription, code: .recoveryRequired)
+    }
+}
+
+private func replacementFailure(
+    _ error: V3EnrollmentDeviceIdentityStoreError
+) -> KeyServiceResponse {
+    switch error {
+    case .authenticationCancelled:
+        .failure(error.localizedDescription, code: .authenticationFailed)
+    case .conflict:
+        .failure(error.localizedDescription, code: .expectedHeadsChanged)
+    case .identityAlreadyExists:
+        .failure(error.localizedDescription, code: .operationRefused)
+    case .invalidRecord, .invalidIdentityRequest, .identityMismatch,
+        .secureEnclaveUnavailable, .invalidConfiguration,
+        .keyOperationFailed, .keychainStatus:
+        .failure(error.localizedDescription, code: .recoveryRequired)
+    }
 }
 
 private func revocationFailure(

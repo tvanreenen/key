@@ -447,6 +447,69 @@ struct V3EnrollmentAdoptionTests {
             )
         }
     }
+
+    @Test
+    func replacementJoiningIsRestrictedToTheSelectedVault() throws {
+        let fixture = try Fixture()
+        let ceremony = try V3EnrollmentCeremonyState(
+            canonicalBytes: fixture.stateStore.state
+        )
+        let mailbox = ReplacementWorkflowMailbox(
+            invitation: ceremony.signedInvitation.canonicalBytes,
+            digest: fixture.invitation.digest
+        )
+        let service = V3EnrollmentWorkflowService(
+            selectedVaultID: nil,
+            replacementVaultID: Self.vaultID,
+            source: fixture.source,
+            objectStore: fixture.source,
+            checkpointStore: fixture.checkpointStore,
+            exchange: V3EnrollmentExchangeCoordinator(
+                mailbox: mailbox,
+                stateStore: EmptyWorkflowEnrollmentStateStore()
+            ),
+            identityManager: fixture.identityManager,
+            vaultKeyStore: fixture.keyStore,
+            keychainMode: .local,
+            selectVault: { _ in },
+            verifyRuntime: { _ in }
+        )
+
+        let rendered = try service.join(
+            invitationDigest: fixture.invitation.digest,
+            deviceName: "Joining Mac",
+            at: Self.activeTime
+        )
+
+        #expect(rendered.contains("Join request published."))
+        #expect(mailbox.publishedJoinRequests.count == 1)
+
+        let wrongVaultService = V3EnrollmentWorkflowService(
+            selectedVaultID: nil,
+            replacementVaultID:
+                "018f4d38-7d5a-7b20-b0f1-97d6e96cc4ff",
+            source: fixture.source,
+            objectStore: fixture.source,
+            checkpointStore: fixture.checkpointStore,
+            exchange: V3EnrollmentExchangeCoordinator(
+                mailbox: mailbox,
+                stateStore: EmptyWorkflowEnrollmentStateStore()
+            ),
+            identityManager: fixture.identityManager,
+            vaultKeyStore: fixture.keyStore,
+            keychainMode: .local,
+            selectVault: { _ in },
+            verifyRuntime: { _ in }
+        )
+        #expect(throws: AppError.self) {
+            _ = try wrongVaultService.join(
+                invitationDigest: fixture.invitation.digest,
+                deviceName: "Joining Mac",
+                at: Self.activeTime
+            )
+        }
+        #expect(mailbox.publishedJoinRequests.count == 1)
+    }
 }
 
 private struct Fixture {
@@ -1144,6 +1207,57 @@ private final class WorkflowEnrollmentMailbox:
         _: Data,
         invitationDigest _: Data
     ) throws {}
+}
+
+private final class ReplacementWorkflowMailbox:
+    V3EnrollmentMailboxStoring,
+    @unchecked Sendable
+{
+    let invitation: Data
+    let digest: Data
+    private(set) var publishedJoinRequests: [Data] = []
+
+    init(invitation: Data, digest: Data) {
+        self.invitation = invitation
+        self.digest = digest
+    }
+
+    func invitationDigests(
+        maximumCount _: Int
+    ) throws -> V3EnrollmentMailboxListing {
+        .available(digests: [digest], objectCount: 1)
+    }
+
+    func readInvitation(
+        digest requestedDigest: Data
+    ) throws -> V3RepositoryObjectRead {
+        requestedDigest == digest
+            ? .available(invitation)
+            : .unavailable
+    }
+
+    func publishInvitation(_: Data) throws {}
+
+    func joinRequestDigests(
+        invitationDigest _: Data,
+        maximumCount _: Int
+    ) throws -> V3EnrollmentMailboxListing {
+        .available(digests: [], objectCount: 0)
+    }
+
+    func readJoinRequest(
+        invitationDigest _: Data,
+        joinRequestDigest _: Data
+    ) throws -> V3RepositoryObjectRead {
+        .unavailable
+    }
+
+    func publishJoinRequest(
+        _ bytes: Data,
+        invitationDigest _: Data
+    ) throws {
+        publishedJoinRequests.append(bytes)
+    }
 }
 
 private final class EmptyWorkflowEnrollmentStateStore:
