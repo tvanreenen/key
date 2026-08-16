@@ -514,6 +514,287 @@ struct KeyCLIApplicationTests {
     }
 
     @Test
+    func shareJoinGuidesARevokedMacThroughRejoinAndRetriesJoin() {
+        let review = deviceReplacementReviewFixture()
+        let invitationID = String(repeating: "a", count: 64)
+        var joinAttempts = 0
+        let transport = MemoryTransport { request in
+            switch request {
+            case .share(.join(
+                invitationID: invitationID,
+                deviceName: "Laptop"
+            )):
+                joinAttempts += 1
+                if joinAttempts <= 2 {
+                    return .deviceReplacementReview(review)
+                }
+                return .success("Join request published.\n")
+            case .share(.replaceCurrentDevice(
+                confirmationToken: review.confirmationToken
+            )):
+                return .success(
+                    "Revoked device state removed. This Mac is ready to create a new enrollment identity.\n"
+                )
+            default:
+                Issue.record("Unexpected request: \(request)")
+                return .failure("Unexpected request.")
+            }
+        }
+        let io = MemoryIO(stdinIsTTY: true, lineInput: "REJOIN")
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: [
+            "share", "join", invitationID, "--name", "Laptop"
+        ]) == EXIT_SUCCESS)
+        #expect(transport.requests == [
+            .share(.join(
+                invitationID: invitationID,
+                deviceName: "Laptop"
+            )),
+            .share(.join(
+                invitationID: invitationID,
+                deviceName: "Laptop"
+            )),
+            .share(.replaceCurrentDevice(
+                confirmationToken: review.confirmationToken
+            )),
+            .share(.join(
+                invitationID: invitationID,
+                deviceName: "Laptop"
+            ))
+        ])
+        #expect(io.stdout == """
+        This Mac previously belonged to this vault and has been revoked.
+        Review rejoin:
+        Vault ID: 018f4d38-7d5a-7b20-b0f1-97d6e96c44b3
+        Previous identity: Laptop
+          ID: member-device-id
+        Revoked by: Office Mac
+
+        Rejoining removes this Mac's unusable local enrollment identity and trusted checkpoint, then creates a new identity through this invitation.
+        Synchronized vault files will not be changed.
+        The other active Mac must still compare and approve the new identity.
+        Revoked device state removed. This Mac is ready to create a new enrollment identity.
+        Join request published.
+
+        """)
+        #expect(io.stderr ==
+            "Type REJOIN to replace the revoked identity and continue: ")
+    }
+
+    @Test
+    func shareJoinKeepsTheOrdinaryNewMacPathDirect() {
+        let invitationID = String(repeating: "a", count: 64)
+        let request = KeyServiceRequest.share(.join(
+            invitationID: invitationID,
+            deviceName: "Laptop"
+        ))
+        let transport = MemoryTransport { received in
+            #expect(received == request)
+            return .success("Join request published.\n")
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: [
+            "share", "join", invitationID, "--name", "Laptop"
+        ]) == EXIT_SUCCESS)
+        #expect(transport.requests == [request])
+        #expect(io.stdout == "Join request published.\n")
+        #expect(io.stderr.isEmpty)
+    }
+
+    @Test
+    func shareJoinRefusesNoninteractiveRejoinBeforeReview() {
+        let invitationID = String(repeating: "a", count: 64)
+        let transport = MemoryTransport { request in
+            #expect(request == .share(.join(
+                invitationID: invitationID,
+                deviceName: "Laptop"
+            )))
+            return .deviceReplacementReview(
+                deviceReplacementReviewFixture()
+            )
+        }
+        let io = MemoryIO(stdinIsTTY: false)
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: [
+            "share", "join", invitationID, "--name", "Laptop"
+        ]) == KeyExitCode.failure.rawValue)
+        #expect(transport.requests == [.share(.join(
+            invitationID: invitationID,
+            deviceName: "Laptop"
+        ))])
+        #expect(io.stdout.isEmpty)
+        #expect(io.stderr ==
+            "Rejoining a revoked Mac requires interactive confirmation.\n")
+    }
+
+    @Test
+    func shareJoinCancellationKeepsRevokedLocalState() {
+        let review = deviceReplacementReviewFixture()
+        let invitationID = String(repeating: "a", count: 64)
+        let transport = MemoryTransport { request in
+            switch request {
+            case .share(.join):
+                return .deviceReplacementReview(review)
+            default:
+                Issue.record("Unexpected request: \(request)")
+                return .failure("Unexpected request.")
+            }
+        }
+        let io = MemoryIO(stdinIsTTY: true, lineInput: "cancel")
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: [
+            "share", "join", invitationID, "--name", "Laptop"
+        ]) == KeyExitCode.failure.rawValue)
+        #expect(transport.requests == [
+            .share(.join(
+                invitationID: invitationID,
+                deviceName: "Laptop"
+            ))
+        ])
+        #expect(io.stdout.contains("Synchronized vault files will not be changed."))
+        #expect(io.stderr.hasSuffix("Device rejoin cancelled.\n"))
+    }
+
+    @Test
+    func shareJoinStopsWhenRejoinCleanupFails() {
+        let review = deviceReplacementReviewFixture()
+        let invitationID = String(repeating: "a", count: 64)
+        let transport = MemoryTransport { request in
+            switch request {
+            case .share(.join):
+                return .deviceReplacementReview(review)
+            case .share(.replaceCurrentDevice):
+                return .failure("Cleanup failed safely.")
+            default:
+                Issue.record("Unexpected request: \(request)")
+                return .failure("Unexpected request.")
+            }
+        }
+        let io = MemoryIO(stdinIsTTY: true, lineInput: "REJOIN")
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: [
+            "share", "join", invitationID, "--name", "Laptop"
+        ]) == KeyExitCode.failure.rawValue)
+        #expect(transport.requests == [
+            .share(.join(
+                invitationID: invitationID,
+                deviceName: "Laptop"
+            )),
+            .share(.join(
+                invitationID: invitationID,
+                deviceName: "Laptop"
+            )),
+            .share(.replaceCurrentDevice(
+                confirmationToken: review.confirmationToken
+            ))
+        ])
+        #expect(io.stdout.contains("Review rejoin:"))
+        #expect(io.stderr.hasSuffix("Cleanup failed safely.\n"))
+    }
+
+    @Test
+    func shareJoinDoesNotCleanUpWhenInvitationExpiresAtConfirmation() {
+        let review = deviceReplacementReviewFixture()
+        let invitationID = String(repeating: "a", count: 64)
+        var joinAttempts = 0
+        let transport = MemoryTransport { request in
+            guard case .share(.join) = request else {
+                Issue.record("Unexpected request: \(request)")
+                return .failure("Unexpected request.")
+            }
+            joinAttempts += 1
+            if joinAttempts == 1 {
+                return .deviceReplacementReview(review)
+            }
+            return .failure("The selected enrollment invitation expired.")
+        }
+        let io = MemoryIO(stdinIsTTY: true, lineInput: "REJOIN")
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: [
+            "share", "join", invitationID, "--name", "Laptop"
+        ]) == KeyExitCode.failure.rawValue)
+        #expect(transport.requests == [
+            .share(.join(
+                invitationID: invitationID,
+                deviceName: "Laptop"
+            )),
+            .share(.join(
+                invitationID: invitationID,
+                deviceName: "Laptop"
+            ))
+        ])
+        #expect(io.stderr.hasSuffix(
+            "The selected enrollment invitation expired.\n"
+        ))
+    }
+
+    @Test
+    func shareJoinDoesNotCleanUpWhenTheReviewedStateChanges() {
+        let initialReview = deviceReplacementReviewFixture()
+        let changedReview = deviceReplacementReviewFixture(
+            checkpointID: String(repeating: "f", count: 64),
+            confirmationToken: String(repeating: "e", count: 64)
+        )
+        let invitationID = String(repeating: "a", count: 64)
+        var joinAttempts = 0
+        let transport = MemoryTransport { request in
+            guard case .share(.join) = request else {
+                Issue.record("Unexpected request: \(request)")
+                return .failure("Unexpected request.")
+            }
+            joinAttempts += 1
+            return .deviceReplacementReview(
+                joinAttempts == 1 ? initialReview : changedReview
+            )
+        }
+        let io = MemoryIO(stdinIsTTY: true, lineInput: "REJOIN")
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: [
+            "share", "join", invitationID, "--name", "Laptop"
+        ]) == KeyExitCode.failure.rawValue)
+        #expect(transport.requests.count == 2)
+        #expect(io.stderr.hasSuffix(
+            "The vault's replacement state changed while awaiting confirmation. Review the current state by running the join command again.\n"
+        ))
+    }
+
+    @Test
     func blockedMigrationPreflightPrintsOnlyToStderr() throws {
         let transport = MemoryTransport { request in
             #expect(request == .migrationPreflight)
@@ -1894,5 +2175,30 @@ private func deviceRevocationReviewFixture()
             displayName: "Office Mac",
             status: .active
         )]
+    )
+}
+
+private func deviceReplacementReviewFixture(
+    checkpointID: String = String(repeating: "c", count: 64),
+    confirmationToken: String = String(repeating: "d", count: 64)
+)
+    -> V3VaultDeviceReplacementReview
+{
+    V3VaultDeviceReplacementReview(
+        vaultID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
+        checkpointID: checkpointID,
+        confirmationToken: confirmationToken,
+        replacedDevice: V3VaultDeviceSummary(
+            deviceID: "member-device-id",
+            displayName: "Laptop",
+            status: .revoked
+        ),
+        authorityKind: .survivingDevice,
+        authorizingDevice: V3VaultDeviceSummary(
+            deviceID: "owner-device-id",
+            displayName: "Office Mac",
+            status: .active
+        ),
+        revocationManifestID: String(repeating: "e", count: 64)
     )
 }

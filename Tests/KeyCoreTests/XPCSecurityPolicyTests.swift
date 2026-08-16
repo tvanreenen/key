@@ -401,6 +401,17 @@ struct XPCSecurityPolicyTests {
     }
 
     @Test
+    func connectionEndStateSignalsExactlyOnce() {
+        let state = KeyXPCConnectionEndState()
+
+        state.complete()
+        state.complete()
+
+        #expect(state.wait(until: .now()))
+        #expect(!state.wait(until: .now()))
+    }
+
+    @Test
     func activeRequestPreventsIdleShutdown() {
         let idle = DispatchSemaphore(value: 0)
         let lifecycle = HelperLifecycleController(idleTimeout: 0.05) {

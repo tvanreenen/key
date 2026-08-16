@@ -9,10 +9,10 @@ Preview release physically qualified migration, wrapper-backed restart,
 first-to-second-device enrollment, and a joining-device write on two Macs.
 Alpha.8 added authenticated catch-up, revocation, equal enrolled-device
 authority, and continuity guidance; alpha.9 clarified revoked-device handling.
-Restart-safe replacement re-enrollment is implemented behind the helper
-boundary, while its operator CLI and physical multi-device qualification
-remain pending. Catastrophe recovery after every enrolled device is lost is
-explicitly deferred beyond `0.2.0`.
+Restart-safe replacement re-enrollment is integrated into the ordinary join
+journey, while physical multi-device qualification remains pending.
+Catastrophe recovery after every enrolled device is lost is explicitly
+deferred beyond `0.2.0`.
 
 This document defines the intended final key-management model for version 3
 vaults. It replaces the prerelease design in which the raw vault key is stored
@@ -57,7 +57,7 @@ The ordinary CLI remains small:
 - `key unlock` or the first key-backed command opens a local device wrapper.
 - `key share devices` shows the authenticated roster and this Mac.
 - `key share invite`, `join`, `compare`, `approve`, and `accept` enroll a
-  device.
+  new Mac or re-enroll a revoked Mac with a new identity.
 - `key share revoke` removes a selected device after explicit confirmation.
 - `key lock` destroys the in-memory vault-key session.
 - Key recommends at least two enrolled devices and identifies a one-device
@@ -277,10 +277,11 @@ a full-release requirement.
 
 Continuity and catastrophe recovery are different capabilities.
 
-When at least one enrolled device survives, it can enroll a replacement,
-rotate the vault key, and revoke the lost device. Key recommends at least two
-enrolled devices so ordinary device loss does not strand the vault. A
-one-device vault remains valid but must be presented as at risk.
+When at least one enrolled device survives, it can revoke a lost identity,
+rotate the vault key, and authorize a returning or replacement Mac as a new
+identity. Key recommends at least two enrolled devices so ordinary device loss
+does not strand the vault. A one-device vault remains valid but must be
+presented as at risk.
 
 `0.2.0` has no catastrophe-recovery authority. If every enrolled Secure Enclave
 identity becomes unavailable, provider-backed vault files cannot be opened and
@@ -430,7 +431,11 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
   usable.
 - [x] Consume replacement authorization only after successful enrollment
   adoption.
-- [ ] Expose replacement review and confirmation through the operator CLI.
+- [x] Integrate replacement review and confirmation into `key share join`
+  without exposing a separate replacement command or its bound confirmation
+  token.
+- [x] Revalidate the invitation and unchanged review immediately before local
+  cleanup, then wait for helper termination before retrying enrollment.
 - [ ] Physically qualify revoke, cleanup, restart, re-enrollment, catch-up, and
   writes on multiple Macs before the next Preview release.
 

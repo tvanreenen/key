@@ -30,12 +30,35 @@ final class KeyXPCReplyState: @unchecked Sendable {
     }
 }
 
+final class KeyXPCConnectionEndState: @unchecked Sendable {
+    private let semaphore = DispatchSemaphore(value: 0)
+    private let lock = NSLock()
+    private var isCompleted = false
+
+    func complete() {
+        lock.lock()
+        guard !isCompleted else {
+            lock.unlock()
+            return
+        }
+        isCompleted = true
+        lock.unlock()
+        semaphore.signal()
+    }
+
+    func wait(until deadline: DispatchTime) -> Bool {
+        semaphore.wait(timeout: deadline) == .success
+    }
+}
+
 @objc public protocol KeyXPCProtocol {
     func sendRequest(_ requestData: NSData, withReply reply: @escaping (NSData?, NSString?) -> Void)
     func completeShutdown()
 }
 
 public final class KeyXPCClientTransport: KeyServiceTransport {
+    private static let helperShutdownTimeoutSeconds = 30
+
     private let machServiceName: String
     private let productIdentity: KeyProductIdentity
     private let encoder = JSONEncoder()
@@ -64,6 +87,13 @@ public final class KeyXPCClientTransport: KeyServiceTransport {
                 policy: signingPolicy
             )
         )
+        let connectionEndState = KeyXPCConnectionEndState()
+        connection.interruptionHandler = {
+            connectionEndState.complete()
+        }
+        connection.invalidationHandler = {
+            connectionEndState.complete()
+        }
         connection.resume()
         var invalidatesOnReturn = true
         defer {
@@ -106,20 +136,29 @@ public final class KeyXPCClientTransport: KeyServiceTransport {
             throw AppError.service("Key service returned no response.")
         }
 
+        let response: KeyServiceResponse
         do {
-            let response = try decoder.decode(KeyServiceResponse.self, from: capturedData)
-            if request.requiresHelperShutdownAfterSuccess,
-               response.exitCode == EXIT_SUCCESS {
-                invalidatesOnReturn = false
-                proxy.completeShutdown()
-                connection.scheduleSendBarrierBlock {
-                    connection.invalidate()
-                }
-            }
-            return response
+            response = try decoder.decode(
+                KeyServiceResponse.self,
+                from: capturedData
+            )
         } catch {
             throw AppError.service("Key service returned an invalid response.")
         }
+        if request.requiresHelperShutdownAfterSuccess,
+           response.exitCode == EXIT_SUCCESS {
+            invalidatesOnReturn = false
+            proxy.completeShutdown()
+            guard connectionEndState.wait(
+                until: .now() + .seconds(Self.helperShutdownTimeoutSeconds)
+            ) else {
+                connection.invalidate()
+                throw AppError.service(
+                    "The \(request.completedOperationDescription) completed, but Key Agent is still restarting after \(Self.helperShutdownTimeoutSeconds) seconds. Run the same command again; Key will resume safely from the completed state."
+                )
+            }
+        }
+        return response
     }
 }
 
@@ -146,6 +185,23 @@ private extension KeyServiceRequest {
         case .copyEntry: "copy"
         case .moveEntry: "move"
         case .removeEntry: "remove"
+        }
+    }
+
+    var completedOperationDescription: String {
+        switch self {
+        case .lock:
+            "vault lock"
+        case .migrationApply:
+            "vault migration"
+        case .setVaultDirectory:
+            "vault directory update"
+        case .share(.accept):
+            "enrollment acceptance"
+        case .share(.replaceCurrentDevice):
+            "revoked-device cleanup"
+        default:
+            operationName
         }
     }
 }

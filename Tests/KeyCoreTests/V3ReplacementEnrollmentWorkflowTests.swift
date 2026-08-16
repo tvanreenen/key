@@ -182,7 +182,7 @@ struct V3ReplacementEnrollmentWorkflowTests {
     }
 
     @Test
-    func helperExposesExactReviewThenConfirmsCleanup() throws {
+    func helperJoinExposesExactReviewThenConfirmsCleanup() throws {
         let fixture = try Fixture()
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -201,12 +201,19 @@ struct V3ReplacementEnrollmentWorkflowTests {
             keyStore: MemoryVaultKeyStore(),
             entryStore: EntryStore(rootURL: root),
             mutationOwner: owner,
+            validateJoinInvitation: { digest, _ in
+                #expect(digest == Data(repeating: 0x11, count: 32))
+            },
             replacementService: service,
-            vaultSession: session
+            vaultSession: session,
+            configuredVaultID: Fixture.vaultID
         )
 
         let reviewResponse = handler.handle(
-            .share(.reviewReplacement)
+            .share(.join(
+                invitationID: String(repeating: "11", count: 32),
+                deviceName: "Replacement Mac"
+            ))
         )
         let projected = try #require(
             reviewResponse.deviceReplacementReview
@@ -234,6 +241,41 @@ struct V3ReplacementEnrollmentWorkflowTests {
         #expect(service.confirmations == [fixture.review.digest])
         #expect(session.lockCount == 1)
         #expect(owner.kinds == [.catchUpVault])
+    }
+
+    @Test
+    func helperJoinValidatesTheInvitationBeforeOfferingCleanup() throws {
+        let fixture = try Fixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = WorkflowService(
+            review: fixture.review,
+            result: fixture.completed
+        )
+        let handler = KeyServiceHandler(
+            keyStore: MemoryVaultKeyStore(),
+            entryStore: EntryStore(rootURL: root),
+            mutationOwner: WorkflowMutationOwner(),
+            validateJoinInvitation: { _, _ in
+                throw V3EnrollmentMailboxError.invalidMessage
+            },
+            replacementService: service,
+            configuredVaultID: Fixture.vaultID
+        )
+
+        let response = handler.handle(.share(.join(
+            invitationID: String(repeating: "11", count: 32),
+            deviceName: "Replacement Mac"
+        )))
+
+        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(response.errorMessage?.contains("mailbox message") == true)
+        #expect(service.reviewCount == 0)
     }
 
     @Test
@@ -324,7 +366,11 @@ struct V3ReplacementEnrollmentWorkflowTests {
             keyStore: MemoryVaultKeyStore(),
             entryStore: EntryStore(rootURL: root),
             mutationOwner: WorkflowMutationOwner(),
+            validateJoinInvitation: { digest, _ in
+                #expect(digest == Data(repeating: 0x11, count: 32))
+            },
             replacementService: service,
+            configuredVaultID: Fixture.vaultID,
             replacementAdmissionState: .cleanupPending
         )
 
@@ -332,6 +378,21 @@ struct V3ReplacementEnrollmentWorkflowTests {
         #expect(blocked.errorMessage?.contains(
             "replacement cleanup is still in progress"
         ) == true)
+
+        let malformedJoin = handler.handle(.share(.join(
+            invitationID: String(repeating: "A", count: 64),
+            deviceName: "Replacement Mac"
+        )))
+        #expect(malformedJoin.errorCode == .invalidUsage)
+
+        let join = handler.handle(.share(.join(
+            invitationID: String(repeating: "11", count: 32),
+            deviceName: "Replacement Mac"
+        )))
+        let joinReview = try #require(join.deviceReplacementReview)
+        #expect(joinReview.confirmationToken == v3LowercaseHex(
+            fixture.review.digest
+        ))
 
         let review = handler.handle(.share(.reviewReplacement))
         let projected = try #require(review.deviceReplacementReview)
@@ -540,9 +601,14 @@ private final class WorkflowService:
     let result: V3ReplacementEnrollmentIntent
     private let lock = NSLock()
     private var confirmationStorage: [Data] = []
+    private var reviewCountStorage = 0
 
     var confirmations: [Data] {
         lock.withLock { confirmationStorage }
+    }
+
+    var reviewCount: Int {
+        lock.withLock { reviewCountStorage }
     }
 
     init(
@@ -554,7 +620,8 @@ private final class WorkflowService:
     }
 
     func review() throws -> V3ReplacementEnrollmentReview {
-        reviewValue
+        lock.withLock { reviewCountStorage += 1 }
+        return reviewValue
     }
 
     func replace(

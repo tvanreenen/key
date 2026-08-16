@@ -8,14 +8,14 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-alpha.9` is the latest Preview release; role-free authority, authenticated catch-up, device revocation, and continuity guidance are shipped; restart-safe replacement re-enrollment is implemented on this branch, while its operator CLI and physical multi-device qualification remain pending; catastrophe recovery is deferred beyond `0.2.0` |
+| Status | `v0.2.0-alpha.9` is the latest Preview release; role-free authority, authenticated catch-up, device revocation, and continuity guidance are shipped; restart-safe replacement re-enrollment through the ordinary join journey is implemented on this branch, while physical multi-device qualification remains pending; catastrophe recovery is deferred beyond `0.2.0` |
 | Latest release | `v0.2.0-alpha.9 (14)` at `ea9cc50` |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
 | Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | Review and merge the `REP-514` restart-safe replacement re-enrollment foundation |
-| Next work | Add the narrow replacement review/confirmation CLI, then physically qualify revoke, cleanup, restart, re-enrollment, catch-up, and writes on multiple Macs; prototype PIV recovery separately for a later minor release |
+| Active work | Review and merge the complete `REP-514` replacement re-enrollment path |
+| Next work | Physically qualify revoke, cleanup, restart, re-enrollment, catch-up, and writes on multiple Macs; prototype PIV recovery separately for a later minor release |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
 profile MUST not ship as stable until every release gate below passes.
@@ -137,7 +137,7 @@ security or durability boundary and updates this tracker before it merges.
 | `ENR-511` | Complete; shipped in alpha.8 | Revoke devices, rotate the key, re-encrypt the current snapshot, and catch remaining devices up safely |
 | `AUTH-513` | Complete; shipped in alpha.8 | Remove owner/member roles from the permanent profile and give every active enrolled device equal authority |
 | `REC-512` | Complete; shipped in alpha.8 | Add multi-device continuity guidance, one-device risk warnings, and explicit permanent-loss behavior |
-| `REP-514` | Helper implementation complete; CLI and physical qualification pending | Safely retire a revoked local identity and rejoin the same vault through the ordinary enrollment ceremony |
+| `REP-514` | Implementation complete; physical qualification pending | Safely retire a revoked local identity and rejoin the same vault through the ordinary enrollment ceremony |
 | Later recovery track | Deferred beyond `0.2.0` | Prototype primary and backup PIV P-256 recovery keys before selecting a permanent catastrophe-recovery schema or release |
 
 #### `ARCH-508` / `KEY-509` — Permanent Profile Runtime
@@ -278,8 +278,8 @@ repair.
 
 #### `REP-514` — Revoked-Device Replacement Re-enrollment
 
-Status: helper implementation complete on this branch; the operator CLI and
-physical multi-Mac qualification remain pending.
+Status: implementation complete on this branch; physical multi-Mac
+qualification remains pending.
 
 This is continuity through a surviving enrolled Mac, not recovery from the
 loss of every device. The surviving Mac first revokes the old device identity,
@@ -298,11 +298,26 @@ commands afterward; normal reads and writes cannot accidentally revive stale
 authority. The intent is consumed last, after the new identity, checkpoint,
 and runtime are usable.
 
-The remaining product increment is deliberately small: expose read-only
-replacement review and explicit confirmation in the CLI, then qualify the
-complete revoke-to-rejoin sequence on disposable Preview vaults. Until that
-ships, alpha.9 can identify a revoked Mac and direct the user toward a
-surviving device, but it does not provide the complete operator path.
+`key share join` is the only joining entry point. On a new Mac it answers the
+invitation directly. On a revoked Mac it recognizes that the local identity
+must be replaced, verifies the selected invitation exists, is authentic,
+unexpired, and belongs to the same vault, then performs the authenticated
+replacement review. It refuses noninteractive cleanup, explains exactly which
+local state will be removed, and requires the literal confirmation `REJOIN`.
+Immediately before cleanup it revalidates the invitation and requires the
+replacement review to remain byte-for-byte unchanged. It then cleans up, waits
+for the old helper process to terminate, reconnects through launchd, and
+retries the same invitation with a new identity. Interrupted cleanup or
+enrollment resumes through the same command. The bound confirmation token
+never becomes a user-managed argument. Helper termination has a bounded client
+wait, but safety does not depend on meeting that deadline: on timeout the CLI
+reports that cleanup completed and directs the user to rerun the same join,
+which resumes from the durable enrollment-pending state.
+
+The remaining release increment is physical qualification of the complete
+revoke-to-rejoin sequence on disposable Preview vaults. Alpha.9 can identify a
+revoked Mac and direct the user toward a surviving device, but this integrated
+join journey is not available until the branch ships in a later Preview.
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -1620,7 +1635,7 @@ explicit migration rather than another implicit synchronized-key repair.
 | `v0.2.0-alpha.7` | 12 | Released | Introduce the side-by-side Preview track and ship the permanent device-wrapped profile for physical multi-device qualification without replacing Stable Key |
 | `v0.2.0-alpha.8` | 13 | Released | Add revocation, remaining-device catch-up, equal enrolled-device authority, and continuity and permanent-loss UX |
 | `v0.2.0-alpha.9` | 14 | Released | Distinguish a revoked local device from damaged vault state and direct it toward replacement through a surviving active Mac |
-| Next Preview | TBD | Planned | Expose and physically qualify the complete revoked-device cleanup and ordinary re-enrollment path |
+| Next Preview | TBD | Planned | Ship and physically qualify the complete revoked-device cleanup and ordinary re-enrollment path |
 | `v0.2.0-beta.1` | TBD | Planned | Complete provider qualification, migration and rollback validation, continuity and permanent-loss documentation, signing checks, and the required security-review gates |
 
 Urgent fixes may add an intervening prerelease and advance the build counter,
@@ -1703,11 +1718,10 @@ pass this same two-device exercise before the next Preview release.
 
 ## Immediate Next Action
 
-Review and merge the restart-safe replacement foundation without adding a
-portable recovery authority. Next, expose its exact review and confirmation
-through the CLI and physically qualify revoke, cleanup, helper restart,
-ordinary re-enrollment, catch-up, and writes on multiple Macs before the next
-Preview. Permanent-profile entry-level conflict inspection, provider
+Review and merge the complete restart-safe replacement path without adding a
+portable recovery authority. Then physically qualify revoke, cleanup, helper
+restart, ordinary re-enrollment, catch-up, and writes on multiple Macs before
+the next Preview. Permanent-profile entry-level conflict inspection, provider
 qualification, realistic migration and rollback copies, a third-device
 ceremony, and independent security review remain beta or stable gates.
 Prototype PIV catastrophe recovery separately and assign no release until

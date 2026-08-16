@@ -12,6 +12,8 @@ public final class KeyServiceHandler {
     private let mutationOwner: any VaultTransactionMutationOwning
     private let migrationService: (any V3LocalMigrationServicing)?
     private let enrollmentService: (any V3EnrollmentWorkflowServicing)?
+    private let validateJoinInvitation:
+        (@Sendable (_ digest: Data, _ unixTime: UInt64) throws -> Void)?
     private let revocationService:
         (any V3DeviceWrappedRevocationWorkflowServicing)?
     private let replacementService:
@@ -66,6 +68,8 @@ public final class KeyServiceHandler {
         mutationOwner: any VaultTransactionMutationOwning,
         migrationService: (any V3LocalMigrationServicing)? = nil,
         enrollmentService: (any V3EnrollmentWorkflowServicing)? = nil,
+        validateJoinInvitation:
+            (@Sendable (Data, UInt64) throws -> Void)? = nil,
         revocationService:
             (any V3DeviceWrappedRevocationWorkflowServicing)? = nil,
         replacementService:
@@ -86,6 +90,7 @@ public final class KeyServiceHandler {
         self.mutationOwner = mutationOwner
         self.migrationService = migrationService
         self.enrollmentService = enrollmentService
+        self.validateJoinInvitation = validateJoinInvitation
         self.revocationService = revocationService
         self.replacementService = replacementService
         self.vaultUXService = vaultUXService
@@ -390,6 +395,17 @@ public final class KeyServiceHandler {
             configStore: configStore,
             mutationOwner: mutationOwner,
             enrollmentService: enrollmentService,
+            validateJoinInvitation: { invitationDigest, unixTime in
+                let invitation = try exchange.receiveInvitation(
+                    digest: invitationDigest,
+                    at: unixTime
+                )
+                guard invitation.invitation.vaultID == vaultID else {
+                    throw AppError.operationRefused(
+                        "The selected invitation belongs to a different vault."
+                    )
+                }
+            },
             revocationService: revocationService,
             replacementService: replacementService,
             vaultUXService: runtime,
@@ -860,8 +876,44 @@ public final class KeyServiceHandler {
                 at: unixTime
             ))
         case let .join(invitationID, deviceName):
+            let invitationDigest = try enrollmentDigest(invitationID)
+            if configuredVaultID != nil,
+               replacementAdmissionState != .enrollmentPending
+            {
+                return replacementResponse {
+                    guard let mutationContext,
+                          mutationContext.kind == .catchUpVault
+                    else {
+                        throw AppError.operationRefused(
+                            "Device rejoin review requires the helper's serialized mutation boundary."
+                        )
+                    }
+                    guard let validateJoinInvitation else {
+                        throw AppError.operationRefused(
+                            "Device rejoin invitation validation is unavailable in this helper runtime."
+                        )
+                    }
+                    try validateJoinInvitation(invitationDigest, unixTime)
+                    do {
+                        return .deviceReplacementReview(
+                            V3VaultDeviceReplacementReview(
+                                review: try requiredReplacementService()
+                                    .review()
+                            )
+                        )
+                    } catch V3ReplacementEnrollmentWorkflowError
+                        .deviceStillActive
+                    {
+                        return .success(try requiredEnrollmentService().join(
+                            invitationDigest: invitationDigest,
+                            deviceName: deviceName,
+                            at: unixTime
+                        ))
+                    }
+                }
+            }
             return .success(try requiredEnrollmentService().join(
-                invitationDigest: try enrollmentDigest(invitationID),
+                invitationDigest: invitationDigest,
                 deviceName: deviceName,
                 at: unixTime
             ))
@@ -1382,7 +1434,7 @@ private extension KeyServiceRequest {
             switch self {
             case .status, .lock,
                 .share(.reviewReplacement),
-                .share(.replaceCurrentDevice):
+                .share(.replaceCurrentDevice), .share(.join):
                 true
             default:
                 false
@@ -1435,7 +1487,8 @@ private extension KeyServiceRequest {
             .migrateToV3
         case .share(.approve), .share(.accept):
             .enrollDevice
-        case .share(.reviewRevocation), .share(.reviewReplacement):
+        case .share(.reviewRevocation), .share(.reviewReplacement),
+            .share(.join):
             .catchUpVault
         case .share(.revoke):
             .revokeDevice
@@ -1456,7 +1509,7 @@ private extension KeyServiceRequest {
         switch self {
         case .share(.approve), .share(.accept),
             .share(.reviewRevocation), .share(.reviewReplacement),
-            .share(.revoke):
+            .share(.revoke), .share(.join):
             true
         default:
             false
