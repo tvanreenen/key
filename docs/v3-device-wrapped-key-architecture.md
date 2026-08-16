@@ -9,8 +9,9 @@ Preview release physically qualified migration, wrapper-backed restart,
 first-to-second-device enrollment, and a joining-device write on two Macs.
 Alpha.8 added authenticated catch-up, revocation, equal enrolled-device
 authority, and continuity guidance; alpha.9 clarified revoked-device handling.
-Restart-safe replacement re-enrollment is integrated into the ordinary join
-journey, while physical multi-device qualification remains pending.
+Alpha.10 shipped and physically qualified restart-safe replacement
+re-enrollment through the ordinary join journey on two Macs, including
+cross-device catch-up, writes, cleanup, and helper restart.
 Catastrophe recovery after every enrolled device is lost is explicitly
 deferred beyond `0.2.0`.
 
@@ -436,7 +437,7 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
   token.
 - [x] Revalidate the invitation and unchanged review immediately before local
   cleanup, then wait for helper termination before retrying enrollment.
-- [ ] Physically qualify revoke, cleanup, restart, re-enrollment, catch-up, and
+- [x] Physically qualify revoke, cleanup, restart, re-enrollment, catch-up, and
   writes on multiple Macs before the next Preview release.
 
 ### Later recovery track — Catastrophe recovery

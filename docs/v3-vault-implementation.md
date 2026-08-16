@@ -8,14 +8,14 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-alpha.9` is the latest Preview release; role-free authority, authenticated catch-up, device revocation, and continuity guidance are shipped; restart-safe replacement re-enrollment through the ordinary join journey is implemented on this branch, while physical multi-device qualification remains pending; catastrophe recovery is deferred beyond `0.2.0` |
-| Latest release | `v0.2.0-alpha.9 (14)` at `ea9cc50` |
+| Status | `v0.2.0-alpha.10` is the latest Preview release; role-free authority, authenticated catch-up, device revocation, continuity guidance, and restart-safe replacement re-enrollment through the ordinary join journey are shipped and physically qualified on two Macs; catastrophe recovery is deferred beyond `0.2.0` |
+| Latest release | `v0.2.0-alpha.10 (15)` at `8a576c3` |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
 | Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | Review and merge the complete `REP-514` replacement re-enrollment path |
-| Next work | Physically qualify revoke, cleanup, restart, re-enrollment, catch-up, and writes on multiple Macs; prototype PIV recovery separately for a later minor release |
+| Active work | Complete the remaining beta provider, migration, rollback, documentation, and security-review gates |
+| Next work | Qualify realistic migration and rollback copies, provider behavior, a third-device ceremony, and continuity/permanent-loss documentation; prototype PIV recovery separately for a later minor release |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
 profile MUST not ship as stable until every release gate below passes.
@@ -137,7 +137,7 @@ security or durability boundary and updates this tracker before it merges.
 | `ENR-511` | Complete; shipped in alpha.8 | Revoke devices, rotate the key, re-encrypt the current snapshot, and catch remaining devices up safely |
 | `AUTH-513` | Complete; shipped in alpha.8 | Remove owner/member roles from the permanent profile and give every active enrolled device equal authority |
 | `REC-512` | Complete; shipped in alpha.8 | Add multi-device continuity guidance, one-device risk warnings, and explicit permanent-loss behavior |
-| `REP-514` | Implementation complete; physical qualification pending | Safely retire a revoked local identity and rejoin the same vault through the ordinary enrollment ceremony |
+| `REP-514` | Complete; PR #65; shipped and physically qualified in alpha.10 | Safely retire a revoked local identity and rejoin the same vault through the ordinary enrollment ceremony |
 | Later recovery track | Deferred beyond `0.2.0` | Prototype primary and backup PIV P-256 recovery keys before selecting a permanent catastrophe-recovery schema or release |
 
 #### `ARCH-508` / `KEY-509` — Permanent Profile Runtime
@@ -278,8 +278,8 @@ repair.
 
 #### `REP-514` — Revoked-Device Replacement Re-enrollment
 
-Status: implementation complete on this branch; physical multi-Mac
-qualification remains pending.
+Status: complete in PR #65 and physically qualified on two Macs with the
+signed alpha.10 Preview release.
 
 This is continuity through a surviving enrolled Mac, not recovery from the
 loss of every device. The surviving Mac first revokes the old device identity,
@@ -314,10 +314,15 @@ wait, but safety does not depend on meeting that deadline: on timeout the CLI
 reports that cleanup completed and directs the user to rerun the same join,
 which resumes from the durable enrollment-pending state.
 
-The remaining release increment is physical qualification of the complete
-revoke-to-rejoin sequence on disposable Preview vaults. Alpha.9 can identify a
-revoked Mac and direct the user toward a surviving device, but this integrated
-join journey is not available until the branch ships in a later Preview.
+Alpha.10 physically qualified the complete revoke-to-rejoin sequence on a
+disposable iCloud Drive Preview vault. The revoked Mac revalidated the fresh
+invitation and unchanged authenticated review before cleanup, removed only its
+local unusable enrollment state, waited for helper termination, and published
+a new join request without a retry. The surviving Mac independently derived
+the same device pair and comparison code, approved the new identity, and both
+Macs converged on the old identity remaining revoked and the distinct new
+identity active. Cross-device write, read, removal, catch-up, lock, complete
+helper termination, on-demand restart, and post-restart decrypt all passed.
 
 `TXN-401` routes the current add, edit, copy, move, and remove operations
 through one synchronous serial owner inside Key Agent while leaving reads
@@ -1635,7 +1640,7 @@ explicit migration rather than another implicit synchronized-key repair.
 | `v0.2.0-alpha.7` | 12 | Released | Introduce the side-by-side Preview track and ship the permanent device-wrapped profile for physical multi-device qualification without replacing Stable Key |
 | `v0.2.0-alpha.8` | 13 | Released | Add revocation, remaining-device catch-up, equal enrolled-device authority, and continuity and permanent-loss UX |
 | `v0.2.0-alpha.9` | 14 | Released | Distinguish a revoked local device from damaged vault state and direct it toward replacement through a surviving active Mac |
-| Next Preview | TBD | Planned | Ship and physically qualify the complete revoked-device cleanup and ordinary re-enrollment path |
+| `v0.2.0-alpha.10` | 15 | Released and physically qualified | Ship and physically qualify restart-safe revoked-device cleanup and ordinary re-enrollment on two Macs |
 | `v0.2.0-beta.1` | TBD | Planned | Complete provider qualification, migration and rollback validation, continuity and permanent-loss documentation, signing checks, and the required security-review gates |
 
 Urgent fixes may add an intervening prerelease and advance the build counter,
@@ -1706,6 +1711,39 @@ publish a competing write. The catch-up implementation now provides the
 authenticated advancement that alpha.7 lacked; it remains unshipped and must
 pass this same two-device exercise before the next Preview release.
 
+#### Alpha.10 Release Qualification
+
+The signed and notarized alpha.10 build was installed through the opt-in
+Homebrew alpha channel on both physical Macs. Gatekeeper accepted the installed
+Preview app, the app, CLI, and helper all reported version `0.2.0-alpha.10`
+build `15`, and Stable Key and protected vault baselines remained outside the
+exercise.
+
+The disposable iCloud Drive replacement exercise then verified:
+
+- the surviving Mac authenticated the old Air identity as revoked while the
+  revoked Air retained the older trusted checkpoint needed to review the exact
+  direct-child revocation;
+- a fresh invitation, exact vault and identity review, and literal `REJOIN`
+  confirmation were revalidated immediately before destructive local cleanup;
+- cleanup changed no synchronized vault files, helper termination completed,
+  and the ordinary join retry published a new identity on the first attempt;
+- both Macs displayed the same existing/joining device pair and comparison
+  code before approval and acceptance;
+- the old Air identity remained revoked, the new distinct Air identity became
+  active, and continuity returned to two active devices on both Macs;
+- an Air-originated disposable write was authenticated and decrypted on the
+  mini, its mini-originated removal converged back to the Air, and the original
+  four-entry baseline was restored; and
+- locking the newly enrolled Air stopped its helper cleanly, after which
+  launchd restarted it on demand and status, roster inspection, and a baseline
+  decrypt all succeeded.
+
+The CLI correctly refused an owner-side `share compare` attempt on the joining
+Mac as the wrong ceremony role. The joining Mac's signed join output and the
+surviving Mac's independently derived comparison output supplied the bilateral
+code check.
+
 - [ ] All security and durability invariants pass.
 - [x] The v3 reader ships before any v3 writer is enabled.
 - [ ] Local APFS and every supported sync provider pass commit/conflict tests.
@@ -1718,11 +1756,10 @@ pass this same two-device exercise before the next Preview release.
 
 ## Immediate Next Action
 
-Review and merge the complete restart-safe replacement path without adding a
-portable recovery authority. Then physically qualify revoke, cleanup, helper
-restart, ordinary re-enrollment, catch-up, and writes on multiple Macs before
-the next Preview. Permanent-profile entry-level conflict inspection, provider
+Proceed to the remaining beta gates without adding a portable recovery
+authority. Permanent-profile entry-level conflict inspection, provider
 qualification, realistic migration and rollback copies, a third-device
-ceremony, and independent security review remain beta or stable gates.
+ceremony, continuity and permanent-loss documentation, and independent
+security review remain beta or stable gates.
 Prototype PIV catastrophe recovery separately and assign no release until
 physical feasibility and security review support it.
