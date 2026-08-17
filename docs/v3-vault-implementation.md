@@ -1823,6 +1823,19 @@ opportunistic evidence rather than a release gate.
   and revocation publication; new filesystem regression coverage substitutes a
   different canonical intent and proves the digest-bound anchor preserves the
   parent checkpoint, retains recovery state, and publishes nothing.
+- [x] `BETA-606E` — Filesystem containment and path substitution. No production
+  flaw was found. Vault authority is retained as an open directory descriptor
+  plus device/inode identity; the configured root is revalidated before each
+  operation. Descendants are canonical relative paths opened component by
+  component with no-follow, close-on-exec, type, device, dataless, firmlink,
+  Finder-alias, and regular-file link-count checks. Writes use exclusive
+  descriptor-relative temporary creation and atomic rename, immutable
+  destinations never overwrite different bytes, and cleanup uses exact-byte
+  checks plus nonrecursive `unlinkat`. Existing tests cover invalid paths,
+  symlinks, hard links, special files, cross-filesystem metadata, root and
+  transaction-directory replacement, preexisting hostile temporary names, and
+  process interruption. New recovery-store coverage proves an exact-path
+  symlink cannot redirect cleanup or alter its external target.
 
 `BETA-601` coverage inventory:
 

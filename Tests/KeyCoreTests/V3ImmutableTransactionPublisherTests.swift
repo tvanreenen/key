@@ -1433,6 +1433,74 @@ struct V3FilesystemImmutableObjectPublicationTests {
     }
 
     @Test
+    func recoveryCleanupNeverFollowsASubstitutedIntentPath() throws {
+        let parentURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let rootURL = parentURL.appendingPathComponent(
+            "vault",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: rootURL,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: parentURL) }
+
+        let fixture = Fixture()
+        let base = try fixture.genesis()
+        let candidate = try fixture.child(
+            parents: [base.verified],
+            entries: []
+        )
+        let operationID = V3ImmutableTransactionPublisherTests.operationID
+        let intent = try V3ImmutableTransactionRecoveryIntent(
+            operationID: operationID,
+            kind: .editEntry,
+            vaultID: V3ImmutableTransactionPublisherTests.vaultID,
+            expectedCheckpoint: V3ManifestCheckpoint(
+                verifiedManifest: base.verified
+            ),
+            expectedHeads: [base.verified.envelopeDigest],
+            candidateManifestDigest: candidate.verified.envelopeDigest,
+            stagedEntries: []
+        )
+        let operationDirectory = rootURL
+            .appendingPathComponent(".transactions", isDirectory: true)
+            .appendingPathComponent(
+                operationID.rawValue,
+                isDirectory: true
+            )
+        try FileManager.default.createDirectory(
+            at: operationDirectory,
+            withIntermediateDirectories: true
+        )
+        let outsideURL = parentURL.appendingPathComponent("outside-intent")
+        let outsideData = intent.canonicalBytes
+        try outsideData.write(to: outsideURL)
+        let substitutedURL = operationDirectory.appendingPathComponent(
+            "intent.json"
+        )
+        try FileManager.default.createSymbolicLink(
+            at: substitutedURL,
+            withDestinationURL: outsideURL
+        )
+        let store = V3FilesystemTransactionArtifactStore(
+            rootHandle: try VaultRootDirectoryHandle(opening: rootURL)
+        )
+
+        #expect(throws: VaultPathResolutionError.symbolicLink(
+            component: "intent.json"
+        )) {
+            try store.removeRecoveryIntent(
+                intent.canonicalBytes,
+                operationID: operationID
+            )
+        }
+        #expect(try Data(contentsOf: outsideURL) == outsideData)
+        #expect(FileManager.default.fileExists(atPath: substitutedURL.path))
+    }
+
+    @Test
     func processExitDuringAtomicWriteNeverExposesPartialRecoveryIntent()
         async throws
     {
