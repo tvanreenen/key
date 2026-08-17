@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/tvanreenen/key/main/docs/schemas/v3-manifest-envelope.schema.json",
   "title": "Key Vault v3 authenticated manifest envelope",
+  "description": "The canonical envelope for the role-free device-wrapped manifest profile. Parent and authorization ordering, canonical low-S signatures, and canonical JSON are enforced by the normative codec in addition to this structural schema.",
   "type": "object",
   "additionalProperties": false,
   "required": [

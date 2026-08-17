@@ -37,6 +37,14 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{86}$"
     },
+    "hpkeP256EncapsulatedKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{87}$"
+    },
+    "hpkeAESGCM256WrappedVaultKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{64}$"
+    },
     "base64url": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]+$"

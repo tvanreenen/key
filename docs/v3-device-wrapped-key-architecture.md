@@ -18,8 +18,9 @@ and two-device iCloud beta provider qualifications.
 Catastrophe recovery after every enrolled device is lost is explicitly
 deferred beyond `0.2.0`.
 
-This document defines the intended final key-management model for version 3
-vaults. It replaces the prerelease design in which the raw vault key is stored
+This document defines the normative key-management model and on-disk profile
+for version 3 vaults. It replaces the prerelease design in which the raw vault
+key is stored
 persistently in a local or synchronizable Keychain item. Implementation work
 must preserve these invariants across context compaction, pull requests, and
 release qualification.
@@ -170,6 +171,42 @@ comparison transcript so that every wrapper and the signed transition are
 bound to that exact ceremony. The wrapper context remains self-contained in
 permanent manifest state and does not depend on temporary mailbox state.
 
+### Normative on-disk profile
+
+The permanent manifest body is canonical JSON with `format`
+`key-vault-manifest`, outer `version` `3`, `profile` `device-wrapped`, and
+required `profileVersion` `2`. Its exact top-level fields are `format`,
+`version`, `profile`, `profileVersion`, `vaultID`, `keyID`,
+`authorityTransitionID`, `hpkeSuite`, `devices`, `wrappedKeys`, and `entries`.
+The HPKE suite is base mode (`0`), P-256 (`16`), HKDF-SHA256 (`1`), and
+AES-256-GCM (`2`).
+
+Each device record contains exactly `deviceID`, `displayName`, `status`,
+`signingPublicKey`, and `wrappingPublicKey`. Status is `active` or `revoked`;
+there is no owner/member role. Each wrapper contains exactly
+`recipientDeviceID`, the 65-byte P-256 `encapsulatedKey`, and the 48-byte HPKE
+`ciphertext` containing a 32-byte vault key plus the AES-GCM tag. The wrapper
+array covers every active device exactly once, in roster order, and contains
+no revoked device or recovery recipient. The roster is nonempty, has at least
+one active device, is ordered by device ID, and uses unique device IDs and
+globally distinct valid P-256 public keys. Entries are ordered by name and
+entry ID, have unique IDs and names, and all reference the manifest key ID.
+
+The outer canonical JSON envelope has `format`
+`key-vault-manifest-envelope`, `version` `3`, and exactly `content`,
+`authentication`, and `authorizations` beside those discriminators. Content
+contains the ordered unique SHA-256 parent digests and the manifest body.
+Authentication is `HKDF-SHA256+HMAC-SHA256` with a 32-byte tag.
+Authorizations are ordered by unique signer device ID and use canonical-low-S,
+64-byte raw `P-256-ECDSA-SHA256` signatures.
+
+The structural JSON Schemas in [`schemas`](schemas/) are part of this profile.
+The shipping canonical codecs remain normative for constraints JSON Schema
+cannot express, including canonical JSON encoding, UTF-8 ordering, key
+validity and derivation, wrapper coverage, cross-field equality, and
+canonical-low-S signatures. A schema-valid object that fails those checks is
+not a valid Key manifest.
+
 ### Vault and entry encryption
 
 Each key epoch has one random 256-bit vault key. Domain-separated derivatives
@@ -236,8 +273,7 @@ They may branch and use the existing content reconciliation rules.
    complete compared transcript.
 4. Re-encrypt the complete current snapshot under the new key.
 5. Preserve existing active devices and add exactly the compared identity.
-6. HPKE-wrap the new key to every resulting active device and the recovery
-   identity, if present.
+6. HPKE-wrap the new key to every resulting active device.
 7. Sign the complete transition with the inviting device's Secure Enclave key.
 8. Publish entries first, the manifest last, and checkpoint under an expected
    old value.
@@ -256,7 +292,7 @@ keys in the parent roster.
 3. Refuse to revoke the last active device.
 4. Generate a new key and re-encrypt the complete current snapshot.
 5. Mark the selected device revoked and omit its wrapper.
-6. Create wrappers only for remaining active devices and recovery.
+6. Create wrappers only for remaining active devices.
 7. Sign and publish the exact authority transition atomically.
 
 Revocation is forward-looking. It cannot erase plaintext, old keys, historical

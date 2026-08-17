@@ -31,6 +31,133 @@ struct V3DeviceWrappedManifestTests {
     }
 
     @Test
+    func checkedInSchemasTrackTheShippingRoleFreeCanonicalBody() throws {
+        let body = try Self.makeBody()
+        let fixture = try #require(
+            JSONSerialization.jsonObject(with: body.canonicalBytes)
+                as? [String: Any]
+        )
+        let bodySchema = try Self.schema("v3-manifest-body.schema.json")
+        try Self.expectExactObjectSchema(bodySchema, matches: fixture)
+
+        let properties = try #require(
+            bodySchema["properties"] as? [String: Any]
+        )
+        #expect((properties["format"] as? [String: Any])?["const"] as? String
+            == V3DeviceWrappedManifestBody.format)
+        #expect((properties["version"] as? [String: Any])?["const"] as? Int
+            == Int(V3DeviceWrappedManifestBody.version))
+        #expect((properties["profile"] as? [String: Any])?["const"] as? String
+            == V3DeviceWrappedManifestBody.profile)
+        #expect(
+            (properties["profileVersion"] as? [String: Any])?["const"] as? Int
+                == Int(V3DeviceWrappedManifestBody.profileVersion)
+        )
+        #expect(properties["mode"] == nil)
+
+        let definitions = try #require(
+            bodySchema["$defs"] as? [String: Any]
+        )
+        let suite = try #require(fixture["hpkeSuite"] as? [String: Any])
+        let suiteSchema = try #require(
+            definitions["hpkeSuite"] as? [String: Any]
+        )
+        try Self.expectExactObjectSchema(suiteSchema, matches: suite)
+        for field in ["mode", "kem", "kdf", "aead"] {
+            let suiteProperties = try #require(
+                suiteSchema["properties"] as? [String: Any]
+            )
+            #expect(
+                (suiteProperties[field] as? [String: Any])?["const"] as? Int
+                    == suite[field] as? Int
+            )
+        }
+
+        let devices = try #require(fixture["devices"] as? [[String: Any]])
+        let device = try #require(devices.first)
+        let deviceSchema = try #require(
+            definitions["device"] as? [String: Any]
+        )
+        try Self.expectExactObjectSchema(deviceSchema, matches: device)
+        #expect((deviceSchema["properties"] as? [String: Any])?["role"] == nil)
+
+        let wrappedKeys = try #require(
+            fixture["wrappedKeys"] as? [[String: Any]]
+        )
+        let wrappedKey = try #require(wrappedKeys.first)
+        let wrappedKeySchema = try #require(
+            definitions["wrappedKey"] as? [String: Any]
+        )
+        try Self.expectExactObjectSchema(wrappedKeySchema, matches: wrappedKey)
+
+        let entries = try #require(fixture["entries"] as? [[String: Any]])
+        let entry = try #require(entries.first)
+        let entrySchema = try #require(
+            definitions["entry"] as? [String: Any]
+        )
+        try Self.expectExactObjectSchema(entrySchema, matches: entry)
+
+        let common = try Self.schema("v3-common.schema.json")
+        let commonDefinitions = try #require(
+            common["$defs"] as? [String: Any]
+        )
+        #expect(
+            (commonDefinitions["hpkeP256EncapsulatedKey"]
+                as? [String: Any])?["pattern"] as? String
+                == "^[A-Za-z0-9_-]{87}$"
+        )
+        #expect(
+            (commonDefinitions["hpkeAESGCM256WrappedVaultKey"]
+                as? [String: Any])?["pattern"] as? String
+                == "^[A-Za-z0-9_-]{64}$"
+        )
+
+        let genesis = try V3DeviceWrappedGenesisBuilder().build(
+            vaultID: body.vaultID,
+            authorityTransitionID: body.authorityTransitionID,
+            vaultKey: Self.vaultKey,
+            ownerIdentity: body.devices[0].identity,
+            entries: body.entries
+        )
+        let envelopeFixture = try #require(
+            JSONSerialization.jsonObject(with: genesis.manifestData)
+                as? [String: Any]
+        )
+        let envelopeSchema = try Self.schema(
+            "v3-manifest-envelope.schema.json"
+        )
+        try Self.expectExactObjectSchema(
+            envelopeSchema,
+            matches: envelopeFixture
+        )
+        let envelopeDefinitions = try #require(
+            envelopeSchema["$defs"] as? [String: Any]
+        )
+        let content = try #require(
+            envelopeFixture["content"] as? [String: Any]
+        )
+        try Self.expectExactObjectSchema(
+            try #require(envelopeDefinitions["content"] as? [String: Any]),
+            matches: content
+        )
+        let authentication = try #require(
+            envelopeFixture["authentication"] as? [String: Any]
+        )
+        try Self.expectExactObjectSchema(
+            try #require(
+                envelopeDefinitions["authentication"] as? [String: Any]
+            ),
+            matches: authentication
+        )
+        let authorizationSchema = try #require(
+            envelopeDefinitions["authorization"] as? [String: Any]
+        )
+        #expect(Set(try #require(
+            authorizationSchema["required"] as? [String]
+        )) == Set(["algorithm", "signerDeviceID", "signature"]))
+    }
+
+    @Test
     func oldAlphaAndUnknownSchemasAreRejected() throws {
         let keyID = try V3VaultKeyID.derive(
             vaultKey: Self.vaultKey,
@@ -268,8 +395,46 @@ struct V3DeviceWrappedManifestTests {
                 status: .active
             )],
             wrappedKeys: [try wrapper(for: owner)],
-            entries: []
+            entries: [V3ManifestEntry(
+                entryID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b5",
+                name: "service/example",
+                type: .secret,
+                revision: 1,
+                keyID: V3VaultKeyID.derive(
+                    vaultKey: vaultKey,
+                    vaultID: vaultID
+                ),
+                ciphertextDigest: Base64URL.encode(
+                    Data(repeating: 0x11, count: 32)
+                )
+            )]
         )
+    }
+
+    private static func schema(_ name: String) throws -> [String: Any] {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let data = try Data(contentsOf: repositoryRoot
+            .appendingPathComponent("docs/schemas")
+            .appendingPathComponent(name))
+        return try #require(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+    }
+
+    private static func expectExactObjectSchema(
+        _ schema: [String: Any],
+        matches object: [String: Any]
+    ) throws {
+        let required = try #require(schema["required"] as? [String])
+        let properties = try #require(
+            schema["properties"] as? [String: Any]
+        )
+        #expect(schema["additionalProperties"] as? Bool == false)
+        #expect(Set(required) == Set(object.keys))
+        #expect(Set(properties.keys) == Set(object.keys))
     }
 
     private static func identity(

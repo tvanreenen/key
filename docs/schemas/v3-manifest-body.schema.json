@@ -1,16 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/tvanreenen/key/main/docs/schemas/v3-manifest-body.schema.json",
-  "title": "Key Vault v3 manifest body",
-  "description": "The canonical body authenticated by the envelope selected in FMT-202.",
+  "title": "Key Vault v3 role-free device-wrapped manifest body",
+  "description": "The canonical profileVersion 2 body authenticated by the version 3 envelope. Array ordering, roster/wrapper coverage, key derivation, public-key validity and uniqueness, canonical Unicode, and canonical JSON are enforced by the normative codec in addition to this structural schema.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "format",
     "version",
+    "profile",
+    "profileVersion",
     "vaultID",
-    "mode",
     "keyID",
+    "authorityTransitionID",
+    "hpkeSuite",
     "devices",
     "wrappedKeys",
     "entries"
@@ -22,21 +25,27 @@
     "version": {
       "const": 3
     },
+    "profile": {
+      "const": "device-wrapped"
+    },
+    "profileVersion": {
+      "const": 2
+    },
     "vaultID": {
       "$ref": "v3-common.schema.json#/$defs/uuid"
-    },
-    "mode": {
-      "type": "string",
-      "enum": [
-        "local",
-        "shared"
-      ]
     },
     "keyID": {
       "$ref": "v3-common.schema.json#/$defs/vaultKeyID"
     },
+    "authorityTransitionID": {
+      "$ref": "v3-common.schema.json#/$defs/uuid"
+    },
+    "hpkeSuite": {
+      "$ref": "#/$defs/hpkeSuite"
+    },
     "devices": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "$ref": "#/$defs/device"
       }
@@ -55,13 +64,36 @@
     }
   },
   "$defs": {
+    "hpkeSuite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "kem",
+        "kdf",
+        "aead"
+      ],
+      "properties": {
+        "mode": {
+          "const": 0
+        },
+        "kem": {
+          "const": 16
+        },
+        "kdf": {
+          "const": 1
+        },
+        "aead": {
+          "const": 2
+        }
+      }
+    },
     "device": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "deviceID",
         "displayName",
-        "role",
         "status",
         "signingPublicKey",
         "wrappingPublicKey"
@@ -74,13 +106,6 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 128
-        },
-        "role": {
-          "type": "string",
-          "enum": [
-            "owner",
-            "member"
-          ]
         },
         "status": {
           "type": "string",
@@ -141,21 +166,19 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "deviceID",
-        "algorithm",
+        "recipientDeviceID",
+        "encapsulatedKey",
         "ciphertext"
       ],
       "properties": {
-        "deviceID": {
+        "recipientDeviceID": {
           "$ref": "v3-common.schema.json#/$defs/deviceID"
         },
-        "algorithm": {
-          "const": "p256-ecies-x963-sha256-aes-gcm"
+        "encapsulatedKey": {
+          "$ref": "v3-common.schema.json#/$defs/hpkeP256EncapsulatedKey"
         },
         "ciphertext": {
-          "$ref": "v3-common.schema.json#/$defs/base64url",
-          "minLength": 168,
-          "maxLength": 168
+          "$ref": "v3-common.schema.json#/$defs/hpkeAESGCM256WrappedVaultKey"
         }
       }
     },
