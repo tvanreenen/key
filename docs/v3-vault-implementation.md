@@ -1647,7 +1647,7 @@ explicit migration rather than another implicit synchronized-key repair.
 | `v0.2.0-alpha.9` | 14 | Released | Distinguish a revoked local device from damaged vault state and direct it toward replacement through a surviving active Mac |
 | `v0.2.0-alpha.10` | 15 | Released and physically qualified | Ship and physically qualify restart-safe revoked-device cleanup and ordinary re-enrollment on two Macs |
 | `v0.2.0-alpha.11` | 16 | Released and physically qualified | Revalidate replacement invitations before cleanup, bound helper-restart waits with safe same-command recovery, and complete the practical local-APFS and two-device iCloud beta provider gates |
-| `v0.2.0-beta.1` | TBD | Planned | Complete provider qualification, migration and rollback validation, continuity and permanent-loss documentation, signing checks, and the required security-review gates |
+| `v0.2.0-beta.1` | 17 | Candidate built and notarized; distribution qualification pending | Complete provider qualification, migration and rollback validation, continuity and permanent-loss documentation, signing checks, and the required security-review gates |
 
 Urgent fixes may add an intervening prerelease and advance the build counter,
 but they do not redefine the security checkpoint assigned to a version above.
@@ -1767,7 +1767,7 @@ opportunistic evidence rather than a release gate.
 | `BETA-604` | Complete | Run one concise installed-build iCloud regression covering two-device catch-up, one cross-device write and removal, lock/restart, exact roster continuity, and fail-closed behavior during incomplete delivery. Prior alpha.6, alpha.7, and alpha.10 exercises remain the broader evidence base. |
 | `BETA-605` | Complete | Make supported providers, two-device continuity, revocation, replacement, invitation lifetime, provider-only non-recovery, and all-devices-lost permanent loss explicit in CLI help and user documentation. |
 | `BETA-606` | Complete | Complete a focused security review of identity binding, ceremony substitution, comparison transcripts, revocation and key rotation, replacement cleanup authorization, durable retry state, checkpoint rollback, filesystem containment, and persistent raw-key absence. |
-| `BETA-607` | Pending | Pass the full suite and release scripts; verify signatures, entitlements, hardened runtime, notarization, stapling, Gatekeeper, Homebrew alpha-to-beta upgrade, Stable isolation, helper registration after reboot, and app/CLI/helper version alignment. |
+| `BETA-607` | In progress | Pass the full suite and release scripts; verify signatures, entitlements, hardened runtime, notarization, stapling, Gatekeeper, the Homebrew alpha-to-beta channel transition, Stable isolation, helper registration after reboot, and app/CLI/helper version alignment. |
 
 `BETA-606` focused-review ledger:
 
@@ -1850,6 +1850,32 @@ opportunistic evidence rather than a release gate.
   is staged, then scans all durable repository and transaction files plus the
   local anchor, checkpoint, and cache for raw, Base64URL, or hexadecimal forms
   of both the old and rotated vault keys.
+
+`BETA-607` release-verification ledger:
+
+- [x] The clean `main` candidate was fetched against `origin/main`, which had
+  not advanced, and versioned as `v0.2.0-beta.1` build 17 in commit `2449cca`.
+  The full serial Swift suite passed with 754 tests in 70 suites. The Homebrew
+  cask-channel and Preview install-safety script suites also passed.
+- [x] The universal Preview archive used the Developer ID Application identity
+  for team `9Q355KSV85` with hardened runtime enabled. The app, CLI, and helper
+  signatures and strict entitlement allowlists passed. The app and helper use
+  the Preview-specific identifiers, helper service, and Keychain access group.
+- [x] Apple notarization submission
+  `57711752-af7f-49c4-ada1-ea5fa59ad32b` was accepted on 2026-08-17. Stapling,
+  Gatekeeper assessment, and independent verification of the extracted final
+  ZIP passed. The app, CLI, and helper all report `0.2.0-beta.1` build 17. The
+  final `Key-Preview-v0.2.0-beta.1.zip` SHA-256 is
+  `8216afea14a4de764b0b844f2c6ff30c035b0ce7eb510bece7f02aa8e81b5b64`.
+- [ ] Publish that exact verified ZIP and update only the `key@beta` cask. On a
+  physical alpha installation, perform the documented mutually exclusive
+  channel transition by uninstalling `key@alpha` and installing `key@beta`;
+  do not treat the transition as an in-place cask upgrade.
+- [ ] Prove the installed beta preserves Stable's app, CLI, configuration,
+  vault, helper, and Keychain namespaces; then reboot and verify the Preview
+  helper registers, the enrolled vault opens, and app/CLI/helper versions still
+  align. Record concise two-device continuity evidence from the existing
+  enrolled Preview devices without introducing a three-device gate.
 
 `BETA-601` coverage inventory:
 
