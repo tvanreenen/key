@@ -2171,6 +2171,24 @@ Stable stabilization ledger:
   exact input vectors and the complete host suite pass. An RC is therefore not
   warranted solely for this diff. The exact Stable artifact is the next
   candidate.
+- Installed build 18 passed signing, notarization, stapling, Gatekeeper, and
+  extracted-artifact verification, then correctly failed closed on this test
+  Mac's retired pre-isolation v3 selection. That exercise exposed stale
+  "current alpha" guidance and two repeat-run assumptions in the isolated
+  migration harness. The guidance is now release-neutral, every qualification
+  run receives fresh isolated app/helper identities so Service Management
+  cannot retain an earlier debug build's code requirement, explicitly reused
+  identities stop only their prior isolated helper, and the harness compares
+  Stable/Preview helper-registration presence before and after rather than
+  assuming both were initially registered. Build 18 is not the publication
+  candidate; these bounded fixes require a fresh build.
+- The corrected installed migration gate then passed in full with fresh
+  per-run identities: invalid-source rejection; exact small and 300-entry
+  secret/TOTP inventory and value equivalence; unchanged v2 source bytes;
+  post-migration v3 mutation; lock/restart; controlled v2 rollback; persistent
+  plaintext absence; and unchanged Stable/Preview files and helper-registration
+  presence. The test Mac's retired pre-isolation Stable selection remains
+  unchanged and continues to fail closed.
 
 ## Immediate Next Action
 

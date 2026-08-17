@@ -30,7 +30,7 @@ enum V3DeviceWrappedVaultUnlockRuntimeError:
         case .deviceRevoked:
             "This Mac has been revoked from the vault and cannot unlock its current key."
         case .legacyAlphaProfile:
-            "This vault uses the replaced prerelease version 3 key profile. Reset or remigrate it with the current alpha."
+            "This vault uses a retired prerelease version 3 key profile and cannot be opened by this release. Return to its retained version 2 source and migrate again, or reset this test vault."
         case .upgradeRequired:
             "This vault requires a newer version of Key."
         }

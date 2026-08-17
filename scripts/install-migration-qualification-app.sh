@@ -80,6 +80,12 @@ done
 
 codesign --verify --deep --strict "${built_app_path}"
 
+# Replacing a registered app with the same qualification identity can leave
+# launchd's cached lightweight code requirement bound to the previous build.
+# Stop only this isolated app and helper before publishing the replacement.
+osascript -e "tell application id \"${app_bundle_id}\" to quit" >/dev/null 2>&1 || true
+launchctl bootout "gui/$(id -u)/${agent_label}" >/dev/null 2>&1 || true
+
 if [[ -e "${installed_app_path}" ]]; then
   existing_bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${installed_app_path}/Contents/Info.plist" 2>/dev/null || true)"
   existing_namespace="$(/usr/libexec/PlistBuddy -c 'Print :KeyQualificationNamespace' "${installed_app_path}/Contents/Info.plist" 2>/dev/null || true)"

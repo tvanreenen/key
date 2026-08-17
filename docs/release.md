@@ -41,7 +41,9 @@ tags build the isolated `Key Preview.app` and `key-preview` product and publish
 it as a GitHub prerelease automatically. The tag is the only release selector;
 the operator does not choose the product separately.
 The release tag includes the leading `v`; the app and CLI marketing version do not.
-The planned version 3 prerelease checkpoints and their security boundaries are tracked in [v3-vault-implementation.md](v3-vault-implementation.md#alpha-release-checkpoints).
+The historical version 3 prerelease checkpoints and their security boundaries
+are tracked in
+[v3-vault-implementation.md](v3-vault-implementation.md#alpha-release-checkpoints).
 
 Following [Homebrew's alternative release channel convention](https://docs.brew.sh/Cask-Cookbook#casks-for-alternative-release-channels),
 prereleases use separate, opt-in casks. Stable tags update `key`, while numbered
@@ -49,7 +51,7 @@ prereleases update `key@alpha`, `key@beta`, or `key@rc`. The stable cask install
 `Key.app` and `key`; prerelease casks install `Key Preview.app` and
 `key-preview`. This keeps an ordinary `brew upgrade` from moving a stable
 installation onto a prerelease while allowing Stable and Preview to coexist. A
-tester opts into the current alpha with:
+A tester can opt into a numbered prerelease channel, for example:
 
 ```bash
 brew install --cask tvanreenen/tap/key@alpha

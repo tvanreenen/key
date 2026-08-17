@@ -55,7 +55,8 @@ struct V3DeviceWrappedVaultRuntimeTests {
             Issue.record("Expected the replaced alpha profile to be refused.")
         } catch let error as AppError {
             #expect(error.serviceErrorCode == .operationRefused)
-            #expect(error.localizedDescription.contains("replaced prerelease"))
+            #expect(error.localizedDescription.contains("retired prerelease"))
+            #expect(error.localizedDescription.contains("retained version 2 source"))
         }
     }
 

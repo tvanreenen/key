@@ -446,7 +446,7 @@ placeholder state to establish freshness, authority, or a winner. Missing and
 placeholder objects are temporary transport unavailability; malformed,
 oversized, substituted, symbolic-link, or unsafe-root states fail closed.
 
-Mailbox artifacts remain retained in the current alpha. Safe synchronized
+Mailbox artifacts remain retained in `0.2.0`. Safe synchronized
 cleanup is deferred until realistic provider testing defines rules that cannot
 delete another device's only delivered copy. Retention does not grant replay
 authority because later ceremony steps remain bound to exact local state and

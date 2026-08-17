@@ -4,12 +4,15 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 run_root="$(mktemp -d "${TMPDIR:-/tmp}/key-migration-qualification-run.XXXXXX")"
 helper_wait_seconds="${KEY_MIGRATION_QUALIFICATION_HELPER_WAIT_SECONDS:-120}"
-namespace_prefix="${KEY_MIGRATION_QUALIFICATION_NAMESPACE_PREFIX:-migration}"
+qualification_run_id="$(date +%s)"
+namespace_prefix="${KEY_MIGRATION_QUALIFICATION_NAMESPACE_PREFIX:-migration-${qualification_run_id}}"
 rebuild_apps="${KEY_MIGRATION_QUALIFICATION_REBUILD:-1}"
 scenario_text="${KEY_MIGRATION_QUALIFICATION_SCENARIOS:-invalid small large}"
 scenarios=(${=scenario_text})
 protected_before="${run_root}/protected-before.sha256"
 protected_after="${run_root}/protected-after.sha256"
+helper_registrations_before="${run_root}/protected-helpers-before.txt"
+helper_registrations_after="${run_root}/protected-helpers-after.txt"
 
 if [[ ! "${helper_wait_seconds}" =~ '^[1-9][0-9]*$' ]]; then
   echo "helper wait must be a positive number of seconds" >&2
@@ -42,6 +45,19 @@ snapshot_protected_state() {
       echo "missing  ${protected_path}"
     fi
   done | LC_ALL=C sort > "${output_path}"
+}
+
+snapshot_protected_helper_registrations() {
+  local output_path="$1"
+  local label
+  : > "${output_path}"
+  for label in work.tvr.key.agent work.tvr.key.preview.agent; do
+    if launchctl print "gui/$(id -u)/${label}" >/dev/null 2>&1; then
+      echo "registered  ${label}" >> "${output_path}"
+    else
+      echo "absent      ${label}" >> "${output_path}"
+    fi
+  done
 }
 
 wait_for_helper() {
@@ -353,6 +369,7 @@ run_large_scenario() {
 }
 
 snapshot_protected_state "${protected_before}"
+snapshot_protected_helper_registrations "${helper_registrations_before}"
 : > "${run_root}/summary.txt"
 
 for scenario in "${scenarios[@]}"; do
@@ -368,11 +385,12 @@ for scenario in "${scenarios[@]}"; do
 done
 
 snapshot_protected_state "${protected_after}"
+snapshot_protected_helper_registrations "${helper_registrations_after}"
 cmp "${protected_before}" "${protected_after}"
-launchctl print "gui/$(id -u)/work.tvr.key.agent" >/dev/null
-launchctl print "gui/$(id -u)/work.tvr.key.preview.agent" >/dev/null
+cmp "${helper_registrations_before}" "${helper_registrations_after}"
 
 echo "protected Stable/Preview files: PASS" >> "${run_root}/summary.txt"
+echo "protected Stable/Preview helper registrations: PASS" >> "${run_root}/summary.txt"
 echo
 cat "${run_root}/summary.txt"
 echo
