@@ -2124,11 +2124,11 @@ Stable stabilization ledger:
   shipping role-free profile, and a conformance regression test compares their
   exact object fields and discriminators with production-generated canonical
   body and envelope fixtures.
-- The README identifies Stable `0.1.2` and Preview `0.2.0-beta.1` as the
-  currently published channels without presenting prerelease v3 behavior as a
-  Stable feature. `STABLE-704` will update that release metadata when the exact
-  Stable artifact is published; the product and safety contract is already in
-  final landing-page form.
+- The release-audited README identifies Stable `0.2.0` as the ordinary-use
+  channel and Preview `0.2.0-beta.1` as an older, isolated prerelease. It makes
+  the release/vault distinction explicit: new and upgraded Stable
+  installations remain Keychain-backed until deliberate migration, while
+  Stable `0.2.0` supports the device-enrolled model after that operation.
 - The landing-page progression begins with the ordinary CLI, TOTP, piping, and
   fuzzy-selection workflow before installation or architecture. A compact
   security thesis then connects that everyday workflow to the signed agent,
@@ -2143,7 +2143,15 @@ Stable stabilization ledger:
   tests and 41 CLI application tests pass, including explicit migration,
   invitation expiry, replacement retry, and revocation review coverage. The
   Homebrew channel suite confirms the Stable `key` and Preview `key@beta`
-  mappings, and every relative README link resolves.
+  mappings, and every relative README link resolves. The final command
+  reference now includes the complete migration and enrollment ceremony rather
+  than relying on earlier narrative examples to fill those gaps.
+- The final release-state audit adds the Stable Homebrew upgrade path, presents
+  the older beta only as an optional isolated reproduction channel, and states
+  that retained v2 source is a controlled migration-validation boundary rather
+  than an ordinary rollback command or current fallback. The external `fzf`
+  reference resolves, and the focused parser, CLI application, Homebrew
+  channel, and Preview installation suites pass against the audited copy.
 - README and CLI help now say local APFS and iCloud Drive are directly
   validated while other ordinary folder-backed providers may work but are not
   directly validated. The landing page places the two-Mac recommendation and

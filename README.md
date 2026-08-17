@@ -68,18 +68,19 @@ choose a conflict winner.
 
 ## Install and choose a release channel
 
-Key Stable and Key Preview are separate installed products, not names for the
-two vault models. They can live side by side with different apps, CLIs,
-helpers, configuration, default vaults, and Keychain namespaces.
+Install Stable for ordinary use. Key Stable and Key Preview are separate
+installed products, not names for the two vault models. They can live side by
+side with different apps, CLIs, helpers, configuration, default vaults, and
+Keychain namespaces.
 
-| Channel | Current release | App and CLI | Homebrew cask | Vault model today |
+| Channel | Current release | App and CLI | Homebrew cask | Purpose |
 |---|---|---|---|---|
-| Stable | `0.1.2` | `Key.app`, `key` | `key` | Keychain-backed |
-| Preview | `0.2.0-beta.1` | `Key Preview.app`, `key-preview` | `key@beta` | Device-enrolled |
+| Stable | `0.2.0` | `Key.app`, `key` | `key` | Ordinary use |
+| Preview | `0.2.0-beta.1` | `Key Preview.app`, `key-preview` | `key@beta` | Isolated prerelease testing |
 
-The repository is preparing version `0.2.0` for Stable. Until that release is
-published, the device-enrolled vault remains Preview-only. Preview does not
-read or modify Stable configuration, vault selection, or Keychain state.
+The published Preview beta predates Stable `0.2.0`; install it only when you
+specifically need to reproduce that prerelease. Preview does not read or
+modify Stable configuration, vault selection, or Keychain state.
 
 > [!IMPORTANT]
 > Keep at least two Macs enrolled in a device-enrolled vault. If every enrolled
@@ -95,16 +96,24 @@ brew install --cask key
 open -a Key
 ```
 
-Open `Key.app` once after installation so macOS can register Key Agent. If
-macOS asks, allow the background item. Then confirm that the CLI and helper are
-available:
+Existing Homebrew users can update in place:
+
+```sh
+brew update
+brew upgrade --cask key
+open -a Key
+```
+
+Open `Key.app` once after installation or upgrade so macOS can register Key
+Agent. If macOS asks, allow the background item. Then confirm that the CLI and
+helper are available:
 
 ```sh
 key version
 key status
 ```
 
-### Install Preview
+### Install Preview (optional)
 
 ```sh
 brew install --cask tvanreenen/tap/key@beta
@@ -113,15 +122,18 @@ key-preview version
 key-preview status
 ```
 
-Do not point Preview at the live Stable vault. Use Preview's isolated default
-vault or a disposable copy. In the examples below, replace `key` with
-`key-preview` when working in Preview.
+The current Preview is older than Stable `0.2.0`. Do not point it at the live
+Stable vault; use its isolated default vault or a disposable copy. In the
+examples below, replace `key` with `key-preview` when reproducing Preview
+behavior.
 
 ## How Key protects a vault
 
-Release channel and vault protection are separate choices. Stable currently
-uses the Keychain-backed vault model. The `0.2.0` Preview is qualifying the
-device-enrolled model that will move into Stable with the `0.2.0` release.
+Release channel and vault protection are separate choices. Stable `0.2.0`
+supports both protection models. New Stable vaults begin Keychain-backed, and
+upgrades preserve the existing Keychain-backed selection; installing the
+release never migrates a vault automatically. Moving to the device-enrolled
+model is a separate, explicit operation.
 
 The on-disk names are format v2 and format v3, respectively. The rest of this
 README uses the descriptive model names because they express the security
@@ -167,9 +179,10 @@ key migrate --apply
 Migration converts format v2 to format v3. It retains the Keychain-backed
 source files unchanged and selects the device-enrolled vault only after the new
 snapshot, local device identity, wrapper, and checkpoint are usable. The
-retained source supports controlled rollback or remigration while the
-migration is being validated; it does not receive later device-enrolled
-changes and is not a recovery key for the new vault.
+retained source provides a controlled rollback boundary while migration is
+being validated, but `0.2.0` has no ordinary rollback command. It does not
+receive later device-enrolled changes and is neither a current fallback nor a
+recovery key for the new vault.
 
 Other Macs remain on their existing Keychain-backed state. Their later edits
 are not imported into the migrated snapshot. Enroll each additional Mac into
@@ -287,6 +300,9 @@ key config get <config-name>           Print one configuration value
 key config set <config-name> <value>   Update one configuration value
 key config list                        List known configuration values
 
+key migrate --check                    Check migration readiness without changing the vault
+key migrate --apply                    Create and select a verified device-enrolled copy
+
 key conflict list [--json]             List unresolved device-enrolled conflicts
 key conflict show <id> [--json]        Inspect authenticated conflict metadata
 key conflict get <id> <version>        Print one conflicted value
@@ -295,6 +311,18 @@ key conflict resolve <id>=<version>…   Resolve the complete listed conflict se
 
 key share devices [--json]             List authenticated enrolled devices
 key share revoke <device-id>           Review and revoke a device
+key share invitations                  List available invitations
+key share invite --name <name>         Create an invitation from this Mac
+key share join <invite> --name <name>  Answer an invitation on the joining Mac
+key share requests <invite>            List answers to an invitation
+key share compare <vault> <invite> [request]
+                                        Show the device pair and comparison code
+key share approve <vault> <invite> <code>
+                                        Approve the compared joining Mac
+key share accept <vault> <invite> <code>
+                                        Trust and select the approved vault here
+
+key version [--json]                   Print the CLI version
 key help                               Show the complete command reference
 ```
 
