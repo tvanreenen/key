@@ -221,7 +221,10 @@ struct V3ReplacementEnrollmentWorkflowTests {
         #expect(projected.vaultID == Fixture.vaultID)
         #expect(projected.checkpointID == String(repeating: "33", count: 32))
         #expect(projected.confirmationToken == v3LowercaseHex(
-            fixture.review.digest
+            v3ReplacementEnrollmentConfirmationDigest(
+                reviewDigest: fixture.review.digest,
+                invitationDigest: Data(repeating: 0x11, count: 32)
+            )
         ))
         #expect(projected.replacedDevice.deviceID
             == fixture.target.identity.deviceID)
@@ -233,6 +236,7 @@ struct V3ReplacementEnrollmentWorkflowTests {
 
         let replaceResponse = handler.handle(
             .share(.replaceCurrentDevice(
+                invitationID: String(repeating: "11", count: 32),
                 confirmationToken: projected.confirmationToken
             ))
         )
@@ -330,6 +334,171 @@ struct V3ReplacementEnrollmentWorkflowTests {
     }
 
     @Test
+    func helperRejectsInvitationSubstitutionAtCleanupBoundary() throws {
+        let fixture = try Fixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = WorkflowService(
+            review: fixture.review,
+            result: fixture.completed
+        )
+        let handler = KeyServiceHandler(
+            keyStore: MemoryVaultKeyStore(),
+            entryStore: EntryStore(rootURL: root),
+            mutationOwner: WorkflowMutationOwner(),
+            validateJoinInvitation: { _, _ in },
+            replacementService: service,
+            configuredVaultID: Fixture.vaultID
+        )
+        let selectedInvitationID = String(repeating: "11", count: 32)
+        let substitutedInvitationID = String(repeating: "22", count: 32)
+        let reviewResponse = handler.handle(.share(.join(
+            invitationID: selectedInvitationID,
+            deviceName: "Replacement Mac"
+        )))
+        let review = try #require(
+            reviewResponse.deviceReplacementReview
+        )
+
+        let response = handler.handle(.share(.replaceCurrentDevice(
+            invitationID: substitutedInvitationID,
+            confirmationToken: review.confirmationToken
+        )))
+
+        #expect(response.errorCode == .invalidUsage)
+        #expect(service.confirmations.isEmpty)
+    }
+
+    @Test
+    func helperRejectsInvitationExpiryAtCleanupBoundary() throws {
+        let fixture = try Fixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let expiresAt: UInt64 = 1_900_000_000
+        let clock = WorkflowClock(unixTime: expiresAt)
+        let service = WorkflowService(
+            review: fixture.review,
+            result: fixture.completed
+        )
+        let handler = KeyServiceHandler(
+            keyStore: MemoryVaultKeyStore(),
+            entryStore: EntryStore(rootURL: root),
+            now: {
+                Date(timeIntervalSince1970: TimeInterval(clock.unixTime))
+            },
+            mutationOwner: WorkflowMutationOwner(),
+            validateJoinInvitation: { _, unixTime in
+                guard unixTime <= expiresAt else {
+                    throw V3EnrollmentProtocolError.expired
+                }
+            },
+            replacementService: service,
+            configuredVaultID: Fixture.vaultID
+        )
+        let invitationID = String(repeating: "11", count: 32)
+        let reviewResponse = handler.handle(.share(.join(
+            invitationID: invitationID,
+            deviceName: "Replacement Mac"
+        )))
+        let review = try #require(
+            reviewResponse.deviceReplacementReview
+        )
+        clock.unixTime = expiresAt + 1
+
+        let response = handler.handle(.share(.replaceCurrentDevice(
+            invitationID: invitationID,
+            confirmationToken: review.confirmationToken
+        )))
+
+        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(response.errorMessage?.contains("expired") == true)
+        #expect(service.confirmations.isEmpty)
+    }
+
+    @Test
+    func destructiveCleanupResumeDoesNotRequireInvitationAvailability()
+        throws
+    {
+        let fixture = try Fixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = WorkflowService(
+            review: fixture.review,
+            result: fixture.completed
+        )
+        let handler = KeyServiceHandler(
+            keyStore: MemoryVaultKeyStore(),
+            entryStore: EntryStore(rootURL: root),
+            mutationOwner: WorkflowMutationOwner(),
+            validateJoinInvitation: { _, _ in
+                throw V3EnrollmentProtocolError.expired
+            },
+            replacementService: service,
+            configuredVaultID: Fixture.vaultID,
+            replacementAdmissionState: .cleanupPending
+        )
+
+        let response = handler.handle(.share(.replaceCurrentDevice(
+            invitationID: String(repeating: "11", count: 32),
+            confirmationToken: v3LowercaseHex(fixture.review.digest)
+        )))
+
+        #expect(response.exitCode == EXIT_SUCCESS)
+        #expect(service.confirmations == [fixture.review.digest])
+    }
+
+    @Test
+    func preparedCleanupStillRequiresInvitationAvailability() throws {
+        let fixture = try Fixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = WorkflowService(
+            review: fixture.review,
+            result: fixture.completed
+        )
+        let handler = KeyServiceHandler(
+            keyStore: MemoryVaultKeyStore(),
+            entryStore: EntryStore(rootURL: root),
+            mutationOwner: WorkflowMutationOwner(),
+            validateJoinInvitation: { _, _ in
+                throw V3EnrollmentProtocolError.expired
+            },
+            replacementService: service,
+            configuredVaultID: Fixture.vaultID,
+            replacementAdmissionState: .cleanupPrepared
+        )
+
+        let response = handler.handle(.share(.replaceCurrentDevice(
+            invitationID: String(repeating: "11", count: 32),
+            confirmationToken: v3LowercaseHex(fixture.review.digest)
+        )))
+
+        #expect(response.exitCode == EXIT_FAILURE)
+        #expect(response.errorMessage?.contains("expired") == true)
+        #expect(service.confirmations.isEmpty)
+    }
+
+    @Test
     func helperRejectsNoncanonicalReplacementTokenBeforeCleanup() throws {
         let fixture = try Fixture()
         let root = FileManager.default.temporaryDirectory
@@ -352,6 +521,7 @@ struct V3ReplacementEnrollmentWorkflowTests {
 
         let response = handler.handle(
             .share(.replaceCurrentDevice(
+                invitationID: String(repeating: "11", count: 32),
                 confirmationToken: String(repeating: "A", count: 64)
             ))
         )
@@ -367,9 +537,16 @@ struct V3ReplacementEnrollmentWorkflowTests {
             intentStore: fixture.intents
         )
         #expect(try admission.state(vaultID: Fixture.vaultID) == .inactive)
+        fixture.intents.storage = V3ReplacementEnrollmentIntent(
+            review: fixture.review,
+            phase: .prepared
+        ).canonicalBytes
+        #expect(
+            try admission.state(vaultID: Fixture.vaultID)
+                == .cleanupPrepared
+        )
         for phase in [
-            V3ReplacementEnrollmentIntentPhase.prepared,
-            .identityDeletionStarted,
+            V3ReplacementEnrollmentIntentPhase.identityDeletionStarted,
             .identityDeleted,
         ] {
             fixture.intents.storage = V3ReplacementEnrollmentIntent(
@@ -417,8 +594,8 @@ struct V3ReplacementEnrollmentWorkflowTests {
             keyStore: MemoryVaultKeyStore(),
             entryStore: EntryStore(rootURL: root),
             mutationOwner: WorkflowMutationOwner(),
-            validateJoinInvitation: { digest, _ in
-                #expect(digest == Data(repeating: 0x11, count: 32))
+            validateJoinInvitation: { _, _ in
+                throw V3EnrollmentProtocolError.expired
             },
             replacementService: service,
             configuredVaultID: Fixture.vaultID,
@@ -451,6 +628,7 @@ struct V3ReplacementEnrollmentWorkflowTests {
             fixture.review.digest
         ))
         let resumed = handler.handle(.share(.replaceCurrentDevice(
+            invitationID: String(repeating: "11", count: 32),
             confirmationToken: projected.confirmationToken
         )))
         #expect(resumed.exitCode == EXIT_SUCCESS)

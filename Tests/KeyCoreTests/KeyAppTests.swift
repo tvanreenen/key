@@ -590,6 +590,7 @@ struct KeyCLIApplicationTests {
                 }
                 return .success("Join request published.\n")
             case .share(.replaceCurrentDevice(
+                invitationID: invitationID,
                 confirmationToken: review.confirmationToken
             )):
                 return .success(
@@ -620,6 +621,7 @@ struct KeyCLIApplicationTests {
                 deviceName: "Laptop"
             )),
             .share(.replaceCurrentDevice(
+                invitationID: invitationID,
                 confirmationToken: review.confirmationToken
             )),
             .share(.join(
@@ -771,6 +773,7 @@ struct KeyCLIApplicationTests {
                 deviceName: "Laptop"
             )),
             .share(.replaceCurrentDevice(
+                invitationID: invitationID,
                 confirmationToken: review.confirmationToken
             ))
         ])
@@ -848,6 +851,7 @@ struct KeyCLIApplicationTests {
                 }
                 return .deviceReplacementReview(review)
             case .share(.replaceCurrentDevice(
+                invitationID: invitationID,
                 confirmationToken: review.confirmationToken
             )):
                 cleanupAttempts += 1
@@ -890,6 +894,7 @@ struct KeyCLIApplicationTests {
                 deviceName: "Laptop"
             )),
             .share(.replaceCurrentDevice(
+                invitationID: invitationID,
                 confirmationToken: review.confirmationToken
             )),
             .share(.join(

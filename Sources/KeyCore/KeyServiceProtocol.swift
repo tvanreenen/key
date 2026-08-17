@@ -5,7 +5,10 @@ public enum KeyShareRequest: Codable, Equatable, Sendable {
     case reviewRevocation(deviceID: String)
     case revoke(deviceID: String, confirmationToken: String)
     case reviewReplacement
-    case replaceCurrentDevice(confirmationToken: String)
+    case replaceCurrentDevice(
+        invitationID: String,
+        confirmationToken: String
+    )
     case invitations
     case invite(deviceName: String)
     case join(invitationID: String, deviceName: String)

@@ -1769,6 +1769,25 @@ opportunistic evidence rather than a release gate.
 | `BETA-606` | Pending | Complete a focused security review of identity binding, ceremony substitution, comparison transcripts, revocation and key rotation, replacement cleanup authorization, durable retry state, checkpoint rollback, filesystem containment, and persistent raw-key absence. |
 | `BETA-607` | Pending | Pass the full suite and release scripts; verify signatures, entitlements, hardened runtime, notarization, stapling, Gatekeeper, Homebrew alpha-to-beta upgrade, Stable isolation, helper registration after reboot, and app/CLI/helper version alignment. |
 
+`BETA-606` focused-review ledger:
+
+- [x] `BETA-606A` — Replacement cleanup invitation binding. The replacement
+  review digest correctly commits to the exact residual identity, identity
+  record digest, vault, checkpoint or revocation authority, and authorizing
+  device. The helper also re-observes that complete review inside its serialized
+  mutation boundary before the first destructive transition. However, the CLI
+  revalidates the selected invitation in one helper request and then sends a
+  cleanup request containing only the replacement-review digest. The cleanup
+  boundary therefore cannot prove which invitation was just validated or that
+  it remains valid. Bind the exact invitation digest into the initial cleanup
+  request and validate it in the helper immediately before starting cleanup.
+  The confirmation transcript now binds the exact replacement-review and
+  invitation digests; substitution and cleanup-boundary expiry fail before the
+  replacement service is invoked. Prepared cleanup still requires a live exact
+  invitation, while durable destructive progress uses a distinct admission
+  state and the existing invitation-free, idempotent resume path. The focused
+  replacement, CLI, and XPC suites pass, as does the 750-test serial suite.
+
 `BETA-601` coverage inventory:
 
 - [x] Read-only preflight covers empty and valid vaults plus incompatible

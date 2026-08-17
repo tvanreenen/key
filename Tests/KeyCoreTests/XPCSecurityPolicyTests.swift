@@ -26,6 +26,7 @@ struct XPCSecurityPolicyTests {
         )),
         .share(.reviewReplacement),
         .share(.replaceCurrentDevice(
+            invitationID: String(repeating: "a", count: 64),
             confirmationToken: String(repeating: "b", count: 64)
         )),
         .share(.invitations),
@@ -172,6 +173,7 @@ struct XPCSecurityPolicyTests {
         )
         #expect(
             KeyServiceRequest.share(.replaceCurrentDevice(
+                invitationID: String(repeating: "a", count: 64),
                 confirmationToken: String(repeating: "b", count: 64)
             )).responseTimeoutSeconds == nil
         )
@@ -213,6 +215,7 @@ struct XPCSecurityPolicyTests {
             )),
             .share(.reviewReplacement),
             .share(.replaceCurrentDevice(
+                invitationID: String(repeating: "a", count: 64),
                 confirmationToken: String(repeating: "b", count: 64)
             )),
             .share(.accept(
@@ -420,6 +423,7 @@ struct XPCSecurityPolicyTests {
             try KeyXPCClientTransport.requireHelperTermination(
                 state,
                 after: .share(.replaceCurrentDevice(
+                    invitationID: String(repeating: "a", count: 64),
                     confirmationToken: String(repeating: "b", count: 64)
                 )),
                 helperName: "Key Agent",

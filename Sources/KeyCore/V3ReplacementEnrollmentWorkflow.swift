@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 public enum V3VaultDeviceReplacementAuthorityKind:
@@ -44,7 +45,10 @@ public struct V3VaultDeviceReplacementReview:
         self.revocationManifestID = revocationManifestID
     }
 
-    init(review: V3ReplacementEnrollmentReview) {
+    init(
+        review: V3ReplacementEnrollmentReview,
+        invitationDigest: Data? = nil
+    ) {
         let authorityKind: V3VaultDeviceReplacementAuthorityKind
         let authorizingDevice: V3VaultDeviceSummary?
         let revocationManifestID: String?
@@ -70,7 +74,14 @@ public struct V3VaultDeviceReplacementReview:
         checkpointID = v3LowercaseHex(
             review.expectedCheckpoint.envelopeDigest
         )
-        confirmationToken = v3LowercaseHex(review.digest)
+        confirmationToken = v3LowercaseHex(
+            invitationDigest.map {
+                v3ReplacementEnrollmentConfirmationDigest(
+                    reviewDigest: review.digest,
+                    invitationDigest: $0
+                )
+            } ?? review.digest
+        )
         replacedDevice = V3VaultDeviceSummary(
             deviceID: review.target.identity.deviceID,
             displayName: review.target.identity.displayName,
@@ -82,8 +93,24 @@ public struct V3VaultDeviceReplacementReview:
     }
 }
 
+func v3ReplacementEnrollmentConfirmationDigest(
+    reviewDigest: Data,
+    invitationDigest: Data
+) -> Data {
+    precondition(reviewDigest.count == 32)
+    precondition(invitationDigest.count == 32)
+    var transcript = Data(
+        "key-vault-replacement-enrollment-confirmation-v1".utf8
+    )
+    transcript.append(0)
+    transcript.append(reviewDigest)
+    transcript.append(invitationDigest)
+    return Data(SHA256.hash(data: transcript))
+}
+
 enum V3ReplacementEnrollmentAdmissionState: Equatable, Sendable {
     case inactive
+    case cleanupPrepared
     case cleanupPending
     case enrollmentPending
 }
@@ -112,9 +139,14 @@ struct V3ReplacementEnrollmentAdmission: Sendable {
         guard intent.vaultID == vaultID else {
             throw V3ReplacementEnrollmentIntentError.invalidIntent
         }
-        return intent.phase == .checkpointDeleted
-            ? .enrollmentPending
-            : .cleanupPending
+        switch intent.phase {
+        case .prepared:
+            return .cleanupPrepared
+        case .identityDeletionStarted, .identityDeleted:
+            return .cleanupPending
+        case .checkpointDeleted:
+            return .enrollmentPending
+        }
     }
 
     func consumeCompletedIntent(vaultID: String) throws {

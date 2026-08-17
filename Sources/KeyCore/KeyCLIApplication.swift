@@ -340,6 +340,7 @@ public final class KeyCLIApplication {
         }
 
         let cleanupResponse = try transport.send(.share(.replaceCurrentDevice(
+            invitationID: invitationID,
             confirmationToken: currentReview.confirmationToken
         )))
         let cleanupExitCode = try handle(

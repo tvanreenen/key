@@ -516,6 +516,8 @@ public final class KeyServiceHandler {
             during: replacementAdmissionState
         ) else {
             let message = switch replacementAdmissionState {
+            case .cleanupPrepared:
+                "Device replacement cleanup is prepared but has not started. Review or resume the pending replacement before using or changing the vault."
             case .cleanupPending:
                 "Device replacement cleanup is still in progress. Review or resume the pending replacement before using or changing the vault."
             case .enrollmentPending:
@@ -851,22 +853,42 @@ public final class KeyServiceHandler {
                     )
                 )
             }
-        case let .replaceCurrentDevice(confirmationToken):
+        case let .replaceCurrentDevice(
+            invitationID,
+            confirmationToken
+        ):
             return replacementResponse {
-                let intent = try requiredReplacementService().replace(
-                    confirmedReviewDigest: try replacementDigest(
-                        confirmationToken
-                    )
+                let invitationDigest = try enrollmentDigest(invitationID)
+                let confirmedReviewDigest = try replacementDigest(
+                    confirmationToken
                 )
-                guard intent.phase == .checkpointDeleted else {
-                    throw AppError.operationRefused(
-                        "Device replacement cleanup did not complete."
+                if replacementAdmissionState != .cleanupPending {
+                    guard let validateJoinInvitation else {
+                        throw AppError.operationRefused(
+                            "Device rejoin invitation validation is unavailable in this helper runtime."
+                        )
+                    }
+                    try validateJoinInvitation(invitationDigest, unixTime)
+                    let currentReview = try requiredReplacementService()
+                        .review()
+                    guard confirmedReviewDigest
+                        == v3ReplacementEnrollmentConfirmationDigest(
+                            reviewDigest: currentReview.digest,
+                            invitationDigest: invitationDigest
+                        )
+                    else {
+                        throw V3ReplacementEnrollmentWorkflowError
+                            .invalidConfirmation
+                    }
+                    let intent = try requiredReplacementService().replace(
+                        confirmedReviewDigest: currentReview.digest
                     )
+                    return try completedReplacementResponse(intent)
                 }
-                vaultSession?.lock()
-                return .success(
-                    "Revoked device state removed. This Mac is ready to create a new enrollment identity.\n"
+                let intent = try requiredReplacementService().replace(
+                    confirmedReviewDigest: confirmedReviewDigest
                 )
+                return try completedReplacementResponse(intent)
             }
         case .invitations:
             return .success(try requiredEnrollmentService().listInvitations())
@@ -888,17 +910,24 @@ public final class KeyServiceHandler {
                             "Device rejoin review requires the helper's serialized mutation boundary."
                         )
                     }
-                    guard let validateJoinInvitation else {
-                        throw AppError.operationRefused(
-                            "Device rejoin invitation validation is unavailable in this helper runtime."
-                        )
+                    if replacementAdmissionState != .cleanupPending {
+                        guard let validateJoinInvitation else {
+                            throw AppError.operationRefused(
+                                "Device rejoin invitation validation is unavailable in this helper runtime."
+                            )
+                        }
+                        try validateJoinInvitation(invitationDigest, unixTime)
                     }
-                    try validateJoinInvitation(invitationDigest, unixTime)
                     do {
                         return .deviceReplacementReview(
                             V3VaultDeviceReplacementReview(
                                 review: try requiredReplacementService()
-                                    .review()
+                                    .review(),
+                                invitationDigest:
+                                    replacementAdmissionState
+                                        == .cleanupPending
+                                        ? nil
+                                        : invitationDigest
                             )
                         )
                     } catch V3ReplacementEnrollmentWorkflowError
@@ -1001,6 +1030,20 @@ public final class KeyServiceHandler {
             )
         }
         return replacementService
+    }
+
+    private func completedReplacementResponse(
+        _ intent: V3ReplacementEnrollmentIntent
+    ) throws -> KeyServiceResponse {
+        guard intent.phase == .checkpointDeleted else {
+            throw AppError.operationRefused(
+                "Device replacement cleanup did not complete."
+            )
+        }
+        vaultSession?.lock()
+        return .success(
+            "Revoked device state removed. This Mac is ready to create a new enrollment identity.\n"
+        )
     }
 
     private func replacementResponse(
@@ -1430,7 +1473,7 @@ private extension KeyServiceRequest {
         switch state {
         case .inactive:
             true
-        case .cleanupPending:
+        case .cleanupPrepared, .cleanupPending:
             switch self {
             case .status, .lock,
                 .share(.reviewReplacement),
