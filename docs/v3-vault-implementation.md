@@ -2156,13 +2156,18 @@ Stable stabilization ledger:
   known environment denial when legacy v2 tests apply
   `.completeFileProtection`; that restricted-host result is not release
   evidence and did not replace the successful ordinary-host gate.
+- The exact production diff after `v0.2.0-beta.1` is limited to corrected CLI
+  provider wording and a behavior-preserving extraction of the existing HPKE
+  `info` and authenticated-data construction into one testable input path. No
+  wire bytes, product behavior, packaging, or release scripts changed; the
+  exact input vectors and the complete host suite pass. An RC is therefore not
+  warranted solely for this diff. The exact Stable artifact is the next
+  candidate.
 
 ## Immediate Next Action
 
-Complete the bounded `STABLE-704` artifact qualification. Review the exact
-post-beta.1 production diff and choose an RC only if it changes release
-behavior; otherwise build, notarize, verify, install, and deliberately qualify
-the exact Stable artifact and migration/rollback boundary before publishing.
-Do not add a portable recovery authority, require a third physical Mac, or
-expand the directly validated provider matrix as part of `0.2.0`
+Build, notarize, staple, and verify the exact Stable `v0.2.0` artifact, then
+install it and deliberately qualify the migration/rollback boundary before
+publishing. Do not add a portable recovery authority, require a third physical
+Mac, or expand the directly validated provider matrix as part of `0.2.0`
 stabilization.
