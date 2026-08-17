@@ -1810,6 +1810,19 @@ opportunistic evidence rather than a release gate.
   the UI named as authorizer; version 2 now binds that exact authorizer ID, and
   regression coverage rejects authorizer substitution with the checkpoint and
   target held fixed.
+- [x] `BETA-606D` — Durable retry state and checkpoint rollback protection. No
+  production flaw was found. A device-local, non-synchronizing recovery anchor
+  commits to the SHA-256 digest of one canonical shared intent; that intent
+  binds the operation and mutation kind, vault, exact parent checkpoint and
+  heads, candidate manifest, and every staged entry. Recovery accepts only the
+  anchored parent or candidate checkpoint, reauthenticates the immutable
+  candidate and complete entry snapshot, checks current repository ancestry
+  and usage, and advances by expected-value replacement only after published
+  bytes are verified. Changed checkpoints abandon only owned staging and are
+  never overwritten. Interruption matrices already cover content, enrollment,
+  and revocation publication; new filesystem regression coverage substitutes a
+  different canonical intent and proves the digest-bound anchor preserves the
+  parent checkpoint, retains recovery state, and publishes nothing.
 
 `BETA-601` coverage inventory:
 

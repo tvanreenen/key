@@ -283,6 +283,67 @@ struct V3DeviceWrappedContentMutationPublisherTests {
         )))
     }
 
+    @Test
+    func recoveryAnchorRejectsACanonicalIntentSubstitution() throws {
+        let fixture = try Fixture()
+        defer { fixture.removeRoot() }
+        let publisher = fixture.publisher(
+            phaseObserver: InterruptingPermanentPhaseObserver(
+                target: .recoveryArmed
+            )
+        )
+        #expect(throws: PermanentPublicationTestError.interrupted) {
+            _ = try publisher.publish(
+                fixture.candidate,
+                vaultKey: Self.vaultKey
+            )
+        }
+        guard case let .available(intentData) = try fixture.store
+            .readRecoveryIntent(
+                operationID: Self.operationID,
+                maximumBytes:
+                    V3ImmutableTransactionRecoveryIntent.maximumBytes
+            )
+        else {
+            Issue.record("The anchored recovery intent was unavailable.")
+            return
+        }
+        let intent = try V3ImmutableTransactionRecoveryIntent(
+            canonicalBytes: intentData
+        )
+        let substituted = try V3ImmutableTransactionRecoveryIntent(
+            operationID: intent.operationID,
+            kind: intent.kind,
+            vaultID: intent.vaultID,
+            expectedCheckpoint: intent.expectedCheckpoint,
+            expectedHeads: intent.expectedHeads,
+            candidateManifestDigest: Data(repeating: 0xA5, count: 32),
+            stagedEntries: intent.stagedEntries,
+            enrollmentTranscriptDigest: intent.enrollmentTranscriptDigest
+        )
+        try substituted.canonicalBytes.write(to: fixture.recoveryIntentURL)
+
+        #expect(
+            throws: V3ImmutableTransactionRecoveryError.invalidIntent(
+                operationID: Self.operationID.rawValue
+            )
+        ) {
+            _ = try publisher.recoverInterruptedTransaction(
+                vaultID: Self.vaultID,
+                vaultKey: Self.vaultKey
+            )
+        }
+        #expect(
+            fixture.checkpointStore.checkpoint
+                == fixture.base.checkpoint.canonicalBytes
+        )
+        #expect(fixture.anchorStore.anchor(vaultID: Self.vaultID) != nil)
+        #expect(permanentIsUnavailable(try fixture.store.readManifest(
+            digest: fixture.candidate.manifestDigest,
+            maximumBytes: 2 * 1_024 * 1_024
+        )))
+    }
+
     @Test(arguments: [true, false])
     func substitutedStagingNeverAdvancesTheCheckpoint(
         tamperManifest: Bool
@@ -460,6 +521,12 @@ struct V3DeviceWrappedContentMutationPublisherTests {
             rootURL.appendingPathComponent(
                 ".transactions/\(operationID)/manifests/"
                     + "\(v3LowercaseHex(candidate.manifestDigest)).json"
+            )
+        }
+
+        var recoveryIntentURL: URL {
+            rootURL.appendingPathComponent(
+                ".transactions/\(operationID)/intent.json"
             )
         }
 
