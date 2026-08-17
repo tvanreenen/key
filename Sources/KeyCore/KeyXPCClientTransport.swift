@@ -46,8 +46,10 @@ final class KeyXPCConnectionEndState: @unchecked Sendable {
         semaphore.signal()
     }
 
-    func wait(until deadline: DispatchTime) -> Bool {
-        semaphore.wait(timeout: deadline) == .success
+    func wait(timeoutSeconds: Int) -> Bool {
+        semaphore.wait(
+            timeout: .now() + .seconds(timeoutSeconds)
+        ) == .success
     }
 }
 
@@ -57,7 +59,7 @@ final class KeyXPCConnectionEndState: @unchecked Sendable {
 }
 
 public final class KeyXPCClientTransport: KeyServiceTransport {
-    private static let helperShutdownTimeoutSeconds = 30
+    static let helperShutdownTimeoutSeconds = 30
 
     private let machServiceName: String
     private let productIdentity: KeyProductIdentity
@@ -149,16 +151,44 @@ public final class KeyXPCClientTransport: KeyServiceTransport {
            response.exitCode == EXIT_SUCCESS {
             invalidatesOnReturn = false
             proxy.completeShutdown()
-            guard connectionEndState.wait(
-                until: .now() + .seconds(Self.helperShutdownTimeoutSeconds)
-            ) else {
-                connection.invalidate()
-                throw AppError.service(
-                    "The \(request.completedOperationDescription) completed, but Key Agent is still restarting after \(Self.helperShutdownTimeoutSeconds) seconds. Run the same command again; Key will resume safely from the completed state."
+            do {
+                try Self.requireHelperTermination(
+                    connectionEndState,
+                    after: request,
+                    helperName: productIdentity.helperName,
+                    timeoutSeconds: Self.helperShutdownTimeoutSeconds
                 )
+            } catch {
+                connection.invalidate()
+                throw error
             }
         }
         return response
+    }
+
+    static func requireHelperTermination(
+        _ connectionEndState: KeyXPCConnectionEndState,
+        after request: KeyServiceRequest,
+        helperName: String,
+        timeoutSeconds: Int
+    ) throws {
+        guard connectionEndState.wait(timeoutSeconds: timeoutSeconds) else {
+            throw helperRestartTimeoutError(
+                for: request,
+                helperName: helperName,
+                timeoutSeconds: timeoutSeconds
+            )
+        }
+    }
+
+    static func helperRestartTimeoutError(
+        for request: KeyServiceRequest,
+        helperName: String,
+        timeoutSeconds: Int
+    ) -> AppError {
+        AppError.service(
+            "The \(request.completedOperationDescription) completed, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Run the same command again; Key will resume safely from the completed state."
+        )
     }
 }
 

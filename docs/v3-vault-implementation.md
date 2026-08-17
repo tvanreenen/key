@@ -14,8 +14,8 @@ state.
 | Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | `BETA-602`: complete targeted replacement fault injection for invitation expiry and delayed helper restart |
-| Next work | Complete one installed APFS qualification, one concise iCloud regression, continuity documentation, focused security review, and beta release verification; prototype PIV recovery separately for a later minor release |
+| Active work | `BETA-603`: run the signed-candidate local APFS qualification |
+| Next work | Cut one Preview candidate, complete the local APFS and concise two-device iCloud qualifications, continuity documentation, focused security review, and beta release verification; prototype PIV recovery separately for a later minor release |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
 profile MUST not ship as stable until every release gate below passes.
@@ -1761,7 +1761,7 @@ opportunistic evidence rather than a release gate.
 | ID | Status | Exit criteria |
 |---|---|---|
 | `BETA-601` | Complete | Migrate disposable copies of a small clean v2 vault, a realistic large mixed-entry vault, and deliberately invalid inputs. Compare names, types, and value hashes without logging plaintext; prove the v2 source is byte-identical, v3 selection happens last, no raw v3 key persists, and the same Stable-variant runtime can reopen its untouched v2 source as the supported rollback. |
-| `BETA-602` | Pending | Deterministically expire the invitation while the replacement confirmation is open and delay helper termination beyond the client wait. Prove no cleanup follows expiry and the bounded-timeout path resumes safely through the same join command. |
+| `BETA-602` | Complete | Deterministically expire the invitation while the replacement confirmation is open and delay helper termination beyond the client wait. Prove no cleanup follows expiry and the bounded-timeout path resumes safely through the same join command. |
 | `BETA-603` | Pending | Install the signed candidate and run one local APFS qualification covering migration or genesis, ordinary mutation, conflict or interrupted publication recovery, lock, helper restart, and final inventory verification. |
 | `BETA-604` | Pending | Run one concise installed-build iCloud regression covering two-device catch-up, one cross-device write and removal, lock/restart, exact roster continuity, and fail-closed behavior during incomplete delivery. Prior alpha.6, alpha.7, and alpha.10 exercises remain the broader evidence base. |
 | `BETA-605` | Pending | Make supported providers, two-device continuity, revocation, replacement, invitation lifetime, provider-only non-recovery, and all-devices-lost permanent loss explicit in CLI help and user documentation. |
@@ -1816,6 +1816,25 @@ opportunistic evidence rather than a release gate.
   qualifications.
 - [x] Protected writes pass in the release environment.
 - [x] Migration and rollback pass with realistic disposable vault copies.
+
+`BETA-602` coverage inventory:
+
+- [x] The CLI test clock advances from the invitation's inclusive expiry
+  boundary to one second after expiry while `readLine` is servicing the open
+  `REJOIN` prompt. The CLI reissues the exact join request, reports expiry, and
+  never sends replacement cleanup.
+- [x] The helper test independently advances its injected clock between two
+  exact join requests. Its second invitation validation fails before another
+  replacement review or any cleanup confirmation reaches the replacement
+  workflow.
+- [x] The XPC connection-end signal is deterministically withheld beyond a
+  zero-duration test bound, exercising the same bounded wait used by the
+  30-second production policy without a wall-clock sleep.
+- [x] The CLI fault test receives the production post-completion timeout error
+  after cleanup has durably completed. Repeating the same join command enters
+  the enrollment-pending path, publishes the join request, and does not repeat
+  destructive cleanup.
+
 - [ ] Recovery limitations are visible in CLI help and documentation.
 - [ ] An independent security review signs off on identity, enrollment,
   authentication, revocation, continuity, and permanent-loss behavior.
@@ -1823,10 +1842,10 @@ opportunistic evidence rather than a release gate.
 
 ## Immediate Next Action
 
-Complete `BETA-602` by deterministically exercising invitation expiry while the
-replacement confirmation is open and helper termination delayed beyond the
-client wait. Then complete `BETA-603` through `BETA-607` in order where
-dependencies allow. Do not add a portable recovery authority or broaden
-provider support as part of beta readiness. Prototype PIV catastrophe recovery
-separately and assign no release until physical feasibility and security review
-support it.
+Start `BETA-603` by cutting one Preview candidate from the completed local
+fault-injection and migration gates, then run its local APFS qualification.
+Use that same candidate for `BETA-604`'s concise two-device iCloud regression
+before completing `BETA-605` through `BETA-607`. Do not add a portable recovery
+authority or broaden provider support as part of beta readiness. Prototype PIV
+catastrophe recovery separately and assign no release until physical
+feasibility and security review support it.

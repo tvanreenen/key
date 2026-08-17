@@ -407,8 +407,45 @@ struct XPCSecurityPolicyTests {
         state.complete()
         state.complete()
 
-        #expect(state.wait(until: .now()))
-        #expect(!state.wait(until: .now()))
+        #expect(state.wait(timeoutSeconds: 0))
+        #expect(!state.wait(timeoutSeconds: 0))
+    }
+
+    @Test
+    func delayedHelperTerminationExceedsTheBoundedClientWait() {
+        let state = KeyXPCConnectionEndState()
+
+        #expect(KeyXPCClientTransport.helperShutdownTimeoutSeconds == 30)
+        do {
+            try KeyXPCClientTransport.requireHelperTermination(
+                state,
+                after: .share(.replaceCurrentDevice(
+                    confirmationToken: String(repeating: "b", count: 64)
+                )),
+                helperName: "Key Agent",
+                timeoutSeconds: 0
+            )
+            Issue.record("The missing connection-end signal was accepted.")
+        } catch let error as AppError {
+            #expect(error.localizedDescription.contains(
+                "revoked-device cleanup completed"
+            ))
+            #expect(error.localizedDescription.contains(
+                "Run the same command again"
+            ))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+
+        state.complete()
+        #expect(throws: Never.self) {
+            try KeyXPCClientTransport.requireHelperTermination(
+                state,
+                after: .lock,
+                helperName: "Key Agent",
+                timeoutSeconds: 0
+            )
+        }
     }
 
     @Test

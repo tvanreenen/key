@@ -279,6 +279,57 @@ struct V3ReplacementEnrollmentWorkflowTests {
     }
 
     @Test
+    func helperRevalidatesInvitationBeforeCleanupAfterPromptExpiry() throws {
+        let fixture = try Fixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: false
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let expiresAt: UInt64 = 1_900_000_000
+        let clock = WorkflowClock(unixTime: expiresAt)
+        let service = WorkflowService(
+            review: fixture.review,
+            result: fixture.completed
+        )
+        let owner = WorkflowMutationOwner()
+        let handler = KeyServiceHandler(
+            keyStore: MemoryVaultKeyStore(),
+            entryStore: EntryStore(rootURL: root),
+            now: {
+                Date(timeIntervalSince1970: TimeInterval(clock.unixTime))
+            },
+            mutationOwner: owner,
+            validateJoinInvitation: { _, unixTime in
+                guard unixTime <= expiresAt else {
+                    throw V3EnrollmentProtocolError.expired
+                }
+            },
+            replacementService: service,
+            configuredVaultID: Fixture.vaultID
+        )
+        let request = KeyServiceRequest.share(.join(
+            invitationID: String(repeating: "11", count: 32),
+            deviceName: "Replacement Mac"
+        ))
+
+        let reviewResponse = handler.handle(request)
+        #expect(reviewResponse.deviceReplacementReview != nil)
+        #expect(service.reviewCount == 1)
+
+        clock.unixTime = expiresAt + 1
+        let expiredResponse = handler.handle(request)
+
+        #expect(expiredResponse.exitCode == EXIT_FAILURE)
+        #expect(expiredResponse.errorMessage?.contains("expired") == true)
+        #expect(service.reviewCount == 1)
+        #expect(service.confirmations.isEmpty)
+        #expect(owner.kinds == [.catchUpVault, .catchUpVault])
+    }
+
+    @Test
     func helperRejectsNoncanonicalReplacementTokenBeforeCleanup() throws {
         let fixture = try Fixture()
         let root = FileManager.default.temporaryDirectory
@@ -522,6 +573,14 @@ private final class WorkflowTargetSource: @unchecked Sendable {
 
     init(target: V3EnrollmentDeviceIdentityDeletionTarget?) {
         self.target = target
+    }
+}
+
+private final class WorkflowClock: @unchecked Sendable {
+    var unixTime: UInt64
+
+    init(unixTime: UInt64) {
+        self.unixTime = unixTime
     }
 }
 

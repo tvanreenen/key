@@ -782,6 +782,8 @@ struct KeyCLIApplicationTests {
     func shareJoinDoesNotCleanUpWhenInvitationExpiresAtConfirmation() {
         let review = deviceReplacementReviewFixture()
         let invitationID = String(repeating: "a", count: 64)
+        let expiresAt: UInt64 = 1_900_000_000
+        var currentTime = expiresAt
         var joinAttempts = 0
         let transport = MemoryTransport { request in
             guard case .share(.join) = request else {
@@ -789,12 +791,18 @@ struct KeyCLIApplicationTests {
                 return .failure("Unexpected request.")
             }
             joinAttempts += 1
-            if joinAttempts == 1 {
+            if currentTime <= expiresAt {
                 return .deviceReplacementReview(review)
             }
             return .failure("The selected enrollment invitation expired.")
         }
-        let io = MemoryIO(stdinIsTTY: true, lineInput: "REJOIN")
+        let io = MemoryIO(
+            stdinIsTTY: true,
+            lineInput: "REJOIN",
+            onReadLine: {
+                currentTime = expiresAt + 1
+            }
+        )
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
@@ -817,6 +825,79 @@ struct KeyCLIApplicationTests {
         #expect(io.stderr.hasSuffix(
             "The selected enrollment invitation expired.\n"
         ))
+        #expect(joinAttempts == 2)
+        #expect(currentTime == expiresAt + 1)
+    }
+
+    @Test
+    func shareJoinResumesAfterCompletedCleanupOutlivesClientWait() {
+        let review = deviceReplacementReviewFixture()
+        let invitationID = String(repeating: "a", count: 64)
+        let arguments = [
+            "share", "join", invitationID, "--name", "Laptop"
+        ]
+        var cleanupCompleted = false
+        var joinAttempts = 0
+        var cleanupAttempts = 0
+        let transport = MemoryTransport { request in
+            switch request {
+            case .share(.join):
+                joinAttempts += 1
+                if cleanupCompleted {
+                    return .success("Join request published.\n")
+                }
+                return .deviceReplacementReview(review)
+            case .share(.replaceCurrentDevice(
+                confirmationToken: review.confirmationToken
+            )):
+                cleanupAttempts += 1
+                cleanupCompleted = true
+                throw KeyXPCClientTransport.helperRestartTimeoutError(
+                    for: request,
+                    helperName: "Key Agent",
+                    timeoutSeconds:
+                        KeyXPCClientTransport.helperShutdownTimeoutSeconds
+                )
+            default:
+                Issue.record("Unexpected request: \(request)")
+                return .failure("Unexpected request.")
+            }
+        }
+        let io = MemoryIO(stdinIsTTY: true, lineInput: "REJOIN")
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard()
+        )
+
+        #expect(app.run(arguments: arguments) == KeyExitCode.failure.rawValue)
+        #expect(cleanupCompleted)
+        #expect(cleanupAttempts == 1)
+        #expect(io.stderr.hasSuffix(
+            "The revoked-device cleanup completed, but Key Agent is still restarting after 30 seconds. Run the same command again; Key will resume safely from the completed state.\n"
+        ))
+
+        #expect(app.run(arguments: arguments) == EXIT_SUCCESS)
+        #expect(joinAttempts == 3)
+        #expect(cleanupAttempts == 1)
+        #expect(transport.requests == [
+            .share(.join(
+                invitationID: invitationID,
+                deviceName: "Laptop"
+            )),
+            .share(.join(
+                invitationID: invitationID,
+                deviceName: "Laptop"
+            )),
+            .share(.replaceCurrentDevice(
+                confirmationToken: review.confirmationToken
+            )),
+            .share(.join(
+                invitationID: invitationID,
+                deviceName: "Laptop"
+            ))
+        ])
+        #expect(io.stdout.hasSuffix("Join request published.\n"))
     }
 
     @Test

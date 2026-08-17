@@ -103,6 +103,7 @@ final class MemoryIO: InputOutput {
     var pipedInput: String
     var lineInput: String
     var secureInput: String
+    var onReadLine: (() -> Void)?
     private(set) var stdout = ""
     private(set) var stderr = ""
 
@@ -111,13 +112,15 @@ final class MemoryIO: InputOutput {
         stdoutIsTTY: Bool? = nil,
         pipedInput: String = "",
         lineInput: String = "",
-        secureInput: String = ""
+        secureInput: String = "",
+        onReadLine: (() -> Void)? = nil
     ) {
         self.stdinIsTTY = stdinIsTTY
         self.stdoutIsTTY = stdoutIsTTY ?? stdinIsTTY
         self.pipedInput = pipedInput
         self.lineInput = lineInput
         self.secureInput = secureInput
+        self.onReadLine = onReadLine
     }
 
     func readPipedInput() throws -> String {
@@ -126,6 +129,7 @@ final class MemoryIO: InputOutput {
 
     func readLine(prompt: String) throws -> String {
         stderr += prompt
+        onReadLine?()
         return lineInput
     }
 
