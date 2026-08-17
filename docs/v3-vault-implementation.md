@@ -14,8 +14,8 @@ state.
 | Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | Complete the remaining beta provider, migration, rollback, documentation, and security-review gates |
-| Next work | Qualify realistic migration and rollback copies, provider behavior, a third-device ceremony, and continuity/permanent-loss documentation; prototype PIV recovery separately for a later minor release |
+| Active work | `BETA-601`: build and run the realistic migration and supported rollback qualification |
+| Next work | Complete targeted replacement fault injection, one installed APFS qualification, one concise iCloud regression, continuity documentation, focused security review, and beta release verification; prototype PIV recovery separately for a later minor release |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
 profile MUST not ship as stable until every release gate below passes.
@@ -168,8 +168,9 @@ UX without adding catastrophe-recovery authority to `0.2.0`.
 
 Status: complete in PR #57. The owner-to-second-device ceremony and the
 joining-device read, restart, and write paths were physically qualified with
-the signed alpha.7 Preview release. A third-device ceremony remains a later
-beta qualification; its protocol and implementation use this same transition.
+the signed alpha.7 Preview release. Third-and-later enrollment uses this exact
+transition and has dedicated multi-device transition and adoption tests. A
+third physical Mac is useful opportunistic evidence, not a beta release gate.
 
 First and later device enrollment now use the same user ceremony: an active
 device invites a Mac, both Macs compare the short code, and the authorizing
@@ -677,12 +678,13 @@ descriptor-relative write, synchronization, interruption, and recovery paths
 are covered by automated filesystem tests and a successful signed Xcode
 build.
 
-Real iCloud Drive and other provider smoke tests remain valuable release
-qualification. They are not a correctness input to the provider-neutral
-recovery protocol and are not practical as a deterministic automated test
-gate. At the `TXN-408` checkpoint, version 3 writing remained disabled. It was
-enabled later by `MUT-507` only after the deterministic recovery gates passed;
-the broader supported-provider policy remains open.
+Real provider smoke tests remain valuable release qualification. They are not
+a correctness input to the provider-neutral recovery protocol and are not
+practical as a deterministic automated test gate. At the `TXN-408` checkpoint,
+version 3 writing remained disabled. It was enabled later by `MUT-507` only
+after the deterministic recovery gates passed. The supported `0.2.0` scope is
+local APFS and iCloud Drive; every other provider remains unsupported until it
+receives equivalent qualification and an explicit policy decision.
 
 Acceptance gate:
 
@@ -696,7 +698,7 @@ Acceptance gate:
   recovery matrix.
 - [x] iCloud Drive receives release-qualification smoke testing before the
   alpha.6 guarded writer is treated as qualified.
-- [ ] Additional providers remain unsupported until each receives equivalent
+- [x] Additional providers remain unsupported until each receives equivalent
   release qualification and an explicit policy decision.
 
 #### `UX-409` — Typed Status And Conflict UX
@@ -1495,8 +1497,10 @@ formats or transport stacks:
 - [x] `ENR-510` Use one owner-approved transition for first and later
   enrollment, rotate the key, re-encrypt the current snapshot, and remove the
   local-to-shared exception.
-- [ ] `ENR-510` Qualify first and later enrollment, exact retry, lock, and
-  helper restart across physical Macs before releasing alpha.7.
+- [x] `ENR-510` Qualify first-to-second-device enrollment, lock, helper
+  restart, and writes on physical Macs; cover third-and-later enrollment with
+  the same automated transition and adoption tests. A third physical identity
+  is opportunistic evidence rather than a beta blocker.
 - [x] `ENR-511` Revoke a selected device, rotate the vault key, re-encrypt the
   current snapshot, and wrap the new key only for remaining active devices.
 - [x] `ENR-511` Authenticate and apply ordered content and key-epoch catch-up
@@ -1519,7 +1523,7 @@ formats or transport stacks:
 - [ ] Add doctor, transaction, recovery, and device diagnostics.
 - [x] Add conflict diagnostics, stable JSON status output, and machine-readable
   exit codes.
-- [ ] Validate supported providers and realistic migration copies.
+- [ ] Validate local APFS and iCloud Drive plus realistic migration copies.
 - [ ] Document the implemented security model and recovery limits.
 - [ ] Consolidate the permanent device-wrapped profile into an exact normative
   storage specification and machine-readable schemas before beta.
@@ -1532,7 +1536,7 @@ formats or transport stacks:
 | `DEC-001` | Accepted | Require a derived-key HMAC on every manifest and a parent-owner Secure Enclave signature on authority-changing transitions. Use separate signing and wrapping keys. |
 | `DEC-002` | Accepted | Use exact authenticated heads for mutation safety. Automatically reconcile independent path changes, preserve every concurrent value, and require explicit resolution only for genuinely incompatible changes. |
 | `DEC-003` | Superseded by `DEC-033` | Define recovery when every enrolled device is lost. |
-| `DEC-004` | Open | Define supported providers and required atomic commit semantics. |
+| `DEC-004` | Accepted | Support local APFS and iCloud Drive for `0.2.0`. Keep correctness provider-neutral and trust only authenticated immutable history, never provider ordering or mutable metadata. Treat every other provider as unsupported until it receives equivalent installed-build qualification and an explicit policy decision. |
 | `DEC-005` | Accepted | Make vault-root configuration changes helper-owned through the authenticated full-CLI XPC channel. Serialize the change after in-flight handler work, persist it, invalidate the warm key session, refuse later work from the stale handler, and shut the helper down after its successful reply. Re-read the configured root before other requests and fail closed if the file was changed or removed out of band. |
 | `DEC-006` | Accepted | Give the CLI full authority and the utility status/lock authority on separate authenticated endpoints. |
 | `DEC-007` | Accepted | Keep the signed nested helper, constrain launchd spawning, and re-register it on app upgrades. |
@@ -1588,7 +1592,8 @@ formats or transport stacks:
   prior epochs and revoked devices cannot open the new current snapshot.
 - [x] Offline multi-epoch catch-up, missing-transition, and competing-rotation
   unit tests.
-- [ ] Physical multi-device catch-up through provider delay and key rotation.
+- [x] Physical multi-device catch-up through provider delay and key rotation
+  in the alpha.7 through alpha.10 release exercises.
 - [ ] Recovery-kit creation, use, replacement, wrong-code, substitution, and
   all-devices-lost tests.
 - [x] Installed XPC tests for intended and unintended signing identities.
@@ -1744,9 +1749,29 @@ Mac as the wrong ceremony role. The joining Mac's signed join output and the
 surviving Mac's independently derived comparison output supplied the bilateral
 code check.
 
+### Beta.1 Work Packages
+
+Beta qualification closes specific user-risk gaps; it does not repeat every
+successful alpha exercise or require hardware that is impractical to obtain.
+Local APFS and iCloud Drive are the complete supported-provider matrix for
+`0.2.0`. Third-and-later enrollment must continue to pass its automated
+multi-device transition and adoption coverage, while another physical Mac is
+opportunistic evidence rather than a release gate.
+
+| ID | Status | Exit criteria |
+|---|---|---|
+| `BETA-601` | Next | Migrate private copies of a small clean v2 vault, a realistic large mixed-entry vault, and deliberately invalid inputs. Compare names, types, and value hashes without logging plaintext; prove the v2 source is byte-identical, v3 selection happens last, no raw v3 key persists, and Stable can reopen its untouched v2 source as the supported rollback. |
+| `BETA-602` | Pending | Deterministically expire the invitation while the replacement confirmation is open and delay helper termination beyond the client wait. Prove no cleanup follows expiry and the bounded-timeout path resumes safely through the same join command. |
+| `BETA-603` | Pending | Install the signed candidate and run one local APFS qualification covering migration or genesis, ordinary mutation, conflict or interrupted publication recovery, lock, helper restart, and final inventory verification. |
+| `BETA-604` | Pending | Run one concise installed-build iCloud regression covering two-device catch-up, one cross-device write and removal, lock/restart, exact roster continuity, and fail-closed behavior during incomplete delivery. Prior alpha.6, alpha.7, and alpha.10 exercises remain the broader evidence base. |
+| `BETA-605` | Pending | Make supported providers, two-device continuity, revocation, replacement, invitation lifetime, provider-only non-recovery, and all-devices-lost permanent loss explicit in CLI help and user documentation. |
+| `BETA-606` | Pending | Complete a focused security review of identity binding, ceremony substitution, comparison transcripts, revocation and key rotation, replacement cleanup authorization, durable retry state, checkpoint rollback, filesystem containment, and persistent raw-key absence. |
+| `BETA-607` | Pending | Pass the full suite and release scripts; verify signatures, entitlements, hardened runtime, notarization, stapling, Gatekeeper, Homebrew alpha-to-beta upgrade, Stable isolation, helper registration after reboot, and app/CLI/helper version alignment. |
+
 - [ ] All security and durability invariants pass.
 - [x] The v3 reader ships before any v3 writer is enabled.
-- [ ] Local APFS and every supported sync provider pass commit/conflict tests.
+- [ ] Local APFS and iCloud Drive pass their scoped installed-build beta
+  qualifications.
 - [x] Protected writes pass in the release environment.
 - [ ] Migration and rollback pass with realistic vault copies.
 - [ ] Recovery limitations are visible in CLI help and documentation.
@@ -1756,10 +1781,11 @@ code check.
 
 ## Immediate Next Action
 
-Proceed to the remaining beta gates without adding a portable recovery
-authority. Permanent-profile entry-level conflict inspection, provider
-qualification, realistic migration and rollback copies, a third-device
-ceremony, continuity and permanent-loss documentation, and independent
-security review remain beta or stable gates.
-Prototype PIV catastrophe recovery separately and assign no release until
-physical feasibility and security review support it.
+Start `BETA-601` by inventorying the existing migration implementation, tests,
+and release tooling against the realistic qualification criteria above. Build
+one non-plaintext qualification harness for private vault copies before running
+any migration against realistic data. Then complete `BETA-602` through
+`BETA-607` in order where dependencies allow. Do not add a portable recovery
+authority or broaden provider support as part of beta readiness. Prototype PIV
+catastrophe recovery separately and assign no release until physical
+feasibility and security review support it.

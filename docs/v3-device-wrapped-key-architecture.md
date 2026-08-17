@@ -26,6 +26,11 @@ release qualification.
 Encrypted vault files may live in any ordinary file provider. In `0.2.0`,
 access belongs only to explicitly enrolled devices.
 
+The supported `0.2.0` storage targets are local APFS and iCloud Drive. The
+format and recovery protocol remain provider-neutral, but other providers are
+unsupported until they receive equivalent installed-build qualification and
+an explicit policy decision.
+
 Each enrolled Mac has equal authority backed by non-exportable Secure Enclave
 keys. The current vault key is encrypted separately to every active device and
 exists in plaintext only inside Key Agent's authenticated, short-lived memory
@@ -377,9 +382,9 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 - [x] Remove the local-to-shared exception and legacy wrapper implementation.
 - [x] Qualify the first-to-second-device ceremony and joining-device restart
   and write paths with the signed alpha.7 Preview release.
-- [ ] Qualify a third-device ceremony before beta; it uses the same transition
-  but requires another physical identity or a completed revocation/re-enrollment
-  path.
+- [x] Cover third-and-later enrollment with dedicated multi-device transition
+  and adoption tests. A third physical identity is useful opportunistic
+  evidence, not a beta release gate.
 
 ### `ENR-511` — Revocation and rotation
 
@@ -449,9 +454,11 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
 - Select no permanent recovery schema or release number until feasibility and
   security review justify one.
 
-Beta begins only after the permanent profile has completed realistic provider,
-migration, rollback, device-continuity and permanent-loss, signing,
-notarization, and independent security review gates.
+Beta begins only after the permanent profile has completed realistic migration
+and supported rollback, targeted replacement fault injection, scoped local
+APFS and iCloud Drive qualification, device-continuity and permanent-loss
+documentation, signing and notarization verification, and focused security
+review gates.
 
 ## Permanent Acceptance Gates
 
