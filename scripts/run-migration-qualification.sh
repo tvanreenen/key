@@ -163,6 +163,23 @@ seed_entry() {
   fi
 }
 
+require_v3_mutation_roundtrip() {
+  local cli="$1"
+  local name="$2"
+  local secret expected_hash actual_hash
+
+  secret="qualification-generated-secret-$(openssl rand -base64 36)"
+  expected_hash="$(printf '%s' "${secret}" | shasum -a 256 | awk '{print $1}')"
+  printf '%s' "${secret}" | "${cli}" add "${name}"
+  unset secret
+  actual_hash="$("${cli}" get "${name}" | shasum -a 256 | awk '{print $1}')"
+  if [[ "${actual_hash}" != "${expected_hash}" ]]; then
+    echo "version 3 mutation round-trip hash did not match" >&2
+    exit 1
+  fi
+  "${cli}" remove "${name}" --force
+}
+
 run_invalid_scenario() {
   qualification_paths invalid
   local namespace="${reply[1]}"
@@ -253,6 +270,8 @@ run_small_scenario() {
   hash_secret_values "${cli}" "${secret_names}" "${run_root}/small-values-v3.sha256"
   cmp "${run_root}/small-values-before.sha256" "${run_root}/small-values-v3.sha256"
   require_totp_reads "${cli}" "${totp_names}"
+  require_v3_mutation_roundtrip "${cli}" 'qualification/post-migration-roundtrip'
+  require_inventory "${cli}" "${inventory_before}" "${run_root}/small-inventory-post-mutation.txt"
 
   "${cli}" lock
   wait_for_helper "${cli}" "${label}" "${run_root}/small-restart-helper.txt"
@@ -315,6 +334,8 @@ run_large_scenario() {
   hash_secret_values "${cli}" "${secret_names}" "${run_root}/large-values-v3.sha256"
   cmp "${run_root}/large-values-before.sha256" "${run_root}/large-values-v3.sha256"
   require_totp_reads "${cli}" "${totp_names}"
+  require_v3_mutation_roundtrip "${cli}" 'qualification/post-migration-roundtrip'
+  require_inventory "${cli}" "${inventory_before}" "${run_root}/large-inventory-post-mutation.txt"
 
   "${cli}" lock
   wait_for_helper "${cli}" "${label}" "${run_root}/large-restart-helper.txt"

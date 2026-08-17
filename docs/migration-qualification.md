@@ -64,9 +64,10 @@ generated plaintext markers.
 
 Successful migration requires exact v2 source hashes before and after,
 identical v2/v3 inventories, identical externally comparable secret-value
-hashes, functional TOTP reads, a cold helper restart, and an exact retained-v2
-rollback reopen. Invalid preflight and apply must both fail without changing
-the v2 source or selecting v3.
+hashes, functional TOTP reads, a post-migration v3 add/read/remove round trip
+with exact inventory restoration, a cold helper restart, and an exact
+retained-v2 rollback reopen. Invalid preflight and apply must both fail without
+changing the v2 source or selecting v3.
 
 Evidence is retained in the temporary directory printed at completion.
 Qualification-only Keychain and Secure Enclave records remain available for

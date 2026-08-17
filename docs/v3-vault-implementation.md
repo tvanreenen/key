@@ -14,8 +14,8 @@ state.
 | Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | `BETA-603`: run the signed-candidate local APFS qualification |
-| Next work | Cut one Preview candidate, complete the local APFS and concise two-device iCloud qualifications, continuity documentation, focused security review, and beta release verification; prototype PIV recovery separately for a later minor release |
+| Active work | `BETA-604`: publish the prepared alpha.11 candidate and run its concise two-device iCloud regression |
+| Next work | Complete the two-device iCloud qualification, continuity documentation, focused security review, and beta release verification; prototype PIV recovery separately for a later minor release |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
 profile MUST not ship as stable until every release gate below passes.
@@ -1762,7 +1762,7 @@ opportunistic evidence rather than a release gate.
 |---|---|---|
 | `BETA-601` | Complete | Migrate disposable copies of a small clean v2 vault, a realistic large mixed-entry vault, and deliberately invalid inputs. Compare names, types, and value hashes without logging plaintext; prove the v2 source is byte-identical, v3 selection happens last, no raw v3 key persists, and the same Stable-variant runtime can reopen its untouched v2 source as the supported rollback. |
 | `BETA-602` | Complete | Deterministically expire the invitation while the replacement confirmation is open and delay helper termination beyond the client wait. Prove no cleanup follows expiry and the bounded-timeout path resumes safely through the same join command. |
-| `BETA-603` | Pending | Install the signed candidate and run one local APFS qualification covering migration or genesis, ordinary mutation, conflict or interrupted publication recovery, lock, helper restart, and final inventory verification. |
+| `BETA-603` | Complete; split evidence | Verify the exact notarized candidate's signing, installation, helper registration, cold start, and enrolled-vault inventory; run the same checkout through the isolated installed local-APFS identity for migration, ordinary mutation, lock/restart, rollback, and final inventory; and bind deterministic interruption/conflict tests to the same source. This split is required because both physical Preview profiles are enrolled and repointing either would destroy its non-exportable local identity. |
 | `BETA-604` | Pending | Run one concise installed-build iCloud regression covering two-device catch-up, one cross-device write and removal, lock/restart, exact roster continuity, and fail-closed behavior during incomplete delivery. Prior alpha.6, alpha.7, and alpha.10 exercises remain the broader evidence base. |
 | `BETA-605` | Pending | Make supported providers, two-device continuity, revocation, replacement, invitation lifetime, provider-only non-recovery, and all-devices-lost permanent loss explicit in CLI help and user documentation. |
 | `BETA-606` | Pending | Complete a focused security review of identity binding, ceremony substitution, comparison transcripts, revocation and key rotation, replacement cleanup authorization, durable retry state, checkpoint rollback, filesystem containment, and persistent raw-key absence. |
@@ -1812,8 +1812,8 @@ opportunistic evidence rather than a release gate.
 
 - [ ] All security and durability invariants pass.
 - [x] The v3 reader ships before any v3 writer is enabled.
-- [ ] Local APFS and iCloud Drive pass their scoped installed-build beta
-  qualifications.
+- [x] Local APFS passes its scoped installed-build beta qualification.
+- [ ] iCloud Drive passes its scoped installed-build beta qualification.
 - [x] Protected writes pass in the release environment.
 - [x] Migration and rollback pass with realistic disposable vault copies.
 
@@ -1835,6 +1835,41 @@ opportunistic evidence rather than a release gate.
   the enrollment-pending path, publishes the join request, and does not repeat
   destructive cleanup.
 
+`BETA-603` coverage inventory:
+
+- [x] The notarized `v0.2.0-alpha.11 (16)` Preview candidate from `81502fb`
+  passed signing, entitlements, hardened-runtime, stapling, Gatekeeper, product
+  identity, and final-artifact verification. Apple accepted notarization
+  submission `278efaad-ab65-44d9-b8b6-c774d221f188`; the ZIP SHA-256 is
+  `8ff1bab3824ccc98988aaa7f05219d36073b2f629e377fb24d7e2a8250d9ef6c`.
+- [x] The exact candidate upgraded the mini's installed Preview while
+  preserving its enrolled iCloud configuration. After narrowly removing a
+  stale same-ID DerivedData app and refreshing only Preview's SMAppService
+  record, the helper received a fresh BTM UUID, cold-started on demand, and
+  reported version 3 ready with the exact four-entry trusted inventory.
+- [x] Stable and Preview configuration SHA-256 values remained
+  `4053db468914ad2922a251bb23625d54afdbe5c3719ff1d63da5b38d56d88aff`
+  and `120df0d01843a33709b161e0f281b4fcf70e90b0adebf5980b617b2d5f0d6d3c`.
+  The 31 enrolled Preview vault files retained modification times no later
+  than the prior 2026-08-16 qualification.
+- [x] A fresh `beta603c-small` installed qualification identity built from the
+  alpha.11 checkout migrated an eight-entry mixed local-APFS vault, matched
+  every inventory and externally comparable value hash, completed a real v3
+  add/read/remove round trip, restored the exact pre-mutation inventory,
+  locked, cold-restarted its helper, reopened the retained v2 rollback, found
+  no generated plaintext in persistent files, and proved Stable/Preview files
+  byte-identical before and after.
+- [x] Fourteen focused content-mutation and publisher tests pass on the same
+  source, including authenticated ordinary commands, explicit conflict
+  choice, independent-head merge, every injected interruption phase resolving
+  to a complete old or new checkpoint, competing-checkpoint abandonment,
+  substituted-staging rejection, and exact candidate-key binding.
+- [x] The seam is explicit: the exact notarized product identity covers the
+  shipping signature/install/SMAppService path, while the current-checkout
+  qualification identity covers disposable local APFS and Secure Enclave
+  state. No claim is made that the notarized Preview identity itself was
+  repointed away from its enrolled iCloud vault.
+
 - [ ] Recovery limitations are visible in CLI help and documentation.
 - [ ] An independent security review signs off on identity, enrollment,
   authentication, revocation, continuity, and permanent-loss behavior.
@@ -1842,10 +1877,9 @@ opportunistic evidence rather than a release gate.
 
 ## Immediate Next Action
 
-Start `BETA-603` by cutting one Preview candidate from the completed local
-fault-injection and migration gates, then run its local APFS qualification.
-Use that same candidate for `BETA-604`'s concise two-device iCloud regression
-before completing `BETA-605` through `BETA-607`. Do not add a portable recovery
+Publish the prepared alpha.11 candidate, upgrade the Air, and run `BETA-604`'s
+concise two-device iCloud regression with the same artifact before completing
+`BETA-605` through `BETA-607`. Do not add a portable recovery
 authority or broaden provider support as part of beta readiness. Prototype PIV
 catastrophe recovery separately and assign no release until physical
 feasibility and security review support it.
