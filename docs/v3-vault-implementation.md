@@ -1766,7 +1766,7 @@ opportunistic evidence rather than a release gate.
 | `BETA-603` | Complete; split evidence | Verify the exact notarized candidate's signing, installation, helper registration, cold start, and enrolled-vault inventory; run the same checkout through the isolated installed local-APFS identity for migration, ordinary mutation, lock/restart, rollback, and final inventory; and bind deterministic interruption/conflict tests to the same source. This split is required because both physical Preview profiles are enrolled and repointing either would destroy its non-exportable local identity. |
 | `BETA-604` | Complete | Run one concise installed-build iCloud regression covering two-device catch-up, one cross-device write and removal, lock/restart, exact roster continuity, and fail-closed behavior during incomplete delivery. Prior alpha.6, alpha.7, and alpha.10 exercises remain the broader evidence base. |
 | `BETA-605` | Complete | Make supported providers, two-device continuity, revocation, replacement, invitation lifetime, provider-only non-recovery, and all-devices-lost permanent loss explicit in CLI help and user documentation. |
-| `BETA-606` | Pending | Complete a focused security review of identity binding, ceremony substitution, comparison transcripts, revocation and key rotation, replacement cleanup authorization, durable retry state, checkpoint rollback, filesystem containment, and persistent raw-key absence. |
+| `BETA-606` | Complete | Complete a focused security review of identity binding, ceremony substitution, comparison transcripts, revocation and key rotation, replacement cleanup authorization, durable retry state, checkpoint rollback, filesystem containment, and persistent raw-key absence. |
 | `BETA-607` | Pending | Pass the full suite and release scripts; verify signatures, entitlements, hardened runtime, notarization, stapling, Gatekeeper, Homebrew alpha-to-beta upgrade, Stable isolation, helper registration after reboot, and app/CLI/helper version alignment. |
 
 `BETA-606` focused-review ledger:
@@ -1836,6 +1836,20 @@ opportunistic evidence rather than a release gate.
   transaction-directory replacement, preexisting hostile temporary names, and
   process interruption. New recovery-store coverage proves an exact-path
   symlink cannot redirect cleanup or alter its external target.
+- [x] `BETA-606F` — Persistent raw-key absence. No production flaw was found.
+  Permanent-profile raw vault keys exist only while being generated, unwrapped,
+  validated, or held by the expiring in-memory session. Repository entries are
+  AES-GCM ciphertext; manifests contain derived key IDs and RFC 9180 HPKE
+  wrappers; checkpoints, caches, recovery anchors and intents, replacement
+  state, and diagnostics contain only authenticated public metadata, encrypted
+  material, or non-secret digests. Secure Enclave identity records persist
+  opaque key representations, not vault keys, and the legacy v2 keychain-backed
+  profile remains outside this permanent-profile claim. Existing enrollment
+  coverage proves both rotation keys are absent from its recovery intent and
+  local anchor. New revocation coverage interrupts after every candidate object
+  is staged, then scans all durable repository and transaction files plus the
+  local anchor, checkpoint, and cache for raw, Base64URL, or hexadecimal forms
+  of both the old and rotated vault keys.
 
 `BETA-601` coverage inventory:
 

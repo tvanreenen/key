@@ -514,6 +514,65 @@ struct V3DeviceWrappedRevocationTransitionPublisherTests {
         }
     }
 
+    @Test
+    func durableRevocationArtifactsContainNoRawVaultKey() throws {
+        let fixture = try RevocationPublicationFixture()
+        defer { fixture.removeRoot() }
+        let interrupted = fixture.publisher(
+            observer: RevocationPublicationInterruptingObserver(
+                target: .manifestStaged
+            )
+        )
+
+        #expect(throws: RevocationPublicationTestError.interrupted) {
+            _ = try interrupted.publish(
+                fixture.candidate,
+                parent: fixture.transition.base,
+                currentEntries: fixture.transition.currentEntries,
+                currentVaultKey:
+                    V3DeviceWrappedRevocationTransitionTests.currentKey,
+                nextVaultKey:
+                    V3DeviceWrappedRevocationTransitionTests.nextKey,
+                localIdentity: fixture.transition.owner,
+                unwrapReason: "Verify the owner's rotated-key wrapper."
+            )
+        }
+
+        var artifacts: [Data] = []
+        let enumerator = try #require(FileManager.default.enumerator(
+            at: fixture.rootURL,
+            includingPropertiesForKeys: [.isRegularFileKey]
+        ))
+        while let fileURL = enumerator.nextObject() as? URL {
+            let values = try fileURL.resourceValues(
+                forKeys: [.isRegularFileKey]
+            )
+            if values.isRegularFile == true {
+                artifacts.append(try Data(contentsOf: fileURL))
+            }
+        }
+        artifacts.append(try #require(fixture.anchorStore.anchor))
+        artifacts.append(try #require(fixture.checkpointStore.checkpoint))
+        if let cached = fixture.cache.manifest {
+            artifacts.append(cached)
+        }
+        #expect(artifacts.count >= 6)
+
+        for rawKey in [
+            V3DeviceWrappedRevocationTransitionTests.currentKey,
+            V3DeviceWrappedRevocationTransitionTests.nextKey,
+        ] {
+            let encodedKey = Base64URL.encode(rawKey)
+            let hexKey = v3LowercaseHex(rawKey)
+            for artifact in artifacts {
+                #expect(artifact.range(of: rawKey) == nil)
+                let text = String(decoding: artifact, as: UTF8.self)
+                #expect(!text.contains(encodedKey))
+                #expect(!text.contains(hexKey))
+            }
+        }
+    }
+
     private final class RevocationPublicationFixture:
         V3DeviceWrappedRepositoryObserving,
         @unchecked Sendable
