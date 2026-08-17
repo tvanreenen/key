@@ -1760,13 +1760,41 @@ opportunistic evidence rather than a release gate.
 
 | ID | Status | Exit criteria |
 |---|---|---|
-| `BETA-601` | Next | Migrate private copies of a small clean v2 vault, a realistic large mixed-entry vault, and deliberately invalid inputs. Compare names, types, and value hashes without logging plaintext; prove the v2 source is byte-identical, v3 selection happens last, no raw v3 key persists, and Stable can reopen its untouched v2 source as the supported rollback. |
+| `BETA-601` | In progress | Migrate private copies of a small clean v2 vault, a realistic large mixed-entry vault, and deliberately invalid inputs. Compare names, types, and value hashes without logging plaintext; prove the v2 source is byte-identical, v3 selection happens last, no raw v3 key persists, and Stable can reopen its untouched v2 source as the supported rollback. |
 | `BETA-602` | Pending | Deterministically expire the invitation while the replacement confirmation is open and delay helper termination beyond the client wait. Prove no cleanup follows expiry and the bounded-timeout path resumes safely through the same join command. |
 | `BETA-603` | Pending | Install the signed candidate and run one local APFS qualification covering migration or genesis, ordinary mutation, conflict or interrupted publication recovery, lock, helper restart, and final inventory verification. |
 | `BETA-604` | Pending | Run one concise installed-build iCloud regression covering two-device catch-up, one cross-device write and removal, lock/restart, exact roster continuity, and fail-closed behavior during incomplete delivery. Prior alpha.6, alpha.7, and alpha.10 exercises remain the broader evidence base. |
 | `BETA-605` | Pending | Make supported providers, two-device continuity, revocation, replacement, invitation lifetime, provider-only non-recovery, and all-devices-lost permanent loss explicit in CLI help and user documentation. |
 | `BETA-606` | Pending | Complete a focused security review of identity binding, ceremony substitution, comparison transcripts, revocation and key rotation, replacement cleanup authorization, durable retry state, checkpoint rollback, filesystem containment, and persistent raw-key absence. |
 | `BETA-607` | Pending | Pass the full suite and release scripts; verify signatures, entitlements, hardened runtime, notarization, stapling, Gatekeeper, Homebrew alpha-to-beta upgrade, Stable isolation, helper registration after reboot, and app/CLI/helper version alignment. |
+
+`BETA-601` coverage inventory:
+
+- [x] Read-only preflight covers empty and valid vaults plus incompatible
+  names, unreadable files, unsupported formats, invalid payloads, wrong keys,
+  invalid TOTP seeds, prototype metadata, and missing keys without repair or
+  mutation.
+- [x] Permanent genesis tests cover immutable entry-first publication,
+  manifest-last publication, device-wrapper verification, checkpoint/cache/
+  session installation, permanent-runtime reopen, exact source recheck,
+  local-state recheck, and selection last.
+- [x] Every observable preselection interruption leaves v2 selected and clears
+  the in-memory v3 session key; source and checkpoint changes before selection
+  fail closed.
+- [x] A realistic 300-entry nested snapshot with 240 secrets and 60 TOTP
+  entries migrates through the filesystem publisher, preserves every exact v2
+  source byte, verifies the permanent manifest inventory, and leaves no
+  staging directory. Run this scale gate explicitly with
+  `scripts/test-migration-qualification.sh`; it stays out of the ordinary
+  parallel suite so its filesystem and cryptographic load cannot distort
+  timing-sensitive lifecycle tests.
+- [ ] Add a non-plaintext installed-build qualification harness and report
+  format for an explicitly disposable working copy.
+- [ ] Run the installed Preview against the small, large mixed-entry, and
+  deliberately invalid corpora with the real Keychain, Secure Enclave,
+  checkpoint cache, helper restart, and CLI runtime.
+- [ ] Prove the supported rollback: Stable configuration and its original v2
+  vault remain byte-identical and readable after the isolated Preview exercise.
 
 - [ ] All security and durability invariants pass.
 - [x] The v3 reader ships before any v3 writer is enabled.

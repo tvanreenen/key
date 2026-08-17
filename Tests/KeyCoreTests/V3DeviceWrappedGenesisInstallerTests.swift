@@ -3,6 +3,9 @@ import Foundation
 import Testing
 @testable import KeyCore
 
+private let runLargeMigrationQualification =
+    ProcessInfo.processInfo.environment["KEY_RUN_MIGRATION_QUALIFICATION"] == "1"
+
 @Suite
 struct V3DeviceWrappedGenesisInstallerTests {
     private static let v2Key = Data((0..<32).map(UInt8.init))
@@ -71,6 +74,60 @@ struct V3DeviceWrappedGenesisInstallerTests {
         #expect(!FileManager.default.fileExists(
             atPath: fixture.root.appendingPathComponent(".transactions").path
         ))
+    }
+
+    @Test(.enabled(if: runLargeMigrationQualification))
+    func migratesRealisticLargeMixedSnapshotWithoutChangingV2Source() throws {
+        let sources = (0..<300).map { index in
+            let group = String(format: "%02d", index / 25)
+            let item = String(format: "%03d", index)
+            if index.isMultiple(of: 5) {
+                return Fixture.Source(
+                    plaintext: "JBSWY3DPEHPK3PXP",
+                    name: "totp/group-\(group)/service-\(item)",
+                    type: .totp
+                )
+            }
+            return Fixture.Source(
+                plaintext: "credential-\(item)\nvalue-🔐-\(index * 17)",
+                name: "accounts/group-\(group)/service-\(item)",
+                type: .secret
+            )
+        }
+        let fixture = try Fixture(sources: sources)
+        defer { fixture.remove() }
+        let sourceBefore = try fixture.sourceBytes()
+
+        let report = try fixture.installer().install(
+            operationID: Self.operationID,
+            deviceName: "Qualification Mac"
+        )
+
+        #expect(report.entryCount == 300)
+        #expect(report.secretCount == 240)
+        #expect(report.totpCount == 60)
+        #expect(fixture.selector.vaultID == Self.vaultID)
+        #expect(try fixture.sourceBytes() == sourceBefore)
+        #expect(fixture.v2KeyProvider.creationFlags == [false])
+        #expect(!FileManager.default.fileExists(
+            atPath: fixture.root.appendingPathComponent(".transactions").path
+        ))
+
+        let manifestData = try #require(fixture.cache.manifestData)
+        let envelope = try V3DeviceWrappedManifestEnvelopeCodec().parse(
+            manifestData
+        )
+        #expect(envelope.body.entries.count == sources.count)
+        #expect(
+            Set(envelope.body.entries.map(\.name))
+                == Set(sources.map(\.name))
+        )
+        #expect(
+            envelope.body.entries.filter { $0.type == .secret }.count == 240
+        )
+        #expect(
+            envelope.body.entries.filter { $0.type == .totp }.count == 60
+        )
     }
 
     @Test
@@ -360,6 +417,25 @@ private final class RecordingGenesisInstaller:
 
 private extension V3DeviceWrappedGenesisInstallerTests {
     final class Fixture {
+        struct Source {
+            let plaintext: String
+            let name: String
+            let type: SecretEntryType
+        }
+
+        private static let defaultSources = [
+            Source(
+                plaintext: "correct horse battery staple",
+                name: "mail/personal",
+                type: .secret
+            ),
+            Source(
+                plaintext: "JBSWY3DPEHPK3PXP",
+                name: "totp/work",
+                type: .totp
+            ),
+        ]
+
         let root: URL
         let entryStore: EntryStore
         let objectStore: V3FilesystemTransactionArtifactStore
@@ -369,12 +445,21 @@ private extension V3DeviceWrappedGenesisInstallerTests {
         let identityCreator = InstallIdentityCreator()
         let v2KeyProvider = InstallV2KeyProvider(key: v2Key)
         let selector: InstallSelector
+        private let entryIDs: [String]
 
-        init(entryCount: Int) throws {
+        convenience init(entryCount: Int) throws {
+            precondition(entryCount <= Self.defaultSources.count)
+            try self.init(
+                sources: Array(Self.defaultSources.prefix(entryCount))
+            )
+        }
+
+        init(sources: [Source]) throws {
             root = FileManager.default.temporaryDirectory.appendingPathComponent(
                 UUID().uuidString,
                 isDirectory: true
             )
+            entryIDs = sources.indices.map(Self.entryID)
             try FileManager.default.createDirectory(
                 at: root,
                 withIntermediateDirectories: true
@@ -388,18 +473,11 @@ private extension V3DeviceWrappedGenesisInstallerTests {
                 cache: cache,
                 session: session
             )
-            if entryCount >= 1 {
+            for source in sources {
                 try saveV2(
-                    "correct horse battery staple",
-                    name: "mail/personal",
-                    type: .secret
-                )
-            }
-            if entryCount >= 2 {
-                try saveV2(
-                    "JBSWY3DPEHPK3PXP",
-                    name: "totp/work",
-                    type: .totp
+                    source.plaintext,
+                    name: source.name,
+                    type: source.type
                 )
             }
         }
@@ -424,10 +502,23 @@ private extension V3DeviceWrappedGenesisInstallerTests {
                 loadV2VaultKey: loadV2VaultKey ?? v2KeyProvider.load,
                 selectVault: selector.select,
                 makeUUID: InstallUUIDSequence([
-                    vaultID, transitionID, entryA, entryB,
-                ]).next,
+                    vaultID, transitionID,
+                ] + entryIDs).next,
                 makeVaultKey: { vaultKey },
                 phaseObserver: phaseObserver
+            )
+        }
+
+        private static func entryID(_ index: Int) -> String {
+            if index == 0 {
+                return V3DeviceWrappedGenesisInstallerTests.entryA
+            }
+            if index == 1 {
+                return V3DeviceWrappedGenesisInstallerTests.entryB
+            }
+            return String(
+                format: "018f4d38-7d5a-7b20-b0f2-%012llx",
+                UInt64(index)
             )
         }
 
