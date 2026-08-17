@@ -74,18 +74,30 @@ An opt-in alpha is available now:
 brew install --cask tvanreenen/tap/key@alpha
 ```
 
-Beginning with the next alpha, that channel installs the isolated
+The alpha channel installs the isolated
 `Key Preview.app` and `key-preview` CLI. It can live beside Stable Key with its
 own helper, configuration, default vault, and Keychain namespace, so testing a
 prerelease does not replace the installation you rely on.
 
-The next preview supports explicit migration, multiple approved Macs,
+The current preview supports explicit migration, multiple approved Macs,
 authenticated catch-up, guarded reads and writes, conflict resolution, and
-deliberate device revocation with forward key rotation. Keep at least two Macs
-enrolled: either can authorize a replacement if the other is lost.
-Provider storage alone is not a recoverable backup, and `0.2.0` will not recover
-a vault after every enrolled device is lost. The new multi-device paths still
-require physical release qualification. See the
+deliberate device revocation with forward key rotation. Version 3 supports only
+local APFS and iCloud Drive; other file and sync providers remain unsupported.
+Keep at least two Macs enrolled: either can authorize a replacement if the
+other is lost.
+
+Enrollment invitations expire after 10 minutes. Both people must compare the
+exact device pair and comparison code before approval. If a Mac is lost or
+revoked, use a surviving active Mac to create a new invitation and rejoin the
+replacement through the ordinary ceremony.
+
+Provider storage alone is not a recoverable backup: it carries encrypted,
+authenticated history but never the vault key or enrollment authority. If
+every enrolled Mac and its Secure Enclave identity is lost, the version 3 vault
+is permanently unrecoverable in `0.2.0`; there is no password, cloud escrow,
+support override, or hidden fallback. See
+[Security, continuity, and recovery](docs/security-continuity-recovery.md) for
+the complete user promise, and the
 [version 3 implementation tracker](docs/v3-vault-implementation.md) for the
 current scope, limitations, and release-qualification results.
 

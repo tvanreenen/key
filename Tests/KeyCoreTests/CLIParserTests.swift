@@ -494,4 +494,18 @@ struct CLIParserTests {
             try CLIParser.parse(arguments: ["help", "--verbose"])
         }
     }
+
+    @Test
+    func helpDocumentsVersion3ContinuityAndPermanentLoss() {
+        let help = CLIParser.usageText
+
+        #expect(help.contains("local APFS or iCloud Drive"))
+        #expect(help.contains("Other providers are unsupported"))
+        #expect(help.contains("at least two active enrolled Macs"))
+        #expect(help.contains("Invitations expire after 10 minutes"))
+        #expect(help.contains("lost or revoked Mac rejoins"))
+        #expect(help.contains("Provider files alone are not a backup"))
+        #expect(help.contains("permanently unrecoverable in 0.2.0"))
+        #expect(help.contains("no password, cloud, or support fallback"))
+    }
 }

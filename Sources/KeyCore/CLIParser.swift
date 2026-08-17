@@ -99,6 +99,15 @@ public enum CLIParser {
     Config names:
       vault-dir      Effective vault directory.
       keychain-mode  Vault key storage mode (`local` or `icloud`).
+
+    Version 3 safety and recovery:
+      Supported storage is local APFS or iCloud Drive. Other providers are unsupported.
+      Keep at least two active enrolled Macs; either can enroll or revoke another Mac.
+      Invitations expire after 10 minutes. Compare the exact device pair and code.
+      A lost or revoked Mac rejoins through an invitation from a surviving active Mac.
+      The provider stores encrypted authenticated files, never the vault key or authority.
+      Provider files alone are not a backup. If every enrolled Mac is lost, the vault is
+      permanently unrecoverable in 0.2.0; there is no password, cloud, or support fallback.
     """
 
     private static func parseHelp(arguments: [String]) throws -> Command {

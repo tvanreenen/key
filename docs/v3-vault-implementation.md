@@ -14,8 +14,8 @@ state.
 | Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | `BETA-605`: finish continuity, replacement, provider, and permanent-loss documentation |
-| Next work | Complete the focused security review and beta release verification; prototype PIV recovery separately for a later minor release |
+| Active work | `BETA-606`: complete the focused security review |
+| Next work | Complete beta release verification; prototype PIV recovery separately for a later minor release |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
 profile MUST not ship as stable until every release gate below passes.
@@ -1524,7 +1524,7 @@ formats or transport stacks:
 - [x] Add conflict diagnostics, stable JSON status output, and machine-readable
   exit codes.
 - [ ] Validate local APFS and iCloud Drive plus realistic migration copies.
-- [ ] Document the implemented security model and recovery limits.
+- [x] Document the implemented security model and recovery limits.
 - [ ] Consolidate the permanent device-wrapped profile into an exact normative
   storage specification and machine-readable schemas before beta.
 
@@ -1765,7 +1765,7 @@ opportunistic evidence rather than a release gate.
 | `BETA-602` | Complete | Deterministically expire the invitation while the replacement confirmation is open and delay helper termination beyond the client wait. Prove no cleanup follows expiry and the bounded-timeout path resumes safely through the same join command. |
 | `BETA-603` | Complete; split evidence | Verify the exact notarized candidate's signing, installation, helper registration, cold start, and enrolled-vault inventory; run the same checkout through the isolated installed local-APFS identity for migration, ordinary mutation, lock/restart, rollback, and final inventory; and bind deterministic interruption/conflict tests to the same source. This split is required because both physical Preview profiles are enrolled and repointing either would destroy its non-exportable local identity. |
 | `BETA-604` | Complete | Run one concise installed-build iCloud regression covering two-device catch-up, one cross-device write and removal, lock/restart, exact roster continuity, and fail-closed behavior during incomplete delivery. Prior alpha.6, alpha.7, and alpha.10 exercises remain the broader evidence base. |
-| `BETA-605` | Pending | Make supported providers, two-device continuity, revocation, replacement, invitation lifetime, provider-only non-recovery, and all-devices-lost permanent loss explicit in CLI help and user documentation. |
+| `BETA-605` | Complete | Make supported providers, two-device continuity, revocation, replacement, invitation lifetime, provider-only non-recovery, and all-devices-lost permanent loss explicit in CLI help and user documentation. |
 | `BETA-606` | Pending | Complete a focused security review of identity binding, ceremony substitution, comparison transcripts, revocation and key rotation, replacement cleanup authorization, durable retry state, checkpoint rollback, filesystem containment, and persistent raw-key absence. |
 | `BETA-607` | Pending | Pass the full suite and release scripts; verify signatures, entitlements, hardened runtime, notarization, stapling, Gatekeeper, Homebrew alpha-to-beta upgrade, Stable isolation, helper registration after reboot, and app/CLI/helper version alignment. |
 
@@ -1906,16 +1906,34 @@ opportunistic evidence rather than a release gate.
   recovery-required states. Physical provider corruption was not induced in
   the enrolled iCloud vault.
 
-- [ ] Recovery limitations are visible in CLI help and documentation.
+`BETA-605` coverage inventory:
+
+- [x] Top-level CLI help names local APFS and iCloud Drive as the only
+  supported version 3 storage, rejects other providers, and explains the
+  fail-safe two-device continuity baseline.
+- [x] CLI help states the 10-minute invitation lifetime, exact device/code
+  comparison requirement, surviving-device replacement path, provider's lack
+  of key or enrollment authority, and permanent loss after every enrolled Mac
+  is gone, with no password, cloud, or support fallback.
+- [x] The README's stale prerelease language is replaced with the current
+  isolated Preview channel and links to a dedicated user-facing
+  [security, continuity, and recovery](security-continuity-recovery.md) guide.
+- [x] The guide explains supported-provider and incomplete-delivery behavior,
+  equal enrolled-device authority, the two-device recommendation, invitation
+  expiry, revocation key rotation, revoked-device `REJOIN` cleanup and safe
+  retry, migration rollback limits, and provider-only non-recovery.
+- [x] A focused CLI help regression test asserts all of those permanent-loss
+  and continuity promises; all 56 parser tests pass.
+
+- [x] Recovery limitations are visible in CLI help and documentation.
 - [ ] An independent security review signs off on identity, enrollment,
   authentication, revocation, continuity, and permanent-loss behavior.
 - [x] Signing, notarization, and installed-helper verification pass.
 
 ## Immediate Next Action
 
-Complete `BETA-605`'s user-facing provider, continuity, replacement, and
-permanent-loss documentation, then finish the focused security review and
-release verification in `BETA-606` and `BETA-607`. Do not add a portable recovery
+Complete the focused security review in `BETA-606`, then finish release
+verification in `BETA-607`. Do not add a portable recovery
 authority or broaden provider support as part of beta readiness. Prototype PIV
 catastrophe recovery separately and assign no release until physical
 feasibility and security review support it.
