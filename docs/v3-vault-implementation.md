@@ -8,14 +8,14 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-beta.1` is the latest Preview release; its local release, distribution, and two-device alpha-to-beta transition checks pass, while post-install reboot qualification remains open; catastrophe recovery is deferred beyond `0.2.0` |
+| Status | `v0.2.0-beta.1` is the latest Preview release and has completed local, distribution, two-device channel-transition, and post-install reboot qualification; catastrophe recovery is deferred beyond `0.2.0` |
 | Latest release | `v0.2.0-beta.1 (17)` at `6ab38f8` |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
 | Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | `BETA-607`: finish post-install reboot qualification |
-| Next work | Complete beta release verification; prototype PIV recovery separately for a later minor release |
+| Active work | Observe beta.1 in normal two-device use; no additional beta qualification gate is open |
+| Next work | Obtain an independent security review before Stable; prototype PIV recovery separately for a later minor release |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
 profile MUST not ship as stable until every release gate below passes.
@@ -1647,7 +1647,7 @@ explicit migration rather than another implicit synchronized-key repair.
 | `v0.2.0-alpha.9` | 14 | Released | Distinguish a revoked local device from damaged vault state and direct it toward replacement through a surviving active Mac |
 | `v0.2.0-alpha.10` | 15 | Released and physically qualified | Ship and physically qualify restart-safe revoked-device cleanup and ordinary re-enrollment on two Macs |
 | `v0.2.0-alpha.11` | 16 | Released and physically qualified | Revalidate replacement invitations before cleanup, bound helper-restart waits with safe same-command recovery, and complete the practical local-APFS and two-device iCloud beta provider gates |
-| `v0.2.0-beta.1` | 17 | Released; physical qualification in progress | Complete provider qualification, migration and rollback validation, continuity and permanent-loss documentation, signing checks, and the required security-review gates |
+| `v0.2.0-beta.1` | 17 | Released and physically qualified | Complete provider qualification, migration and rollback validation, continuity and permanent-loss documentation, signing checks, and the required security-review gates |
 
 Urgent fixes may add an intervening prerelease and advance the build counter,
 but they do not redefine the security checkpoint assigned to a version above.
@@ -1767,7 +1767,7 @@ opportunistic evidence rather than a release gate.
 | `BETA-604` | Complete | Run one concise installed-build iCloud regression covering two-device catch-up, one cross-device write and removal, lock/restart, exact roster continuity, and fail-closed behavior during incomplete delivery. Prior alpha.6, alpha.7, and alpha.10 exercises remain the broader evidence base. |
 | `BETA-605` | Complete | Make supported providers, two-device continuity, revocation, replacement, invitation lifetime, provider-only non-recovery, and all-devices-lost permanent loss explicit in CLI help and user documentation. |
 | `BETA-606` | Complete | Complete a focused security review of identity binding, ceremony substitution, comparison transcripts, revocation and key rotation, replacement cleanup authorization, durable retry state, checkpoint rollback, filesystem containment, and persistent raw-key absence. |
-| `BETA-607` | In progress | Pass the full suite and release scripts; verify signatures, entitlements, hardened runtime, notarization, stapling, Gatekeeper, the Homebrew alpha-to-beta channel transition, Stable isolation, helper registration after reboot, and app/CLI/helper version alignment. |
+| `BETA-607` | Complete | Pass the full suite and release scripts; verify signatures, entitlements, hardened runtime, notarization, stapling, Gatekeeper, the Homebrew alpha-to-beta channel transition, Stable isolation, helper registration after reboot, and app/CLI/helper version alignment. |
 
 `BETA-606` focused-review ledger:
 
@@ -1879,9 +1879,14 @@ opportunistic evidence rather than a release gate.
   installed at 0.1.2 build 6 with its distinct app identity. SHA-256 inventories
   of every Stable and Preview config and checkpoint file were byte-identical
   before and after the channel change.
-- [ ] Reboot the first physical Mac and verify the Preview helper registers,
-  the enrolled vault opens with the same inventory, Stable remains isolated,
-  and app/CLI/helper versions still align.
+- [x] After a 2026-08-17 16:32:03 reboot, launchd retained the Preview helper
+  registration while leaving it stopped and uninitialized before first use.
+  The first beta CLI status started the helper on demand and returned ready,
+  zero conflicts, the same four names, and trusted version
+  `d294566947db67dc`. Gatekeeper and strict app/CLI/helper signature validation
+  still passed; the app, CLI, and helper remained beta.1 build 17; Stable
+  remained 0.1.2 build 6; and every recorded Stable and Preview config and
+  checkpoint hash remained byte-identical.
 - [x] The existing enrolled MacBook Air completed the same non-destructive
   `key@alpha` to `key@beta` transition. Its app, CLI, and helper report beta.1
   build 17; strict signing and Gatekeeper pass; Stable remains 0.1.2; and its
@@ -1934,7 +1939,7 @@ opportunistic evidence rather than a release gate.
   Before/after SHA-256 inventories of Stable and Preview Application Support,
   checkpoint caches, and default roots were identical in every scenario.
 
-- [ ] All security and durability invariants pass.
+- [x] All security and durability invariants pass.
 - [x] The v3 reader ships before any v3 writer is enabled.
 - [x] Local APFS passes its scoped installed-build beta qualification.
 - [x] iCloud Drive passes its scoped installed-build beta qualification.
@@ -2055,8 +2060,8 @@ opportunistic evidence rather than a release gate.
 
 ## Immediate Next Action
 
-Finish the post-install reboot verification in `BETA-607`. Do not add a
-portable recovery
-authority or broaden provider support as part of beta readiness. Prototype PIV
-catastrophe recovery separately and assign no release until physical
-feasibility and security review support it.
+Observe beta.1 in normal two-device use and obtain an independent security
+review before Stable. Do not add a portable recovery authority or broaden
+provider support as part of beta stabilization. Prototype PIV catastrophe
+recovery separately and assign no release until physical feasibility and
+security review support it.
