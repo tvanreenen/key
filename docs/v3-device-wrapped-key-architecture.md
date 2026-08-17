@@ -12,6 +12,9 @@ authority, and continuity guidance; alpha.9 clarified revoked-device handling.
 Alpha.10 shipped and physically qualified restart-safe replacement
 re-enrollment through the ordinary join journey on two Macs, including
 cross-device catch-up, writes, cleanup, and helper restart.
+Alpha.11 added destructive-step invitation revalidation and bounded,
+same-command helper-restart recovery, then completed the practical local-APFS
+and two-device iCloud beta provider qualifications.
 Catastrophe recovery after every enrolled device is lost is explicitly
 deferred beyond `0.2.0`.
 

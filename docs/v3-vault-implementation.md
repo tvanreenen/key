@@ -8,14 +8,14 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-alpha.10` is the latest Preview release; role-free authority, authenticated catch-up, device revocation, continuity guidance, and restart-safe replacement re-enrollment through the ordinary join journey are shipped and physically qualified on two Macs; catastrophe recovery is deferred beyond `0.2.0` |
-| Latest release | `v0.2.0-alpha.10 (15)` at `8a576c3` |
+| Status | `v0.2.0-alpha.11` is the latest Preview release; replacement invitation revalidation and bounded helper-restart retry are shipped, and the practical local-APFS and two-device iCloud beta provider gates are complete; catastrophe recovery is deferred beyond `0.2.0` |
+| Latest release | `v0.2.0-alpha.11 (16)` at `c64fe13` |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
 | Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | `BETA-604`: publish the prepared alpha.11 candidate and run its concise two-device iCloud regression |
-| Next work | Complete the two-device iCloud qualification, continuity documentation, focused security review, and beta release verification; prototype PIV recovery separately for a later minor release |
+| Active work | `BETA-605`: finish continuity, replacement, provider, and permanent-loss documentation |
+| Next work | Complete the focused security review and beta release verification; prototype PIV recovery separately for a later minor release |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
 profile MUST not ship as stable until every release gate below passes.
@@ -1646,6 +1646,7 @@ explicit migration rather than another implicit synchronized-key repair.
 | `v0.2.0-alpha.8` | 13 | Released | Add revocation, remaining-device catch-up, equal enrolled-device authority, and continuity and permanent-loss UX |
 | `v0.2.0-alpha.9` | 14 | Released | Distinguish a revoked local device from damaged vault state and direct it toward replacement through a surviving active Mac |
 | `v0.2.0-alpha.10` | 15 | Released and physically qualified | Ship and physically qualify restart-safe revoked-device cleanup and ordinary re-enrollment on two Macs |
+| `v0.2.0-alpha.11` | 16 | Released and physically qualified | Revalidate replacement invitations before cleanup, bound helper-restart waits with safe same-command recovery, and complete the practical local-APFS and two-device iCloud beta provider gates |
 | `v0.2.0-beta.1` | TBD | Planned | Complete provider qualification, migration and rollback validation, continuity and permanent-loss documentation, signing checks, and the required security-review gates |
 
 Urgent fixes may add an intervening prerelease and advance the build counter,
@@ -1763,7 +1764,7 @@ opportunistic evidence rather than a release gate.
 | `BETA-601` | Complete | Migrate disposable copies of a small clean v2 vault, a realistic large mixed-entry vault, and deliberately invalid inputs. Compare names, types, and value hashes without logging plaintext; prove the v2 source is byte-identical, v3 selection happens last, no raw v3 key persists, and the same Stable-variant runtime can reopen its untouched v2 source as the supported rollback. |
 | `BETA-602` | Complete | Deterministically expire the invitation while the replacement confirmation is open and delay helper termination beyond the client wait. Prove no cleanup follows expiry and the bounded-timeout path resumes safely through the same join command. |
 | `BETA-603` | Complete; split evidence | Verify the exact notarized candidate's signing, installation, helper registration, cold start, and enrolled-vault inventory; run the same checkout through the isolated installed local-APFS identity for migration, ordinary mutation, lock/restart, rollback, and final inventory; and bind deterministic interruption/conflict tests to the same source. This split is required because both physical Preview profiles are enrolled and repointing either would destroy its non-exportable local identity. |
-| `BETA-604` | Pending | Run one concise installed-build iCloud regression covering two-device catch-up, one cross-device write and removal, lock/restart, exact roster continuity, and fail-closed behavior during incomplete delivery. Prior alpha.6, alpha.7, and alpha.10 exercises remain the broader evidence base. |
+| `BETA-604` | Complete | Run one concise installed-build iCloud regression covering two-device catch-up, one cross-device write and removal, lock/restart, exact roster continuity, and fail-closed behavior during incomplete delivery. Prior alpha.6, alpha.7, and alpha.10 exercises remain the broader evidence base. |
 | `BETA-605` | Pending | Make supported providers, two-device continuity, revocation, replacement, invitation lifetime, provider-only non-recovery, and all-devices-lost permanent loss explicit in CLI help and user documentation. |
 | `BETA-606` | Pending | Complete a focused security review of identity binding, ceremony substitution, comparison transcripts, revocation and key rotation, replacement cleanup authorization, durable retry state, checkpoint rollback, filesystem containment, and persistent raw-key absence. |
 | `BETA-607` | Pending | Pass the full suite and release scripts; verify signatures, entitlements, hardened runtime, notarization, stapling, Gatekeeper, Homebrew alpha-to-beta upgrade, Stable isolation, helper registration after reboot, and app/CLI/helper version alignment. |
@@ -1813,7 +1814,7 @@ opportunistic evidence rather than a release gate.
 - [ ] All security and durability invariants pass.
 - [x] The v3 reader ships before any v3 writer is enabled.
 - [x] Local APFS passes its scoped installed-build beta qualification.
-- [ ] iCloud Drive passes its scoped installed-build beta qualification.
+- [x] iCloud Drive passes its scoped installed-build beta qualification.
 - [x] Protected writes pass in the release environment.
 - [x] Migration and rollback pass with realistic disposable vault copies.
 
@@ -1870,6 +1871,41 @@ opportunistic evidence rather than a release gate.
   state. No claim is made that the notarized Preview identity itself was
   repointed away from its enrolled iCloud vault.
 
+`BETA-604` coverage inventory:
+
+- [x] `v0.2.0-alpha.11 (16)` was published as a GitHub prerelease at tag
+  `c64fe13` with the accepted notarized artifact, then the `key@alpha` cask was
+  updated and published from tap commit `fef2ee2`. Both Macs upgraded through
+  Homebrew from alpha.10 to the same SHA-256 artifact.
+- [x] On both Macs, Gatekeeper accepted the Notarized Developer ID app; strict
+  host-context validation passed for the app, bundled CLI, and helper; all
+  three components reported alpha.11 build 16; and the helper registered under
+  Preview's expected parent ID and build. A restricted-command `codesign`
+  false negative on the mini was rejected only after the same sandbox also
+  reported an Apple system app untrusted; the required host-context checks
+  independently passed on both Macs.
+- [x] Both Macs began ready at trusted version `25010d3cdb97120f` with the
+  same exact four-entry inventory. The Air published one disposable entry,
+  read it locally, and the mini caught up to trusted version
+  `c59459b710e82fac`, decrypted the exact non-sensitive test value, and removed
+  only that entry.
+- [x] Both Macs converged on trusted version `d294566947db67dc`, the disposable
+  entry returned entry-not-found, and the original four-entry inventory was
+  exact. Stable and Preview configuration stayed unchanged; the enrolled vault
+  gained only the expected immutable disposable entry revision and its
+  authenticated add/removal history.
+- [x] The Air locked alpha.11, its helper stopped with exit zero, and an
+  on-demand cold start returned ready with the same four entries. Its roster
+  still showed the mini active, old Air revoked, new/current Air active, and
+  continuity two; a baseline decrypt succeeded with the previously recorded
+  SHA-256 `ac78585ab6859aecee5cef5eecdfca1cd9d650ea06f98ec7abbe7125359e42ba`.
+- [x] Twenty-eight focused repository, read-only-runtime, and read-plan tests
+  pass on the released source, including missing parents and ancestry,
+  delayed referenced entries, authenticated stale-read boundaries, corruption
+  versus transport-unavailable classification, and fail-closed incomplete or
+  recovery-required states. Physical provider corruption was not induced in
+  the enrolled iCloud vault.
+
 - [ ] Recovery limitations are visible in CLI help and documentation.
 - [ ] An independent security review signs off on identity, enrollment,
   authentication, revocation, continuity, and permanent-loss behavior.
@@ -1877,9 +1913,9 @@ opportunistic evidence rather than a release gate.
 
 ## Immediate Next Action
 
-Publish the prepared alpha.11 candidate, upgrade the Air, and run `BETA-604`'s
-concise two-device iCloud regression with the same artifact before completing
-`BETA-605` through `BETA-607`. Do not add a portable recovery
+Complete `BETA-605`'s user-facing provider, continuity, replacement, and
+permanent-loss documentation, then finish the focused security review and
+release verification in `BETA-606` and `BETA-607`. Do not add a portable recovery
 authority or broaden provider support as part of beta readiness. Prototype PIV
 catastrophe recovery separately and assign no release until physical
 feasibility and security review support it.
