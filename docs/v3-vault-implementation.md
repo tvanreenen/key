@@ -2130,10 +2130,14 @@ Stable stabilization ledger:
   Stable artifact is published; the product and safety contract is already in
   final landing-page form.
 - The landing-page progression begins with the ordinary CLI, TOTP, piping, and
-  fuzzy-selection workflow before installation or architecture. It separates
-  Stable/Preview release channels from Keychain-backed/device-enrolled vault
-  models and reserves format v2/v3 terminology for their initial definition,
-  migration boundary, and technical references.
+  fuzzy-selection workflow before installation or architecture. A compact
+  security thesis then connects that everyday workflow to the signed agent,
+  authenticated XPC boundary, short-lived key session, per-device Secure
+  Enclave identities, HPKE wrappers, and authenticated history without making
+  the opening read like a protocol specification. It separates Stable/Preview
+  release channels from Keychain-backed/device-enrolled vault models and
+  reserves format v2/v3 terminology for their initial definition, migration
+  boundary, and technical references.
 - The README quick start, migration, enrollment, revocation, and conflict
   command shapes match the shipping parser and helper UX. All 56 parser/help
   tests and 41 CLI application tests pass, including explicit migration,

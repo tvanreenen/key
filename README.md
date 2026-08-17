@@ -5,7 +5,9 @@
 Key is a macOS-native, CLI-first secret manager. It keeps encrypted vault files
 in a folder you control, uses Touch ID, Apple Watch, or your Mac password for
 local authentication, and exposes a small command set that composes naturally
-with the shell.
+with the shell. Behind that small interface is a signed, on-demand agent and a
+device-enrolled security model designed to keep protected key material and
+trust decisions away from the sync provider.
 
 ## Quick start
 
@@ -48,6 +50,21 @@ key copy "$(key list | fzf)"
 Full `otpauth://` URLs are not accepted yet; provide only their `secret`
 value. Key intentionally has no built-in password generator, so any generator
 that writes to stdout can feed `key add` or `key edit`.
+
+## Security beneath the CLI
+
+The command-line client never accesses protected vault-key material directly.
+It talks over authenticated XPC to the signed, on-demand Key Agent, while macOS
+gates key use with Touch ID, Apple Watch, or your Mac password. Secrets use
+AES-256-GCM authenticated encryption, and unlocked key material is reused only
+inside the agent's short-lived memory session.
+
+The device-enrolled vault strengthens that model for multiple Macs. Each Mac
+holds non-exportable Secure Enclave identity keys, the vault key is wrapped
+separately to every approved device using HPKE, and membership changes and
+vault history are cryptographically authenticated. Your sync provider carries
+ciphertext, but it cannot enroll a Mac, silently make old state trusted, or
+choose a conflict winner.
 
 ## Install and choose a release channel
 
