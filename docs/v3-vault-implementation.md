@@ -14,8 +14,8 @@ state.
 | Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | `STABLE-703`: overhaul the GitHub README and user-facing release contract before final promotion |
-| Next work | `STABLE-704`: observe beta.1, close findings, and qualify the deliberate Stable artifact |
+| Active work | `STABLE-704`: observe beta.1, close findings, and qualify the deliberate Stable artifact |
+| Next work | Publish `v0.2.0` only after `STABLE-704`; add an RC only if post-beta changes or release behavior justify one |
 
 The current device-wrapped profile remains prerelease-only. It MUST not ship as
 stable until the scoped Stable work packages below pass.
@@ -2089,10 +2089,10 @@ that is practical for this project:
 |---|---|---|
 | `STABLE-701` | Complete | Reconcile every stale unchecked release item against current evidence or an explicit scope decision; record the practical device, provider, recovery, diagnostics, and review boundaries without changing product behavior. |
 | `STABLE-702` | Complete | Updated the normative permanent-profile specification and schemas to the shipping role-free profile and bound them to production-generated canonical fixtures; locked the exact deterministic HPKE context, `info`, and authenticated-data bytes while explicitly scoping out a randomized ciphertext fixture and independent implementation claim; and proved an ordinary content mutation and membership transition cannot interleave through the shared mutation owner. |
-| `STABLE-703` | Pending | Completely overhaul the GitHub README as the Stable landing page. Clearly separate Stable and Preview, provide a tested quick start and migration path, describe directly validated versus not-directly-validated providers, make continuity and permanent loss visible, scope v2 and v3 claims correctly, link deeper documents, and align CLI help and user-facing provider language. |
+| `STABLE-703` | Complete | Replaced the README with a Stable-ready landing page that separates the current Stable and Preview products, provides verified install, quick-start, migration, enrollment, revocation, provider, conflict, and recovery guidance, scopes v2 and v3 claims separately, discloses the practical assurance boundary, and links the normative and user-facing references. CLI help now uses the same directly-validated provider language. |
 | `STABLE-704` | Pending | Observe beta.1 in ordinary two-device use; resolve any findings; run the full suite and release scripts; choose an RC only if post-beta code or release behavior warrants one; then build, notarize, verify, and deliberately qualify the Stable artifact and explicit v2 migration/rollback boundary before publishing `v0.2.0`. |
 
-`STABLE-701` reconciliation ledger:
+Stable stabilization ledger:
 
 - Existing BETA-601, BETA-603, and BETA-604 evidence closes realistic
   migration/rollback and the complete local APFS plus iCloud Drive provider
@@ -2124,11 +2124,32 @@ that is practical for this project:
   shipping role-free profile, and a conformance regression test compares their
   exact object fields and discriminators with production-generated canonical
   body and envelope fixtures.
+- The README identifies Stable `0.1.2` and Preview `0.2.0-beta.1` as the
+  currently published channels without presenting prerelease v3 behavior as a
+  Stable feature. `STABLE-704` will update that release metadata when the exact
+  Stable artifact is published; the product and safety contract is already in
+  final landing-page form.
+- The README quick start, migration, enrollment, revocation, and conflict
+  command shapes match the shipping parser and helper UX. All 56 parser/help
+  tests and 41 CLI application tests pass, including explicit migration,
+  invitation expiry, replacement retry, and revocation review coverage. The
+  Homebrew channel suite confirms the Stable `key` and Preview `key@beta`
+  mappings, and every relative README link resolves.
+- README and CLI help now say local APFS and iCloud Drive are directly
+  validated while other ordinary folder-backed providers may work but are not
+  directly validated. The landing page places the two-Mac recommendation and
+  permanent-loss boundary before setup, and explicitly discloses the absence
+  of a third-party audit, third physical-device gate, and additional-provider
+  qualification.
 
 ## Immediate Next Action
 
-Perform the `STABLE-703` README overhaul while beta.1 remains in normal
-two-device use, then complete the bounded `STABLE-704` Stable qualification.
-Do not add a portable recovery authority, require a third physical Mac, or
-expand the directly validated provider matrix as part of `0.2.0`
-stabilization.
+Continue ordinary beta.1 use on the two enrolled Macs and complete the bounded
+`STABLE-704` Stable qualification. Run the complete Swift and release-script
+gate in an ordinary unsandboxed terminal because the Codex filesystem sandbox
+cannot apply the v2 `.completeFileProtection` writes used by legacy tests.
+Resolve any real beta findings, choose an RC only if they justify one, then
+build, notarize, verify, install, and deliberately qualify the exact Stable
+artifact and migration/rollback boundary. Do not add a portable recovery
+authority, require a third physical Mac, or expand the directly validated
+provider matrix as part of `0.2.0` stabilization.
