@@ -207,6 +207,13 @@ validity and derivation, wrapper coverage, cross-field equality, and
 canonical-low-S signatures. A schema-valid object that fails those checks is
 not a valid Key manifest.
 
+The canonical wrapper context has `format` `key-vault-wrapped-key-context`,
+`version` `1`, the profile and HPKE suite discriminators above, and the exact
+`vaultID`, `keyID`, `authorityTransitionID`, and `recipientDeviceID`. HPKE
+`info` is the UTF-8 domain `work.tvr.key/v3/hpke-vault-key-info/v1`, one zero
+byte, and those canonical context bytes. HPKE authenticated data uses the same
+construction with domain `work.tvr.key/v3/hpke-vault-key-aad/v1`.
+
 ### Vault and entry encryption
 
 Each key epoch has one random 256-bit vault key. Domain-separated derivatives

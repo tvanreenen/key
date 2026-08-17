@@ -124,6 +124,25 @@ struct V3VaultKeyHPKE: Sendable {
         "work.tvr.key/v3/hpke-vault-key-aad/v1".utf8
     )
 
+    struct Inputs: Equatable, Sendable {
+        let info: Data
+        let authenticatedData: Data
+    }
+
+    /// Exact deterministic inputs surrounding CryptoKit's randomized HPKE
+    /// sender operation. Keeping their construction in one callable path lets
+    /// the wire profile lock the domain separation and context framing without
+    /// injecting or exporting ephemeral sender key material.
+    static func inputs(for context: V3VaultKeyHPKEContext) -> Inputs {
+        Inputs(
+            info: domainInput(Self.infoDomain, context: context),
+            authenticatedData: domainInput(
+                Self.authenticatedDataDomain,
+                context: context
+            )
+        )
+    }
+
     func wrap(
         vaultKey: Data,
         recipientPublicKey: Data,
@@ -144,19 +163,17 @@ struct V3VaultKeyHPKE: Sendable {
         }
 
         do {
+            let inputs = Self.inputs(for: context)
             // CryptoKit HPKE and Secure Enclave P-256 HPKE conformance are
             // available beginning in macOS 14, which is Key's minimum target.
             var sender = try HPKE.Sender(
                 recipientKey: recipient,
                 ciphersuite: Self.suite,
-                info: domainInput(Self.infoDomain, context: context)
+                info: inputs.info
             )
             let ciphertext = try sender.seal(
                 vaultKey,
-                authenticating: domainInput(
-                    Self.authenticatedDataDomain,
-                    context: context
-                )
+                authenticating: inputs.authenticatedData
             )
             return try V3HPKEWrappedVaultKey(
                 encapsulatedKey: sender.encapsulatedKey,
@@ -178,18 +195,16 @@ struct V3VaultKeyHPKE: Sendable {
         PrivateKey.PublicKey == P256.KeyAgreement.PublicKey
     {
         do {
+            let inputs = Self.inputs(for: context)
             var recipient = try HPKE.Recipient(
                 privateKey: recipientPrivateKey,
                 ciphersuite: Self.suite,
-                info: domainInput(Self.infoDomain, context: context),
+                info: inputs.info,
                 encapsulatedKey: wrappedKey.encapsulatedKey
             )
             let vaultKey = try recipient.open(
                 wrappedKey.ciphertext,
-                authenticating: domainInput(
-                    Self.authenticatedDataDomain,
-                    context: context
-                )
+                authenticating: inputs.authenticatedData
             )
             guard vaultKey.count == 32 else {
                 throw V3VaultKeyHPKEError.invalidVaultKey
@@ -202,7 +217,7 @@ struct V3VaultKeyHPKE: Sendable {
         }
     }
 
-    private func domainInput(
+    private static func domainInput(
         _ domain: Data,
         context: V3VaultKeyHPKEContext
     ) -> Data {

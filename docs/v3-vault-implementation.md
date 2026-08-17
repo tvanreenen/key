@@ -2103,11 +2103,18 @@ that is practical for this project:
 - Catastrophe-recovery tests are inapplicable because recovery authority is
   deliberately absent from `0.2.0`; the PIV prototype remains separate.
 - HPKE round trips, exact context encoding, field-substitution failures, and
-  wrong-recipient tests exist, but the older interoperability/vector item has
-  not been explicitly dispositioned. The shared mutation owner includes
-  content, enrollment, revocation, catch-up, and recovery kinds, but its direct
-  concurrency test currently exercises two content kinds. Both receive narrow
-  treatment in `STABLE-702`.
+  wrong-recipient tests exist. `STABLE-702` additionally locks the exact HPKE
+  `info` and authenticated-data domain bytes, separator, and canonical context
+  through the same production input path. CryptoKit generates the HPKE
+  sender's ephemeral key internally, so an exact ciphertext fixture is not a
+  stable output and cannot be supplied without adding a production test seam.
+  Deterministic input fixtures, exact output framing, context-mutation and
+  wrong-recipient failures, software-key round trips, and the completed
+  Secure Enclave two-device qualification close the older vector item without
+  claiming independent implementation verification. The shared mutation
+  owner includes content, enrollment, revocation, catch-up, and recovery kinds,
+  but its direct concurrency test currently exercises two content kinds. Its
+  remaining cross-kind treatment is part of `STABLE-702`.
 - The architecture document describes the selected role-free profile, but its
   checked-in JSON schemas still require the superseded owner/member role. The
   normative document and schemas must be reconciled together in `STABLE-702`.
