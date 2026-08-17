@@ -8,13 +8,13 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-beta.1` is the latest Preview release; its local release, distribution, and first-device alpha-to-beta transition checks pass, while reboot and second-device qualification remain open; catastrophe recovery is deferred beyond `0.2.0` |
+| Status | `v0.2.0-beta.1` is the latest Preview release; its local release, distribution, and two-device alpha-to-beta transition checks pass, while post-install reboot qualification remains open; catastrophe recovery is deferred beyond `0.2.0` |
 | Latest release | `v0.2.0-beta.1 (17)` at `6ab38f8` |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
 | Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | `BETA-607`: finish reboot and second-device release qualification |
+| Active work | `BETA-607`: finish post-install reboot qualification |
 | Next work | Complete beta release verification; prototype PIV recovery separately for a later minor release |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
@@ -1875,15 +1875,22 @@ opportunistic evidence rather than a release gate.
 - [x] On the first physical Mac, Gatekeeper accepted the installed beta as
   Notarized Developer ID software. The app and CLI report beta.1 build 17, the
   Preview helper registered and ran, and the enrolled v3 vault reopened with
-  the same four entries. Stable remained installed at 0.1.2 build 6 with its
-  distinct app identity. SHA-256 inventories of every Stable and Preview config
-  and checkpoint file were byte-identical before and after the channel change.
+  the same four entries and trusted version `d294566947db67dc`. Stable remained
+  installed at 0.1.2 build 6 with its distinct app identity. SHA-256 inventories
+  of every Stable and Preview config and checkpoint file were byte-identical
+  before and after the channel change.
 - [ ] Reboot the first physical Mac and verify the Preview helper registers,
   the enrolled vault opens with the same inventory, Stable remains isolated,
   and app/CLI/helper versions still align.
-- [ ] Complete the same non-destructive beta channel transition on the existing
-  enrolled MacBook Air and record concise two-device continuity evidence. Do
-  not introduce a three-device gate.
+- [x] The existing enrolled MacBook Air completed the same non-destructive
+  `key@alpha` to `key@beta` transition. Its app, CLI, and helper report beta.1
+  build 17; strict signing and Gatekeeper pass; Stable remains 0.1.2; and its
+  config and checkpoint hashes are unchanged. Both Macs report ready, zero
+  conflicts, the exact same four names, and trusted version
+  `d294566947db67dc`. The Air's three immutable provider objects beyond an older
+  baseline all predate this transition and are the already-qualified alpha.11
+  add/remove history; no provider file was created during the beta transition.
+  No three-device gate was introduced.
 
 `BETA-601` coverage inventory:
 
@@ -2048,8 +2055,8 @@ opportunistic evidence rather than a release gate.
 
 ## Immediate Next Action
 
-Finish the reboot and second-device release verification in `BETA-607`. Do not
-add a portable recovery
+Finish the post-install reboot verification in `BETA-607`. Do not add a
+portable recovery
 authority or broaden provider support as part of beta readiness. Prototype PIV
 catastrophe recovery separately and assign no release until physical
 feasibility and security review support it.
