@@ -26,13 +26,15 @@ release qualification.
 
 ## User Promise
 
-Encrypted vault files may live in any ordinary file provider. In `0.2.0`,
-access belongs only to explicitly enrolled devices.
+Encrypted vault files may live in an ordinary folder-backed file provider. In
+`0.2.0`, access belongs only to explicitly enrolled devices.
 
-The supported `0.2.0` storage targets are local APFS and iCloud Drive. The
-format and recovery protocol remain provider-neutral, but other providers are
-unsupported until they receive equivalent installed-build qualification and
-an explicit policy decision.
+Local APFS and iCloud Drive are the directly qualified `0.2.0` storage targets.
+The format and recovery protocol remain provider-neutral. Other ordinary
+folder-backed providers may work when they preserve the required filesystem
+semantics, but they have not been directly validated and are not covered by the
+`0.2.0` compatibility guarantee. Every configured root must still pass Key's
+containment, type, atomicity, hydration, and naming-safety checks.
 
 Each enrolled Mac has equal authority backed by non-exportable Secure Enclave
 keys. The current vault key is encrypted separately to every active device and
@@ -276,11 +278,11 @@ recovery. Key must never select an unauthenticated newest wrapper merely
 because it appears latest in provider storage.
 
 Competing key or membership transitions are security conflicts and are never
-automatically merged. The current permanent-profile catch-up implementation
-detects content-only forks, pauses writes, and preserves the local checkpoint
-for explicit stale reads. It does not yet expose entry-level conflict
-inspection or resolution; parity with the existing reconciliation UX remains
-a full-release requirement.
+automatically merged. The permanent-profile catch-up implementation detects
+content-only forks, pauses writes, preserves the local checkpoint for explicit
+stale reads, and exposes entry-level inspection and explicit resolution for
+resolvable content conflicts. Authority conflicts remain recovery-required and
+cannot be resolved by selecting an entry value.
 
 ## Recovery
 
@@ -397,7 +399,7 @@ profile was never stable, but the on-disk discriminator must be unambiguous.
   key epochs.
 - [x] Distinguish provider delay, content divergence, and competing authority
   transitions without allowing stale writes.
-- [ ] Bring permanent-profile entry-level conflict inspection and resolution
+- [x] Bring permanent-profile entry-level conflict inspection and resolution
   to parity with the existing version 3 UX.
 - [x] Prove old-or-new crash recovery across every revocation publication
   phase.

@@ -3,12 +3,15 @@
 This is the user-facing security and recovery promise for Key version 3 in
 `0.2.0`.
 
-## Supported Storage
+## Storage Qualification
 
-Version 3 supports a vault on local APFS or in iCloud Drive. Other file-sync
-providers are unsupported until they receive the same installed-build safety
-qualification. Key trusts only authenticated, content-addressed vault history;
-it never trusts provider ordering, timestamps, mutable metadata, or a claimed
+Version 3 is directly qualified with vaults on local APFS and in iCloud Drive.
+Other ordinary folder-backed providers may work when they preserve the
+required filesystem semantics, but they have not been directly validated and
+are not covered by the `0.2.0` compatibility guarantee. Every configured root
+must still pass Key's containment, type, atomicity, hydration, and naming-safety
+checks. Key trusts only authenticated, content-addressed vault history; it
+never trusts provider ordering, timestamps, mutable metadata, or a claimed
 latest file.
 
 Missing provider objects are treated as incomplete delivery. Normal reads and

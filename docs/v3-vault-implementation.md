@@ -14,11 +14,11 @@ state.
 | Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | Observe beta.1 in normal two-device use; no additional beta qualification gate is open |
-| Next work | Obtain an independent security review before Stable; prototype PIV recovery separately for a later minor release |
+| Active work | `STABLE-702`: close the exact permanent-profile evidence and specification gaps while beta.1 remains in normal two-device use |
+| Next work | `STABLE-703`: overhaul the GitHub README and user-facing release contract before final promotion |
 
-The current local/shared alpha profile remains prerelease-only. The permanent
-profile MUST not ship as stable until every release gate below passes.
+The current device-wrapped profile remains prerelease-only. It MUST not ship as
+stable until the scoped Stable work packages below pass.
 
 ## Security And Durability Invariants
 
@@ -682,9 +682,10 @@ Real provider smoke tests remain valuable release qualification. They are not
 a correctness input to the provider-neutral recovery protocol and are not
 practical as a deterministic automated test gate. At the `TXN-408` checkpoint,
 version 3 writing remained disabled. It was enabled later by `MUT-507` only
-after the deterministic recovery gates passed. The supported `0.2.0` scope is
-local APFS and iCloud Drive; every other provider remains unsupported until it
-receives equivalent qualification and an explicit policy decision.
+after the deterministic recovery gates passed. Local APFS and iCloud Drive are
+the directly qualified `0.2.0` scope. Other ordinary folder-backed providers
+may work when they preserve the required semantics, but are not directly
+validated or covered by the `0.2.0` compatibility guarantee.
 
 Acceptance gate:
 
@@ -698,8 +699,9 @@ Acceptance gate:
   recovery matrix.
 - [x] iCloud Drive receives release-qualification smoke testing before the
   alpha.6 guarded writer is treated as qualified.
-- [x] Additional providers remain unsupported until each receives equivalent
-  release qualification and an explicit policy decision.
+- [x] Additional providers are not directly validated release targets; every
+  configured root still has to pass the provider-neutral filesystem safety
+  checks.
 
 #### `UX-409` — Typed Status And Conflict UX
 
@@ -1520,13 +1522,18 @@ formats or transport stacks:
 - [x] Set the `0.2.0` all-devices-lost policy: no catastrophe-recovery
   authority; provider bytes alone cannot recover the vault.
 - [x] Implement and test continuity guidance and permanent-loss UX.
-- [ ] Add doctor, transaction, recovery, and device diagnostics.
+- [x] Provide actionable status, conflict, device, transaction-interruption,
+  and recovery-required diagnostics. A catch-all `doctor` command and raw
+  transaction/recovery inspection are not `0.2.0` gates; add narrower
+  diagnostics later only when observed failures identify a user need.
 - [x] Add conflict diagnostics, stable JSON status output, and machine-readable
   exit codes.
-- [ ] Validate local APFS and iCloud Drive plus realistic migration copies.
+- [x] Validate local APFS and iCloud Drive plus realistic migration copies.
 - [x] Document the implemented security model and recovery limits.
-- [ ] Consolidate the permanent device-wrapped profile into an exact normative
-  storage specification and machine-readable schemas before beta.
+- [ ] Consolidate the permanent role-free device-wrapped profile into an exact
+  normative storage specification and update the machine-readable schemas.
+  The existing schemas still describe the superseded owner/member profile;
+  this is `STABLE-702`, not completed beta evidence.
 
 ## Decision Log
 
@@ -1536,7 +1543,7 @@ formats or transport stacks:
 | `DEC-001` | Accepted | Require a derived-key HMAC on every manifest and a parent-owner Secure Enclave signature on authority-changing transitions. Use separate signing and wrapping keys. |
 | `DEC-002` | Accepted | Use exact authenticated heads for mutation safety. Automatically reconcile independent path changes, preserve every concurrent value, and require explicit resolution only for genuinely incompatible changes. |
 | `DEC-003` | Superseded by `DEC-033` | Define recovery when every enrolled device is lost. |
-| `DEC-004` | Accepted | Support local APFS and iCloud Drive for `0.2.0`. Keep correctness provider-neutral and trust only authenticated immutable history, never provider ordering or mutable metadata. Treat every other provider as unsupported until it receives equivalent installed-build qualification and an explicit policy decision. |
+| `DEC-004` | Accepted | Directly qualify local APFS and iCloud Drive for `0.2.0`. Keep correctness provider-neutral and trust only authenticated immutable history, never provider ordering or mutable metadata. Other ordinary folder-backed providers may work when they preserve the required filesystem semantics, but they are not directly validated or covered by the `0.2.0` compatibility guarantee. Every configured root must still pass Key's containment, type, atomicity, hydration, and naming-safety checks. |
 | `DEC-005` | Accepted | Make vault-root configuration changes helper-owned through the authenticated full-CLI XPC channel. Serialize the change after in-flight handler work, persist it, invalidate the warm key session, refuse later work from the stale handler, and shut the helper down after its successful reply. Re-read the configured root before other requests and fail closed if the file was changed or removed out of band. |
 | `DEC-006` | Accepted | Give the CLI full authority and the utility status/lock authority on separate authenticated endpoints. |
 | `DEC-007` | Accepted | Keep the signed nested helper, constrain launchd spawning, and re-register it on app upgrades. |
@@ -1586,7 +1593,7 @@ formats or transport stacks:
 - [x] Vault-key ID derivation, substitution, and cross-vault separation tests.
 - [x] Enrollment and key-identity replay tests.
 - [ ] CryptoKit HPKE interoperability and exact wrapper-context vectors.
-- [ ] One-device genesis and wrapper-only unlock tests proving no raw v3 key
+- [x] One-device genesis and wrapper-only unlock tests proving no raw v3 key
   survives lock or helper restart.
 - [x] Membership-addition and revocation tests proving new devices cannot open
   prior epochs and revoked devices cannot open the new current snapshot.
@@ -1594,8 +1601,9 @@ formats or transport stacks:
   unit tests.
 - [x] Physical multi-device catch-up through provider delay and key rotation
   in the alpha.7 through alpha.10 release exercises.
-- [ ] Recovery-kit creation, use, replacement, wrong-code, substitution, and
-  all-devices-lost tests.
+- [x] Recovery-kit and all-devices-lost recovery tests are explicitly not
+  applicable to `0.2.0`, which has no catastrophe-recovery authority. PIV and
+  other recovery candidates remain a later-minor-release track.
 - [x] Installed XPC tests for intended and unintended signing identities.
 - [ ] Mutation/key-transition concurrency tests.
 - [x] Transaction fault injection at every phase.
@@ -1609,7 +1617,7 @@ formats or transport stacks:
   manifest-last publication tests.
 - [x] Shipping v3 runtime selection, exact read, stale read, conflict read,
   no-key-creation, and read-only enforcement tests.
-- [ ] Local-v2 migration and rollback tests.
+- [x] Local-v2 migration and rollback tests.
 - [x] Revocation tests with retained old keys.
 - [x] Recovery tests for unavailable provider content and corrupt or
   conflicting state.
@@ -2054,14 +2062,59 @@ opportunistic evidence rather than a release gate.
   and continuity promises; all 56 parser tests pass.
 
 - [x] Recovery limitations are visible in CLI help and documentation.
-- [ ] An independent security review signs off on identity, enrollment,
-  authentication, revocation, continuity, and permanent-loss behavior.
+- [x] A third-party security audit is not a `0.2.0` release gate. The release
+  must accurately disclose that it has extensive internal focused review,
+  automated coverage, and two-device physical qualification but no independent
+  third-party audit.
 - [x] Signing, notarization, and installed-helper verification pass.
+
+### Stable 0.2.0 Work Packages
+
+Stable readiness is intentionally bounded by the hardware and provider matrix
+that is practical for this project:
+
+- two physical Macs are the complete physical device gate; third-and-later
+  enrollment remains covered by the same automated transition/adoption tests;
+- local APFS and iCloud Drive are directly qualified; another ordinary
+  folder-backed provider may work but is not directly validated or covered by
+  the `0.2.0` compatibility guarantee; and
+- no third-party security audit is required. Do not imply one occurred; retain
+  the completed `BETA-606` focused review and disclose the assurance boundary.
+
+| ID | Status | Exit criteria |
+|---|---|---|
+| `STABLE-701` | Complete | Reconcile every stale unchecked release item against current evidence or an explicit scope decision; record the practical device, provider, recovery, diagnostics, and review boundaries without changing product behavior. |
+| `STABLE-702` | Pending | Update the normative permanent-profile specification and schemas to the shipping role-free profile; close the HPKE/context-vector item using the strongest deterministic evidence CryptoKit permits without adding production test seams or requiring a second implementation; and add an explicit cross-kind serialization test proving ordinary content mutation and a key/membership transition cannot interleave through the shared helper owner. |
+| `STABLE-703` | Pending | Completely overhaul the GitHub README as the Stable landing page. Clearly separate Stable and Preview, provide a tested quick start and migration path, describe directly validated versus not-directly-validated providers, make continuity and permanent loss visible, scope v2 and v3 claims correctly, link deeper documents, and align CLI help and user-facing provider language. |
+| `STABLE-704` | Pending | Observe beta.1 in ordinary two-device use; resolve any findings; run the full suite and release scripts; choose an RC only if post-beta code or release behavior warrants one; then build, notarize, verify, and deliberately qualify the Stable artifact and explicit v2 migration/rollback boundary before publishing `v0.2.0`. |
+
+`STABLE-701` reconciliation ledger:
+
+- Existing BETA-601, BETA-603, and BETA-604 evidence closes realistic
+  migration/rollback and the complete local APFS plus iCloud Drive provider
+  matrix. No third physical device or additional provider is required.
+- One-device genesis, exact wrapper-backed unlock, explicit lock, helper
+  restart, session invalidation, and durable raw-key-absence tests close the
+  older combined genesis/unlock item.
+- Status JSON, typed exit codes, conflict inspection/resolution, authenticated
+  device status, and explicit incomplete/recovery-required outcomes provide
+  the actionable `0.2.0` diagnostics. A broad `doctor` surface is deferred
+  until concrete beta usage shows a missing diagnosis.
+- Catastrophe-recovery tests are inapplicable because recovery authority is
+  deliberately absent from `0.2.0`; the PIV prototype remains separate.
+- HPKE round trips, exact context encoding, field-substitution failures, and
+  wrong-recipient tests exist, but the older interoperability/vector item has
+  not been explicitly dispositioned. The shared mutation owner includes
+  content, enrollment, revocation, catch-up, and recovery kinds, but its direct
+  concurrency test currently exercises two content kinds. Both receive narrow
+  treatment in `STABLE-702`.
+- The architecture document describes the selected role-free profile, but its
+  checked-in JSON schemas still require the superseded owner/member role. The
+  normative document and schemas must be reconciled together in `STABLE-702`.
 
 ## Immediate Next Action
 
-Observe beta.1 in normal two-device use and obtain an independent security
-review before Stable. Do not add a portable recovery authority or broaden
-provider support as part of beta stabilization. Prototype PIV catastrophe
-recovery separately and assign no release until physical feasibility and
-security review support it.
+Complete `STABLE-702` while beta.1 remains in normal two-device use, then perform
+the `STABLE-703` README overhaul before final promotion. Do not add a portable
+recovery authority, require a third physical Mac, or expand the directly
+validated provider matrix as part of `0.2.0` stabilization.
