@@ -975,7 +975,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.app;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(KEY_APP_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = Key;
 				PROVISIONING_PROFILE_SPECIFIER = "Key App Developer ID";
 				REMOVE_STATIC_EXECUTABLES_FROM_EMBEDDED_BUNDLES = NO;
@@ -1065,6 +1065,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				KEY_CLI_EXECUTABLE_NAME = key;
+				KEY_APP_BUNDLE_IDENTIFIER = work.tvr.key.app;
 				KEY_CLI_SIGNING_IDENTIFIER = work.tvr.key.cli;
 				KEY_HELPER_BUNDLE_IDENTIFIER = work.tvr.key.xpc;
 				KEY_HELPER_ENTITLEMENTS = "$(PROJECT_DIR)/Config/KeyLaunchAgentHelper.entitlements";
@@ -1074,6 +1075,7 @@
 				KEY_LAUNCH_AGENT_PLIST_NAME = work.tvr.key.agent.plist;
 				KEY_LAUNCH_AGENT_PLIST_SOURCE = "$(PROJECT_DIR)/Config/work.tvr.key.agent.plist";
 				KEY_PRODUCT_VARIANT = stable;
+				KEY_QUALIFICATION_NAMESPACE = "";
 				KEY_VAULT_KEY_SERVICE = work.tvr.key.secure-vault;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.2.0-alpha.10;
@@ -1111,7 +1113,7 @@
 					"$(inherited)",
 					"-ObjC",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.xpc;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(KEY_HELPER_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = "Key Agent";
 				PROVISIONING_PROFILE_SPECIFIER = "Key XPC Developer ID";
 				SDKROOT = macosx;
@@ -1155,7 +1157,7 @@
 					"$(inherited)",
 					"-ObjC",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.xpc;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(KEY_HELPER_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = "Key Agent";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -1212,6 +1214,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				KEY_CLI_EXECUTABLE_NAME = key;
+				KEY_APP_BUNDLE_IDENTIFIER = work.tvr.key.app;
 				KEY_CLI_SIGNING_IDENTIFIER = work.tvr.key.cli;
 				KEY_HELPER_BUNDLE_IDENTIFIER = work.tvr.key.xpc;
 				KEY_HELPER_ENTITLEMENTS = "$(PROJECT_DIR)/Config/KeyLaunchAgentHelper.entitlements";
@@ -1221,6 +1224,7 @@
 				KEY_LAUNCH_AGENT_PLIST_NAME = work.tvr.key.agent.plist;
 				KEY_LAUNCH_AGENT_PLIST_SOURCE = "$(PROJECT_DIR)/Config/work.tvr.key.agent.plist";
 				KEY_PRODUCT_VARIANT = stable;
+				KEY_QUALIFICATION_NAMESPACE = "";
 				KEY_VAULT_KEY_SERVICE = work.tvr.key.secure-vault;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.2.0-alpha.10;
@@ -1276,7 +1280,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.app;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(KEY_APP_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = Key;
 				REMOVE_STATIC_EXECUTABLES_FROM_EMBEDDED_BUNDLES = NO;
 				SDKROOT = macosx;
@@ -1384,6 +1388,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				KEY_CLI_EXECUTABLE_NAME = "key-preview";
+				KEY_APP_BUNDLE_IDENTIFIER = work.tvr.key.preview.app;
 				KEY_CLI_SIGNING_IDENTIFIER = work.tvr.key.preview.cli;
 				KEY_HELPER_BUNDLE_IDENTIFIER = work.tvr.key.preview.xpc;
 				KEY_HELPER_ENTITLEMENTS = "$(PROJECT_DIR)/Config/KeyPreviewLaunchAgentHelper.entitlements";
@@ -1393,6 +1398,7 @@
 				KEY_LAUNCH_AGENT_PLIST_NAME = work.tvr.key.preview.agent.plist;
 				KEY_LAUNCH_AGENT_PLIST_SOURCE = "$(PROJECT_DIR)/Config/work.tvr.key.preview.agent.plist";
 				KEY_PRODUCT_VARIANT = preview;
+				KEY_QUALIFICATION_NAMESPACE = "";
 				KEY_VAULT_KEY_SERVICE = work.tvr.key.preview.secure-vault;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.2.0-alpha.10;
@@ -1458,6 +1464,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				KEY_CLI_EXECUTABLE_NAME = "key-preview";
+				KEY_APP_BUNDLE_IDENTIFIER = work.tvr.key.preview.app;
 				KEY_CLI_SIGNING_IDENTIFIER = work.tvr.key.preview.cli;
 				KEY_HELPER_BUNDLE_IDENTIFIER = work.tvr.key.preview.xpc;
 				KEY_HELPER_ENTITLEMENTS = "$(PROJECT_DIR)/Config/KeyPreviewLaunchAgentHelper.entitlements";
@@ -1467,6 +1474,7 @@
 				KEY_LAUNCH_AGENT_PLIST_NAME = work.tvr.key.preview.agent.plist;
 				KEY_LAUNCH_AGENT_PLIST_SOURCE = "$(PROJECT_DIR)/Config/work.tvr.key.preview.agent.plist";
 				KEY_PRODUCT_VARIANT = preview;
+				KEY_QUALIFICATION_NAMESPACE = "";
 				KEY_VAULT_KEY_SERVICE = work.tvr.key.preview.secure-vault;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.2.0-alpha.10;
@@ -1498,7 +1506,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.preview.app;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(KEY_APP_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = "Key Preview";
 				REMOVE_STATIC_EXECUTABLES_FROM_EMBEDDED_BUNDLES = NO;
 				SDKROOT = macosx;
@@ -1526,7 +1534,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.preview.app;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(KEY_APP_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = "Key Preview";
 				PROVISIONING_PROFILE_SPECIFIER = "Key Preview App Developer ID";
 				REMOVE_STATIC_EXECUTABLES_FROM_EMBEDDED_BUNDLES = NO;
@@ -1603,7 +1611,7 @@
 					"$(inherited)",
 					"-ObjC",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.preview.xpc;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(KEY_HELPER_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = "Key Preview Agent";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -1632,7 +1640,7 @@
 					"$(inherited)",
 					"-ObjC",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = work.tvr.key.preview.xpc;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(KEY_HELPER_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = "Key Preview Agent";
 				PROVISIONING_PROFILE_SPECIFIER = "Key Preview XPC Developer ID";
 				SDKROOT = macosx;

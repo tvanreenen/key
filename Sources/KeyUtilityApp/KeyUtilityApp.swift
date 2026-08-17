@@ -357,17 +357,20 @@ private actor HelperRegistrationCoordinator {
     ) async -> HelperRegistrationState {
         let service = SMAppService.agent(plistName: configuration.launchAgentPlistName)
         let defaults = UserDefaults.standard
-        let registeredBuildVersion = defaults.string(forKey: registeredHelperBuildDefaultsKey)
+        let buildDefaultsKey = registrationBuildDefaultsKey(
+            for: configuration
+        )
+        let registeredBuildVersion = defaults.string(forKey: buildDefaultsKey)
 
         do {
             switch service.status {
             case .notRegistered, .notFound:
                 try service.register()
-                defaults.set(buildVersion, forKey: registeredHelperBuildDefaultsKey)
+                defaults.set(buildVersion, forKey: buildDefaultsKey)
             case .enabled where registeredBuildVersion != buildVersion:
                 try await unregisterForUpdate(service)
                 try service.register()
-                defaults.set(buildVersion, forKey: registeredHelperBuildDefaultsKey)
+                defaults.set(buildVersion, forKey: buildDefaultsKey)
             default:
                 break
             }
@@ -383,6 +386,15 @@ private actor HelperRegistrationCoordinator {
                 error: error
             )
         }
+    }
+
+    private func registrationBuildDefaultsKey(
+        for configuration: RuntimeConfiguration
+    ) -> String {
+        guard configuration.qualificationNamespace != nil else {
+            return registeredHelperBuildDefaultsKey
+        }
+        return "\(registeredHelperBuildDefaultsKey).\(configuration.helperMachServiceName)"
     }
 
     private func unregisterForUpdate(_ service: SMAppService) async throws {

@@ -56,6 +56,66 @@ struct KeyCLIApplicationTests {
 
         #expect(version == KeyVersionInfo(marketingVersion: "1.2.3", buildVersion: "45"))
         #expect(configuration.productIdentity == .preview)
+        #expect(configuration.qualificationNamespace == nil)
+    }
+
+    @Test
+    func debugQualificationBundleUsesIsolatedMutableNamespaces() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let appURL = root.appendingPathComponent(
+            "Key Migration Qualification.app",
+            isDirectory: true
+        )
+        let contentsURL = appURL.appendingPathComponent(
+            "Contents",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: contentsURL,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let infoPlist: NSDictionary = [
+            "CFBundleIdentifier": "work.tvr.key.app",
+            "CFBundleName": "Key Migration Qualification",
+            "CFBundlePackageType": "APPL",
+            "KeyProductVariant": "stable",
+            "KeyQualificationNamespace": "migration"
+        ]
+        #expect(
+            infoPlist.write(
+                to: contentsURL.appendingPathComponent("Info.plist"),
+                atomically: true
+            )
+        )
+
+        let bundle = try #require(Bundle(url: appURL))
+        let configuration = RuntimeConfiguration.live(bundle: bundle)
+
+        #expect(configuration.qualificationNamespace == "migration")
+        #expect(configuration.vaultAccount == "qualification-migration")
+        #expect(
+            configuration.productIdentity.appBundleIdentifier
+                == "work.tvr.key.app.qualification.migration"
+        )
+        #expect(
+            configuration.vaultService
+                == "work.tvr.key.secure-vault.qualification.migration"
+        )
+        #expect(
+            configuration.helperMachServiceName
+                == "work.tvr.key.agent.qualification.migration"
+        )
+        #expect(
+            configuration.productIdentity.applicationSupportDirectoryName
+                == "Key Qualification migration"
+        )
+        #expect(
+            configuration.productIdentity.defaultVaultDirectoryName
+                == ".key-qualification-migration"
+        )
     }
 
     @Test

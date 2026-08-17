@@ -56,6 +56,57 @@ struct KeyProductIdentityTests {
     }
 
     @Test
+    func qualificationIdentitySeparatesEveryMutableRuntimeNamespace() {
+        let stable = KeyProductIdentity.stable
+        let qualification = stable.qualificationIdentity(namespace: "migration")
+
+        #expect(qualification.variant == stable.variant)
+        #expect(qualification.appBundleIdentifier != stable.appBundleIdentifier)
+        #expect(qualification.cliSigningIdentifier == stable.cliSigningIdentifier)
+        #expect(qualification.helperBundleIdentifier != stable.helperBundleIdentifier)
+        #expect(qualification.keychainAccessGroup == stable.keychainAccessGroup)
+
+        #expect(qualification.helperMachServiceName != stable.helperMachServiceName)
+        #expect(qualification.launchAgentPlistName != stable.launchAgentPlistName)
+        #expect(qualification.vaultKeyService != stable.vaultKeyService)
+        #expect(
+            qualification.applicationSupportDirectoryName
+                != stable.applicationSupportDirectoryName
+        )
+        #expect(
+            qualification.defaultVaultDirectoryName
+                != stable.defaultVaultDirectoryName
+        )
+
+        let cliRequirement = KeyXPCSecurityPolicy.codeSigningRequirement(
+            for: .fullCLI,
+            productIdentity: qualification,
+            policy: .development
+        )
+        let appRequirement = KeyXPCSecurityPolicy.codeSigningRequirement(
+            for: .utilityStatus,
+            productIdentity: qualification,
+            policy: .development
+        )
+        let helperRequirement = KeyXPCSecurityPolicy
+            .helperCodeSigningRequirement(
+                productIdentity: qualification,
+                policy: .development
+            )
+        #expect(cliRequirement.contains("identifier \"work.tvr.key.cli\""))
+        #expect(
+            appRequirement.contains(
+                "identifier \"work.tvr.key.app.qualification.migration\""
+            )
+        )
+        #expect(
+            helperRequirement.contains(
+                "identifier \"work.tvr.key.xpc.qualification.migration\""
+            )
+        )
+    }
+
+    @Test
     func previewSigningRequirementsBindOnlyPreviewExecutables() {
         let cli = KeyXPCSecurityPolicy.codeSigningRequirement(
             for: .fullCLI,

@@ -95,4 +95,35 @@ public struct KeyProductIdentity: Equatable, Sendable {
             .preview
         }
     }
+
+    /// Returns a non-shipping identity for installed qualification work.
+    ///
+    /// The qualification app keeps the CLI signing identity and Keychain
+    /// access group of its base product. Everything that can select, encrypt,
+    /// or launch mutable vault state receives a separate namespace, including
+    /// the helper identity macOS uses to resolve its containing application.
+    /// This lets a Debug build exercise the real helper, Keychain, and Secure
+    /// Enclave without repointing an enrolled Stable or Preview installation.
+    func qualificationIdentity(namespace: String) -> KeyProductIdentity {
+        KeyProductIdentity(
+            variant: variant,
+            appName: "\(appName) Migration Qualification",
+            appBundleIdentifier:
+                "\(appBundleIdentifier).qualification.\(namespace)",
+            cliExecutableName: cliExecutableName,
+            cliSigningIdentifier: cliSigningIdentifier,
+            helperName: helperName,
+            helperBundleIdentifier:
+                "\(helperBundleIdentifier).qualification.\(namespace)",
+            helperMachServiceName:
+                "\(helperMachServiceName).qualification.\(namespace)",
+            keychainAccessGroup: keychainAccessGroup,
+            vaultKeyService:
+                "\(vaultKeyService).qualification.\(namespace)",
+            applicationSupportDirectoryName:
+                "\(applicationSupportDirectoryName) Qualification \(namespace)",
+            defaultVaultDirectoryName:
+                "\(defaultVaultDirectoryName)-qualification-\(namespace)"
+        )
+    }
 }

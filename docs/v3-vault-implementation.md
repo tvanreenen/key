@@ -14,8 +14,8 @@ state.
 | Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | `BETA-601`: build and run the realistic migration and supported rollback qualification |
-| Next work | Complete targeted replacement fault injection, one installed APFS qualification, one concise iCloud regression, continuity documentation, focused security review, and beta release verification; prototype PIV recovery separately for a later minor release |
+| Active work | `BETA-602`: complete targeted replacement fault injection for invitation expiry and delayed helper restart |
+| Next work | Complete one installed APFS qualification, one concise iCloud regression, continuity documentation, focused security review, and beta release verification; prototype PIV recovery separately for a later minor release |
 
 The current local/shared alpha profile remains prerelease-only. The permanent
 profile MUST not ship as stable until every release gate below passes.
@@ -1760,7 +1760,7 @@ opportunistic evidence rather than a release gate.
 
 | ID | Status | Exit criteria |
 |---|---|---|
-| `BETA-601` | In progress | Migrate private copies of a small clean v2 vault, a realistic large mixed-entry vault, and deliberately invalid inputs. Compare names, types, and value hashes without logging plaintext; prove the v2 source is byte-identical, v3 selection happens last, no raw v3 key persists, and Stable can reopen its untouched v2 source as the supported rollback. |
+| `BETA-601` | Complete | Migrate disposable copies of a small clean v2 vault, a realistic large mixed-entry vault, and deliberately invalid inputs. Compare names, types, and value hashes without logging plaintext; prove the v2 source is byte-identical, v3 selection happens last, no raw v3 key persists, and the same Stable-variant runtime can reopen its untouched v2 source as the supported rollback. |
 | `BETA-602` | Pending | Deterministically expire the invitation while the replacement confirmation is open and delay helper termination beyond the client wait. Prove no cleanup follows expiry and the bounded-timeout path resumes safely through the same join command. |
 | `BETA-603` | Pending | Install the signed candidate and run one local APFS qualification covering migration or genesis, ordinary mutation, conflict or interrupted publication recovery, lock, helper restart, and final inventory verification. |
 | `BETA-604` | Pending | Run one concise installed-build iCloud regression covering two-device catch-up, one cross-device write and removal, lock/restart, exact roster continuity, and fail-closed behavior during incomplete delivery. Prior alpha.6, alpha.7, and alpha.10 exercises remain the broader evidence base. |
@@ -1788,20 +1788,34 @@ opportunistic evidence rather than a release gate.
   `scripts/test-migration-qualification.sh`; it stays out of the ordinary
   parallel suite so its filesystem and cryptographic load cannot distort
   timing-sensitive lifecycle tests.
-- [ ] Add a non-plaintext installed-build qualification harness and report
-  format for an explicitly disposable working copy.
-- [ ] Run the installed Preview against the small, large mixed-entry, and
-  deliberately invalid corpora with the real Keychain, Secure Enclave,
-  checkpoint cache, helper restart, and CLI runtime.
-- [ ] Prove the supported rollback: Stable configuration and its original v2
-  vault remain byte-identical and readable after the isolated Preview exercise.
+- [x] The Debug-only installed qualification identity uses a distinct parent
+  app ID, helper ID, Keychain service, vault account, Application Support
+  directory, default vault, LaunchAgent label, and Mach services. Its CLI
+  retains Stable's CLI identity and its helper retains Stable's Keychain access
+  group so authenticated XPC, Keychain, and Secure Enclave execute through the
+  real boundaries without macOS resolving a qualification service to Stable,
+  Preview, or another qualification install. See
+  [migration qualification](migration-qualification.md).
+- [x] On 2026-08-17 the installed harness rejected both preflight and apply for
+  a deliberately corrupted encrypted source without selecting v3 or changing
+  source/config bytes. It migrated and independently reopened an 8-entry mixed
+  corpus and a 300-entry nested corpus with 240 secrets and 60 TOTP entries.
+  Both successful runs preserved exact v2 bytes, inventories, types, and all
+  externally comparable value hashes, passed TOTP reads, lock, and cold helper
+  restart, and found no generated plaintext in persistent qualification files.
+- [x] Both successful installed runs restored the exact pre-migration
+  qualification config after v3 verification. The same Stable-variant
+  qualification runtime reopened the retained v2 sources with identical
+  inventories and secret-value hashes.
+  Before/after SHA-256 inventories of Stable and Preview Application Support,
+  checkpoint caches, and default roots were identical in every scenario.
 
 - [ ] All security and durability invariants pass.
 - [x] The v3 reader ships before any v3 writer is enabled.
 - [ ] Local APFS and iCloud Drive pass their scoped installed-build beta
   qualifications.
 - [x] Protected writes pass in the release environment.
-- [ ] Migration and rollback pass with realistic vault copies.
+- [x] Migration and rollback pass with realistic disposable vault copies.
 - [ ] Recovery limitations are visible in CLI help and documentation.
 - [ ] An independent security review signs off on identity, enrollment,
   authentication, revocation, continuity, and permanent-loss behavior.
@@ -1809,11 +1823,10 @@ opportunistic evidence rather than a release gate.
 
 ## Immediate Next Action
 
-Start `BETA-601` by inventorying the existing migration implementation, tests,
-and release tooling against the realistic qualification criteria above. Build
-one non-plaintext qualification harness for private vault copies before running
-any migration against realistic data. Then complete `BETA-602` through
-`BETA-607` in order where dependencies allow. Do not add a portable recovery
-authority or broaden provider support as part of beta readiness. Prototype PIV
-catastrophe recovery separately and assign no release until physical
-feasibility and security review support it.
+Complete `BETA-602` by deterministically exercising invitation expiry while the
+replacement confirmation is open and helper termination delayed beyond the
+client wait. Then complete `BETA-603` through `BETA-607` in order where
+dependencies allow. Do not add a portable recovery authority or broaden
+provider support as part of beta readiness. Prototype PIV catastrophe recovery
+separately and assign no release until physical feasibility and security review
+support it.

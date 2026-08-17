@@ -12,6 +12,14 @@ test:
 test-release-scripts:
   Tests/ReleaseScripts/homebrew-cask-token-tests.sh
 
+# Run the opt-in 300-entry in-process migration scale gate.
+test-migration-scale:
+  scripts/test-migration-qualification.sh
+
+# Build, install, and run the isolated installed migration qualification.
+test-migration-installed:
+  scripts/run-migration-qualification.sh
+
 # Build the app in Debug using the checked-in Xcode project.
 build-debug:
   scripts/build-debug-app.sh

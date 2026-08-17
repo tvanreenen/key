@@ -22,6 +22,8 @@
 	<string>$(KEY_KEYCHAIN_ACCESS_GROUP)</string>
 	<key>KeyProductVariant</key>
 	<string>$(KEY_PRODUCT_VARIANT)</string>
+	<key>KeyQualificationNamespace</key>
+	<string>$(KEY_QUALIFICATION_NAMESPACE)</string>
 	<key>LaunchAgentPlistName</key>
 	<string>$(KEY_LAUNCH_AGENT_PLIST_NAME)</string>
 	<key>LSMinimumSystemVersion</key>
