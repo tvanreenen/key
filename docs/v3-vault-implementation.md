@@ -14,8 +14,8 @@ state.
 | Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | `STABLE-702`: close the exact permanent-profile evidence and specification gaps while beta.1 remains in normal two-device use |
-| Next work | `STABLE-703`: overhaul the GitHub README and user-facing release contract before final promotion |
+| Active work | `STABLE-703`: overhaul the GitHub README and user-facing release contract before final promotion |
+| Next work | `STABLE-704`: observe beta.1, close findings, and qualify the deliberate Stable artifact |
 
 The current device-wrapped profile remains prerelease-only. It MUST not ship as
 stable until the scoped Stable work packages below pass.
@@ -1530,10 +1530,10 @@ formats or transport stacks:
   exit codes.
 - [x] Validate local APFS and iCloud Drive plus realistic migration copies.
 - [x] Document the implemented security model and recovery limits.
-- [ ] Consolidate the permanent role-free device-wrapped profile into an exact
+- [x] Consolidate the permanent role-free device-wrapped profile into an exact
   normative storage specification and update the machine-readable schemas.
-  The existing schemas still describe the superseded owner/member profile;
-  this is `STABLE-702`, not completed beta evidence.
+  `STABLE-702` reconciled the schemas with production-generated canonical
+  body and envelope fixtures.
 
 ## Decision Log
 
@@ -1592,7 +1592,10 @@ formats or transport stacks:
 - [x] Component-by-component relative resolution, traversal rejection, symlink rejection, and terminal-type tests.
 - [x] Vault-key ID derivation, substitution, and cross-vault separation tests.
 - [x] Enrollment and key-identity replay tests.
-- [ ] CryptoKit HPKE interoperability and exact wrapper-context vectors.
+- [x] Exact HPKE context, `info`, authenticated-data, framing, mutation,
+  wrong-recipient, and round-trip evidence. CryptoKit controls randomized
+  sender ephemeral material, so this does not claim an independently verified
+  ciphertext vector.
 - [x] One-device genesis and wrapper-only unlock tests proving no raw v3 key
   survives lock or helper restart.
 - [x] Membership-addition and revocation tests proving new devices cannot open
@@ -1605,7 +1608,7 @@ formats or transport stacks:
   applicable to `0.2.0`, which has no catastrophe-recovery authority. PIV and
   other recovery candidates remain a later-minor-release track.
 - [x] Installed XPC tests for intended and unintended signing identities.
-- [ ] Mutation/key-transition concurrency tests.
+- [x] Mutation/key-transition concurrency tests.
 - [x] Transaction fault injection at every phase.
 - [x] Root substitution, filesystem alias, provider-placeholder, and provider-name collision tests.
 - [x] Descriptor-relative replace, exclusive move, and non-recursive cleanup tests.
@@ -2084,7 +2087,7 @@ that is practical for this project:
 | ID | Status | Exit criteria |
 |---|---|---|
 | `STABLE-701` | Complete | Reconcile every stale unchecked release item against current evidence or an explicit scope decision; record the practical device, provider, recovery, diagnostics, and review boundaries without changing product behavior. |
-| `STABLE-702` | Pending | Update the normative permanent-profile specification and schemas to the shipping role-free profile; close the HPKE/context-vector item using the strongest deterministic evidence CryptoKit permits without adding production test seams or requiring a second implementation; and add an explicit cross-kind serialization test proving ordinary content mutation and a key/membership transition cannot interleave through the shared helper owner. |
+| `STABLE-702` | Complete | Updated the normative permanent-profile specification and schemas to the shipping role-free profile and bound them to production-generated canonical fixtures; locked the exact deterministic HPKE context, `info`, and authenticated-data bytes while explicitly scoping out a randomized ciphertext fixture and independent implementation claim; and proved an ordinary content mutation and membership transition cannot interleave through the shared mutation owner. |
 | `STABLE-703` | Pending | Completely overhaul the GitHub README as the Stable landing page. Clearly separate Stable and Preview, provide a tested quick start and migration path, describe directly validated versus not-directly-validated providers, make continuity and permanent loss visible, scope v2 and v3 claims correctly, link deeper documents, and align CLI help and user-facing provider language. |
 | `STABLE-704` | Pending | Observe beta.1 in ordinary two-device use; resolve any findings; run the full suite and release scripts; choose an RC only if post-beta code or release behavior warrants one; then build, notarize, verify, and deliberately qualify the Stable artifact and explicit v2 migration/rollback boundary before publishing `v0.2.0`. |
 
@@ -2111,17 +2114,20 @@ that is practical for this project:
   Deterministic input fixtures, exact output framing, context-mutation and
   wrong-recipient failures, software-key round trips, and the completed
   Secure Enclave two-device qualification close the older vector item without
-  claiming independent implementation verification. The shared mutation
-  owner includes content, enrollment, revocation, catch-up, and recovery kinds,
-  but its direct concurrency test currently exercises two content kinds. Its
-  remaining cross-kind treatment is part of `STABLE-702`.
-- The architecture document describes the selected role-free profile, but its
-  checked-in JSON schemas still require the superseded owner/member role. The
-  normative document and schemas must be reconciled together in `STABLE-702`.
+  claiming independent implementation verification.
+- The shared mutation owner includes content, enrollment, revocation,
+  catch-up, and recovery kinds. `STABLE-702` directly holds an ordinary content
+  mutation open while a revocation mutation attempts to enter, proving the
+  key/membership transition remains excluded until content mutation exits.
+- The architecture document and checked-in JSON Schemas now define the
+  shipping role-free profile, and a conformance regression test compares their
+  exact object fields and discriminators with production-generated canonical
+  body and envelope fixtures.
 
 ## Immediate Next Action
 
-Complete `STABLE-702` while beta.1 remains in normal two-device use, then perform
-the `STABLE-703` README overhaul before final promotion. Do not add a portable
-recovery authority, require a third physical Mac, or expand the directly
-validated provider matrix as part of `0.2.0` stabilization.
+Perform the `STABLE-703` README overhaul while beta.1 remains in normal
+two-device use, then complete the bounded `STABLE-704` Stable qualification.
+Do not add a portable recovery authority, require a third physical Mac, or
+expand the directly validated provider matrix as part of `0.2.0`
+stabilization.

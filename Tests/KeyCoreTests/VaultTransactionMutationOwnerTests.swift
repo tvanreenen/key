@@ -41,6 +41,24 @@ struct VaultTransactionMutationOwnerTests {
 
     @Test
     func ownerSerializesConcurrentMutationsAndAssignsUniqueIDs() throws {
+        try Self.expectSerialization(
+            first: .addEntry,
+            second: .removeEntry
+        )
+    }
+
+    @Test
+    func ownerPreventsContentAndMembershipTransitionInterleaving() throws {
+        try Self.expectSerialization(
+            first: .addEntry,
+            second: .revokeDevice
+        )
+    }
+
+    private static func expectSerialization(
+        first firstKind: VaultTransactionMutationKind,
+        second secondKind: VaultTransactionMutationKind
+    ) throws {
         let operationIDs = try OperationIDSequence(
             rawValues: [
                 "018f4d38-7d5a-4b20-b0f1-97d6e96c44b3",
@@ -59,7 +77,7 @@ struct VaultTransactionMutationOwnerTests {
 
         completion.enter()
         DispatchQueue.global().async {
-            try? owner.perform(.addEntry) { context in
+            try? owner.perform(firstKind) { context in
                 contexts.append(context)
                 firstEntered.signal()
                 releaseFirst.wait()
@@ -78,7 +96,7 @@ struct VaultTransactionMutationOwnerTests {
         completion.enter()
         DispatchQueue.global().async {
             secondAttempted.signal()
-            try? owner.perform(.removeEntry) { context in
+            try? owner.perform(secondKind) { context in
                 contexts.append(context)
                 secondEntered.signal()
             }
@@ -94,7 +112,7 @@ struct VaultTransactionMutationOwnerTests {
         #expect(completion.wait(timeout: .now() + 1) == .success)
 
         let recorded = contexts.values
-        #expect(recorded.map(\.kind) == [.addEntry, .removeEntry])
+        #expect(recorded.map(\.kind) == [firstKind, secondKind])
         #expect(recorded.count == 2)
         guard recorded.count == 2 else {
             return
