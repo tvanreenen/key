@@ -1799,6 +1799,17 @@ opportunistic evidence rather than a release gate.
   joining-device adoption, and ceremony consumption. Regression coverage now
   changes each display name without changing its keys and proves a wrong human
   code leaves the owner ceremony byte-for-byte untouched.
+- [x] `BETA-606C` — Revocation authorization and key rotation. The planner and
+  independent publication validator require an exact authenticated checkpoint,
+  an active local authorizer, one different active target, and at least one
+  surviving active device. Rotation uses a distinct 32-byte key and authority
+  transition ID, reseals the complete plaintext-preserving entry snapshot,
+  emits wrappers for exactly the remaining active roster, and advances the
+  checkpoint only after staged and published bytes are revalidated. The review
+  token previously bound the checkpoint and target but not which active device
+  the UI named as authorizer; version 2 now binds that exact authorizer ID, and
+  regression coverage rejects authorizer substitution with the checkpoint and
+  target held fixed.
 
 `BETA-601` coverage inventory:
 

@@ -899,6 +899,45 @@ struct V3DeviceWrappedRevocationWorkflowTests {
     }
 
     @Test
+    func confirmationBindsTheExactAuthorizingDevice() throws {
+        let fixture = try RevocationTransitionFixture()
+        let reviewedService = RecordingRevocationWorkflowService(
+            plan: fixture.plan,
+            trusted: fixture.base
+        )
+        let review = try V3DeviceWrappedRevocationWorkflow(
+            service: reviewedService
+        ).review(
+            revoking: fixture.member.identity.deviceID,
+            operationID: Self.operationID
+        )
+        let changedPlan = V3DeviceWrappedRevocationPlan(
+            expectedCheckpoint: fixture.plan.expectedCheckpoint,
+            authorizingDevice: fixture.plan.revokedDevice,
+            revokedDevice: fixture.plan.revokedDevice,
+            resultingDevices: fixture.plan.resultingDevices
+        )
+        let changedService = RecordingRevocationWorkflowService(
+            plan: changedPlan,
+            trusted: fixture.base
+        )
+
+        #expect(
+            throws: V3DeviceWrappedRevocationWorkflowError
+                .reviewedStateChanged
+        ) {
+            _ = try V3DeviceWrappedRevocationWorkflow(
+                service: changedService
+            ).revoke(
+                deviceID: fixture.member.identity.deviceID,
+                confirmationToken: review.confirmationToken,
+                operationID: Self.operationID
+            )
+        }
+        #expect(changedService.revokedPlans.isEmpty)
+    }
+
+    @Test
     func reviewAndExecutionCatchUpBeforeReadingTheRoster() throws {
         let fixture = try RevocationTransitionFixture()
         let service = RecordingRevocationWorkflowService(

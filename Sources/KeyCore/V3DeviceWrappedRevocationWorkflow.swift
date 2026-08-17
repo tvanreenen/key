@@ -4,10 +4,10 @@ internal import JSONCanonicalization
 
 /// CLI-safe description of one exact device-revocation decision.
 ///
-/// A domain-separated token binds the full checkpoint digest and selected
-/// device ID. It lets the helper prove that execution still matches the exact
-/// decision the user saw; display names and abbreviated versions are never
-/// treated as authority.
+/// A domain-separated token binds the full checkpoint digest, authorizing
+/// device ID, and selected device ID. It lets the helper prove that execution
+/// still matches the exact decision the user saw; display names and
+/// abbreviated versions are never treated as authority.
 public struct V3VaultDeviceRevocationReview:
     Codable,
     Equatable,
@@ -147,7 +147,9 @@ struct V3DeviceWrappedRevocationWorkflow:
         guard plan.revokedDevice.identity.deviceID == deviceID,
               self.confirmationToken(
                   checkpoint: plan.expectedCheckpoint,
-                  deviceID: deviceID
+                  authorizingDeviceID:
+                    plan.authorizingDevice.identity.deviceID,
+                  revokedDeviceID: deviceID
               ) == confirmationToken
         else {
             throw V3DeviceWrappedRevocationWorkflowError
@@ -167,7 +169,9 @@ struct V3DeviceWrappedRevocationWorkflow:
               plan.revokedDevice.identity.deviceID == deviceID,
               self.confirmationToken(
                   checkpoint: plan.expectedCheckpoint,
-                  deviceID: deviceID
+                  authorizingDeviceID:
+                    plan.authorizingDevice.identity.deviceID,
+                  revokedDeviceID: deviceID
               ) == confirmationToken
         else {
             throw V3DeviceWrappedRevocationWorkflowError
@@ -197,7 +201,9 @@ struct V3DeviceWrappedRevocationWorkflow:
             ),
             confirmationToken: confirmationToken(
                 checkpoint: plan.expectedCheckpoint,
-                deviceID: plan.revokedDevice.identity.deviceID
+                authorizingDeviceID:
+                    plan.authorizingDevice.identity.deviceID,
+                revokedDeviceID: plan.revokedDevice.identity.deviceID
             ),
             authorizingDevice: summary(plan.authorizingDevice),
             revokedDevice: summary(plan.revokedDevice),
@@ -223,16 +229,18 @@ struct V3DeviceWrappedRevocationWorkflow:
 
     private func confirmationToken(
         checkpoint: V3ManifestCheckpoint,
-        deviceID: String
+        authorizingDeviceID: String,
+        revokedDeviceID: String
     ) -> String {
         let decision = CanonicalJSON.encode(.object([
             ("format", .string("key-vault-device-revocation")),
-            ("version", .integer(1)),
+            ("version", .integer(2)),
             ("vaultID", .string(checkpoint.vaultID)),
             ("checkpointID", .string(v3LowercaseHex(
                 checkpoint.envelopeDigest
             ))),
-            ("deviceID", .string(deviceID))
+            ("authorizingDeviceID", .string(authorizingDeviceID)),
+            ("revokedDeviceID", .string(revokedDeviceID))
         ]))
         var input = Data(Self.confirmationDomain.utf8)
         input.append(0)
