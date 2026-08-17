@@ -2090,7 +2090,7 @@ that is practical for this project:
 | `STABLE-701` | Complete | Reconcile every stale unchecked release item against current evidence or an explicit scope decision; record the practical device, provider, recovery, diagnostics, and review boundaries without changing product behavior. |
 | `STABLE-702` | Complete | Updated the normative permanent-profile specification and schemas to the shipping role-free profile and bound them to production-generated canonical fixtures; locked the exact deterministic HPKE context, `info`, and authenticated-data bytes while explicitly scoping out a randomized ciphertext fixture and independent implementation claim; and proved an ordinary content mutation and membership transition cannot interleave through the shared mutation owner. |
 | `STABLE-703` | Complete | Replaced the README with a Stable-ready landing page that separates the current Stable and Preview products, provides verified install, quick-start, migration, enrollment, revocation, provider, conflict, and recovery guidance, scopes v2 and v3 claims separately, discloses the practical assurance boundary, and links the normative and user-facing references. CLI help now uses the same directly-validated provider language. |
-| `STABLE-704` | Pending | Observe beta.1 in ordinary two-device use; resolve any findings; run the full suite and release scripts; choose an RC only if post-beta code or release behavior warrants one; then build, notarize, verify, and deliberately qualify the Stable artifact and explicit v2 migration/rollback boundary before publishing `v0.2.0`. |
+| `STABLE-704` | Active | Beta.1 ordinary-use evidence remains clean, and the authoritative host run passes all 757 Swift tests in 70 suites plus both release-script suites. Choose an RC only if post-beta code or release behavior warrants one; then build, notarize, verify, and deliberately qualify the Stable artifact and explicit v2 migration/rollback boundary before publishing `v0.2.0`. |
 
 Stable stabilization ledger:
 
@@ -2150,15 +2150,19 @@ Stable stabilization ledger:
   permanent-loss boundary before setup, and explicitly discloses the absence
   of a third-party audit, third physical-device gate, and additional-provider
   qualification.
+- On 2026-08-17, an ordinary unsandboxed host run passed all 757 Swift tests in
+  70 suites, the Homebrew cask channel suite, and the Preview install safety
+  suite. Codex-hosted parallel and serial runs separately reproduced only the
+  known environment denial when legacy v2 tests apply
+  `.completeFileProtection`; that restricted-host result is not release
+  evidence and did not replace the successful ordinary-host gate.
 
 ## Immediate Next Action
 
-Continue ordinary beta.1 use on the two enrolled Macs and complete the bounded
-`STABLE-704` Stable qualification. Run the complete Swift and release-script
-gate in an ordinary unsandboxed terminal because the Codex filesystem sandbox
-cannot apply the v2 `.completeFileProtection` writes used by legacy tests.
-Resolve any real beta findings, choose an RC only if they justify one, then
-build, notarize, verify, install, and deliberately qualify the exact Stable
-artifact and migration/rollback boundary. Do not add a portable recovery
-authority, require a third physical Mac, or expand the directly validated
-provider matrix as part of `0.2.0` stabilization.
+Complete the bounded `STABLE-704` artifact qualification. Review the exact
+post-beta.1 production diff and choose an RC only if it changes release
+behavior; otherwise build, notarize, verify, install, and deliberately qualify
+the exact Stable artifact and migration/rollback boundary before publishing.
+Do not add a portable recovery authority, require a third physical Mac, or
+expand the directly validated provider matrix as part of `0.2.0`
+stabilization.
