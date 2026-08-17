@@ -499,8 +499,9 @@ struct CLIParserTests {
     func helpDocumentsVersion3ContinuityAndPermanentLoss() {
         let help = CLIParser.usageText
 
-        #expect(help.contains("local APFS or iCloud Drive"))
-        #expect(help.contains("Other providers are unsupported"))
+        #expect(help.contains("Local APFS and iCloud Drive"))
+        #expect(help.contains("directly validated for 0.2.0"))
+        #expect(help.contains("may work, but are not directly validated"))
         #expect(help.contains("at least two active enrolled Macs"))
         #expect(help.contains("Invitations expire after 10 minutes"))
         #expect(help.contains("lost or revoked Mac rejoins"))

@@ -2,244 +2,335 @@
 
 ![Key](.github/assets/hero.png)
 
-`key` is a macOS secret manager for people who like what the venerable [`pass`](https://www.passwordstore.org/) gets right:
+Key is a macOS-native, CLI-first secret manager. It keeps encrypted vault files
+in a folder you control, uses Touch ID, Apple Watch, or your Mac password for
+local authentication, and exposes a small command set that composes naturally
+with the shell.
 
-- Secrets are stored as encrypted files, not in an opaque, app-specific database
-- Flexible directory structure lets you organize and reason about secrets hierarchically
-- Small, CLI-first command set with full flexibility from the shell
+Version 3 adds authenticated multi-device vaults without giving the file-sync
+provider the vault key or authority to enroll a device, revoke a device, choose
+trusted history, or resolve a conflict.
 
-The difference is that, instead of pass’s GPG agent workflow, `key` handles authentication the native macOS way, using `launchd`, XPC, Mach services, [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence), and Keychain.
+> [!IMPORTANT]
+> Keep at least two Macs enrolled in a version 3 vault. If every enrolled Mac
+> and its Secure Enclave identity is lost, the vault is permanently
+> unrecoverable in `0.2.0`. Provider files alone are not a backup, and there is
+> no password, cloud escrow, support override, or hidden recovery path.
 
-## How it works
+## Release channels
 
-- Each secret is stored as an individually encrypted file on disk, under `~/.key` by default.
-- All secret files are encrypted and decrypted using a single, randomly generated 256-bit symmetric vault key.
-- That vault key is stored securely in your macOS Keychain (not the secrets themselves!).
-- Access to the vault key in Keychain is protected by macOS local authentication—Touch ID, Apple Watch, or your system password—using [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence).
-- The CLI talks to an on-demand LaunchAgent helper over XPC using a Mach service.
-- After a successful unlock, the helper keeps the vault key in memory for a short idle window and reuses it across separate CLI invocations without prompting again.
-- When the helper has been idle long enough, it clears the in-memory key and exits.
+Key Stable and Key Preview are separate products that can be installed side by
+side. They have different apps, CLIs, helpers, configuration, default vaults,
+and Keychain namespaces.
 
-## Install
+| Channel | Current release | App and CLI | Homebrew cask | Vault scope |
+|---|---|---|---|---|
+| Stable | `0.1.2` | `Key.app`, `key` | `key` | Version 2, single-device |
+| Preview | `0.2.0-beta.1` | `Key Preview.app`, `key-preview` | `key@beta` | Version 3 qualification |
 
-Install via Homebrew from the [tvanreenen/tap](https://github.com/tvanreenen/homebrew-tap) tap:
+The repository is preparing version `0.2.0` for Stable. Until that release is
+published, multi-device version 3 behavior remains Preview-only. Preview does
+not read or modify Stable configuration, vault selection, or Keychain state.
 
-```bash
+### Install Stable
+
+```sh
 brew tap tvanreenen/tap
 brew install --cask key
+open -a Key
 ```
 
-Open `Key.app` once after install so it can register Key Agent with macOS before you use the `key` CLI.
+Open `Key.app` once after installation so macOS can register Key Agent. If
+macOS asks, allow the background item. Then confirm that the CLI and helper are
+available:
 
-## CLI
-
-The CLI is intentionally small:
-
-```bash
-key unlock                              # authenticate and warm the helper session
-key lock                                # clear the helper session and stop the helper
-key status                              # explain vault health and the next safe action
-key status --json                       # print stable machine-readable vault status
-key get <name>                          # print a secret or current TOTP code
-key copy <name>                         # copy a secret or current TOTP code
-key add <name> [--totp]                 # add a new secret or TOTP seed from stdin or prompt
-key edit <name> [--totp]                # update a secret or TOTP seed from stdin or prompt
-key list                                # list stored secrets
-key duplicate <src> <dst> [--force]     # duplicate an entry
-key rename <src> <dst> [--force]        # rename an entry
-key remove <name> [--force]             # remove a secret
-key config get <config-name>            # print a config value
-key config set <config-name> <value>    # update a config value
-key config list                         # list known config values
-key version [--json]                    # print the CLI version
+```sh
+key version
+key status
 ```
 
-## Coming in 0.2.0: secure multi-device vaults
+### Install Preview
 
-Version 0.2.0 brings secure multi-device vaults to Key without giving up the
-file-based model. You keep the encrypted vault in a folder you control, and
-each Mac must be explicitly approved with keys bound to its Secure Enclave.
-Your file-sync service carries encrypted, authenticated history, but it never
-receives the vault key or the authority to enroll a device, silently roll back
-trusted state, or choose a conflict winner.
-
-Each Mac advances only from the exact vault state it already trusts. Missing,
-substituted, rolled-back, or conflicting files therefore fail closed instead
-of quietly becoming your vault. Independent edits still merge automatically;
-genuine conflicts are preserved for you to inspect and resolve.
-
-An opt-in alpha is available now:
-
-```bash
-brew install --cask tvanreenen/tap/key@alpha
+```sh
+brew install --cask tvanreenen/tap/key@beta
+open -a "Key Preview"
+key-preview version
+key-preview status
 ```
 
-The alpha channel installs the isolated
-`Key Preview.app` and `key-preview` CLI. It can live beside Stable Key with its
-own helper, configuration, default vault, and Keychain namespace, so testing a
-prerelease does not replace the installation you rely on.
+Do not point Preview at the live Stable vault. Use Preview's isolated default
+vault or a disposable copy. In the examples below, replace `key` with
+`key-preview` when working in Preview.
 
-The current preview supports explicit migration, multiple approved Macs,
-authenticated catch-up, guarded reads and writes, conflict resolution, and
-deliberate device revocation with forward key rotation. Version 3 supports only
-local APFS and iCloud Drive; other file and sync providers remain unsupported.
-Keep at least two Macs enrolled: either can authorize a replacement if the
-other is lost.
+## Quick start
 
-Enrollment invitations expire after 10 minutes. Both people must compare the
-exact device pair and comparison code before approval. If a Mac is lost or
-revoked, use a surviving active Mac to create a new invitation and rejoin the
-replacement through the ordinary ceremony.
+Add a secret from a secure prompt:
 
-Provider storage alone is not a recoverable backup: it carries encrypted,
-authenticated history but never the vault key or enrollment authority. If
-every enrolled Mac and its Secure Enclave identity is lost, the version 3 vault
-is permanently unrecoverable in `0.2.0`; there is no password, cloud escrow,
-support override, or hidden fallback. See
-[Security, continuity, and recovery](docs/security-continuity-recovery.md) for
-the complete user promise, and the
-[version 3 implementation tracker](docs/v3-vault-implementation.md) for the
-current scope, limitations, and release-qualification results.
-
-## Generating passwords
-
-Unlike most password managers, `key` does not include a built-in password generator. Instead, it is designed to accept input via stdin, so you can add or edit secrets either by securely typing them in (using your terminal's secure input), or by piping in passwords generated by any tool or method you prefer:
-
-```bash
-openssl rand -base64 32 | key add aws/prod/token
-openssl rand -hex 32 | key add api/key
-pwgen -sy 24 1 | key edit github/personal
-diceware -n 6 | key add personal/passphrase
-xkcdpass -n 4 | key add outlook/work
-uuidgen | key add app/token
-head -c 32 /dev/urandom | base64 | key add backup/recovery
+```sh
+key add github/personal
 ```
 
-## Time-based one-time passwords (TOTP)
+Or pipe a value without placing it in the command-line arguments:
 
-`key` also supports calculating time-based one-time passwords. When you store a provided Base32 seed using the `--totp` flag, `key` will know to calculate TOTP using [RFC 6238](https://www.rfc-editor.org/rfc/rfc6238) each time you use the `get` or `copy` methods on that secret.
+```sh
+openssl rand -base64 32 | key add github/personal
+```
 
-```bash
-key add github/mfa --totp
-key edit github/mfa --totp
+Read or copy it, list the vault, and explicitly clear the helper session:
+
+```sh
+key get github/personal
+key copy github/personal
+key list
+key lock
+```
+
+`key unlock` authenticates in advance. Otherwise, the first operation that
+needs key material prompts through macOS. Key Agent keeps an unlocked session
+copy in memory for a short idle window so separate CLI invocations can reuse
+it.
+
+## Everyday commands
+
+```text
+key status [--json] [--verbose]        Explain vault health and the next safe action
+key unlock                             Warm the helper session
+key lock                               Clear the session and stop the helper
+
+key get <name> [--allow-stale]         Print a secret or current TOTP code
+key copy <name> [--allow-stale]        Copy a secret or current TOTP code
+key add [--totp] <name>                Add a secret from stdin or a secure prompt
+key edit [--totp] <name>               Update a secret
+key duplicate <src> <dst> [--force]    Duplicate an entry
+key rename <src> <dst> [--force]       Rename an entry
+key remove <name> [--force]            Remove an entry
+key list                               List entry names
+
+key config get <config-name>           Print one configuration value
+key config set <config-name> <value>   Update one configuration value
+key config list                        List known configuration values
+
+key conflict list [--json]             List unresolved version 3 conflicts
+key conflict show <id> [--json]        Inspect authenticated conflict metadata
+key conflict get <id> <version>        Print one conflicted value
+key conflict copy <id> <version>       Copy one conflicted value
+key conflict resolve <id>=<version>…   Resolve the complete listed conflict set
+
+key share devices [--json]             List authenticated version 3 devices
+key share revoke <device-id>           Review and revoke a device
+key help                               Show the complete command reference
+```
+
+`--allow-stale` is intentionally narrow. It permits a read only from the last
+complete version already trusted on that Mac when newer provider delivery is
+incomplete. It does not bypass corruption, rollback, or an authority conflict.
+
+## Version 2 and version 3
+
+The two storage profiles make different security promises:
+
+| | Version 2 | Version 3 (`0.2.0`) |
+|---|---|---|
+| Device model | One local installation | Explicitly enrolled Macs with equal authority |
+| Vault key | Persistent local or synchronizable Keychain item | Wrapped separately to each active Mac's Secure Enclave identity |
+| Unlocked key | Reused briefly by Key Agent | Exists in plaintext only in Key Agent's short-lived memory session |
+| Provider history | Individually encrypted named files | Authenticated, immutable, content-addressed history |
+| Concurrency | Provider filesystem behavior | Automatic independent merges; explicit genuine-conflict resolution |
+| Device loss | Depends on the configured Keychain mode | Recoverable only while at least one enrolled Mac survives |
+
+Version 3 stores encrypted entries, authenticated manifests, public device
+metadata, and per-device vault-key wrappers in the selected folder. The
+provider can delay or omit files and deny service, but it cannot silently grant
+access or choose which history Key trusts.
+
+## Migrating a version 2 vault
+
+Migration is explicit and local. It never begins merely because a newer binary
+was installed.
+
+First run the read-only preflight:
+
+```sh
+key migrate --check
+```
+
+Review the report, then create and select a verified version 3 snapshot:
+
+```sh
+key migrate --apply
+```
+
+Migration retains the version 2 source files unchanged and selects version 3
+only after the new snapshot, local device identity, wrapper, and checkpoint are
+usable. The retained source supports controlled rollback or remigration while
+the migration is being validated; it does not receive later version 3 changes
+and is not a recovery key for the version 3 vault.
+
+Other Macs remain on their existing version 2 state. Their later edits are not
+imported into the migrated snapshot. Enroll each additional Mac into version 3
+instead of migrating independent copies of the same vault.
+
+Preview can migrate only a version 2 vault and key that already belong to
+Preview's isolated namespace. It cannot use Stable's protected Keychain state.
+
+## Enrolling another Mac
+
+Enrollment uses a 10-minute invitation and a comparison code. Both Macs must
+show the exact same device pair and code before approval.
+
+On an active Mac, inspect the roster and create an invitation using this Mac's
+exact recorded name:
+
+```sh
+key share devices
+key share invite --name "<this Mac's recorded name>"
+```
+
+On the joining Mac, discover or enter that invitation and create an answer:
+
+```sh
+key share invitations
+key share join <invitation-id> --name "Laptop"
+```
+
+Use the IDs printed by those commands to compare on both Macs:
+
+```sh
+key share requests <invitation-id>
+key share compare <vault-id> <invitation-id> [join-request-id]
+```
+
+Only after the device pair and comparison code match, approve on the existing
+Mac and accept on the joining Mac:
+
+```sh
+key share approve <vault-id> <invitation-id> <comparison-code>
+key share accept <vault-id> <invitation-id> <comparison-code>
+```
+
+Each command prints the exact safe next command for its side of the ceremony.
+If an invitation expires, begin a fresh ceremony. A prepared exact approval may
+finish after provider delay, but expiry never authorizes a different request.
+
+Inspect the authenticated roster at any time:
+
+```sh
+key share devices
+```
+
+## Revocation and replacement
+
+```sh
+key share revoke <device-id>
+```
+
+Revocation requires local authentication and explicit review. It rotates the
+vault key, re-encrypts the current snapshot, and omits the revoked Mac from new
+wrappers. It cannot erase old plaintext, screenshots, exports, or key material
+that device already possessed.
+
+A lost or revoked Mac can rejoin only through a fresh invitation from a
+surviving active Mac. Running the ordinary `share join` command on the revoked
+Mac presents a replacement review and requires the literal `REJOIN` before
+removing only that Mac's unusable local enrollment state.
+
+## Storage providers and conflicts
+
+Version 3 is directly validated on local APFS and iCloud Drive. Other ordinary
+folder-backed providers may work if they preserve the required containment,
+atomicity, hydration, type, and naming semantics, but they have not been
+directly validated and are not covered by the `0.2.0` compatibility guarantee.
+
+Key does not trust provider timestamps, ordering, mutable metadata, or a
+claimed “latest” file. Missing synchronized objects produce an incomplete
+state and block writes. Malformed, substituted, rolled-back, or competing
+authority objects fail closed. Independent content edits merge automatically;
+genuinely incompatible edits remain available through the `conflict` commands
+until you choose the complete resolution.
+
+To move a vault, move its complete directory and update the configured path:
+
+```sh
+mv ~/.key ~/Secrets/key-vault
+key config set vault-dir ~/Secrets/key-vault
+key config get vault-dir
+```
+
+Do not repoint one product at another product's live vault. If the default
+directory already contains unrelated files, Key refuses to adopt it.
+
+## TOTP and shell workflows
+
+Store a bare Base32 TOTP seed with `--totp`:
+
+```sh
+key add --totp github/mfa
 key get github/mfa
 key copy github/mfa
 ```
 
-For now, `--totp` accepts only bare Base32 seeds and not full `otpauth://totp/Issuer:AccountName?secret=YourSecret&issuer=IssuerName` URLs. If all you are given is the full URL, just copy and store the secret from that URL. That is the bare Base32 seed that `key` expects.
+Full `otpauth://` URLs are not accepted yet; provide only their `secret`
+value. Key intentionally has no built-in password generator, so any generator
+that writes to stdout can feed `key add` or `key edit`:
 
-## Configuration
-
-By default, `key` stores its config in `~/Library/Application Support/Key/config.toml` and its encrypted secret files in `~/.key`.
-
-If you want to move the vault, move the files yourself and then update the configured path:
-
-```bash
-mv ~/.key ~/Secrets/key-vault
-key config set vault-dir ~/Secrets/key-vault
+```sh
+openssl rand -hex 32 | key add api/token
+pwgen -sy 24 1 | key edit github/personal
 ```
 
-If `~/.key` already exists and contains unrelated files, Key will refuse to adopt it as the default vault root. In that case, choose another vault directory with `key config set vault-dir <path>`.
+Entry names form a hierarchy and work well with tools such as
+[`fzf`](https://github.com/junegunn/fzf):
 
-## Fuzzy picking with fzf
-
-One the things that make retrieving secret especially efficient is using `key list` with [`fzf`](https://github.com/junegunn/fzf) to give you really strong fuzzy finding of your secrets:
-
-```bash
-key get "$(key list | fzf)"
+```sh
 key copy "$(key list | fzf)"
 key edit "$(key list | fzf)"
-key remove "$(key list | fzf)"
 ```
 
-## Security without the lock-in
+## macOS integration
 
-`key` uses standard AES-256-GCM encryption with zero custom cryptography. If you have both the vault key and your `.secret` files, you're not locked in: you can decrypt your secrets using any tool that supports AES-GCM, letting you move your data without relying on the app.
+Key is intentionally macOS-specific and requires macOS 14 or later for the
+version 3 Secure Enclave and CryptoKit HPKE profile. The installed product has
+three signed components:
 
-**Where the files live:** Secrets are under `~/.key` by default. An entry like `github/personal` is stored as `~/.key/github/personal.secret`. The active vault path is configured in `~/Library/Application Support/Key/config.toml` and can be inspected with `key config get vault-dir`.
+1. `Key.app` registers the helper and shows installation diagnostics.
+2. The `key` CLI handles command parsing, terminal I/O, and clipboard writes.
+3. Key Agent owns Keychain and Secure Enclave access, encryption, authenticated
+   storage operations, and the short-lived in-memory session.
 
-**Payload format:** Each `.secret` file contains a JSON object:
+The CLI talks to the on-demand helper over an authenticated XPC Mach service.
+`launchd` starts it when needed, and the helper exits after its idle window.
+The CLI does not directly access protected vault-key material.
 
-```json
-{
-  "version": 2,
-  "type": "secret",
-  "alg": "AES.GCM",
-  "nonce": "<base64-encoded 96-bit nonce>",
-  "ciphertext": "<base64-encoded AES-GCM ciphertext + 16-byte auth tag>"
-}
+## Security scope
+
+Key uses AES-256-GCM for entries, HKDF-SHA256 and HMAC-SHA256 for derived
+manifest authentication, P-256 signatures for device-authorized transitions,
+and RFC 9180 HPKE with P-256, HKDF-SHA256, and AES-256-GCM for per-device vault
+key wrapping.
+
+The `0.2.0` assurance boundary includes extensive focused internal review,
+automated fault and security coverage, notarized installed-product checks, and
+two-device physical qualification on local APFS and iCloud Drive. It has not
+received an independent third-party security audit. A third physical device
+and additional storage providers were not direct release gates.
+
+For the complete promises and limitations, read:
+
+- [Security, continuity, and recovery](docs/security-continuity-recovery.md)
+- [Version 3 device-wrapped key architecture](docs/v3-device-wrapped-key-architecture.md)
+- [Version 3 implementation and qualification tracker](docs/v3-vault-implementation.md)
+- [Release process](docs/release.md)
+
+## Development
+
+The Swift package and release-script checks run with:
+
+```sh
+just test
 ```
 
-For TOTP entries, the envelope is the same except `type` is `totp`; the decrypted plaintext is the normalized Base32 seed rather than a password.
+The Xcode project builds the signed host apps and helpers. Signing,
+notarization, Preview isolation, and release publication are documented in the
+[release process](docs/release.md) and [Apple setup guide](docs/apple-setup.md).
 
-Without the vault key (the 256-bit secret kept in your Keychain), the file contents are completely opaque.
-
-**How to decrypt:** To unlock a secret yourself, parse the JSON and base64-decode both `nonce` and `ciphertext`. Split the decoded ciphertext into the payload (everything except the final 16 bytes) and the authentication tag (the last 16 bytes). Decrypt the payload using the vault key and nonce with AES-256-GCM—the result will be your UTF-8 plaintext.
-
-## Nerdy details about the macOS integration
-
-`key` is not just a standalone CLI binary. To use the stronger macOS Keychain and user-presence path correctly, it is structured as three pieces:
-
-1. `Key.app`
-2. `key` CLI client
-3. LaunchAgent helper
-
-### `Key.app`
-
-The host app exists to give the project a proper macOS app identity, signing context, entitlements, and release shape, and to register the bundled LaunchAgent helper on first launch. It is not intended to be a full GUI password manager.
-
-### `key` CLI client
-
-The CLI is the user-facing interface. It handles:
-
-- command parsing
-- stdin and secure prompt input
-- stdout and stderr output
-- clipboard writes for `key copy`
-
-The CLI does **not** directly access the protected vault key.
-
-### LaunchAgent helper
-
-The helper is the privileged side of the system. It is managed by `launchd`, reachable through a Mach service, and owns:
-
-- Keychain access
-- [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence)-gated vault key retrieval
-- encryption and decryption
-- on-disk secret file access
-- the short-lived in-memory unlock session
-
-This split gives `key` a shape that is similar in spirit to `ssh-agent` or `gpg-agent`: a user-session helper keeps unlocked key material in memory so repeated CLI commands can reuse it. The difference is that `key` uses the native macOS service model instead of a Unix socket convention:
-
-- `launchd` starts the helper on demand
-- the CLI talks to it over XPC using a Mach service
-- the helper exits when it has been idle, so nothing is permanently running
-
-That gives `key` a few nice properties:
-
-- reliable unlock reuse across separate CLI invocations
-- no long-lived decrypted secrets on disk
-- no permanently running background process when idle
-- native macOS process management, signing, and IPC
-
-Conceptually, a `get` looks like this:
-
-1. `key get github/personal`
-2. if needed, `launchd` starts the helper when the CLI connects to its Mach service
-3. the CLI sends a request to the helper over XPC
-4. if the helper is locked, it asks macOS for access to the vault key
-5. macOS enforces the Keychain item's [`userPresence`](https://developer.apple.com/documentation/security/secaccesscontrolcreateflags/userpresence) requirement through its normal local-authentication path
-6. the helper decrypts the secret file
-7. the CLI prints the result to stdout
-
-Conceptually, an explicit unlock looks like this:
-
-1. `key unlock`
-2. the CLI connects to the helper's Mach service
-3. if needed, `launchd` starts the helper
-4. the helper asks macOS for access to the vault key
-5. on success, the helper keeps the vault key in memory for a short idle window
-6. later `get`, `copy`, `add`, or `edit` requests can reuse that in-memory authorization without prompting again
-7. after the helper has been idle long enough, it drops the key and exits
-
-That is the tradeoff that makes the native macOS auth path possible while keeping the day-to-day interface CLI-first. This is intentionally macOS-specific and optimizes for native platform integration over cross-platform portability.
+Key is available under the [MIT License](LICENSE).

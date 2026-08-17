@@ -2047,9 +2047,10 @@ opportunistic evidence rather than a release gate.
 
 `BETA-605` coverage inventory:
 
-- [x] Top-level CLI help names local APFS and iCloud Drive as the only
-  supported version 3 storage, rejects other providers, and explains the
-  fail-safe two-device continuity baseline.
+- [x] Top-level CLI help names local APFS and iCloud Drive as the directly
+  validated version 3 storage targets, accurately scopes other ordinary
+  folder-backed providers as likely compatible but not directly validated,
+  and explains the fail-safe two-device continuity baseline.
 - [x] CLI help states the 10-minute invitation lifetime, exact device/code
   comparison requirement, surviving-device replacement path, provider's lack
   of key or enrollment authority, and permanent loss after every enrolled Mac

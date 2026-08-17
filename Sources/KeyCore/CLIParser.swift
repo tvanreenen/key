@@ -101,7 +101,8 @@ public enum CLIParser {
       keychain-mode  Vault key storage mode (`local` or `icloud`).
 
     Version 3 safety and recovery:
-      Supported storage is local APFS or iCloud Drive. Other providers are unsupported.
+      Local APFS and iCloud Drive are directly validated for 0.2.0.
+      Other ordinary folder-backed providers may work, but are not directly validated.
       Keep at least two active enrolled Macs; either can enroll or revoke another Mac.
       Invitations expire after 10 minutes. Compare the exact device pair and code.
       A lost or revoked Mac rejoins through an invitation from a surviving active Mac.
