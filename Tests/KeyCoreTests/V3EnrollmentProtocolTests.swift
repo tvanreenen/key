@@ -64,6 +64,13 @@ struct V3EnrollmentProtocolTests {
                     wrappingScalar: 6
                 )
             ),
+            try makeInvitation(
+                invitingDevice: makeIdentity(
+                    name: "Renamed Office Mac",
+                    signingScalar: 1,
+                    wrappingScalar: 2
+                )
+            ),
         ]
         for changedInvitation in changedInvitations {
             let changedRequest = try makeJoinRequest(
@@ -95,6 +102,14 @@ struct V3EnrollmentProtocolTests {
                     name: "Travel Mac",
                     signingScalar: 3,
                     wrappingScalar: 8
+                )
+            ),
+            try makeJoinRequest(
+                invitation: invitation,
+                joiningDevice: makeIdentity(
+                    name: "Renamed Travel Mac",
+                    signingScalar: 3,
+                    wrappingScalar: 4
                 )
             ),
         ]

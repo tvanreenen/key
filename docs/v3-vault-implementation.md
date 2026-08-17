@@ -1787,6 +1787,18 @@ opportunistic evidence rather than a release gate.
   invitation, while durable destructive progress uses a distinct admission
   state and the existing invitation-free, idempotent resume path. The focused
   replacement, CLI, and XPC suites pass, as does the 750-test serial suite.
+- [x] `BETA-606B` — Comparison-transcript identity binding. No production flaw
+  was found. The domain-separated transcript digest commits to canonical
+  invitation and join-request digests, which in turn bind the vault and format,
+  exact parent manifest, invitation expiry, both nonces, and both devices'
+  display names, signing keys, and wrapping keys. The separately signed
+  carriers are verified again when local ceremony state is loaded. Compare,
+  approve, and accept reconstruct the transcript from that exact pinned state;
+  the human-entered 80-bit code is checked locally, while the complete 256-bit
+  digest binds owner approval, the authenticated authority-transition ID,
+  joining-device adoption, and ceremony consumption. Regression coverage now
+  changes each display name without changing its keys and proves a wrong human
+  code leaves the owner ceremony byte-for-byte untouched.
 
 `BETA-601` coverage inventory:
 

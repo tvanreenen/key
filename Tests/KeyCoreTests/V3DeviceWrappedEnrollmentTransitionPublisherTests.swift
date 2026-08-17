@@ -562,6 +562,20 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
         )
         let transcript = try #require(fixture.ceremony.transcript)
 
+        #expect(throws: V3EnrollmentAdoptionError.invalidCeremony) {
+            _ = try workflow.approve(
+                vaultID: Self.vaultID,
+                invitationDigest: fixture.ceremony.invitationDigest,
+                comparisonCode: "0000-0000-0000-0000-0000",
+                at: Self.approvalTime,
+                operationID: Self.operationID
+            )
+        }
+        #expect(try stateStore.loadState(
+            vaultID: Self.vaultID,
+            invitationDigest: fixture.ceremony.invitationDigest
+        ) == fixture.ceremony.canonicalBytes)
+
         let rendered = try workflow.approve(
             vaultID: Self.vaultID,
             invitationDigest: fixture.ceremony.invitationDigest,
