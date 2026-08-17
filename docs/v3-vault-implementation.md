@@ -8,17 +8,18 @@ state.
 
 | Field | Value |
 |---|---|
-| Status | `v0.2.0-beta.1` is the latest Preview release and has completed local, distribution, two-device channel-transition, and post-install reboot qualification; catastrophe recovery is deferred beyond `0.2.0` |
-| Latest release | `v0.2.0-beta.1 (17)` at `6ab38f8` |
+| Status | `v0.2.0` is the current Stable release and has completed local, distribution, migration/rollback, two-device, and post-install qualification; catastrophe recovery remains deferred beyond `0.2.0` |
+| Latest release | `v0.2.0 (19)` at `b1e16fc`; `v0.2.0-beta.1 (17)` remains the isolated Preview release |
 | Selected architecture | Device-wrapped, session-only keys over authenticated content-addressed history |
-| Current prerelease profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
+| Current device-enrolled profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | `STABLE-704`: observe beta.1, close findings, and qualify the deliberate Stable artifact |
-| Next work | Publish `v0.2.0` only after `STABLE-704`; add an RC only if post-beta changes or release behavior justify one |
+| Active work | Observe the published Stable release and triage concrete field findings |
+| Next work | Make any corrective release under a new version and build; do not move or replace `v0.2.0` |
 
-The current device-wrapped profile remains prerelease-only. It MUST not ship as
-stable until the scoped Stable work packages below pass.
+Stable `0.2.0` supports the device-enrolled profile after an explicit migration;
+new and upgraded vaults remain on the Keychain-backed model until that choice.
+The scoped Stable work packages below are complete.
 
 ## Security And Durability Invariants
 
@@ -2090,7 +2091,7 @@ that is practical for this project:
 | `STABLE-701` | Complete | Reconcile every stale unchecked release item against current evidence or an explicit scope decision; record the practical device, provider, recovery, diagnostics, and review boundaries without changing product behavior. |
 | `STABLE-702` | Complete | Updated the normative permanent-profile specification and schemas to the shipping role-free profile and bound them to production-generated canonical fixtures; locked the exact deterministic HPKE context, `info`, and authenticated-data bytes while explicitly scoping out a randomized ciphertext fixture and independent implementation claim; and proved an ordinary content mutation and membership transition cannot interleave through the shared mutation owner. |
 | `STABLE-703` | Complete | Replaced the README with a Stable-ready landing page that separates the current Stable and Preview products, provides verified install, quick-start, migration, enrollment, revocation, provider, conflict, and recovery guidance, scopes v2 and v3 claims separately, discloses the practical assurance boundary, and links the normative and user-facing references. CLI help now uses the same directly-validated provider language. |
-| `STABLE-704` | Active | Beta.1 ordinary-use evidence remains clean, and the authoritative host run passes all 757 Swift tests in 70 suites plus both release-script suites. Choose an RC only if post-beta code or release behavior warrants one; then build, notarize, verify, and deliberately qualify the Stable artifact and explicit v2 migration/rollback boundary before publishing `v0.2.0`. |
+| `STABLE-704` | Complete | Published `v0.2.0 (19)` from `b1e16fc` after the authoritative host run passed all 757 Swift tests in 70 suites plus both release-script suites; the exact artifact passed signing, notarization, stapling, Gatekeeper, installed-product, explicit v2 migration/rollback, isolated-helper, and distributed Homebrew qualification. |
 
 Stable stabilization ledger:
 
@@ -2168,9 +2169,8 @@ Stable stabilization ledger:
   provider wording and a behavior-preserving extraction of the existing HPKE
   `info` and authenticated-data construction into one testable input path. No
   wire bytes, product behavior, packaging, or release scripts changed; the
-  exact input vectors and the complete host suite pass. An RC is therefore not
-  warranted solely for this diff. The exact Stable artifact is the next
-  candidate.
+  exact input vectors and the complete host suite pass. An RC was therefore not
+  warranted solely for this diff.
 - Installed build 18 passed signing, notarization, stapling, Gatekeeper, and
   extracted-artifact verification, then correctly failed closed on this test
   Mac's retired pre-isolation v3 selection. That exercise exposed stale
@@ -2189,11 +2189,27 @@ Stable stabilization ledger:
   plaintext absence; and unchanged Stable/Preview files and helper-registration
   presence. The test Mac's retired pre-isolation Stable selection remains
   unchanged and continues to fail closed.
+- Exact build 19 passed the authoritative ordinary-host gate: all 757 Swift
+  tests in 70 suites, the Homebrew cask channel suite, and the Preview install
+  safety suite. Apple accepted notarization submission
+  `eb3ca979-3825-486b-b73a-84c132cd31de`; the stapled release ZIP has SHA-256
+  `e70065fdb6deed2ec864cd3a1a0bc1f0e31f4c3af8212ea78308dbd7e82e0144`.
+  The installed artifact passed Developer ID and Gatekeeper verification,
+  reported `0.2.0 (19)`, registered the Stable helper from parent build 19,
+  preserved the separate Preview build-17 registration, and produced the
+  intended release-neutral fail-closed guidance for the retained retired test
+  selection.
+- `v0.2.0` and `main` were published atomically at `b1e16fc`, with the exact
+  qualified ZIP attached to the GitHub release. Homebrew tap commit `c32bccf`
+  published cask `key` at `v0.2.0`; a real upgrade from the `v0.1.2` receipt
+  succeeded, installed build 19, linked the CLI and zsh completion, passed
+  Developer ID and Gatekeeper verification, and retained Stable/Preview helper
+  isolation.
 
 ## Immediate Next Action
 
-Build, notarize, staple, and verify the exact Stable `v0.2.0` artifact, then
-install it and deliberately qualify the migration/rollback boundary before
-publishing. Do not add a portable recovery authority, require a third physical
-Mac, or expand the directly validated provider matrix as part of `0.2.0`
-stabilization.
+Observe ordinary Stable use and triage concrete field findings. Any artifact or
+code correction must use a new version and build; do not replace the published
+`v0.2.0` tag or asset. A third physical Mac, additional storage-provider matrix,
+portable recovery authority, and independent audit remain possible future
+assurance work rather than retroactive `0.2.0` gates.
