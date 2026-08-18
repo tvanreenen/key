@@ -3,9 +3,10 @@
 ![Key](.github/assets/hero.png)
 
 Key is a macOS-native, CLI-first secret manager. It keeps encrypted vault files
-in a folder you control, uses Touch ID, Apple Watch, or your Mac password for
-local authentication, and exposes a small command set that composes naturally
-with the shell. Behind that small interface is a signed, on-demand agent and a
+in a folder you control—local or synchronized through the file-sync provider
+you choose—uses Touch ID, Apple Watch, or your Mac password for local
+authentication, and exposes a small command set that composes naturally with
+the shell. Behind that small interface is a signed, on-demand agent and a
 device-enrolled security model designed to keep protected key material and
 trust decisions away from the sync provider.
 
@@ -61,10 +62,24 @@ inside the agent's short-lived memory session.
 
 The device-enrolled vault strengthens that model for multiple Macs. Each Mac
 holds non-exportable Secure Enclave identity keys, the vault key is wrapped
-separately to every approved device using HPKE, and membership changes and
-vault history are cryptographically authenticated. Your sync provider carries
-ciphertext, but it cannot enroll a Mac, silently make old state trusted, or
-choose a conflict winner.
+separately to every approved device using HPKE, and Key trusts membership
+changes and vault history only after cryptographic authentication.
+
+## Choose your sync provider
+
+Key stores its vault in an ordinary folder, so you choose whether it remains
+local or moves between Macs through iCloud Drive or another ordinary
+folder-sync provider. The provider transports encrypted files; it is not
+trusted to decide vault access, device membership, trusted history, or conflict
+resolution.
+
+File synchronization can arrive late, out of order, or incompletely. A
+device-enrolled vault authenticates immutable, content-addressed history instead
+of trusting timestamps or a provider's idea of “latest.” Key automatically
+merges independent edits, preserves genuine conflicts for explicit resolution,
+blocks writes when required objects are missing, and fails closed on corruption,
+rollback, or competing authority. When delivery is incomplete, a narrow stale
+read can use only the last complete state already trusted on that Mac.
 
 ## Install and choose a release channel
 
@@ -254,7 +269,7 @@ surviving active Mac. Running the ordinary `share join` command on the revoked
 Mac presents a replacement review and requires the literal `REJOIN` before
 removing only that Mac's unusable local enrollment state.
 
-## Storage providers and conflicts
+## Provider setup and conflicts
 
 The device-enrolled vault is directly validated on local APFS and iCloud Drive.
 Other ordinary folder-backed providers may work if they preserve the required
@@ -262,12 +277,23 @@ containment, atomicity, hydration, type, and naming semantics, but they have
 not been directly validated and are not covered by the `0.2.0` compatibility
 guarantee.
 
+> [!TIP]
+> If the vault is stored in iCloud Drive, Control-click its folder in Finder
+> and choose [**Keep Downloaded**](https://support.apple.com/guide/mac-help/mchl1a02d711/mac)
+> on every enrolled Mac. This keeps the vault locally available and helps
+> reduce incomplete states caused by on-demand file hydration. It does not make
+> iCloud Drive a backup or bypass Key's missing-object checks.
+
 Key does not trust provider timestamps, ordering, mutable metadata, or a
 claimed “latest” file. Missing synchronized objects produce an incomplete
 state and block writes. Malformed, substituted, rolled-back, or competing
 authority objects fail closed. Independent content edits merge automatically;
 genuinely incompatible edits remain available through the `conflict` commands
 until you choose the complete resolution.
+
+`--allow-stale` is intentionally narrow. It permits a read only from the last
+complete version already trusted on that Mac when newer provider delivery is
+incomplete. It does not bypass corruption, rollback, or an authority conflict.
 
 To move a vault, move its complete directory and update the configured path:
 
@@ -325,10 +351,6 @@ key share accept <vault> <invite> <code>
 key version [--json]                   Print the CLI version
 key help                               Show the complete command reference
 ```
-
-`--allow-stale` is intentionally narrow. It permits a read only from the last
-complete version already trusted on that Mac when newer provider delivery is
-incomplete. It does not bypass corruption, rollback, or an authority conflict.
 
 ## macOS integration
 
