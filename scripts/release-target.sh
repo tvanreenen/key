@@ -8,18 +8,20 @@ fi
 
 tag="$1"
 
-if [[ "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+semver_number='(0|[1-9][0-9]*)'
+
+if [[ "${tag}" =~ ^v${semver_number}\.${semver_number}\.${semver_number}$ ]]; then
   product_variant="stable"
   cask_token="key"
   artifact_name="Key-${tag}.zip"
-elif [[ "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
+elif [[ "${tag}" =~ ^v${semver_number}\.${semver_number}\.${semver_number}-(alpha|beta|rc)\.${semver_number}$ ]]; then
   prerelease="${tag#*-}"
   channel="${prerelease%%.*}"
   product_variant="preview"
   cask_token="key@${channel}"
   artifact_name="Key-Preview-${tag}.zip"
 else
-  echo "releases require a stable tag or a numbered alpha, beta, or rc tag" >&2
+  echo "releases require a strict v-prefixed Semantic Version for a supported channel" >&2
   echo "expected v#.#.#, v#.#.#-alpha.#, v#.#.#-beta.#, or v#.#.#-rc.#" >&2
   exit 1
 fi

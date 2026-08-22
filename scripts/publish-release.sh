@@ -17,6 +17,8 @@ IFS=$'\t' read -r product_variant _ _ \
 tag="${version}"
 sha256="$(shasum -a 256 "${zip_path}" | awk '{print $1}')"
 asset_name="$(basename "${zip_path}")"
+checksums_path="${zip_path:h}/checksums.txt"
+printf '%s  %s\n' "${sha256}" "${asset_name}" > "${checksums_path}"
 
 if ! command -v gh >/dev/null 2>&1; then
   echo "gh CLI is required." >&2
@@ -63,14 +65,58 @@ if ! git push --atomic origin main "${tag}"; then
   exit 1
 fi
 
+release_api="repos/{owner}/{repo}/releases/tags/${tag}"
 if gh release view "${tag}" >/dev/null 2>&1; then
-  gh release upload "${tag}" "${zip_path}" --clobber
+  actual_assets="$(gh api "${release_api}" --jq '.assets[].name' | LC_ALL=C sort)"
+  while IFS= read -r release_asset; do
+    [[ -z "${release_asset}" ]] && continue
+    if [[ "${release_asset}" != "${asset_name}" && \
+          "${release_asset}" != "checksums.txt" ]]; then
+      echo "release ${tag} contains an unexpected asset: ${release_asset}" >&2
+      echo "publish a new version instead of changing the published release" >&2
+      exit 1
+    fi
+  done <<< "${actual_assets}"
+
+  upload_paths=()
+  for release_asset in "${asset_name}" checksums.txt; do
+    asset_count="$(
+      gh api "${release_api}" \
+        --jq "[.assets[] | select(.name == \"${release_asset}\")] | length"
+    )"
+    local_path="${zip_path:h}/${release_asset}"
+    if [[ "${asset_count}" == "0" ]]; then
+      upload_paths+=("${local_path}")
+      continue
+    fi
+    if [[ "${asset_count}" != "1" ]]; then
+      echo "release ${tag} contains ${release_asset} more than once" >&2
+      exit 1
+    fi
+
+    remote_digest="$(
+      gh api "${release_api}" \
+        --jq ".assets[] | select(.name == \"${release_asset}\") | .digest // \"\""
+    )"
+    local_digest="sha256:$(shasum -a 256 "${local_path}" | awk '{print $1}')"
+    if [[ "${remote_digest}" != "${local_digest}" ]]; then
+      echo "published release asset ${release_asset} differs from the local artifact" >&2
+      echo "publish a new version instead of replacing an existing asset" >&2
+      exit 1
+    fi
+  done
+
+  if [[ ${#upload_paths[@]} -gt 0 ]]; then
+    gh release upload "${tag}" "${upload_paths[@]}"
+  fi
 else
   create_args=(
     "${tag}"
     "${zip_path}"
+    "${checksums_path}"
     --title "${version}"
     --generate-notes
+    --verify-tag
   )
   if [[ "${is_prerelease}" -eq 1 ]]; then
     create_args+=(--prerelease)
@@ -78,7 +124,30 @@ else
   gh release create "${create_args[@]}"
 fi
 
-download_url="$(gh api "repos/{owner}/{repo}/releases/tags/${tag}" --jq ".assets[] | select(.name == \"${asset_name}\") | .browser_download_url")"
+actual_assets="$(gh api "${release_api}" --jq '.assets[].name' | LC_ALL=C sort)"
+expected_assets="$(printf '%s\n' checksums.txt "${asset_name}" | LC_ALL=C sort)"
+if [[ "${actual_assets}" != "${expected_assets}" ]]; then
+  echo "release ${tag} must contain exactly ${asset_name} and checksums.txt" >&2
+  exit 1
+fi
+
+for release_asset in "${asset_name}" checksums.txt; do
+  remote_digest="$(
+    gh api "${release_api}" \
+      --jq ".assets[] | select(.name == \"${release_asset}\") | .digest // \"\""
+  )"
+  local_path="${zip_path:h}/${release_asset}"
+  local_digest="sha256:$(shasum -a 256 "${local_path}" | awk '{print $1}')"
+  if [[ "${remote_digest}" != "${local_digest}" ]]; then
+    echo "release asset ${release_asset} does not match the local artifact" >&2
+    exit 1
+  fi
+done
+
+download_url="$(
+  gh api "${release_api}" \
+    --jq ".assets[] | select(.name == \"${asset_name}\") | .browser_download_url"
+)"
 
 if [[ -z "${download_url}" ]]; then
   echo "failed to resolve uploaded asset URL for ${asset_name}" >&2
@@ -92,8 +161,9 @@ echo "  product:     ${product_variant}"
 echo "  prerelease:  $([[ "${is_prerelease}" -eq 1 ]] && echo yes || echo no)"
 echo "  branch:      ${branch}"
 echo "  asset:       ${asset_name}"
+echo "  checksums:   checksums.txt"
 echo "  download URL:${download_url}"
 echo "  sha256:      ${sha256}"
 echo
 echo "Next:"
-echo "  just update-homebrew-tap \"${version}\" \"${download_url}\" \"${sha256}\""
+echo "  just publish-homebrew \"${version}\""
