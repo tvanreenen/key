@@ -45,6 +45,11 @@ assert_target "v0.2.0-rc.1" "preview" "key@rc" "Key-Preview-v0.2.0-rc.1.zip"
 assert_rejected "0.2.0-alpha.2"
 assert_rejected "v0.2.0-preview.1"
 assert_rejected "v0.2.0-alpha"
+assert_rejected "v01.2.3"
+assert_rejected "v1.02.3"
+assert_rejected "v1.2.03"
+assert_rejected "v1.2.3-alpha.01"
+assert_rejected "v1.2.3+build.1"
 
 if "${repo_root}/scripts/bump-version.sh" "v0.2.0-preview.1" >/dev/null 2>&1; then
   echo "expected version bumping to reject an unsupported release tag" >&2
@@ -150,57 +155,6 @@ EOF
     "${app_path}/Contents/MacOS/${cli_name}" \
     "${helper_path}/Contents/MacOS/${helper_name}"
 }
-
-tap_origin="${test_root}/origin.git"
-tap_checkout="${test_root}/tap"
-
-git init --bare --initial-branch=main "${tap_origin}" >/dev/null
-git clone "${tap_origin}" "${tap_checkout}" >/dev/null 2>&1
-git -C "${tap_checkout}" config user.name "Release Script Tests"
-git -C "${tap_checkout}" config user.email "release-tests@example.invalid"
-mkdir -p "${tap_checkout}/Casks"
-echo 'cask "key" do; version "v0.1.1"; end' > "${tap_checkout}/Casks/key.rb"
-git -C "${tap_checkout}" add Casks/key.rb
-git -C "${tap_checkout}" commit -m "Add stable cask" >/dev/null
-git -C "${tap_checkout}" push --set-upstream origin main >/dev/null 2>&1
-
-stable_before="$(shasum -a 256 "${tap_checkout}/Casks/key.rb")"
-KEY_TAP_REPO="${tap_checkout}" "${repo_root}/scripts/update-homebrew-tap.sh" \
-  "v0.2.0-alpha.2" \
-  "https://example.invalid/Key-Preview-v0.2.0-alpha.2.zip" \
-  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
-  >/dev/null
-stable_after="$(shasum -a 256 "${tap_checkout}/Casks/key.rb")"
-
-if [[ "${stable_after}" != "${stable_before}" ]]; then
-  echo "alpha update changed the stable cask" >&2
-  exit 1
-fi
-
-alpha_cask="${tap_checkout}/Casks/key@alpha.rb"
-grep -q '^cask "key@alpha" do$' "${alpha_cask}"
-grep -q '^  version "v0.2.0-alpha.2"$' "${alpha_cask}"
-grep -q '^  url "https://example.invalid/Key-Preview-v0.2.0-alpha.2.zip"$' "${alpha_cask}"
-grep -q '^  name "Key Preview"$' "${alpha_cask}"
-grep -q '^  desc "File-based secret manager with native authentication"$' "${alpha_cask}"
-grep -q '^  depends_on macos: :tahoe$' "${alpha_cask}"
-grep -q '^  conflicts_with cask: \["key@beta", "key@rc"\]$' "${alpha_cask}"
-grep -q '^  app "Key Preview.app"$' "${alpha_cask}"
-grep -q '^  binary "#{appdir}/Key Preview.app/Contents/MacOS/key-preview", target: "key-preview"$' "${alpha_cask}"
-if grep -q 'zsh_completion' "${alpha_cask}"; then
-  echo "Preview cask unexpectedly installs the Stable completion" >&2
-  exit 1
-fi
-if grep -q 'conflicts_with.*"key"' "${alpha_cask}"; then
-  echo "Preview cask unexpectedly conflicts with Stable Key" >&2
-  exit 1
-fi
-if ruby -e 'exit(File.read(ARGV.fetch(0)).include?("\n\n\n") ? 0 : 1)' \
-  "${alpha_cask}"; then
-  echo "Preview cask contains repeated blank lines" >&2
-  exit 1
-fi
-ruby -c "${alpha_cask}" >/dev/null
 
 artifact_fixture_root="${test_root}/release-artifacts"
 stable_package="${artifact_fixture_root}/stable"
@@ -487,58 +441,241 @@ if [[ "$(git --git-dir="${publication_origin}" rev-parse refs/heads/main)" != \
   exit 1
 fi
 
-if KEY_TAP_REPO="${tap_checkout}" "${repo_root}/scripts/update-homebrew-tap.sh" \
-  "v0.2.0-alpha.2" \
-  "https://example.invalid/Key-v0.2.0-alpha.2.zip" \
-  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
-  >/dev/null 2>&1; then
-  echo "expected alpha cask generation to reject a Stable artifact URL" >&2
+successful_origin="${test_root}/successful-origin.git"
+successful_repo="${test_root}/successful-repo"
+successful_fake_bin="${test_root}/successful-bin"
+successful_gh_state="${test_root}/successful-gh-state"
+successful_gh_log="${test_root}/successful-gh.log"
+successful_artifact_root="${artifact_fixture_root}/successful-publication"
+successful_artifact="${successful_artifact_root}/Key-${publication_tag}.zip"
+
+git init --bare --initial-branch=main "${successful_origin}" >/dev/null
+git init --initial-branch=main "${successful_repo}" >/dev/null
+git -C "${successful_repo}" config user.name "Release Script Tests"
+git -C "${successful_repo}" config user.email "release-tests@example.invalid"
+mkdir -p \
+  "${successful_repo}/scripts" \
+  "${successful_repo}/Key.xcodeproj" \
+  "${successful_fake_bin}" \
+  "${successful_gh_state}/assets" \
+  "${successful_artifact_root}"
+cp "${artifact_verifier_bin}/xcrun" "${artifact_verifier_bin}/spctl" \
+  "${successful_fake_bin}/"
+cp \
+  "${repo_root}/scripts/publish-release.sh" \
+  "${artifact_verifier_scripts}/project-version.sh" \
+  "${artifact_verifier_scripts}/release-target.sh" \
+  "${artifact_verifier_scripts}/verify-product-bundle.sh" \
+  "${artifact_verifier_scripts}/verify-release-artifact.sh" \
+  "${artifact_verifier_scripts}/verify-signing.sh" \
+  "${successful_repo}/scripts/"
+set_artifact_project_version "0.2.0" "11"
+cp "${artifact_verifier_project}" "${successful_repo}/Key.xcodeproj/project.pbxproj"
+cp "${stable_artifact}" "${successful_artifact}"
+touch "${successful_repo}/release-marker"
+git -C "${successful_repo}" add Key.xcodeproj scripts release-marker
+git -C "${successful_repo}" commit -m "Prepare release" >/dev/null
+git -C "${successful_repo}" remote add origin "${successful_origin}"
+git -C "${successful_repo}" push --set-upstream origin main >/dev/null 2>&1
+
+cat > "${successful_fake_bin}/gh" <<'EOF'
+#!/bin/zsh
+set -euo pipefail
+
+state="${FAKE_GH_STATE:?}"
+log="${FAKE_GH_LOG:?}"
+print -r -- "$*" >> "${log}"
+
+store_asset() {
+  local source_path="$1"
+  cp "${source_path}" "${state}/assets/${source_path:t}"
+}
+
+if [[ "$1 $2" == "release view" ]]; then
+  [[ -f "${state}/release" ]]
+  exit
+fi
+
+if [[ "$1 $2" == "release create" ]]; then
+  touch "${state}/release"
+  shift 3
+  for argument in "$@"; do
+    [[ "${argument}" == --* ]] && continue
+    [[ -f "${argument}" ]] && store_asset "${argument}"
+  done
+  exit
+fi
+
+if [[ "$1 $2" == "release upload" ]]; then
+  shift 3
+  for argument in "$@"; do
+    if [[ "${argument}" == "--clobber" ]]; then
+      echo "release publication must not replace assets" >&2
+      exit 1
+    fi
+    store_asset "${argument}"
+  done
+  exit
+fi
+
+if [[ "$1" == "api" ]]; then
+  jq_expression=""
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "--jq" ]]; then
+      jq_expression="$2"
+      break
+    fi
+    shift
+  done
+
+  if [[ "${jq_expression}" == '.assets[].name' ]]; then
+    for asset_path in "${state}/assets"/*(N); do
+      print -r -- "${asset_path:t}"
+    done
+    exit
+  fi
+
+  asset_name="$(
+    print -r -- "${jq_expression}" | \
+      sed -n 's/.*select(.name == "\([^"]*\)").*/\1/p'
+  )"
+  asset_path="${state}/assets/${asset_name}"
+  if [[ "${jq_expression}" == *'| length' ]]; then
+    [[ -f "${asset_path}" ]] && echo 1 || echo 0
+  elif [[ "${jq_expression}" == *'.digest'* ]]; then
+    if [[ -f "${asset_path}" ]]; then
+      echo "sha256:$(shasum -a 256 "${asset_path}" | awk '{print $1}')"
+    fi
+  elif [[ "${jq_expression}" == *'.browser_download_url'* && -f "${asset_path}" ]]; then
+    echo "https://example.invalid/${asset_name}"
+  fi
+  exit
+fi
+
+echo "unsupported fake gh invocation: $*" >&2
+exit 64
+EOF
+chmod +x "${successful_fake_bin}/gh"
+
+run_successful_publication() {
+  (
+    cd "${successful_repo}"
+    PATH="${successful_fake_bin}:${PATH}" \
+    FAKE_GH_STATE="${successful_gh_state}" \
+    FAKE_GH_LOG="${successful_gh_log}" \
+      ./scripts/publish-release.sh "${publication_tag}" "${successful_artifact}"
+  )
+}
+
+run_successful_publication > "${test_root}/first-publication.out" 2>&1
+successful_sha="$(shasum -a 256 "${successful_artifact}" | awk '{print $1}')"
+if [[ "$(<"${successful_artifact_root}/checksums.txt")" != \
+      "${successful_sha}  ${successful_artifact:t}" ]]; then
+  echo "release publication wrote a nondeterministic checksum manifest" >&2
+  exit 1
+fi
+if [[ "$(print -l "${successful_gh_state}/assets"/*(N:t) | LC_ALL=C sort)" != \
+      "$(printf '%s\n' checksums.txt "${successful_artifact:t}" | LC_ALL=C sort)" ]]; then
+  echo "release publication did not create the exact supported asset set" >&2
+  exit 1
+fi
+grep -q '^release create .*checksums.txt .*--verify-tag' "${successful_gh_log}"
+if grep -q -- '--clobber' "${successful_gh_log}"; then
+  echo "release publication attempted to replace an asset" >&2
   exit 1
 fi
 
-KEY_TAP_REPO="${tap_checkout}" "${repo_root}/scripts/publish-homebrew-tap.sh" \
-  "v0.2.0-alpha.2" \
-  >/dev/null 2>&1
+cp "${successful_gh_state}/assets/checksums.txt" \
+  "${test_root}/published-checksums.txt"
+rm "${successful_gh_state}/assets/checksums.txt"
+run_successful_publication > "${test_root}/resumed-publication.out" 2>&1
+cmp "${successful_gh_state}/assets/checksums.txt" \
+  "${test_root}/published-checksums.txt"
+grep -q "^release upload ${publication_tag} ${successful_artifact_root}/checksums.txt$" \
+  "${successful_gh_log}"
 
-if [[ -n "$(git -C "${tap_checkout}" status --porcelain)" ]]; then
-  echo "publishing the alpha cask left unexpected tap changes" >&2
+upload_count_before="$(grep -c '^release upload ' "${successful_gh_log}")"
+run_successful_publication > "${test_root}/idempotent-publication.out" 2>&1
+upload_count_after="$(grep -c '^release upload ' "${successful_gh_log}")"
+if [[ "${upload_count_after}" != "${upload_count_before}" ]]; then
+  echo "an exact publication retry uploaded an asset again" >&2
   exit 1
 fi
 
-if [[ "$(git -C "${tap_checkout}" log -1 --format=%s)" != \
-  "Update key@alpha cask to v0.2.0-alpha.2" ]]; then
-  echo "alpha cask was committed with the wrong release identity" >&2
+echo "different published bytes" > \
+  "${successful_gh_state}/assets/${successful_artifact:t}"
+if run_successful_publication > "${test_root}/differing-publication.out" 2>&1; then
+  echo "expected publication to reject a differing published asset" >&2
+  exit 1
+fi
+grep -q 'publish a new version instead of replacing an existing asset' \
+  "${test_root}/differing-publication.out"
+if [[ "$(grep -c '^release upload ' "${successful_gh_log}")" != \
+      "${upload_count_before}" ]]; then
+  echo "a differing publication retry attempted an upload" >&2
   exit 1
 fi
 
-alpha_before="$(shasum -a 256 "${alpha_cask}")"
-KEY_TAP_REPO="${tap_checkout}" "${repo_root}/scripts/update-homebrew-tap.sh" \
-  "v0.2.0" \
-  "https://example.invalid/Key-v0.2.0.zip" \
-  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" \
-  >/dev/null
-alpha_after="$(shasum -a 256 "${alpha_cask}")"
+cp "${successful_artifact}" \
+  "${successful_gh_state}/assets/${successful_artifact:t}"
+echo "unexpected" > "${successful_gh_state}/assets/unexpected.txt"
+if run_successful_publication > "${test_root}/unexpected-publication.out" 2>&1; then
+  echo "expected publication to reject an unexpected release asset" >&2
+  exit 1
+fi
+grep -q 'contains an unexpected asset: unexpected.txt' \
+  "${test_root}/unexpected-publication.out"
 
-if [[ "${alpha_after}" != "${alpha_before}" ]]; then
-  echo "stable update changed the alpha cask" >&2
+dispatcher_fake_bin="${test_root}/dispatcher-bin"
+dispatcher_log="${test_root}/dispatcher.log"
+mkdir -p "${dispatcher_fake_bin}"
+cat > "${dispatcher_fake_bin}/gh" <<'EOF'
+#!/bin/zsh
+set -euo pipefail
+print -r -- "$*" >> "${DISPATCHER_LOG:?}"
+EOF
+chmod +x "${dispatcher_fake_bin}/gh"
+
+assert_dispatch() {
+  local version="$1"
+  local expected_cask="$2"
+  local output="${test_root}/dispatch-${version}.out"
+
+  PATH="${dispatcher_fake_bin}:${PATH}" \
+  DISPATCHER_LOG="${dispatcher_log}" \
+    "${repo_root}/scripts/publish-homebrew.sh" "${version}" > "${output}"
+  tail -n 1 "${dispatcher_log}" | grep -qx \
+    "workflow run publish-package.yml --repo tvanreenen/homebrew-tap --ref main --raw-field package=key --raw-field version=${version}"
+  grep -q "^  cask:       ${expected_cask}$" "${output}"
+}
+
+assert_dispatch "v1.2.3" "key"
+assert_dispatch "v1.2.3-alpha.1" "key@alpha"
+assert_dispatch "v1.2.3-beta.2" "key@beta"
+assert_dispatch "v1.2.3-rc.3" "key@rc"
+dispatch_count="$(wc -l < "${dispatcher_log}" | tr -d ' ')"
+for invalid_version in \
+  "1.2.3" \
+  "v01.2.3" \
+  "v1.2.3-alpha.01" \
+  "v1.2.3-preview.1"; do
+  if PATH="${dispatcher_fake_bin}:${PATH}" \
+    DISPATCHER_LOG="${dispatcher_log}" \
+      "${repo_root}/scripts/publish-homebrew.sh" "${invalid_version}" \
+      >/dev/null 2>&1; then
+    echo "expected Homebrew dispatch to reject ${invalid_version}" >&2
+    exit 1
+  fi
+done
+if [[ "$(wc -l < "${dispatcher_log}" | tr -d ' ')" != "${dispatch_count}" ]]; then
+  echo "invalid Homebrew versions reached gh workflow dispatch" >&2
   exit 1
 fi
 
-stable_cask="${tap_checkout}/Casks/key.rb"
-grep -q '^  name "Key"$' "${stable_cask}"
-grep -q '^  depends_on macos: :tahoe$' "${stable_cask}"
-grep -q '^  app "Key.app"$' "${stable_cask}"
-grep -q '^  binary "#{appdir}/Key.app/Contents/MacOS/key", target: "key"$' "${stable_cask}"
-grep -q '^  zsh_completion "completions/_key"$' "${stable_cask}"
-if grep -q 'conflicts_with' "${stable_cask}"; then
-  echo "Stable cask unexpectedly conflicts with the side-by-side Preview product" >&2
+if grep -q 'scripts/publish-homebrew.sh.*"${version}"' \
+  "${repo_root}/scripts/release.sh"; then
+  echo "the source release flow still dispatches Homebrew automatically" >&2
   exit 1
 fi
-if ruby -e 'exit(File.read(ARGV.fetch(0)).include?("\n\n\n") ? 0 : 1)' \
-  "${stable_cask}"; then
-  echo "Stable cask contains repeated blank lines" >&2
-  exit 1
-fi
-ruby -c "${stable_cask}" >/dev/null
 
-echo "Homebrew cask channel tests passed."
+echo "Release target, artifact publication, and Homebrew dispatch tests passed."

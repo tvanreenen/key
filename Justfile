@@ -5,12 +5,12 @@ default:
 # Run the Swift and release-script test suites.
 test:
   swift test
-  Tests/ReleaseScripts/homebrew-cask-token-tests.sh
+  Tests/ReleaseScripts/release-tests.sh
   Tests/PreviewScripts/preview-install-tests.sh
 
-# Verify stable and prerelease Homebrew channel selection.
+# Verify release targeting, publication, and Homebrew dispatch behavior.
 test-release-scripts:
-  Tests/ReleaseScripts/homebrew-cask-token-tests.sh
+  Tests/ReleaseScripts/release-tests.sh
 
 # Run the opt-in 300-entry in-process migration scale gate.
 test-migration-scale:
@@ -60,18 +60,14 @@ bump-version tag:
 build-release tag:
   scripts/build-release.sh "{{tag}}"
 
-# Run the full release flow: bump version, build, publish GitHub release, and update/publish the Homebrew tap.
+# Bump, build, and publish the source release; Homebrew remains a manual checkpoint.
 release tag:
   scripts/release.sh "{{tag}}"
 
-# Fast-forward the Homebrew tap checkout, then write the tag's stable or prerelease cask.
-update-homebrew-tap tag download_url sha256:
-  scripts/update-homebrew-tap.sh "{{tag}}" "{{download_url}}" "{{sha256}}"
+# Dispatch the tap-owned Homebrew pull request after source release publication.
+publish-homebrew tag:
+  scripts/publish-homebrew.sh "{{tag}}"
 
-# Stage, commit, and push the generated Homebrew tap cask update.
-publish-homebrew-tap tag:
-  scripts/publish-homebrew-tap.sh "{{tag}}"
-
-# Verify the ZIP, atomically publish main plus its tag, and upload the GitHub release asset.
+# Verify the ZIP, atomically publish main plus its tag, and upload the exact release assets.
 publish-release tag zip_path:
   scripts/publish-release.sh "{{tag}}" "{{zip_path}}"
