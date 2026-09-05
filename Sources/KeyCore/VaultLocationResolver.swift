@@ -68,6 +68,17 @@ public struct KeyConfiguration: Equatable, Sendable {
             keychainMode.rawValue
         }
     }
+
+    var listedValues: [KeyConfigValue] {
+        var values = [KeyConfigValue(key: .vaultDir, value: value(for: .vaultDir))]
+        if case .v2 = authority {
+            values.append(KeyConfigValue(
+                key: .keychainMode,
+                value: value(for: .keychainMode)
+            ))
+        }
+        return values
+    }
 }
 
 public struct KeyConfigValue: Equatable, Sendable {
@@ -217,20 +228,7 @@ public struct KeyConfigStore {
     }
 
     public func listValues() throws -> [KeyConfigValue] {
-        let configuration = try load()
-        var values = [
-            KeyConfigValue(
-                key: .vaultDir,
-                value: configuration.value(for: .vaultDir)
-            )
-        ]
-        if case .v2 = configuration.authority {
-            values.append(KeyConfigValue(
-                key: .keychainMode,
-                value: configuration.value(for: .keychainMode)
-            ))
-        }
-        return values
+        try load().listedValues
     }
 
     /// Reads the existing configured root without creating config or vault

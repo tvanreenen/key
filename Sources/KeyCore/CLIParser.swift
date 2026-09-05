@@ -104,6 +104,12 @@ public enum CLIParser {
     including iCloud Drive. Config list omits keychain-mode for v3; an explicit
     config get retains its legacy value and explains it on stderr.
 
+    Version 2 retirement:
+      Keychain-backed vaults are deprecated, but reads and writes still work.
+      Terminal status and config list warn on stderr; JSON and redirected output do not.
+      Run `key migrate --check` for a read-only readiness check. Migration is explicit.
+      No removal release has been scheduled. Review device enrollment and recovery first.
+
     Version 3 safety and recovery:
       Local APFS and iCloud Drive are directly validated for 0.2.0.
       Other ordinary folder-backed providers may work, but are not directly validated.

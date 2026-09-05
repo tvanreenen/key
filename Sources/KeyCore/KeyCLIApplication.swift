@@ -579,6 +579,18 @@ public final class KeyCLIApplication {
             "Attention: \($0.message)"
         })
         io.writeStdout(lines.joined(separator: "\n") + "\n")
+        if status.format == .version2 {
+            writeV2DeprecationWarning()
+        }
+    }
+
+    /// Warn only on explicit, terminal-facing inspection. Never probe config
+    /// or contact the helper just to add a warning to an ordinary command.
+    private func writeV2DeprecationWarning() {
+        guard io.stdoutIsTTY else { return }
+        io.writeStderr(
+            "Warning: Keychain-backed vaults (v2) are deprecated; v2 reads and writes remain supported. Run `key migrate --check` for a read-only readiness check. Migration is explicit; review device enrollment and recovery before applying.\n"
+        )
     }
 
     private func writeConflictList(
@@ -746,12 +758,15 @@ public final class KeyCLIApplication {
                 return try handle(response, for: .config(command))
             }
         case .list:
-            let values = try configStore.listValues()
-            let output = values
+            let configuration = try configStore.load()
+            let output = configuration.listedValues
                 .map { "\($0.key.rawValue)=\($0.value)" }
                 .joined(separator: "\n")
             if !output.isEmpty {
                 io.writeStdout(output + "\n")
+            }
+            if case .v2 = configuration.authority {
+                writeV2DeprecationWarning()
             }
         }
 

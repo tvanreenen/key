@@ -41,7 +41,7 @@ The v3 list change is observable and needs release notes and tests. Do not repla
 
 ## V2 retirement direction
 
-Planning direction agreed for the next development track on 2026-09-05: warn first, require explicit migration before further v2 writes later, and target v3-only normal operation by `1.0`. These are release gates, not an implemented cutoff or a promise tied to a date. `CFG-801` does not warn about v2 retirement or restrict v2 writes.
+Planning direction agreed for the next development track on 2026-09-05: warn first, require explicit migration before further v2 writes later, and target v3-only normal operation by `1.0`. These are release gates, not an implemented cutoff or a promise tied to a date. The warning portion of `V2-801` is now implemented locally after `CFG-801`; new-vault v3 setup remains pending. No v2 write restriction is implemented.
 
 | Stage | Proposed behavior | Gate before release |
 |---|---|---|
@@ -49,7 +49,17 @@ Planning direction agreed for the next development track on 2026-09-05: warn fir
 | Later qualified minor | Refuse ordinary v2 content writes with a migration explanation. Keep reads, necessary unlock/authentication, diagnostics, and explicit migration available. | Qualify local/iCloud migration, interruptions, supported hardware checks, skipped-release upgrades, and multi-Mac enrollment. Publish the cutoff in advance. |
 | `1.0` target | Remove v2 from normal runtime and ordinary config choices; retain a narrowly scoped v2-to-v3 importer and a documented path for old installations. | Prove users can reach the importer without a working v2 normal runtime, identify their source mode, and recover from failed migration without source loss. |
 
-Warnings must not contaminate secret stdout or machine-readable output, introduce surprise prompts in scripts, or change success exit codes during the warning stage. Define the diagnostic channel and warning frequency before implementation. Enforce any later write restriction in the helper, not just in CLI presentation. Classify administrative operations individually so the restriction does not block access or migration preparation.
+Warnings must not contaminate secret stdout or machine-readable output, introduce surprise prompts in scripts, or change success exit codes during the warning stage. The diagnostic channel and frequency are defined below. Enforce any later write restriction in the helper, not just in CLI presentation. Classify administrative operations individually so the restriction does not block access or migration preparation.
+
+### Implemented warning boundary
+
+The warning appears once on stderr for each v2 `key status` (including `--verbose`) or `key config list` invocation whose stdout is a terminal. `status --json` never emits it, even in a terminal. Redirected/piped stdout suppresses the retirement warning. No stored dismissal flag, timer, authentication, or migration operation is added.
+
+The message identifies v2 as deprecated, states that reads and writes remain supported, and points to the read-only `key migrate --check`. It says migration is explicit and asks users to review device enrollment and recovery. It gives no cutoff date or release number and does not claim that a particular unhealthy vault can be read or changed successfully.
+
+Status uses the helper's reported format without loading local config. Config listing uses one loaded configuration for both values and the warning decision. Missing or malformed payloads/configs keep their existing errors and do not produce an additional retirement warning. Human status health and exit codes remain unchanged.
+
+Routine secret reads, copy, mutations, unlock/lock, migration commands, and raw `config get` receive no new warning. This intentionally limits discovery to explicit inspection commands and help. Warning on every operation would either require extra selection reads or response metadata and would add noise to normal secret use. Explicit terminal inspection fits the existing CLI boundary without changing the helper protocol or machine-readable schema. A later enforcement stage must not depend on users having seen this warning.
 
 Migration remains explicit. Installing an update must not convert a vault, delete its old files or Keychain items, or silently block all access to its secrets. Users can skip the warning release, so later versions must explain the migration route themselves. Unsupported hardware or failed preflight must leave the source accessible through a documented compatible reader or migration path, not an automatic repair.
 
@@ -87,7 +97,7 @@ Preparation check on 2026-09-05: all 42 tests in those four suites passed. The i
 
 ## Unreleased change notes
 
-V3 `config list` now omits `keychain-mode`. Scripts explicitly requesting `config get keychain-mode` still receive the same raw value on stdout, with an explanation on stderr. V2 config commands retain their existing behavior. The persisted field remains for compatibility; users should not manually remove it as part of this update.
+V3 `config list` now omits `keychain-mode`. Scripts explicitly requesting `config get keychain-mode` still receive the same raw value on stdout, with an explanation on stderr. V2 config values and mutations remain compatible; terminal config listing now adds the retirement warning described above. The persisted field remains for compatibility; users should not manually remove it as part of this update.
 
 `ConfiguredVaultAuthority` distinguishes v2 key storage from v3 identity internally. Runtime composition and verified migration use it, while the helper still refuses unexpected changes to retained mode metadata. Config listing reads one snapshot. Public configuration initialization and the on-disk representation remain compatible. No parser or completion token was removed.
 
@@ -97,6 +107,8 @@ Implementation verification on 2026-09-05: `swift test --no-parallel` passed all
 
 Normal parallel runs were not clean: existing concurrency tests exceeded one-second semaphore deadlines, with a downstream error mismatch in one test. An isolated archive of pre-change commit `6cfbd27` reproduced the same failures (757 tests, 70 suites, five issues), so they predate this implementation. The serial run retains those tests' internal concurrent operations. Test scheduling reliability remains follow-up work; these results are not a claim that the normal parallel release gate passes.
 
+Warning-slice verification on 2026-09-05: 116 focused tests passed, followed by a complete serial rerun with all 765 tests in 72 suites passing. Both release-script suites and whitespace checks passed. The first full serial run encountered one `.invalidSignature` error in the unchanged `sharedEnrollmentRejectsMembersAndExistingDevices` test; its 12-test suite and the full serial suite passed on rerun. The cause of that intermittent signature failure has not been diagnosed. No crypto code, installed product, or hardware was changed, and no release qualification is claimed.
+
 ## Next implementation boundary
 
-Review `CFG-801` before installation or release. Next, design the warning and explicit new-v3-vault setup slice, and define the bounded legacy-source record needed for `CFG-802`. Keep write enforcement, normal-runtime removal, and recovery-format changes in separate reviewed slices. No default-format switch, v2 restriction, installed-app change, live-config rewrite, provider change, or YubiKey operation is implemented by this plan update.
+Review `CFG-801` and the warning slice before installation or release. Next, design explicit new-v3-vault setup and define the bounded legacy-source record needed for `CFG-802`. Keep write enforcement, normal-runtime removal, and recovery-format changes in separate reviewed slices. No default-format switch, v2 write restriction, installed-app change, live-config rewrite, provider change, or YubiKey operation is included.

@@ -4,6 +4,38 @@ import Testing
 
 struct ConfigCompatibilityTests {
     @Test(arguments: ["local", "icloud", "omitted"], [false, true])
+    func terminalConfigListWarnsOnlyForV2(storedMode: String, isV3: Bool) throws {
+        let fixture = try ConfigFixture(storedMode: storedMode, isV3: isV3)
+        defer { fixture.remove() }
+        let original = try Data(contentsOf: fixture.configURL)
+        let io = MemoryIO(stdinIsTTY: false, stdoutIsTTY: true)
+        let transport = MemoryTransport { _ in
+            Issue.record("Config warnings must not contact the helper")
+            return .success()
+        }
+        let app = KeyCLIApplication(
+            transport: transport,
+            io: io,
+            clipboard: MemoryClipboard(),
+            configStore: fixture.store
+        )
+        #expect(app.run(arguments: ["config", "list"]) == EXIT_SUCCESS)
+        let mode = storedMode == "icloud" ? "icloud" : "local"
+        let legacyLine = isV3 ? "" : "keychain-mode=\(mode)\n"
+        #expect(io.stdout == "vault-dir=\(fixture.root.path(percentEncoded: false))\n" + legacyLine)
+        if isV3 {
+            #expect(io.stderr.isEmpty)
+        } else {
+            #expect(io.stderr.components(separatedBy: "Warning:").count == 2)
+            #expect(io.stderr.contains("deprecated; v2 reads and writes remain supported"))
+            #expect(io.stderr.contains("key migrate --check"))
+            #expect(io.stderr.contains("Migration is explicit"))
+        }
+        #expect(transport.requests.isEmpty)
+        #expect(try Data(contentsOf: fixture.configURL) == original)
+    }
+
+    @Test(arguments: ["local", "icloud", "omitted"], [false, true])
     func configReadsPreserveStableFilesAndExposeOnlyActiveSettings(
         storedMode: String,
         isV3: Bool
@@ -117,7 +149,7 @@ struct ConfigCompatibilityTests {
         defer { fixture.remove() }
         let contents = "vault_dir = \"\(fixture.root.path)\"\n\(extra)\n"
         try contents.write(to: fixture.configURL, atomically: true, encoding: .utf8)
-        let io = MemoryIO(stdinIsTTY: false)
+        let io = MemoryIO(stdinIsTTY: false, stdoutIsTTY: true)
         let app = KeyCLIApplication(
             transport: MemoryTransport { _ in
                 Issue.record("Malformed config must not contact the helper")
@@ -133,6 +165,7 @@ struct ConfigCompatibilityTests {
         )
         #expect(io.stdout.isEmpty)
         #expect(!io.stderr.isEmpty)
+        #expect(!io.stderr.contains("deprecated"))
         #expect(try String(contentsOf: fixture.configURL, encoding: .utf8) == contents)
     }
 }
