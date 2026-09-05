@@ -162,7 +162,13 @@ key init "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Key Vault"
 
 Init verifies the new device-enrolled vault before saving its path and vault ID in the local config. It refuses nonempty directories, destination symlinks, and any existing configuration, including malformed configuration. Hidden files count as contents. It never overwrites an existing vault or switches away from a configured one. Unlike Git, rerunning init does not reinitialize anything. Use `key init -- -vault` for a directory name beginning with a dash.
 
+In this development build, creating a new vault requires `key init`. Ordinary vault commands and config reads or writes fail with setup guidance when no config exists; they do not create a default folder, config, or legacy vault key. `key help`, `key version`, and `key lock` remain available before setup. Existing configured v2 and v3 vaults do not need to run init again.
+
+If a configured folder or v2 key is missing, Key reports the problem instead of creating a replacement. Restore the existing vault or key. After deliberately moving the complete vault, use `key config set vault-dir <existing-directory>` to correct its path; the destination must already exist, and this preserves the selected vault ID. A directory replaced while the helper is running is refused until the helper restarts.
+
 Init means **create a new vault**, not open a vault synchronized from another Mac. Use [device enrollment](#enrolling-another-mac) for that. An empty local directory listing cannot prove that a provider has no files waiting to arrive. Key checks for unexpected arrivals during initialization but does not control provider delivery.
+
+Development limitation: the released first-time enrollment flow relied on temporary v2 configuration. With automatic setup removed, enrollment from a Mac with no config still needs an explicit way to select the existing synced folder without creating a new vault. That entry point is not implemented yet and blocks release of this change. Do not use init or hand-write a temporary config to work around it. Enrollment for already configured Macs remains available.
 
 If initialization is interrupted, leave the destination and the local `v3-init-attempts` records beside `config.toml` intact. Run `key status` to check whether selection completed. If it did, continue using the selected vault after the helper restarts. If it did not, the attempt requires inspection; init refuses to start another identity in that same directory, even after it is renamed. This release of the implementation has no automatic resume or cleanup command. The records contain an operation ID, path, and filesystem identity, not secret keys, and remain as local receipts after success.
 

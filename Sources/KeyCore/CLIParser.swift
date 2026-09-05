@@ -113,6 +113,13 @@ public enum CLIParser {
       Run `key migrate --check` for a read-only readiness check. Migration is explicit.
       No removal release has been scheduled. Review device enrollment and recovery first.
 
+    First-time setup:
+      Run `key init [directory]` to create a new vault; ordinary commands never create one.
+      Help, version, and lock work before setup. Existing vaults do not need init again.
+      Config setters require an existing config; vault-dir requires an existing directory.
+      A missing configured folder or key is an error, not permission to create a replacement.
+      Unconfigured-Mac enrollment is pending in this development build; do not use init for it.
+
     Version 3 safety and recovery:
       Init requires an empty directory, or creates the final directory if missing.
       Its parent must exist. Existing configuration is never replaced by init.
