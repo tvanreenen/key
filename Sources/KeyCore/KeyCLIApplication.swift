@@ -79,8 +79,8 @@ public final class KeyCLIApplication {
             return response.exitCode
         case let .conflict(conflictCommand):
             return try executeConflictCommand(conflictCommand)
-        case let .share(shareCommand):
-            return try executeShareCommand(shareCommand)
+        case let .share(shareCommand, vaultDirectory):
+            return try executeShareCommand(shareCommand, vaultDirectory: vaultDirectory)
         case .unlock:
             response = try transport.send(.unlock)
             return try handle(response, for: command)
@@ -161,7 +161,8 @@ public final class KeyCLIApplication {
     }
 
     private func executeShareCommand(
-        _ command: ShareCommand
+        _ command: ShareCommand,
+        vaultDirectory: String?
     ) throws -> Int32 {
         switch command {
         case let .revoke(deviceID):
@@ -182,7 +183,7 @@ public final class KeyCLIApplication {
             }
             return response.exitCode
         case .invitations:
-            return try executeSimpleShareCommand(command, request: .invitations)
+            return try executeSimpleShareCommand(command, request: .invitations, vaultDirectory: vaultDirectory)
         case let .invite(deviceName):
             return try executeSimpleShareCommand(
                 command,
@@ -191,7 +192,8 @@ public final class KeyCLIApplication {
         case let .join(invitationID, deviceName):
             return try executeJoin(
                 invitationID: invitationID,
-                deviceName: deviceName
+                deviceName: deviceName,
+                vaultDirectory: vaultDirectory
             )
         case let .requests(invitationID):
             return try executeSimpleShareCommand(
@@ -205,7 +207,8 @@ public final class KeyCLIApplication {
                     vaultID: vaultID,
                     invitationID: invitationID,
                     joinRequestID: joinRequestID
-                )
+                ),
+                vaultDirectory: vaultDirectory
             )
         case let .approve(vaultID, invitationID, comparisonCode):
             return try executeSimpleShareCommand(
@@ -223,19 +226,43 @@ public final class KeyCLIApplication {
                     vaultID: vaultID,
                     invitationID: invitationID,
                     comparisonCode: comparisonCode
-                )
+                ),
+                vaultDirectory: vaultDirectory
             )
         }
     }
 
     private func executeSimpleShareCommand(
         _ command: ShareCommand,
-        request: KeyShareRequest
+        request: KeyShareRequest,
+        vaultDirectory: String? = nil
     ) throws -> Int32 {
         try handle(
-            transport.send(.share(request)),
+            transport.send(shareServiceRequest(request, vaultDirectory: vaultDirectory)),
             for: .share(command)
         )
+    }
+
+    private func shareServiceRequest(
+        _ request: KeyShareRequest,
+        vaultDirectory: String?
+    ) throws -> KeyServiceRequest {
+        guard request.supportsDirectorySelection else { return .share(request) }
+        let directory: URL
+        if let vaultDirectory {
+            let base = URL(fileURLWithPath: currentDirectory().path, isDirectory: true)
+            directory = URL(fileURLWithPath: vaultDirectory, isDirectory: true, relativeTo: base)
+        } else if try configStore.hasConfiguration() {
+            directory = try configStore.load().vaultDirectoryURL
+        } else {
+            directory = currentDirectory()
+        }
+        let path = directory.standardizedFileURL.path
+        io.writeStderr("Enrollment folder: '\(path)'.\n")
+        if case .join = request {
+            io.writeStderr("Joining uses this Mac's enrollment identity and publishes a request. It does not create a new vault or provision a hardware key.\n")
+        }
+        return .shareInDirectory(request: request, path: path)
     }
 
     private func executeDeviceRevocation(deviceID: String) throws -> Int32 {
@@ -311,7 +338,8 @@ public final class KeyCLIApplication {
 
     private func executeJoin(
         invitationID: String,
-        deviceName: String
+        deviceName: String,
+        vaultDirectory: String?
     ) throws -> Int32 {
         let command = ShareCommand.join(
             invitationID: invitationID,
@@ -321,7 +349,8 @@ public final class KeyCLIApplication {
             invitationID: invitationID,
             deviceName: deviceName
         )
-        let initialResponse = try transport.send(.share(request))
+        let serviceRequest = try shareServiceRequest(request, vaultDirectory: vaultDirectory)
+        let initialResponse = try transport.send(serviceRequest)
         guard let review = initialResponse.deviceReplacementReview else {
             return try handle(initialResponse, for: .share(command))
         }
@@ -334,7 +363,7 @@ public final class KeyCLIApplication {
         writeDeviceRejoinReview(review)
         try confirmDeviceRejoin()
 
-        let revalidationResponse = try transport.send(.share(request))
+        let revalidationResponse = try transport.send(serviceRequest)
         guard revalidationResponse.exitCode == EXIT_SUCCESS else {
             return try handle(
                 revalidationResponse,
@@ -364,7 +393,7 @@ public final class KeyCLIApplication {
         }
 
         return try handle(
-            transport.send(.share(request)),
+            transport.send(serviceRequest),
             for: .share(command)
         )
     }

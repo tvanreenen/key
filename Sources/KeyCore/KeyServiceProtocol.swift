@@ -30,6 +30,15 @@ public enum KeyShareRequest: Codable, Equatable, Sendable {
     )
 }
 
+extension KeyShareRequest {
+    var supportsDirectorySelection: Bool {
+        switch self {
+        case .invitations, .join, .compare, .accept: true
+        default: false
+        }
+    }
+}
+
 public enum KeyServiceRequest: Codable, Equatable {
     case unlock
     case lock
@@ -40,6 +49,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     case getConflictValue(id: String, versionID: String)
     case resolveConflicts([VaultConflictResolution])
     case share(KeyShareRequest)
+    case shareInDirectory(request: KeyShareRequest, path: String)
     case list
     case migrationPreflight
     case migrationApply
@@ -63,7 +73,7 @@ public enum KeyServiceRequest: Codable, Equatable {
             120
         case .list:
             30
-        case .initializeVault, .migrationApply, .share, .setVaultDirectory, .setKeychainMode,
+        case .initializeVault, .migrationApply, .share, .shareInDirectory, .setVaultDirectory, .setKeychainMode,
             .addManual, .editManual,
             .copyEntry, .moveEntry, .removeEntry, .resolveConflicts:
             nil
@@ -74,7 +84,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     public var requiresHelperShutdownAfterSuccess: Bool {
         switch self {
         case .lock, .initializeVault, .setVaultDirectory, .migrationApply,
-            .share(.accept), .share(.replaceCurrentDevice):
+            .share(.accept), .share(.replaceCurrentDevice), .shareInDirectory(.accept, _):
             true
         default:
             false
@@ -108,6 +118,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case getConflictValue
         case resolveConflicts
         case share
+        case shareInDirectory
         case list
         case migrationPreflight
         case migrationApply
@@ -160,6 +171,11 @@ public enum KeyServiceRequest: Codable, Equatable {
                     KeyShareRequest.self,
                     forKey: .shareRequest
                 )
+            )
+        case .shareInDirectory:
+            self = .shareInDirectory(
+                request: try container.decode(KeyShareRequest.self, forKey: .shareRequest),
+                path: try container.decode(String.self, forKey: .vaultDirectory)
             )
         case .list:
             self = .list
@@ -241,6 +257,10 @@ public enum KeyServiceRequest: Codable, Equatable {
         case let .share(request):
             try container.encode(Kind.share, forKey: .kind)
             try container.encode(request, forKey: .shareRequest)
+        case let .shareInDirectory(request, path):
+            try container.encode(Kind.shareInDirectory, forKey: .kind)
+            try container.encode(request, forKey: .shareRequest)
+            try container.encode(path, forKey: .vaultDirectory)
         case .list:
             try container.encode(Kind.list, forKey: .kind)
         case .migrationPreflight:

@@ -57,7 +57,7 @@ public enum Command: Equatable {
     case migrationApply
     case status(json: Bool, verbose: Bool)
     case conflict(ConflictCommand)
-    case share(ShareCommand)
+    case share(ShareCommand, vaultDirectory: String? = nil)
     case unlock
     case lock
     case get(name: String, allowStale: Bool)

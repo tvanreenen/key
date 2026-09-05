@@ -9,6 +9,8 @@ public final class KeyServiceHost {
     private let makeHandler: () throws -> (KeyServiceRequest) -> KeyServiceResponse
     private let initialize: (String) throws -> String
     private let updateVaultDirectory: ((String) throws -> Void)?
+    private let configuredDirectory: (() throws -> URL)?
+    private let enroll: ((KeyShareRequest, String) throws -> KeyServiceResponse)?
     private var handler: ((KeyServiceRequest) -> KeyServiceResponse)?
     private var restartPending = false
 
@@ -16,12 +18,16 @@ public final class KeyServiceHost {
         hasConfiguration: @escaping () throws -> Bool,
         makeHandler: @escaping () throws -> (KeyServiceRequest) -> KeyServiceResponse,
         initialize: @escaping (String) throws -> String,
-        updateVaultDirectory: ((String) throws -> Void)? = nil
+        updateVaultDirectory: ((String) throws -> Void)? = nil,
+        configuredDirectory: (() throws -> URL)? = nil,
+        enroll: ((KeyShareRequest, String) throws -> KeyServiceResponse)? = nil
     ) {
         self.hasConfiguration = hasConfiguration
         self.makeHandler = makeHandler
         self.initialize = initialize
         self.updateVaultDirectory = updateVaultDirectory
+        self.configuredDirectory = configuredDirectory
+        self.enroll = enroll
     }
 
     public static func live(
@@ -31,6 +37,10 @@ public final class KeyServiceHost {
     ) -> KeyServiceHost {
         let initialization = V3VaultInitializationService.live(
             configStore: configStore,
+            runtimeConfiguration: runtimeConfiguration
+        )
+        let enrollment = V3UnconfiguredEnrollmentService.live(
+            configStore: configStore, keyStore: keyStore,
             runtimeConfiguration: runtimeConfiguration
         )
         return KeyServiceHost(
@@ -48,11 +58,48 @@ public final class KeyServiceHost {
             updateVaultDirectory: { path in
                 _ = try configStore.setValue(path, for: .vaultDir)
                 keyStore.invalidate()
-            }
+            },
+            configuredDirectory: { try configStore.load().vaultDirectoryURL },
+            enroll: { request, path in try enrollment.handle(request, path: path) }
         )
     }
 
     public func handle(_ request: KeyServiceRequest) -> KeyServiceResponse {
+        if case let .shareInDirectory(action, path) = request {
+            return queue.sync(flags: .barrier) {
+                respond {
+                    guard !restartPending else { return restarting() }
+                    guard action.supportsDirectorySelection,
+                          path.hasPrefix("/"), !path.utf8.contains(0)
+                    else {
+                        throw AppError.operationRefused("Invalid directory-scoped enrollment request.")
+                    }
+                    if try hasConfiguration() {
+                        guard let configuredDirectory,
+                              try configuredDirectory().standardizedFileURL.path
+                                == URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL.path
+                        else {
+                            throw AppError.operationRefused("This Mac already has a configured vault. --vault-dir cannot switch it to another folder.")
+                        }
+                        let resolved = try compositionLock.withLock {
+                            if let handler { return handler }
+                            let composed = try makeHandler()
+                            handler = composed
+                            return composed
+                        }
+                        return resolved(.share(action))
+                    }
+                    guard handler == nil, let enroll else {
+                        throw AppError.operationRefused("Unconfigured enrollment is unavailable while a configured runtime is active. Run `key lock`, then retry.")
+                    }
+                    let response = try enroll(action, path)
+                    if case .accept = action, response.exitCode == EXIT_SUCCESS {
+                        restartPending = true
+                    }
+                    return response
+                }
+            }
+        }
         if case let .initializeVault(path) = request {
             return queue.sync(flags: .barrier) {
                 respond {

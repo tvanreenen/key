@@ -645,6 +645,8 @@ public final class KeyServiceHandler {
                     action,
                     mutationContext: mutationContext
                 )
+            case .shareInDirectory:
+                throw AppError.operationRefused("Directory-scoped enrollment must be dispatched by Key Agent's service host.")
             case .list:
                 let entries = if let vaultReader {
                     try vaultReader.list(allowStale: false)
@@ -1556,7 +1558,7 @@ private extension KeyServiceRequest {
     }
 }
 
-private func enrollmentDigest(_ value: String) throws -> Data {
+func enrollmentDigest(_ value: String) throws -> Data {
     guard value.utf8.count == 64,
         value.utf8.allSatisfy({
             ($0 >= 48 && $0 <= 57) || ($0 >= 97 && $0 <= 102)

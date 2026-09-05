@@ -378,29 +378,32 @@ struct KeyCLIApplicationTests {
 
     @Test
     func shareAcceptSendsOnlyPublicCeremonyInputsAndPrintsReport() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
         let invitationID = String(repeating: "ab", count: 32)
         let code = "1234-5678-9abc-def0-1234"
         let transport = MemoryTransport { request in
-            #expect(request == .share(.accept(
+            #expect(request == .shareInDirectory(request: .accept(
                 vaultID: vaultID,
                 invitationID: invitationID,
                 comparisonCode: code
-            )))
+            ), path: directory.path))
             return .success("Enrollment completed.\n")
         }
         let io = MemoryIO(stdinIsTTY: false)
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
             "share", "accept", vaultID, invitationID, code
         ]) == EXIT_SUCCESS)
         #expect(io.stdout == "Enrollment completed.\n")
-        #expect(io.stderr.isEmpty)
+        #expect(io.stderr.contains("Enrollment folder:"))
     }
 
     @Test
@@ -580,15 +583,16 @@ struct KeyCLIApplicationTests {
 
     @Test
     func shareJoinGuidesARevokedMacThroughRejoinAndRetriesJoin() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let review = deviceReplacementReviewFixture()
         let invitationID = String(repeating: "a", count: 64)
         var joinAttempts = 0
         let transport = MemoryTransport { request in
             switch request {
-            case .share(.join(
+            case .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )):
+            ), path: directory.path):
                 joinAttempts += 1
                 if joinAttempts <= 2 {
                     return .deviceReplacementReview(review)
@@ -610,29 +614,31 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
             "share", "join", invitationID, "--name", "Laptop"
         ]) == EXIT_SUCCESS)
         #expect(transport.requests == [
-            .share(.join(
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )),
-            .share(.join(
+            ), path: directory.path),
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )),
+            ), path: directory.path),
             .share(.replaceCurrentDevice(
                 invitationID: invitationID,
                 confirmationToken: review.confirmationToken
             )),
-            .share(.join(
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            ))
+            ), path: directory.path)
         ])
         #expect(io.stdout == """
         This Mac previously belonged to this vault and has been revoked.
@@ -649,17 +655,18 @@ struct KeyCLIApplicationTests {
         Join request published.
 
         """)
-        #expect(io.stderr ==
-            "Type REJOIN to replace the revoked identity and continue: ")
+        #expect(io.stderr.hasSuffix(
+            "Type REJOIN to replace the revoked identity and continue: "))
     }
 
     @Test
     func shareJoinKeepsTheOrdinaryNewMacPathDirect() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let invitationID = String(repeating: "a", count: 64)
-        let request = KeyServiceRequest.share(.join(
+        let request = KeyServiceRequest.shareInDirectory(request: .join(
             invitationID: invitationID,
             deviceName: "Laptop"
-        ))
+        ), path: directory.path)
         let transport = MemoryTransport { received in
             #expect(received == request)
             return .success("Join request published.\n")
@@ -668,7 +675,9 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
@@ -676,17 +685,18 @@ struct KeyCLIApplicationTests {
         ]) == EXIT_SUCCESS)
         #expect(transport.requests == [request])
         #expect(io.stdout == "Join request published.\n")
-        #expect(io.stderr.isEmpty)
+        #expect(io.stderr.contains("Enrollment folder:"))
     }
 
     @Test
     func shareJoinRefusesNoninteractiveRejoinBeforeReview() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let invitationID = String(repeating: "a", count: 64)
         let transport = MemoryTransport { request in
-            #expect(request == .share(.join(
+            #expect(request == .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )))
+            ), path: directory.path))
             return .deviceReplacementReview(
                 deviceReplacementReviewFixture()
             )
@@ -695,28 +705,31 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
             "share", "join", invitationID, "--name", "Laptop"
         ]) == KeyExitCode.failure.rawValue)
-        #expect(transport.requests == [.share(.join(
+        #expect(transport.requests == [.shareInDirectory(request: .join(
             invitationID: invitationID,
             deviceName: "Laptop"
-        ))])
+        ), path: directory.path)])
         #expect(io.stdout.isEmpty)
-        #expect(io.stderr ==
-            "Rejoining a revoked Mac requires interactive confirmation.\n")
+        #expect(io.stderr.hasSuffix(
+            "Rejoining a revoked Mac requires interactive confirmation.\n"))
     }
 
     @Test
     func shareJoinCancellationKeepsRevokedLocalState() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let review = deviceReplacementReviewFixture()
         let invitationID = String(repeating: "a", count: 64)
         let transport = MemoryTransport { request in
             switch request {
-            case .share(.join):
+            case .shareInDirectory(.join, _):
                 return .deviceReplacementReview(review)
             default:
                 Issue.record("Unexpected request: \(request)")
@@ -727,17 +740,19 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
             "share", "join", invitationID, "--name", "Laptop"
         ]) == KeyExitCode.failure.rawValue)
         #expect(transport.requests == [
-            .share(.join(
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            ))
+            ), path: directory.path)
         ])
         #expect(io.stdout.contains("Synchronized vault files will not be changed."))
         #expect(io.stderr.hasSuffix("Device rejoin cancelled.\n"))
@@ -745,11 +760,12 @@ struct KeyCLIApplicationTests {
 
     @Test
     func shareJoinStopsWhenRejoinCleanupFails() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let review = deviceReplacementReviewFixture()
         let invitationID = String(repeating: "a", count: 64)
         let transport = MemoryTransport { request in
             switch request {
-            case .share(.join):
+            case .shareInDirectory(.join, _):
                 return .deviceReplacementReview(review)
             case .share(.replaceCurrentDevice):
                 return .failure("Cleanup failed safely.")
@@ -762,21 +778,23 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
             "share", "join", invitationID, "--name", "Laptop"
         ]) == KeyExitCode.failure.rawValue)
         #expect(transport.requests == [
-            .share(.join(
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )),
-            .share(.join(
+            ), path: directory.path),
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )),
+            ), path: directory.path),
             .share(.replaceCurrentDevice(
                 invitationID: invitationID,
                 confirmationToken: review.confirmationToken
@@ -788,13 +806,14 @@ struct KeyCLIApplicationTests {
 
     @Test
     func shareJoinDoesNotCleanUpWhenInvitationExpiresAtConfirmation() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let review = deviceReplacementReviewFixture()
         let invitationID = String(repeating: "a", count: 64)
         let expiresAt: UInt64 = 1_900_000_000
         var currentTime = expiresAt
         var joinAttempts = 0
         let transport = MemoryTransport { request in
-            guard case .share(.join) = request else {
+            guard case .shareInDirectory(.join, _) = request else {
                 Issue.record("Unexpected request: \(request)")
                 return .failure("Unexpected request.")
             }
@@ -814,21 +833,23 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
             "share", "join", invitationID, "--name", "Laptop"
         ]) == KeyExitCode.failure.rawValue)
         #expect(transport.requests == [
-            .share(.join(
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )),
-            .share(.join(
+            ), path: directory.path),
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            ))
+            ), path: directory.path)
         ])
         #expect(io.stderr.hasSuffix(
             "The selected enrollment invitation expired.\n"
@@ -839,6 +860,7 @@ struct KeyCLIApplicationTests {
 
     @Test
     func shareJoinResumesAfterCompletedCleanupOutlivesClientWait() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let review = deviceReplacementReviewFixture()
         let invitationID = String(repeating: "a", count: 64)
         let arguments = [
@@ -849,7 +871,7 @@ struct KeyCLIApplicationTests {
         var cleanupAttempts = 0
         let transport = MemoryTransport { request in
             switch request {
-            case .share(.join):
+            case .shareInDirectory(.join, _):
                 joinAttempts += 1
                 if cleanupCompleted {
                     return .success("Join request published.\n")
@@ -876,7 +898,9 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: arguments) == KeyExitCode.failure.rawValue)
@@ -890,28 +914,29 @@ struct KeyCLIApplicationTests {
         #expect(joinAttempts == 3)
         #expect(cleanupAttempts == 1)
         #expect(transport.requests == [
-            .share(.join(
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )),
-            .share(.join(
+            ), path: directory.path),
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )),
+            ), path: directory.path),
             .share(.replaceCurrentDevice(
                 invitationID: invitationID,
                 confirmationToken: review.confirmationToken
             )),
-            .share(.join(
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            ))
+            ), path: directory.path)
         ])
         #expect(io.stdout.hasSuffix("Join request published.\n"))
     }
 
     @Test
     func shareJoinDoesNotCleanUpWhenTheReviewedStateChanges() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let initialReview = deviceReplacementReviewFixture()
         let changedReview = deviceReplacementReviewFixture(
             checkpointID: String(repeating: "f", count: 64),
@@ -920,7 +945,7 @@ struct KeyCLIApplicationTests {
         let invitationID = String(repeating: "a", count: 64)
         var joinAttempts = 0
         let transport = MemoryTransport { request in
-            guard case .share(.join) = request else {
+            guard case .shareInDirectory(.join, _) = request else {
                 Issue.record("Unexpected request: \(request)")
                 return .failure("Unexpected request.")
             }
@@ -933,7 +958,9 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [

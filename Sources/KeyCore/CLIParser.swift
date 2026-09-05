@@ -330,6 +330,25 @@ public enum CLIParser {
             )
         }
         let remaining = Array(arguments.dropFirst())
+        if let index = remaining.firstIndex(of: "--vault-dir") {
+            guard ["invitations", "join", "compare", "accept"].contains(action),
+                  index + 1 < remaining.count,
+                  !remaining[index + 1].isEmpty,
+                  !remaining[index + 1].hasPrefix("--"),
+                  !remaining[index + 1].utf8.contains(0)
+            else {
+                throw AppError.usage("Use --vault-dir <existing-directory> with share invitations, join, compare, or accept.")
+            }
+            let path = remaining[index + 1]
+            var rest = remaining
+            rest.removeSubrange(index...index + 1)
+            guard !rest.contains("--vault-dir"),
+                  case let .share(command, _) = try parseShare(arguments: [action] + rest)
+            else {
+                throw AppError.usage("Specify --vault-dir only once.")
+            }
+            return .share(command, vaultDirectory: path)
+        }
         switch action {
         case "devices":
             return .share(.devices(json: try parseOptionalJSON(

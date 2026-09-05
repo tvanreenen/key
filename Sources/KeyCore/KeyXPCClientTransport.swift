@@ -206,7 +206,7 @@ private extension KeyServiceRequest {
         case .showConflict: "conflict show"
         case .getConflictValue: "conflict get"
         case .resolveConflicts: "conflict resolve"
-        case .share: "device sharing"
+        case .share, .shareInDirectory: "device sharing"
         case .list: "list"
         case .migrationPreflight: "migration preflight"
         case .migrationApply: "migration"
@@ -230,7 +230,7 @@ private extension KeyServiceRequest {
             "vault migration"
         case .setVaultDirectory:
             "vault directory update"
-        case .share(.accept):
+        case .share(.accept), .shareInDirectory(.accept, _):
             "enrollment acceptance"
         case .share(.replaceCurrentDevice):
             "revoked-device cleanup"
