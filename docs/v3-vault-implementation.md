@@ -2221,7 +2221,7 @@ schema. The existing two-Mac continuity promise remains the released contract.
 
 | ID | Status | Exit criteria |
 |---|---|---|
-| `CFG-801` | Planned | Model Keychain-backed v2 and device-enrolled v3 selections explicitly. Read existing Stable configs, retain v2 local/iCloud key lookup and migration, and make config output describe the selected model without presenting keychain mode as a v3 choice. Preserve detection of changes to the selected directory and vault identity while the helper runs. |
+| `CFG-801` | Implemented locally; review pending | Model Keychain-backed v2 and device-enrolled v3 selections explicitly. Read existing Stable configs, retain v2 local/iCloud key lookup and migration, and make config output describe the selected model without presenting keychain mode as a v3 choice. Preserve detection of changes to the selected directory and vault identity while the helper runs. |
 | `CFG-802` | Planned | Simplify persisted v3 configuration after defining how legacy migration provenance is retained. Cover upgrades from both local and iCloud v2 selections, migration interruption, helper restart, root changes, and deliberate rollback using retained v2 data. Keep `vault_id` under verified migration/enrollment ownership. Do not treat removing a field from one local config as product migration. |
 | `REC-801` | Selected; physical feasibility pending | Prototype two independent PIV P-256 keys on supported Macs with disposable data. Establish the supported macOS API path and provisioning requirements; verify ECDH, PIN and touch behavior, token removal, restart, and failure handling. Record token models, firmware, slots, and host versions. Do not reset or overwrite existing token material. |
 | `REC-802` | Pending `REC-801` | Specify recovery recipient registration, rotation, removal, authorization, format compatibility, and recovery after loss of every enrolled Mac. Bind recovery to authenticated vault identity and history, explain the absence of a surviving freshness checkpoint, and define replacement of lost device and recovery authority. Review the proposal before changing the permanent format. |
@@ -2234,10 +2234,7 @@ surface remain separate proposed work.
 
 Preparation artifacts added on 2026-09-05:
 
-- [Config compatibility design](config-simplification-design.md): proposes an
-  explicit v2/v3 runtime selection with retained file compatibility for
-  `CFG-801`. Persistence cleanup remains `CFG-802`, pending the provenance and
-  old-writer contract. No runtime changes have been implemented.
+- [Config compatibility design](config-simplification-design.md): `CFG-801` is implemented locally with explicit v2/v3 authority, model-specific config output, retained file compatibility, and regression tests. Review and release qualification remain pending. Persistence cleanup remains `CFG-802`, pending the provenance and old-writer contract.
 - [PIV setup and safety procedure](piv-feasibility-procedure.md): separates
   owner-controlled credential setup, test-key creation, and targeted cleanup
   into individual approval gates. Read-only inspection does not authorize

@@ -1,8 +1,8 @@
 # Config simplification compatibility design
 
-Status: proposed slices for `CFG-801` and `CFG-802`, 2026-09-05. No runtime, installed config, or vault-format change is made by this document. This work can ship independently of catastrophe recovery.
+Status: `CFG-801` implemented locally for review on 2026-09-05; `CFG-802` remains proposed. No installed config or vault-format change has been made. This work can ship independently of catastrophe recovery.
 
-## Inspected behavior and ownership
+## Pre-change behavior and ownership
 
 Baseline: `main` at `957d561`, with Stable `0.2.0` compatibility.
 
@@ -30,7 +30,7 @@ Introduce one internal active-authority value: v2 carries `KeychainMode`; v3 car
 
 Retain legacy mode for the codec and migration boundary, not v3 cryptography. Keep current emitted file bytes and source-mode values on ordinary writes, including migrated `icloud` selections. Preserve the helper's conservative mode-change check as a separate compatibility-field comparison. An explicit authority model is not permission to weaken existing guards.
 
-Proposed CLI contract:
+Implemented CLI contract:
 
 - `config list` reads one snapshot. V2 retains `vault-dir` and `keychain-mode`. V3 lists `vault-dir` only; help explains that enrollment supplies authority.
 - Explicit `config get keychain-mode` retains raw `local` or `icloud` stdout during deprecation for script compatibility. For v3, stderr explains that this is retained legacy metadata, not the active key-storage model.
@@ -68,6 +68,18 @@ Start with `CryptoAndStorageTests`, `VaultRootChangeCoordinationTests`, `KeyProd
 
 Preparation check on 2026-09-05: all 42 tests in those four suites passed. The initial sandbox run could not access Swift's compiler cache; the host-level rerun passed. This validates the existing baseline, not the proposed behavior. No full suite or release qualification was rerun for these documentation edits.
 
+## Unreleased change notes
+
+V3 `config list` now omits `keychain-mode`. Scripts explicitly requesting `config get keychain-mode` still receive the same raw value on stdout, with an explanation on stderr. V2 config commands retain their existing behavior. The persisted field remains for compatibility; users should not manually remove it as part of this update.
+
+`ConfiguredVaultAuthority` distinguishes v2 key storage from v3 identity internally. Runtime composition and verified migration use it, while the helper still refuses unexpected changes to retained mode metadata. Config listing reads one snapshot. Public configuration initialization and the on-disk representation remain compatible. No parser or completion token was removed.
+
+`ConfigCompatibilityTests` covers six read/CLI combinations (local, iCloud, or omitted mode, with v2 or v3 selection), both migration source modes, mode-change invalidation in both models, and four malformed configs. Existing service tests also check the v3 mode-change explanation.
+
+Implementation verification on 2026-09-05: `swift test --no-parallel` passed all 761 tests in 71 suites. Release target/publication/Homebrew dispatch tests and Preview install safety tests passed, as did whitespace checks. SwiftPM built the CLI and helper; no installed-product or signed-release qualification was performed.
+
+Normal parallel runs were not clean: existing concurrency tests exceeded one-second semaphore deadlines, with a downstream error mismatch in one test. An isolated archive of pre-change commit `6cfbd27` reproduced the same failures (757 tests, 70 suites, five issues), so they predate this implementation. The serial run retains those tests' internal concurrent operations. Test scheduling reliability remains follow-up work; these results are not a claim that the normal parallel release gate passes.
+
 ## Next implementation boundary
 
-Implement `CFG-801` as a reviewable source/test change while PIV setup awaits its own approval. Keep `CFG-802` and recovery-format changes out of that diff. No change to the default new-vault format, installed app, live config, provider folder, or YubiKey is implied by this design.
+Review `CFG-801` before installation or release. Keep `CFG-802` and recovery-format changes separate. No change to the default new-vault format, installed app, live config, provider folder, or YubiKey is included.

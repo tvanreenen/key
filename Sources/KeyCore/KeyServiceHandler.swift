@@ -130,7 +130,7 @@ public final class KeyServiceHandler {
         let entryStore = EntryStore(
             rootURL: keyConfiguration.vaultDirectoryURL
         )
-        guard let vaultID = keyConfiguration.vaultID else {
+        guard case let .v3(vaultID) = keyConfiguration.authority else {
             let mutationOwner = VaultTransactionMutationOwner()
             let migrationService = DeferredV3LocalMigrationService {
                 try makeV3DeviceWrappedMigrationService(
@@ -677,7 +677,9 @@ public final class KeyServiceHandler {
                 return .success()
             case let .setKeychainMode(mode):
                 guard vaultReader == nil else {
-                    throw v3ReadOnlyOperationError()
+                    throw AppError.operationRefused(
+                        "Version 3 vaults use device enrollment, not a configurable Keychain mode. Use vault-dir to select storage, including iCloud Drive."
+                    )
                 }
                 try setKeychainMode(mode)
                 return .success()
@@ -1146,10 +1148,14 @@ public final class KeyServiceHandler {
             keyStore.invalidate()
             throw error
         }
+        let runningMode = keychainMode()
         guard configured.rootURL.standardizedFileURL
                 == entryStore.rootURL.standardizedFileURL,
-              configured.vaultID == configuredVaultID,
-              configured.keychainMode == keychainMode()
+              configured.authority == ConfiguredVaultAuthority(
+                keychainMode: runningMode,
+                vaultID: configuredVaultID
+              ),
+              configured.keychainMode == runningMode
         else {
             keyStore.invalidate()
             throw AppError.operationRefused(

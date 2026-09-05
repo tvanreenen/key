@@ -249,10 +249,10 @@ struct V3ReadOnlyServiceIntegrationTests {
             handler.handle(.migrationPreflight).errorCode
                 == .operationRefused
         )
-        #expect(
-            handler.handle(.setKeychainMode(.icloud)).errorCode
-                == .operationRefused
-        )
+        let modeChange = handler.handle(.setKeychainMode(.icloud))
+        #expect(modeChange.errorCode == .operationRefused)
+        #expect(modeChange.errorMessage?.contains("device enrollment") == true)
+        #expect(modeChange.errorMessage?.contains("iCloud Drive") == true)
     }
 }
 

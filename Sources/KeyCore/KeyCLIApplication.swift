@@ -724,7 +724,13 @@ public final class KeyCLIApplication {
     private func executeConfigCommand(_ command: ConfigCommand) throws -> Int32 {
         switch command {
         case let .get(key):
-            io.writeStdout(try configStore.getValue(for: key) + "\n")
+            let configuration = try configStore.load()
+            io.writeStdout(configuration.value(for: key) + "\n")
+            if key == .keychainMode, case .v3 = configuration.authority {
+                io.writeStderr(
+                    "keychain-mode is retained legacy metadata for this v3 vault. Device enrollment supplies key authority; vault-dir selects storage, including iCloud Drive.\n"
+                )
+            }
         case let .set(key, value):
             switch key {
             case .vaultDir:

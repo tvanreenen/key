@@ -14,13 +14,34 @@ public enum VaultPathSource: Equatable, Sendable {
     }
 }
 
+/// Active key authority, distinct from the mode retained in the legacy file.
+enum ConfiguredVaultAuthority: Equatable, Sendable {
+    case v2(keychainMode: KeychainMode)
+    case v3(vaultID: String)
+
+    init(keychainMode: KeychainMode, vaultID: String?) {
+        if let vaultID {
+            self = .v3(vaultID: vaultID)
+        } else {
+            self = .v2(keychainMode: keychainMode)
+        }
+    }
+
+    var vaultID: String? {
+        guard case let .v3(vaultID) = self else { return nil }
+        return vaultID
+    }
+}
+
 public struct KeyConfiguration: Equatable, Sendable {
     public let configFileURL: URL
     public let vaultDirectoryURL: URL
     public let vaultPathSource: VaultPathSource
+    /// Active for v2; retained compatibility metadata for v3.
     public let keychainMode: KeychainMode
     /// The exact device-local v3 vault selection. A missing value means v2.
-    public let vaultID: String?
+    public var vaultID: String? { authority.vaultID }
+    let authority: ConfiguredVaultAuthority
 
     public init(
         configFileURL: URL,
@@ -33,7 +54,19 @@ public struct KeyConfiguration: Equatable, Sendable {
         self.vaultDirectoryURL = vaultDirectoryURL
         self.vaultPathSource = vaultPathSource
         self.keychainMode = keychainMode
-        self.vaultID = vaultID
+        self.authority = ConfiguredVaultAuthority(
+            keychainMode: keychainMode,
+            vaultID: vaultID
+        )
+    }
+
+    func value(for key: ConfigKey) -> String {
+        switch key {
+        case .vaultDir:
+            vaultDirectoryURL.path(percentEncoded: false)
+        case .keychainMode:
+            keychainMode.rawValue
+        }
     }
 }
 
@@ -61,8 +94,19 @@ public struct VaultLocation: Equatable, Sendable {
 
 struct ConfiguredVaultRuntimeSelection: Equatable, Sendable {
     let rootURL: URL
+    // Compare retained metadata too, preserving the helper's fail-closed guard.
     let keychainMode: KeychainMode
-    let vaultID: String?
+    let authority: ConfiguredVaultAuthority
+    var vaultID: String? { authority.vaultID }
+
+    init(rootURL: URL, keychainMode: KeychainMode, vaultID: String?) {
+        self.rootURL = rootURL
+        self.keychainMode = keychainMode
+        self.authority = ConfiguredVaultAuthority(
+            keychainMode: keychainMode,
+            vaultID: vaultID
+        )
+    }
 }
 
 public struct KeyConfigStore {
@@ -134,14 +178,7 @@ public struct KeyConfigStore {
     }
 
     public func getValue(for key: ConfigKey) throws -> String {
-        let configuration = try load()
-
-        switch key {
-        case .vaultDir:
-            return configuration.vaultDirectoryURL.path(percentEncoded: false)
-        case .keychainMode:
-            return configuration.keychainMode.rawValue
-        }
+        try load().value(for: key)
     }
 
     public func setValue(_ value: String, for key: ConfigKey) throws -> KeyConfiguration {
@@ -180,16 +217,20 @@ public struct KeyConfigStore {
     }
 
     public func listValues() throws -> [KeyConfigValue] {
-        [
+        let configuration = try load()
+        var values = [
             KeyConfigValue(
                 key: .vaultDir,
-                value: try getValue(for: .vaultDir)
-            ),
-            KeyConfigValue(
-                key: .keychainMode,
-                value: try getValue(for: .keychainMode)
+                value: configuration.value(for: .vaultDir)
             )
         ]
+        if case .v2 = configuration.authority {
+            values.append(KeyConfigValue(
+                key: .keychainMode,
+                value: configuration.value(for: .keychainMode)
+            ))
+        }
+        return values
     }
 
     /// Reads the existing configured root without creating config or vault
@@ -241,14 +282,14 @@ public struct KeyConfigStore {
             )
         }
         let current = try configuredVaultRuntimeSelection()
-        guard current.vaultID == nil else {
+        guard case let .v2(sourceMode) = current.authority else {
             throw AppError.operationRefused(
                 "This device already selects a version 3 vault."
             )
         }
         guard current.rootURL.standardizedFileURL
                 == expectedRootHandle.rootURL.standardizedFileURL,
-              current.keychainMode == expectedKeychainMode
+              sourceMode == expectedKeychainMode
         else {
             throw AppError.operationRefused(
                 "The vault configuration changed during migration. Version 2 remains selected; retry with the current configuration."

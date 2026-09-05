@@ -98,7 +98,11 @@ public enum CLIParser {
 
     Config names:
       vault-dir      Effective vault directory.
-      keychain-mode  Vault key storage mode (`local` or `icloud`).
+      keychain-mode  Version 2 key storage (`local` or `icloud`); legacy metadata for v3.
+
+    Version 3 uses device enrollment for key authority and vault-dir for storage,
+    including iCloud Drive. Config list omits keychain-mode for v3; an explicit
+    config get retains its legacy value and explains it on stderr.
 
     Version 3 safety and recovery:
       Local APFS and iCloud Drive are directly validated for 0.2.0.
