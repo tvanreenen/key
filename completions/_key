@@ -2,6 +2,7 @@
 
 typeset -ga _key_commands
 _key_commands=(
+  'init:create and select a new device-enrolled vault'
   'config:read or update config values'
   'status:explain vault health'
   'conflict:inspect or resolve authenticated content conflicts'
@@ -89,6 +90,9 @@ case "${state}" in
     ;;
   args)
     case "${words[1]}" in
+      init)
+        _arguments '1:directory:_files -/'
+        ;;
       config)
         if (( CURRENT == 2 )); then
           _describe -t config-commands 'config command' \

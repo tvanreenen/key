@@ -588,6 +588,8 @@ public final class KeyServiceHandler {
             try verifyConfiguredVaultRoot(for: request)
 
             switch request {
+            case .initializeVault:
+                throw AppError.operationRefused("Key already has a configured vault. Init does not replace it; use migration for v2 or enrollment for another Mac.")
             case .unlock:
                 if let vaultReader {
                     try vaultReader.unlock()

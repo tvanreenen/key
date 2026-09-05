@@ -13,6 +13,8 @@ public enum CLIParser {
             return try parseVersion(arguments: Array(arguments.dropFirst()))
         case "config":
             return try parseConfig(arguments: Array(arguments.dropFirst()))
+        case "init":
+            return try parseInit(arguments: Array(arguments.dropFirst()))
         case "migrate":
             return try parseMigrate(arguments: Array(arguments.dropFirst()))
         case "status":
@@ -51,6 +53,7 @@ public enum CLIParser {
       key <command> [arguments]
 
     Commands:
+      init [directory]                  Create and select a new v3 vault; defaults to the current directory.
       config get <config-name>           Print a config value.
       config set <config-name> <value>   Update a config value.
       config list                        List known config values.
@@ -111,6 +114,10 @@ public enum CLIParser {
       No removal release has been scheduled. Review device enrollment and recovery first.
 
     Version 3 safety and recovery:
+      Init requires an empty directory, or creates the final directory if missing.
+      Its parent must exist. Existing configuration is never replaced by init.
+      Init creates a NEW vault; use device enrollment for a vault from another Mac.
+      An empty synced folder may still have files waiting to download.
       Local APFS and iCloud Drive are directly validated for 0.2.0.
       Other ordinary folder-backed providers may work, but are not directly validated.
       Keep at least two active enrolled Macs; either can enroll or revoke another Mac.
@@ -120,6 +127,20 @@ public enum CLIParser {
       Provider files alone are not a backup. If every enrolled Mac is lost, the vault is
       permanently unrecoverable in 0.2.0; there is no password, cloud, or support fallback.
     """
+
+    private static func parseInit(arguments: [String]) throws -> Command {
+        var paths = arguments
+        if paths.first == "--" {
+            paths.removeFirst()
+        } else if paths.first?.hasPrefix("-") == true {
+            throw AppError.usage("Unknown option for init. Use `key init [directory]`; use `--` before a directory beginning with '-'.")
+        }
+        guard paths.count <= 1, paths.first?.isEmpty != true,
+              paths.first?.utf8.contains(0) != true else {
+            throw AppError.usage("Use `key init [directory]` with one nonempty directory path.")
+        }
+        return .initializeVault(path: paths.first)
+    }
 
     private static func parseHelp(arguments: [String]) throws -> Command {
         guard arguments.isEmpty else {

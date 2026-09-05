@@ -3,13 +3,13 @@ import KeyCore
 import OSLog
 
 private final class KeyAgentDelegate: NSObject, NSXPCListenerDelegate {
-    private let handler: KeyServiceHandler
+    private let handler: KeyServiceHost
     private let lifecycleController: HelperLifecycleController
     private let role: KeyXPCClientRole
     private let logger: Logger
 
     init(
-        handler: KeyServiceHandler,
+        handler: KeyServiceHost,
         lifecycleController: HelperLifecycleController,
         role: KeyXPCClientRole,
         logger: Logger
@@ -36,7 +36,7 @@ private final class KeyAgentDelegate: NSObject, NSXPCListenerDelegate {
 }
 
 private final class KeyAgentService: NSObject, KeyXPCProtocol {
-    private let handler: KeyServiceHandler
+    private let handler: KeyServiceHost
     private let lifecycleController: HelperLifecycleController
     private let role: KeyXPCClientRole
     private let logger: Logger
@@ -46,7 +46,7 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
     private var shutdownAuthorized = false
 
     init(
-        handler: KeyServiceHandler,
+        handler: KeyServiceHost,
         lifecycleController: HelperLifecycleController,
         role: KeyXPCClientRole,
         logger: Logger
@@ -122,75 +122,68 @@ private func run() -> Never {
     let configuration = RuntimeConfiguration.live()
     let logger = Logger(subsystem: configuration.helperBundleIdentifier, category: "XPC")
 
-    do {
-        let configStore = KeyConfigStore(
-            productIdentity: configuration.productIdentity
-        )
-        let keyConfiguration = try configStore.load()
-        let sessionKeyStore = SessionVaultKeyStore(
-            underlying: VaultKeyStore(configuration: configuration)
-        )
-        let lifecycleController = HelperLifecycleController(idleTimeout: 15 * 60) {
-            sessionKeyStore.invalidate()
-            exit(EXIT_SUCCESS)
-        }
-        let handler = try KeyServiceHandler.live(
-            keyStore: sessionKeyStore,
-            keyConfiguration: keyConfiguration,
-            configStore: configStore,
-            runtimeConfiguration: configuration
-        )
-        #if DEBUG
-        let signingPolicy = KeyXPCCodeSigningPolicy.development
-        logger.warning("Key Agent is using the explicit development XPC signing policy.")
-        #else
-        let signingPolicy = KeyXPCCodeSigningPolicy.production
-        #endif
-
-        let cliDelegate = KeyAgentDelegate(
-            handler: handler,
-            lifecycleController: lifecycleController,
-            role: .fullCLI,
-            logger: logger
-        )
-        let utilityDelegate = KeyAgentDelegate(
-            handler: handler,
-            lifecycleController: lifecycleController,
-            role: .utilityStatus,
-            logger: logger
-        )
-        let cliListener = NSXPCListener(machServiceName: configuration.helperMachServiceName)
-        let utilityListener = NSXPCListener(machServiceName: configuration.helperStatusMachServiceName)
-
-        cliListener.setConnectionCodeSigningRequirement(
-            KeyXPCSecurityPolicy.codeSigningRequirement(
-                for: .fullCLI,
-                productIdentity: configuration.productIdentity,
-                policy: signingPolicy
-            )
-        )
-        utilityListener.setConnectionCodeSigningRequirement(
-            KeyXPCSecurityPolicy.codeSigningRequirement(
-                for: .utilityStatus,
-                productIdentity: configuration.productIdentity,
-                policy: signingPolicy
-            )
-        )
-
-        lifecycleController.start()
-        cliListener.delegate = cliDelegate
-        utilityListener.delegate = utilityDelegate
-        cliListener.activate()
-        utilityListener.activate()
-
-        withExtendedLifetime((cliDelegate, utilityDelegate, cliListener, utilityListener)) {
-            RunLoop.current.run()
-        }
-        fatalError("Key Agent run loop exited unexpectedly.")
-    } catch {
-        fputs("Key Agent failed to resolve vault location: \(error.localizedDescription)\n", stderr)
-        exit(EXIT_FAILURE)
+    let configStore = KeyConfigStore(
+        productIdentity: configuration.productIdentity
+    )
+    let sessionKeyStore = SessionVaultKeyStore(
+        underlying: VaultKeyStore(configuration: configuration)
+    )
+    let lifecycleController = HelperLifecycleController(idleTimeout: 15 * 60) {
+        sessionKeyStore.invalidate()
+        exit(EXIT_SUCCESS)
     }
+    let handler = KeyServiceHost.live(
+        keyStore: sessionKeyStore,
+        configStore: configStore,
+        runtimeConfiguration: configuration
+    )
+    #if DEBUG
+    let signingPolicy = KeyXPCCodeSigningPolicy.development
+    logger.warning("Key Agent is using the explicit development XPC signing policy.")
+    #else
+    let signingPolicy = KeyXPCCodeSigningPolicy.production
+    #endif
+
+    let cliDelegate = KeyAgentDelegate(
+        handler: handler,
+        lifecycleController: lifecycleController,
+        role: .fullCLI,
+        logger: logger
+    )
+    let utilityDelegate = KeyAgentDelegate(
+        handler: handler,
+        lifecycleController: lifecycleController,
+        role: .utilityStatus,
+        logger: logger
+    )
+    let cliListener = NSXPCListener(machServiceName: configuration.helperMachServiceName)
+    let utilityListener = NSXPCListener(machServiceName: configuration.helperStatusMachServiceName)
+
+    cliListener.setConnectionCodeSigningRequirement(
+        KeyXPCSecurityPolicy.codeSigningRequirement(
+            for: .fullCLI,
+            productIdentity: configuration.productIdentity,
+            policy: signingPolicy
+        )
+    )
+    utilityListener.setConnectionCodeSigningRequirement(
+        KeyXPCSecurityPolicy.codeSigningRequirement(
+            for: .utilityStatus,
+            productIdentity: configuration.productIdentity,
+            policy: signingPolicy
+        )
+    )
+
+    lifecycleController.start()
+    cliListener.delegate = cliDelegate
+    utilityListener.delegate = utilityDelegate
+    cliListener.activate()
+    utilityListener.activate()
+
+    withExtendedLifetime((cliDelegate, utilityDelegate, cliListener, utilityListener)) {
+        RunLoop.current.run()
+    }
+    fatalError("Key Agent run loop exited unexpectedly.")
 }
 
 run()

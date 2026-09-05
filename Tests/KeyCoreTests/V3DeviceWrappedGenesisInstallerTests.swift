@@ -22,6 +22,46 @@ struct V3DeviceWrappedGenesisInstallerTests {
     private static let entryB =
         "018f4d38-7d5a-7b20-b0f1-97d6e96c4504"
 
+    @Test(arguments: [false, true])
+    func initCommandCreatesAndSelectsVerifiedGenesisWithoutV2Bootstrap(existingDirectory: Bool) throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let root = home.appendingPathComponent("Vault", isDirectory: true)
+        if existingDirectory { try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false) }
+        let config = KeyConfigStore(homeDirectoryURL: home)
+        var fixture: Fixture?
+        let service = V3VaultInitializationService(configStore: config) { directory, operation, select in
+            let created = try Fixture(sources: [], newDirectory: directory)
+            fixture = created
+            return try created.installer(selectVault: select).installNewVault(
+                in: directory, operationID: operation, deviceName: "Test Mac"
+            )
+        }
+        let host = KeyServiceHost(hasConfiguration: { try config.hasConfiguration() }, makeHandler: {
+            Issue.record("Init must not compose a v2 runtime")
+            return { _ in .failure("Unexpected runtime") }
+        }, initialize: service.initialize)
+        let io = MemoryIO(stdinIsTTY: false, stdoutIsTTY: false)
+        let app = KeyCLIApplication(
+            transport: MemoryTransport { host.handle($0) }, io: io, clipboard: MemoryClipboard(),
+            configStore: config, currentDirectory: { existingDirectory ? root : home }
+        )
+        #expect(app.run(arguments: existingDirectory ? ["init"] : ["init", "Vault"]) == EXIT_SUCCESS)
+        #expect(io.stdout.contains("Created and selected"))
+        #expect(try config.configuredVaultRuntimeSelection().vaultID == Self.vaultID)
+        #expect(try config.configuredVaultRuntimeSelection().rootURL.standardizedFileURL == root.standardizedFileURL)
+        let completed = try #require(fixture)
+        #expect(completed.v2KeyProvider.creationFlags.isEmpty)
+        #expect(completed.session.hasResidentKey)
+        let manifest = try V3DeviceWrappedManifestEnvelopeCodec().parse(#require(completed.cache.manifestData))
+        #expect(manifest.body.entries.isEmpty)
+        #expect(manifest.body.devices.count == 1)
+        #expect(manifest.body.wrappedKeys.count == 1)
+        #expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent(".key").path))
+        #expect(host.handle(.list).exitCode != EXIT_SUCCESS)
+    }
+
     @Test
     func newVaultInstallsAnEmptyVerifiedGenesisWithoutALegacyKey() throws {
         let (fixture, directory) = try Self.newVaultFixture()
@@ -611,6 +651,7 @@ private extension V3DeviceWrappedGenesisInstallerTests {
                 (any V3DeviceWrappedGenesisIdentityManaging)? = nil,
             loadV2VaultKey:
                 V3DeviceWrappedGenesisInstaller.V2VaultKeyProvider? = nil,
+            selectVault: ((String) throws -> Void)? = nil,
             phaseObserver: any V3DeviceWrappedGenesisInstallPhaseObserving =
                 InstallNoopObserver()
         ) -> V3DeviceWrappedGenesisInstaller {
@@ -623,7 +664,7 @@ private extension V3DeviceWrappedGenesisInstallerTests {
                 session: session,
                 identityManager: identityManager ?? self.identityCreator,
                 loadV2VaultKey: loadV2VaultKey ?? v2KeyProvider.load,
-                selectVault: selector.select,
+                selectVault: selectVault ?? selector.select,
                 makeUUID: InstallUUIDSequence([
                     vaultID, transitionID,
                 ] + entryIDs).next,

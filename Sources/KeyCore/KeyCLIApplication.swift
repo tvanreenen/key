@@ -6,19 +6,24 @@ public final class KeyCLIApplication {
     private let clipboard: ClipboardWriting
     private let configStore: KeyConfigStore
     private let version: KeyVersionInfo
+    private let currentDirectory: () -> URL
 
     public init(
         transport: KeyServiceTransport,
         io: InputOutput,
         clipboard: ClipboardWriting,
         configStore: KeyConfigStore = KeyConfigStore(),
-        version: KeyVersionInfo = KeyVersionInfo.currentProcess()
+        version: KeyVersionInfo = KeyVersionInfo.currentProcess(),
+        currentDirectory: @escaping () -> URL = {
+            URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+        }
     ) {
         self.transport = transport
         self.io = io
         self.clipboard = clipboard
         self.configStore = configStore
         self.version = version
+        self.currentDirectory = currentDirectory
     }
 
     @discardableResult
@@ -47,6 +52,13 @@ public final class KeyCLIApplication {
             return EXIT_SUCCESS
         case let .config(configCommand):
             return try executeConfigCommand(configCommand)
+        case let .initializeVault(path):
+            let directory = path.map {
+                URL(fileURLWithPath: $0, isDirectory: true, relativeTo: currentDirectory())
+            } ?? currentDirectory()
+            io.writeStderr("Initializing a NEW device-enrolled vault at '\(directory.standardizedFileURL.path)'. Use enrollment instead for a vault from another Mac. If every enrolled Mac is lost, this vault cannot currently be recovered.\n")
+            response = try transport.send(.initializeVault(path: directory.standardizedFileURL.path))
+            return try handle(response, for: command)
         case .migrationPreflight:
             response = try transport.send(.migrationPreflight)
             return try handle(response, for: command)
@@ -129,7 +141,7 @@ public final class KeyCLIApplication {
             break
         case .config:
             break
-        case .migrationPreflight, .migrationApply, .share,
+        case .initializeVault, .migrationPreflight, .migrationApply, .share,
             .unlock, .lock, .list:
             if let value = response.value, !value.isEmpty {
                 io.writeStdout(value)

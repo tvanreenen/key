@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 public enum VaultPathSource: Equatable, Sendable {
@@ -190,6 +191,77 @@ public struct KeyConfigStore {
 
     public func getValue(for key: ConfigKey) throws -> String {
         try load().value(for: key)
+    }
+
+    /// Presence is intentionally not validity. Even a malformed file, directory,
+    /// or dangling link must prevent init from replacing an existing selection.
+    func hasConfiguration() throws -> Bool {
+        var metadata = stat()
+        if lstat(configurationPaths().configFileURL.path, &metadata) == 0 { return true }
+        guard errno == ENOENT else {
+            throw AppError.io("Could not inspect the existing Key configuration.")
+        }
+        return false
+    }
+
+    func requireUnconfigured() throws {
+        guard try !hasConfiguration() else {
+            throw AppError.operationRefused("Key already has a configuration. Init never replaces it. Run `key status`; use `key migrate --check` for v2 or device enrollment for an existing v3 vault.")
+        }
+    }
+
+    var initializationConfigFileURL: URL { configurationPaths().configFileURL }
+
+    /// Reserves this destination before any device identity is created. Records
+    /// are local, contain no keys, and survive process failure. A later attempt
+    /// at this path must be inspected, never silently initialized again.
+    func reserveNewVaultSelection(
+        rootHandle: VaultRootDirectoryHandle,
+        operationID: VaultTransactionOperationID
+    ) throws -> (String) throws -> Void {
+        try requireUnconfigured()
+        let paths = try bootstrapPaths()
+        let configRoot = try VaultRootDirectoryHandle(opening: paths.configDirectoryURL)
+        let rootPath = rootHandle.rootURL.standardizedFileURL.path
+        // Directory identity also catches a retry through a renamed path or
+        // a different spelling of a symlinked ancestor.
+        let recordPath = "v3-init-attempts/\(rootHandle.identity.deviceID)-\(rootHandle.identity.fileID).json"
+        let record = NewVaultInitializationRecord(
+            operationID: operationID.rawValue,
+            vaultDirectory: rootPath,
+            deviceID: rootHandle.identity.deviceID,
+            fileID: rootHandle.identity.fileID
+        )
+        let bytes = try JSONEncoder().encode(record)
+        let writer = V3AtomicStagedObjectWriter(rootHandle: configRoot)
+        do {
+            try writer.install(bytes, at: recordPath)
+        } catch {
+            throw AppError.operationRefused("Cannot reserve initialization. An earlier attempt may need inspection at '\(paths.configDirectoryURL.appendingPathComponent(recordPath).path)'. Leave its files and device identity intact; init will not automatically retry or clean it up. \(error.localizedDescription)")
+        }
+        return { vaultID in
+            guard isValidV3UUID(vaultID) else {
+                throw AppError.invalidConfiguration("Cannot select an invalid version 3 vault ID.")
+            }
+            try requireUnconfigured()
+            try rootHandle.requireConfiguredRootIdentity()
+            try configRoot.requireConfiguredRootIdentity()
+            // Recheck that our durable reservation was not replaced.
+            let observed = try configRoot.withResolvedDescriptor(at: recordPath, expecting: .regularFile) {
+                readObjectData(descriptor: $0.rawValue, maximumBytes: bytes.count)
+            }
+            guard case let .available(data) = observed, data == bytes else {
+                throw AppError.operationRefused("The initialization reservation changed. Leave this attempt in place for inspection.")
+            }
+            let configuration = KeyConfigurationFile(
+                vaultDirectoryURL: rootHandle.rootURL,
+                keychainMode: .local,
+                vaultID: vaultID
+            )
+            // Atomic, durable publication without replacing another writer's
+            // config. Retain the attempt record as an inspection receipt.
+            try writer.install(configurationData(configuration), at: paths.configFileURL.lastPathComponent)
+        }
     }
 
     public func setValue(_ value: String, for key: ConfigKey) throws -> KeyConfiguration {
@@ -438,9 +510,20 @@ public struct KeyConfigStore {
     }
 
     private func writeConfigurationFile(_ configuration: KeyConfigurationFile, to configFileURL: URL) throws {
+        do {
+            try configurationData(configuration).write(to: configFileURL, options: .atomic)
+        } catch {
+            throw AppError.io("Failed to write vault configuration at '\(configFileURL.path)': \(error.localizedDescription)")
+        }
+    }
+
+    private func configurationData(_ configuration: KeyConfigurationFile) -> Data {
         let escapedPath = configuration.vaultDirectoryURL.path(percentEncoded: false)
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: "\t", with: "\\t")
         var contents = """
         # key configuration
         vault_dir = "\(escapedPath)"
@@ -450,11 +533,7 @@ public struct KeyConfigStore {
             contents += "\nvault_id = \"\(vaultID)\""
         }
 
-        do {
-            try contents.write(to: configFileURL, atomically: true, encoding: .utf8)
-        } catch {
-            throw AppError.io("Failed to write vault configuration at '\(configFileURL.path)': \(error.localizedDescription)")
-        }
+        return Data(contents.utf8)
     }
 
     private func prepareDefaultVaultDirectory(at defaultVaultURL: URL, configFileURL: URL) throws -> URL {
@@ -643,6 +722,13 @@ public struct KeyConfigStore {
 
         return URL(fileURLWithPath: resolvedPath, isDirectory: true).standardizedFileURL
     }
+}
+
+private struct NewVaultInitializationRecord: Encodable {
+    let operationID: String
+    let vaultDirectory: String
+    let deviceID: UInt64
+    let fileID: UInt64
 }
 
 public struct VaultLocationResolver {

@@ -1,8 +1,8 @@
 import Darwin
 import Foundation
 
-/// A single-use new-vault destination. Existing directories are never adopted,
-/// including empty directories that may belong to an unhydrated synced vault.
+/// A single-use destination for an explicit new-vault initialization.
+/// An empty listing does not prove that a sync provider has finished delivery.
 final class V3NewVaultDirectory {
     let rootHandle: VaultRootDirectoryHandle
     private let parentHandle: VaultRootDirectoryHandle
@@ -15,6 +15,20 @@ final class V3NewVaultDirectory {
     ) {
         self.rootHandle = rootHandle
         self.parentHandle = parentHandle
+    }
+
+    /// The caller explicitly requested initialization here, not enrollment.
+    /// Only a missing final component is created; parents must already exist.
+    static func prepare(at url: URL) throws -> V3NewVaultDirectory {
+        let parent = try VaultRootDirectoryHandle(opening: url.deletingLastPathComponent())
+        do {
+            let root = try VaultRootDirectoryHandle(opening: url)
+            let destination = V3NewVaultDirectory(rootHandle: root, parentHandle: parent)
+            try destination.requireRootNames([])
+            return destination
+        } catch VaultRootDirectoryHandleError.notFound {
+            return try create(in: parent, name: url.lastPathComponent)
+        }
     }
 
     static func create(

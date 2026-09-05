@@ -94,6 +94,8 @@
 		A5490001A5490001A5490001 /* V3DeviceWrappedReadOnlyVaultRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5490002A5490002A5490002 /* V3DeviceWrappedReadOnlyVaultRuntime.swift */; };
 		A5500001A5500001A5500001 /* V3DeviceWrappedGenesisInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5500002A5500002A5500002 /* V3DeviceWrappedGenesisInstaller.swift */; };
 		A8030001A8030001A8030001 /* V3NewVaultDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8030002A8030002A8030002 /* V3NewVaultDirectory.swift */; };
+		A8040001A8040001A8040001 /* V3VaultInitializationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8040002A8040002A8040002 /* V3VaultInitializationService.swift */; };
+		A8050001A8050001A8050001 /* KeyServiceHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8050002A8050002A8050002 /* KeyServiceHost.swift */; };
 		A5510001A5510001A5510001 /* V3DeviceWrappedManifestCandidateBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5510002A5510002A5510002 /* V3DeviceWrappedManifestCandidateBuilder.swift */; };
 		A5520001A5520001A5520001 /* V3DeviceWrappedTransactionValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5520002A5520002A5520002 /* V3DeviceWrappedTransactionValidation.swift */; };
 		A5530001A5530001A5530001 /* V3DeviceWrappedContentMutationPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5530002A5530002A5530002 /* V3DeviceWrappedContentMutationPublisher.swift */; };
@@ -315,6 +317,8 @@
 		D54200000000000000000001 /* V3ReplacementEnrollmentWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ReplacementEnrollmentWorkflow.swift; sourceTree = "<group>"; };
 		A5500002A5500002A5500002 /* V3DeviceWrappedGenesisInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedGenesisInstaller.swift; sourceTree = "<group>"; };
 		A8030002A8030002A8030002 /* V3NewVaultDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3NewVaultDirectory.swift; sourceTree = "<group>"; };
+		A8040002A8040002A8040002 /* V3VaultInitializationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3VaultInitializationService.swift; sourceTree = "<group>"; };
+		A8050002A8050002A8050002 /* KeyServiceHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyServiceHost.swift; sourceTree = "<group>"; };
 		A5510002A5510002A5510002 /* V3DeviceWrappedManifestCandidateBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedManifestCandidateBuilder.swift; sourceTree = "<group>"; };
 		A5520002A5520002A5520002 /* V3DeviceWrappedTransactionValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedTransactionValidation.swift; sourceTree = "<group>"; };
 		A5530002A5530002A5530002 /* V3DeviceWrappedContentMutationPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedContentMutationPublisher.swift; sourceTree = "<group>"; };
@@ -473,6 +477,8 @@
 				D54200000000000000000001 /* V3ReplacementEnrollmentWorkflow.swift */,
 				A5500002A5500002A5500002 /* V3DeviceWrappedGenesisInstaller.swift */,
 				A8030002A8030002A8030002 /* V3NewVaultDirectory.swift */,
+				A8040002A8040002A8040002 /* V3VaultInitializationService.swift */,
+				A8050002A8050002A8050002 /* KeyServiceHost.swift */,
 				A5510002A5510002A5510002 /* V3DeviceWrappedManifestCandidateBuilder.swift */,
 				A5520002A5520002A5520002 /* V3DeviceWrappedTransactionValidation.swift */,
 				A5530002A5530002A5530002 /* V3DeviceWrappedContentMutationPublisher.swift */,
@@ -896,6 +902,8 @@
 				D54200000000000000000002 /* V3ReplacementEnrollmentWorkflow.swift in Sources */,
 				A5500001A5500001A5500001 /* V3DeviceWrappedGenesisInstaller.swift in Sources */,
 				A8030001A8030001A8030001 /* V3NewVaultDirectory.swift in Sources */,
+				A8040001A8040001A8040001 /* V3VaultInitializationService.swift in Sources */,
+				A8050001A8050001A8050001 /* KeyServiceHost.swift in Sources */,
 				A5510001A5510001A5510001 /* V3DeviceWrappedManifestCandidateBuilder.swift in Sources */,
 				A5520001A5520001A5520001 /* V3DeviceWrappedTransactionValidation.swift in Sources */,
 				A5530001A5530001A5530001 /* V3DeviceWrappedContentMutationPublisher.swift in Sources */,

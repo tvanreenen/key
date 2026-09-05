@@ -52,6 +52,7 @@ public enum Command: Equatable {
     case help
     case version(json: Bool)
     case config(ConfigCommand)
+    case initializeVault(path: String?)
     case migrationPreflight
     case migrationApply
     case status(json: Bool, verbose: Bool)

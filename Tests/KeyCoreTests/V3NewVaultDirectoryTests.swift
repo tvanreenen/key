@@ -3,6 +3,42 @@ import Testing
 @testable import KeyCore
 
 struct V3NewVaultDirectoryTests {
+    @Test(arguments: [false, true])
+    func explicitPreparationAcceptsEmptyOrCreatesMissingDirectory(existing: Bool) throws {
+        let parent = try temporaryParent()
+        defer { try? FileManager.default.removeItem(at: parent.rootURL) }
+        let root = parent.rootURL.appendingPathComponent("Vault")
+        if existing { try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false) }
+        let destination = try V3NewVaultDirectory.prepare(at: root)
+        try destination.begin(for: root)
+        #expect(throws: AppError.self) { try destination.begin(for: root) }
+    }
+
+    @Test(arguments: [".DS_Store", "manifests", "entry.secret"])
+    func explicitPreparationRefusesAllExistingContents(name: String) throws {
+        let parent = try temporaryParent()
+        defer { try? FileManager.default.removeItem(at: parent.rootURL) }
+        let file = parent.rootURL.appendingPathComponent(name)
+        try Data("existing".utf8).write(to: file)
+        #expect(throws: AppError.self) { try V3NewVaultDirectory.prepare(at: parent.rootURL) }
+        #expect(try Data(contentsOf: file) == Data("existing".utf8))
+    }
+
+    @Test
+    func explicitPreparationDoesNotCreateMissingParentsOrFollowDestinationLinks() throws {
+        let parent = try temporaryParent()
+        defer { try? FileManager.default.removeItem(at: parent.rootURL) }
+        #expect(throws: VaultRootDirectoryHandleError.self) {
+            try V3NewVaultDirectory.prepare(at: parent.rootURL.appendingPathComponent("Missing/Vault"))
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: parent.rootURL.path).isEmpty)
+        for target in [parent.rootURL, parent.rootURL.appendingPathComponent("Missing")] {
+            let link = parent.rootURL.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+            #expect(throws: (any Error).self) { try V3NewVaultDirectory.prepare(at: link) }
+        }
+    }
+
     @Test(arguments: ["directory", "file", "symlink", "danglingSymlink"])
     func existingDestinationsAreNeverAdopted(kind: String) throws {
         let parent = try temporaryParent()
