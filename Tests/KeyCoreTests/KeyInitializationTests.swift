@@ -5,6 +5,34 @@ import Testing
 struct KeyInitializationTests {
     private let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c4504"
 
+    @Test(arguments: [["config", "list"], ["config", "get", "vault-dir"], ["config", "get", "keychain-mode"]])
+    func unconfiguredConfigInspectionDoesNotCreateAnything(arguments: [String]) throws {
+        let home = temporaryURL()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let config = KeyConfigStore(homeDirectoryURL: home)
+        let io = MemoryIO(stdinIsTTY: false, stdoutIsTTY: false)
+        let transport = MemoryTransport { _ in Issue.record("Read must stay local"); return .success() }
+        let app = KeyCLIApplication(transport: transport, io: io, clipboard: MemoryClipboard(), configStore: config)
+        #expect(app.run(arguments: arguments) == KeyConfigStore.notInitializedError.exitCode.rawValue)
+        #expect(io.stdout.isEmpty)
+        #expect(io.stderr.contains("key init"))
+        #expect(!FileManager.default.fileExists(atPath: home.path))
+        #expect(throws: KeyConfigStore.notInitializedError) { try config.load() }
+        #expect(!FileManager.default.fileExists(atPath: home.path))
+    }
+
+    @Test
+    func missingConfiguredRootIsNotRecreated() throws {
+        let home = try makeHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let existing = try writeLegacyTestConfiguration(home: home)
+        let bytes = try Data(contentsOf: existing.configFileURL)
+        try FileManager.default.removeItem(at: existing.vaultDirectoryURL)
+        #expect(throws: AppError.self) { try KeyConfigStore(homeDirectoryURL: home).load() }
+        #expect(!FileManager.default.fileExists(atPath: existing.vaultDirectoryURL.path))
+        #expect(try Data(contentsOf: existing.configFileURL) == bytes)
+    }
+
     @Test
     func parserSupportsCurrentDirectoryExplicitPathAndOptionTerminator() throws {
         #expect(try CLIParser.parse(arguments: ["init"]) == .initializeVault(path: nil))

@@ -181,6 +181,7 @@ struct KeyCLIApplicationTests {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
+        try writeLegacyTestConfiguration(home: homeDirectory)
 
         let transport = MemoryTransport { _ in
             Issue.record("transport should not be called for config get")
@@ -206,6 +207,7 @@ struct KeyCLIApplicationTests {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
+        try writeLegacyTestConfiguration(home: homeDirectory)
 
         let transport = MemoryTransport { request in
             #expect(
@@ -246,6 +248,7 @@ struct KeyCLIApplicationTests {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
+        try writeLegacyTestConfiguration(home: homeDirectory)
 
         let transport = MemoryTransport { _ in
             Issue.record("transport should not be called for config list")
@@ -271,6 +274,7 @@ struct KeyCLIApplicationTests {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
+        try writeLegacyTestConfiguration(home: homeDirectory)
 
         let transport = MemoryTransport { _ in
             Issue.record("transport should not be called for config get")
@@ -296,6 +300,7 @@ struct KeyCLIApplicationTests {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
+        try writeLegacyTestConfiguration(home: homeDirectory)
 
         let transport = MemoryTransport { request in
             #expect(request == .setKeychainMode(.icloud))

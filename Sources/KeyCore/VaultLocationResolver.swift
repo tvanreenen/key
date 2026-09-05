@@ -137,56 +137,36 @@ public struct KeyConfigStore {
     }
 
     public func load() throws -> KeyConfiguration {
-        let paths = try bootstrapPaths()
-
-        let configuredVaultURL: URL
-        let pathSource: VaultPathSource
-        let keychainMode: KeychainMode
-        let vaultID: String?
-
-        if fileManager.fileExists(atPath: paths.configFileURL.path(percentEncoded: false)) {
-            try ensurePathIsNotDirectory(
-                at: paths.configFileURL,
-                failureMessage: "Key config file '\(paths.configFileURL.path)' exists but is a directory."
-            )
-
-            let configurationFile = try loadConfigurationFile(from: paths.configFileURL)
-            configuredVaultURL = configurationFile.vaultDirectoryURL
-            keychainMode = configurationFile.keychainMode
-            vaultID = configurationFile.vaultID
-            pathSource = configurationFile.vaultDirectoryURL.standardizedFileURL == paths.defaultVaultURL.standardizedFileURL
-                ? .appSupportConfigDefault
-                : .appSupportConfigCustom
-        } else {
-            configuredVaultURL = try prepareDefaultVaultDirectory(
-                at: paths.defaultVaultURL,
-                configFileURL: paths.configFileURL
-            )
-            pathSource = .appSupportConfigDefault
-            keychainMode = .local
-            vaultID = nil
-            try writeConfigurationFile(
-                KeyConfigurationFile(
-                    vaultDirectoryURL: configuredVaultURL,
-                    keychainMode: .local,
-                    vaultID: nil
-                ),
-                to: paths.configFileURL
-            )
+        guard try hasConfiguration() else {
+            throw Self.notInitializedError
         }
-
-        try ensureDirectoryExists(
-            at: configuredVaultURL,
-            failureMessage: "Configured vault directory '\(configuredVaultURL.path)' exists but is not a directory."
+        let paths = configurationPaths()
+        try ensurePathIsNotDirectory(
+            at: paths.configFileURL,
+            failureMessage: "Key config file '\(paths.configFileURL.path)' exists but is a directory."
         )
-
+        let configuration = try loadConfigurationFile(from: paths.configFileURL)
+        try requireExistingVaultDirectory(configuration.vaultDirectoryURL)
         return KeyConfiguration(
             configFileURL: paths.configFileURL,
-            vaultDirectoryURL: configuredVaultURL,
-            vaultPathSource: pathSource,
-            keychainMode: keychainMode,
-            vaultID: vaultID
+            vaultDirectoryURL: configuration.vaultDirectoryURL,
+            vaultPathSource: configuration.vaultDirectoryURL.standardizedFileURL == paths.defaultVaultURL.standardizedFileURL
+                ? .appSupportConfigDefault : .appSupportConfigCustom,
+            keychainMode: configuration.keychainMode,
+            vaultID: configuration.vaultID
         )
+    }
+
+    static var notInitializedError: AppError {
+        .operationRefused("No vault is configured. Run `key init [directory]` to create a new vault. Use device enrollment for an existing vault from another Mac.")
+    }
+
+    private func requireExistingVaultDirectory(_ url: URL) throws {
+        do {
+            _ = try VaultRootDirectoryHandle(opening: url)
+        } catch {
+            throw AppError.invalidConfiguration("The configured vault directory is unavailable: \(error.localizedDescription) Restore the existing vault or correct its configured path; Key will not create a replacement.")
+        }
     }
 
     public func getValue(for key: ConfigKey) throws -> String {
@@ -536,34 +516,6 @@ public struct KeyConfigStore {
         return Data(contents.utf8)
     }
 
-    private func prepareDefaultVaultDirectory(at defaultVaultURL: URL, configFileURL: URL) throws -> URL {
-        var isDirectory: ObjCBool = false
-        let path = normalizedPath(for: defaultVaultURL)
-
-        if fileManager.fileExists(atPath: path, isDirectory: &isDirectory) {
-            guard isDirectory.boolValue else {
-                throw AppError.invalidConfiguration(
-                    "Default vault directory '\(path)' exists but is not a directory. Run `key config set vault-dir <path>` to choose another vault directory."
-                )
-            }
-
-            if try isDirectoryEmpty(defaultVaultURL) || directoryContainsSecretFiles(at: defaultVaultURL) {
-                return defaultVaultURL.standardizedFileURL
-            }
-
-            throw AppError.invalidConfiguration(
-                "Default vault directory '\(path)' already contains unrelated files. Run `key config set vault-dir <path>` to choose another vault directory."
-            )
-        }
-
-        do {
-            try fileManager.createDirectory(at: defaultVaultURL, withIntermediateDirectories: true)
-        } catch {
-            throw AppError.io("Failed to create directory at '\(path)': \(error.localizedDescription)")
-        }
-
-        return defaultVaultURL.standardizedFileURL
-    }
 
     private func ensureDirectoryExists(at url: URL, failureMessage: String) throws {
         var isDirectory: ObjCBool = false
@@ -593,31 +545,6 @@ public struct KeyConfigStore {
         throw AppError.invalidConfiguration(failureMessage)
     }
 
-    private func isDirectoryEmpty(_ url: URL) throws -> Bool {
-        do {
-            return try fileManager.contentsOfDirectory(atPath: normalizedPath(for: url)).isEmpty
-        } catch {
-            throw AppError.io("Failed to inspect directory at '\(url.path)': \(error.localizedDescription)")
-        }
-    }
-
-    private func directoryContainsSecretFiles(at url: URL) -> Bool {
-        guard let enumerator = fileManager.enumerator(
-            at: url,
-            includingPropertiesForKeys: nil,
-            options: [.skipsPackageDescendants]
-        ) else {
-            return false
-        }
-
-        for case let childURL as URL in enumerator {
-            if childURL.pathExtension == "secret" {
-                return true
-            }
-        }
-
-        return false
-    }
 
     private func normalizedPath(for url: URL) -> String {
         let path = url.standardizedFileURL.path(percentEncoded: false)

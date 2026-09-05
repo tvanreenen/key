@@ -141,6 +141,8 @@ struct KeyProductIdentityTests {
         )
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
 
+        try writeLegacyTestConfiguration(home: homeDirectory, product: .stable)
+        try writeLegacyTestConfiguration(home: homeDirectory, product: .preview)
         let stable = try EntryStore.defaultLocation(
             productIdentity: .stable,
             homeDirectoryURL: homeDirectory
