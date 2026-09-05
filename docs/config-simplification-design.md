@@ -22,7 +22,7 @@ For v3, the folder determines where ciphertext lives. An iCloud Drive folder doe
 | Delete mode everywhere | Breaks v2 lookup/migration, loses source-mode information, and alters helper consistency semantics. | Reject. |
 | Change help text only | Preserves bytes but leaves callers interpreting an unrelated mode and optional ID. | Insufficient as completed cleanup. |
 | Explicit runtime selection; retain old file representation initially | Separates active authority from compatibility metadata without another durable file. | Recommended first slice. |
-| Immediately move mode into a sidecar | Shortens config but adds ordering, identity binding, missing-record, and old-writer problems. | Defer until a complete persistence contract exists. |
+| Immediately move mode into a permanent sidecar | Shortens config but adds ordering, identity binding, missing-record, and old-writer problems to normal v3 operation. | Do not build by default; prefer retaining source-mode information within the bounded legacy migration path. |
 
 ## CFG-801: explicit selection, preserved file compatibility
 
@@ -39,18 +39,34 @@ Implemented CLI contract:
 
 The v3 list change is observable and needs release notes and tests. Do not replace `get` output with prose or an invented mode such as `none`. No new CLI command or JSON schema is required. Choose the release version after reviewing implementation scope, not as part of this design.
 
-## CFG-802: shorter v3 file after provenance is resolved
+## V2 retirement direction
+
+Planning direction agreed for the next development track on 2026-09-05: warn first, require explicit migration before further v2 writes later, and target v3-only normal operation by `1.0`. These are release gates, not an implemented cutoff or a promise tied to a date. `CFG-801` does not warn about v2 retirement or restrict v2 writes.
+
+| Stage | Proposed behavior | Gate before release |
+|---|---|---|
+| Next minor | Announce v2 retirement when v2 is selected and direct users to `key migrate --check`. Add explicit v3 setup for new vaults once qualified. Existing v2 vaults remain usable. | Review warning text, CLI output compatibility, and the new-vault setup path. Do not simply change the current missing-ID fallback into implicit migration. |
+| Later qualified minor | Refuse ordinary v2 content writes with a migration explanation. Keep reads, necessary unlock/authentication, diagnostics, and explicit migration available. | Qualify local/iCloud migration, interruptions, supported hardware checks, skipped-release upgrades, and multi-Mac enrollment. Publish the cutoff in advance. |
+| `1.0` target | Remove v2 from normal runtime and ordinary config choices; retain a narrowly scoped v2-to-v3 importer and a documented path for old installations. | Prove users can reach the importer without a working v2 normal runtime, identify their source mode, and recover from failed migration without source loss. |
+
+Warnings must not contaminate secret stdout or machine-readable output, introduce surprise prompts in scripts, or change success exit codes during the warning stage. Define the diagnostic channel and warning frequency before implementation. Enforce any later write restriction in the helper, not just in CLI presentation. Classify administrative operations individually so the restriction does not block access or migration preparation.
+
+Migration remains explicit. Installing an update must not convert a vault, delete its old files or Keychain items, or silently block all access to its secrets. Users can skip the warning release, so later versions must explain the migration route themselves. Unsupported hardware or failed preflight must leave the source accessible through a documented compatible reader or migration path, not an automatic repair.
+
+Coordinate the other Macs before migration: they can otherwise keep writing to the old snapshot, and those edits do not enter v3. Require a clear continuity/recovery decision before enforcing the write cutoff. PIV availability alone is not that decision; hardware purchase is not a migration prerequisite, and catastrophe recovery remains unimplemented until its own gates pass.
+
+## CFG-802: shorter v3 file with a bounded legacy path
 
 The target v3 file contains `vault_dir` and `vault_id`, without an apparent Keychain mode choice. Do not implement omission by defaulting retained state to `local`. Before removing the field, specify and test:
 
-1. A dedicated device-local provenance record versus an explicit retained rollback config. Bind records to the source root and selected vault ID; never infer historical mode from the current folder.
+1. Prefer retaining source mode within an explicit legacy-source/import record or retained rollback config, rather than introducing permanent metadata infrastructure into the v3 runtime. Bind retained records to the source root and selected vault ID; never infer historical mode from the current folder. Exact storage and retention remain review decisions.
 2. Adoption of already-migrated Stable configs, including `icloud`, without inventing source history for enrollment-only configurations.
 3. Durable ordering: retain usable old state before simplifying config. Interruption leaves an old representation or a recoverable new one. Read-only helper checks do not rewrite files.
 4. Old reader/writer behavior: Stable defaults omitted mode to `local`, ignores unknown fields, and rewrites known fields. Test downgrade followed by an old writer. A renamed field alone does not preserve compatibility.
-5. Deliberate retained-v2 selection with the correct mode and helper restart. It must not silently discard v3 identity or imply an old snapshot is current.
+5. Deliberate access to retained v2 data with the correct source mode. While v2 runtime remains supported, preserve the controlled rollback boundary and helper restart. After retirement, provide the documented importer/legacy-reader route instead of reinstating v2 as the ordinary runtime. Neither path may silently discard v3 identity or imply an old snapshot is current.
 6. Missing, malformed, stale, or conflicting provenance cannot trigger key creation, automatic v2 fallback, or trust adoption.
 
-Record location and rollback UX remain review decisions. Retaining the field until then is intentional, not completion of persisted simplification. Removing all v2 support is a separate deprecation decision.
+Retaining the field until the transition is qualified is intentional, not completion of persisted simplification. The retirement direction narrows the long-term compatibility boundary but does not make deleting the field safe today. V2 key decoding and local/iCloud source-key lookup remain necessary inside the importer after ordinary v2 operation is removed. The legacy `config get keychain-mode` compatibility behavior also needs an announced retirement point rather than an indefinite promise.
 
 ## Verification
 
@@ -63,6 +79,7 @@ Record location and rollback UX remain review decisions. Retaining the field unt
 | Migration | Both source modes, root replacement, mid-migration mode change, interrupted selection, verified reopen, unchanged v2 source. |
 | Enrollment | Interrupted selection retries the verified ceremony without arbitrary identity mutation or replacement. |
 | Later persistence | Old/new readers and writers, crash boundaries, source-mode retention, deliberate retained-v2 rollback. |
+| Retirement | Warning output/exit compatibility, helper-enforced write refusal, permitted access/migration operations, skipped releases, unsupported hardware, and other Macs still on the old snapshot. |
 
 Start with `CryptoAndStorageTests`, `VaultRootChangeCoordinationTests`, `KeyProductIdentityTests`, and `V3LocalMigrationTests`. Extend CLI/enrollment tests for changed behavior, then run the full Swift suite and release checks before qualification. Use temporary homes and disposable vaults throughout.
 
@@ -82,4 +99,4 @@ Normal parallel runs were not clean: existing concurrency tests exceeded one-sec
 
 ## Next implementation boundary
 
-Review `CFG-801` before installation or release. Keep `CFG-802` and recovery-format changes separate. No change to the default new-vault format, installed app, live config, provider folder, or YubiKey is included.
+Review `CFG-801` before installation or release. Next, design the warning and explicit new-v3-vault setup slice, and define the bounded legacy-source record needed for `CFG-802`. Keep write enforcement, normal-runtime removal, and recovery-format changes in separate reviewed slices. No default-format switch, v2 restriction, installed-app change, live-config rewrite, provider change, or YubiKey operation is implemented by this plan update.
