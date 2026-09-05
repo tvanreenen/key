@@ -79,6 +79,8 @@ struct V3UnconfiguredEnrollmentService {
                 stateStore: V3EnrollmentCeremonyStateKeychainStore(configuration: runtimeConfiguration)
             )
         }, perform: { root, request, select in
+            let session = V3DeviceWrappedVaultKeySessionStore()
+            defer { session.invalidate() }
             let configuration = KeyConfiguration(
                 configFileURL: configStore.initializationConfigFileURL,
                 vaultDirectoryURL: root.rootURL,
@@ -89,7 +91,8 @@ struct V3UnconfiguredEnrollmentService {
                 rootHandle: root, selectedVaultID: nil, keyStore: keyStore,
                 keyConfiguration: configuration, configStore: configStore,
                 runtimeConfiguration: runtimeConfiguration,
-                unconfiguredSelection: select
+                unconfiguredSelection: select,
+                deviceWrappedSession: session
             )
             // This handler is scoped to one admitted share request. It is never
             // retained as an unconfigured runtime for ordinary vault commands.

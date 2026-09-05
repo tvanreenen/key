@@ -66,6 +66,23 @@ struct UnconfiguredEnrollmentRoutingTests {
     }
 
     @Test
+    func malformedConfigurationNeverFallsBackToCurrentDirectory() throws {
+        let home = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let config = KeyConfigStore(homeDirectoryURL: home)
+        let file = config.initializationConfigFileURL
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let bytes = Data("malformed".utf8)
+        try bytes.write(to: file)
+        let io = MemoryIO(stdinIsTTY: false)
+        let app = KeyCLIApplication(transport: MemoryTransport { _ in
+            Issue.record("Broken config must not select another folder"); return .success()
+        }, io: io, clipboard: MemoryClipboard(), configStore: config, currentDirectory: { home })
+        #expect(app.run(arguments: ["share", "invitations"]) != EXIT_SUCCESS)
+        #expect(try Data(contentsOf: file) == bytes)
+    }
+
+    @Test
     func configuredHostRefusesDifferentFolderAndPreservesNormalEnrollment() {
         var calls = 0
         let host = KeyServiceHost(hasConfiguration: { true }, makeHandler: {

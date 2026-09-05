@@ -4,6 +4,11 @@ import Testing
 
 @testable import KeyCore
 
+private final class TestEnrollmentSelector: @unchecked Sendable {
+    let select: (String) throws -> Void
+    init(_ select: @escaping (String) throws -> Void) { self.select = select }
+}
+
 @Suite(.serialized)
 struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
     fileprivate static let vaultID =
@@ -771,6 +776,104 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
                 operationID: Self.operationID
             )
         }
+    }
+
+    @Test(arguments: [false, true], [false, true])
+    func unconfiguredCLIJoinsAndSelectsOnlyAfterVerifiedAcceptance(explicitDirectory: Bool, interruptedSelection: Bool) throws {
+        let fixture = try Fixture()
+        defer { fixture.removeRoot() }
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let config = KeyConfigStore(homeDirectoryURL: home)
+        let root = try VaultRootDirectoryHandle(opening: fixture.rootURL)
+        let mailbox = V3FilesystemEnrollmentMailbox(rootHandle: root)
+        let state = try fixture.joinerCeremony()
+        let transcript = try #require(state.transcript)
+        let invitationID = v3LowercaseHex(state.invitationDigest)
+        try mailbox.publishInvitation(state.signedInvitation.canonicalBytes)
+        let stateStore = ApprovalMemoryCeremonyStateStore()
+        try stateStore.replaceState(state.canonicalBytes, expectedState: nil, vaultID: Self.vaultID, invitationDigest: state.invitationDigest)
+        let checkpoints = MemoryCheckpointStore()
+        let cache = MemoryCheckpointCache()
+        let keys = MemoryVaultKeyStore()
+        let selectionAttempt = AdoptionSelectionRecorder(failFirst: interruptedSelection)
+        let service = V3UnconfiguredEnrollmentService(configStore: config, exchange: { handle in
+            V3EnrollmentExchangeCoordinator(mailbox: V3FilesystemEnrollmentMailbox(rootHandle: handle), stateStore: stateStore)
+        }, perform: { handle, request, select in
+            let selector = TestEnrollmentSelector(select)
+            let exchange = V3EnrollmentExchangeCoordinator(mailbox: V3FilesystemEnrollmentMailbox(rootHandle: handle), stateStore: stateStore)
+            let session = V3DeviceWrappedVaultKeySessionStore()
+            defer { session.invalidate() }
+            let adoption = V3DeviceWrappedEnrollmentAdoptionService(
+                source: fixture.store, checkpointStore: checkpoints, cache: cache,
+                exchange: exchange, loadIdentity: { _, _ in fixture.joiner },
+                session: session, selectVault: { vaultID in
+                    try selectionAttempt.selectOrFail(vaultID)
+                    try selector.select(vaultID)
+                },
+                verifyRuntime: { vaultID, installed in
+                    let loaded = try installed.load(vaultID: vaultID, keyID: fixture.candidate.body.keyID)
+                    #expect(loaded == Self.nextKey)
+                    #expect(checkpoints.checkpoint != nil)
+                    #expect(cache.storedManifest == fixture.candidate.manifestData)
+                }
+            )
+            let workflow = V3EnrollmentWorkflowService(
+                selectedVaultID: nil, source: fixture.store, objectStore: fixture.store,
+                checkpointStore: checkpoints, exchange: exchange,
+                identityManager: V3EnrollmentDeviceIdentityManager(recordStore: AdoptionIdentityRecordStore(), keyOperations: AdoptionDeviceKeyOperations()),
+                vaultKeyStore: keys, keychainMode: .local,
+                selectVault: { _ in Issue.record("Must use device-wrapped adoption") },
+                verifyRuntime: { _ in Issue.record("Must not use legacy key runtime") },
+                deviceWrappedAdoption: adoption
+            )
+            return KeyServiceHandler(
+                keyStore: keys, entryStore: EntryStore(rootURL: handle.rootURL),
+                now: { Date(timeIntervalSince1970: TimeInterval(Self.approvalTime)) },
+                mutationOwner: VaultTransactionMutationOwner(), enrollmentService: workflow
+            ).handle(.share(request))
+        }, now: { Date(timeIntervalSince1970: TimeInterval(Self.approvalTime)) })
+        func makeHost() -> KeyServiceHost {
+            KeyServiceHost(hasConfiguration: { try config.hasConfiguration() }, makeHandler: {
+                Issue.record("Joining must not compose a configured runtime"); return { _ in .failure("Unexpected") }
+            }, initialize: { _ in Issue.record("Joining must not initialize"); return "" }, enroll: { try service.handle($0, path: $1) })
+        }
+        let firstHost = makeHost()
+        let io = MemoryIO(stdinIsTTY: false)
+        let app = KeyCLIApplication(transport: MemoryTransport { firstHost.handle($0) }, io: io, clipboard: MemoryClipboard(), configStore: config, currentDirectory: { explicitDirectory ? home : fixture.rootURL })
+        let option = explicitDirectory ? ["--vault-dir", fixture.rootURL.path] : []
+        #expect(app.run(arguments: ["share", "invitations"] + option) == EXIT_SUCCESS)
+        #expect(!FileManager.default.fileExists(atPath: config.initializationConfigFileURL.deletingLastPathComponent().path))
+        #expect(app.run(arguments: ["share", "join", invitationID, "--name", "Joining Mac"] + option) == EXIT_SUCCESS)
+        #expect(try !config.hasConfiguration())
+        #expect(app.run(arguments: ["share", "accept", Self.vaultID, invitationID, transcript.comparisonCode] + option) != EXIT_SUCCESS)
+        #expect(try !config.hasConfiguration())
+        try fixture.publishCandidateDirectly()
+
+        // A copied folder has the same public ceremony but cannot select it.
+        let copied = home.appendingPathComponent("Copied Vault", isDirectory: true)
+        try FileManager.default.copyItem(at: fixture.rootURL, to: copied)
+        let restarted = makeHost()
+        #expect(restarted.handle(.shareInDirectory(request: .accept(vaultID: Self.vaultID, invitationID: invitationID, comparisonCode: transcript.comparisonCode), path: copied.path)).exitCode != EXIT_SUCCESS)
+        #expect(try !config.hasConfiguration())
+        let resumed = KeyCLIApplication(transport: MemoryTransport { restarted.handle($0) }, io: io, clipboard: MemoryClipboard(), configStore: config, currentDirectory: { explicitDirectory ? home : fixture.rootURL })
+        #expect(resumed.run(arguments: ["share", "accept", Self.vaultID, invitationID, "wrong-code"] + option) != EXIT_SUCCESS)
+        #expect(try !config.hasConfiguration())
+        #expect(resumed.run(arguments: ["share", "compare", Self.vaultID, invitationID] + option) == EXIT_SUCCESS)
+        if interruptedSelection {
+            #expect(resumed.run(arguments: ["share", "accept", Self.vaultID, invitationID, transcript.comparisonCode] + option) != EXIT_SUCCESS)
+            #expect(try !config.hasConfiguration())
+            let savedState = try #require(try stateStore.loadState(vaultID: Self.vaultID, invitationDigest: state.invitationDigest))
+            #expect(try V3EnrollmentCeremonyState(canonicalBytes: savedState).phase == .consumed)
+        }
+        #expect(resumed.run(arguments: ["share", "accept", Self.vaultID, invitationID, transcript.comparisonCode] + option) == EXIT_SUCCESS)
+        #expect(try config.load().vaultID == Self.vaultID)
+        #expect(try config.load().vaultDirectoryURL.standardizedFileURL == fixture.rootURL.standardizedFileURL)
+        #expect(keys.loadCount == 0)
+        #expect(keys.storeCount == 0)
+        #expect(restarted.handle(.list).errorMessage?.contains("restarting") == true)
+        #expect(io.stdout.contains("Verified and selected the existing vault"))
     }
 
     @Test

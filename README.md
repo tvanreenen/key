@@ -168,7 +168,27 @@ If a configured folder or v2 key is missing, Key reports the problem instead of 
 
 Init means **create a new vault**, not open a vault synchronized from another Mac. Use [device enrollment](#enrolling-another-mac) for that. An empty local directory listing cannot prove that a provider has no files waiting to arrive. Key checks for unexpected arrivals during initialization but does not control provider delivery.
 
-Development limitation: the released first-time enrollment flow relied on temporary v2 configuration. With automatic setup removed, enrollment from a Mac with no config still needs an explicit way to select the existing synced folder without creating a new vault. That entry point is not implemented yet and blocks release of this change. Do not use init or hand-write a temporary config to work around it. Enrollment for already configured Macs remains available.
+In the development build, a Mac without config can enroll directly from the existing synced vault folder. It does not need init or a temporary v2 config. The directory supplies the files to inspect; the invitation, comparison, approval, and verified acceptance establish trust.
+
+On the joining Mac, after the existing Mac creates an invitation:
+
+```sh
+cd "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Key Vault"
+key share invitations
+key share join <invitation-id> --name "Laptop"
+```
+
+Complete the [comparison and approval](#enrolling-another-mac) on the existing Mac, then accept from the same folder on the joining Mac:
+
+```sh
+key share accept <vault-id> <invitation-id> <comparison-code>
+key status
+key list
+```
+
+To run from elsewhere, add `--vault-dir <existing-directory>` to `share invitations`, `share join`, `share compare`, or `share accept`. Relative paths resolve against the CLI's current directory. Key prints the selected folder before sending the request. With an existing config, these commands use the configured folder regardless of the terminal's directory; an explicit different folder is refused, not selected. Enrollment never creates the vault folder or searches parent directories.
+
+A join request leaves the Mac unconfigured until acceptance verifies the approved vault and saves config automatically. Local `v3-enrollment-roots` records beside the config bind each attempt to its invitation, vault ID, path, and filesystem identity. They contain no secret keys and remain after success. Keep them and the existing ceremony state intact when retrying after an interruption. A copied, renamed, or replaced folder cannot silently reuse the attempt. Missing invitations or approvals may need time to sync; retry the same command against the same folder. If acceptance already saved config, run `key status` after the helper restarts instead of starting another enrollment.
 
 If initialization is interrupted, leave the destination and the local `v3-init-attempts` records beside `config.toml` intact. Run `key status` to check whether selection completed. If it did, continue using the selected vault after the helper restarts. If it did not, the attempt requires inspection; init refuses to start another identity in that same directory, even after it is renamed. This release of the implementation has no automatic resume or cleanup command. The records contain an operation ID, path, and filesystem identity, not secret keys, and remain as local receipts after success.
 

@@ -59,7 +59,8 @@ func makeLiveV3EnrollmentWorkflowService(
     keyConfiguration: KeyConfiguration,
     configStore: KeyConfigStore,
     runtimeConfiguration: RuntimeConfiguration,
-    unconfiguredSelection: ((String) throws -> Void)? = nil
+    unconfiguredSelection: ((String) throws -> Void)? = nil,
+    deviceWrappedSession: V3DeviceWrappedVaultKeySessionStore = V3DeviceWrappedVaultKeySessionStore()
 ) throws -> V3EnrollmentWorkflowService {
     precondition(selectedVaultID == nil || replacementVaultID == nil)
     precondition(
@@ -86,7 +87,7 @@ func makeLiveV3EnrollmentWorkflowService(
     let cache = try KeyServiceHandler.makeV3CheckpointManifestCache(
         keyConfiguration: keyConfiguration
     )
-    let session = V3DeviceWrappedVaultKeySessionStore()
+    let session = deviceWrappedSession
     let selectionCommitter = V3EnrollmentVaultSelectionCommitter(
         configStore: configStore,
         rootHandle: rootHandle,
@@ -448,7 +449,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             "Vault: \(vaultID)",
             "Invitation: \(v3LowercaseHex(invitation.digest))",
             "Expires in 10 minutes.",
-            "On the other Mac, run `key share join \(v3LowercaseHex(invitation.digest)) --name <device-name>`."
+            "On the other Mac, run `key share join \(v3LowercaseHex(invitation.digest)) --name <device-name>` from the existing vault folder, or add `--vault-dir <existing-folder>`."
         ].joined(separator: "\n") + "\n"
     }
 
@@ -632,7 +633,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             authorizationReason: "Approve the compared Mac for this vault.",
             operationID: operationID
         )
-        return "Enrollment approved. The other Mac can now run `key share accept \(vaultID) \(v3LowercaseHex(invitationDigest)) \(comparisonCode)`.\n"
+        return "Enrollment approved. From the same vault folder, the other Mac can now run `key share accept \(vaultID) \(v3LowercaseHex(invitationDigest)) \(comparisonCode)`; when running elsewhere, add `--vault-dir <existing-folder>`.\n"
     }
 
     func accept(

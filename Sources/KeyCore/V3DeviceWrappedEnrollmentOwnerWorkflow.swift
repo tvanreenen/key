@@ -117,7 +117,7 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
             "Vault: \(vaultID)",
             "Invitation: \(v3LowercaseHex(invitation.digest))",
             "Expires in 10 minutes.",
-            "On the other Mac, run `key share join \(v3LowercaseHex(invitation.digest)) --name <device-name>`."
+            "On the other Mac, run `key share join \(v3LowercaseHex(invitation.digest)) --name <device-name>` from the existing vault folder, or add `--vault-dir <existing-folder>`."
         ].joined(separator: "\n") + "\n"
     }
 
@@ -203,7 +203,7 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
             at: unixTime,
             operationID: operationID
         )
-        return "Enrollment approved. The other Mac can now run `key share accept \(vaultID) \(v3LowercaseHex(invitationDigest)) \(comparisonCode)`.\n"
+        return "Enrollment approved. From the same vault folder, the other Mac can now run `key share accept \(vaultID) \(v3LowercaseHex(invitationDigest)) \(comparisonCode)`; when running elsewhere, add `--vault-dir <existing-folder>`.\n"
     }
 
     func accept(

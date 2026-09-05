@@ -258,7 +258,12 @@ public struct KeyConfigStore {
         }
         try rootHandle.requireConfiguredRootIdentity()
         let paths = create ? try bootstrapPaths() : configurationPaths()
-        let configRoot = try VaultRootDirectoryHandle(opening: paths.configDirectoryURL)
+        let configRoot: VaultRootDirectoryHandle
+        do {
+            configRoot = try VaultRootDirectoryHandle(opening: paths.configDirectoryURL)
+        } catch {
+            throw AppError.operationRefused("Cannot open the local enrollment records: \(error.localizedDescription) Start with `key share join` in the existing vault folder. Do not use init for an existing vault.")
+        }
         let recordPath = "v3-enrollment-roots/\(v3LowercaseHex(invitationDigest)).json"
         let record = EnrollmentRootRecord(
             version: 1, vaultID: vaultID,

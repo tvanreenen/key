@@ -67,16 +67,18 @@ public enum CLIParser {
       conflict resolve <id>=<version>…   Resolve every listed conflict together.
       share devices [--json]              List authenticated vault devices.
       share revoke <device-id>            Review and revoke one vault device.
-      share invitations                   List short-lived vault invitations.
+      share invitations [--vault-dir <directory>]
+                                          List short-lived vault invitations.
       share invite --name <name>          Invite a device from the current v3 Mac.
-      share join <invite> --name <name>   Answer one exact invitation.
+      share join <invite> --name <name> [--vault-dir <directory>]
+                                          Answer one exact invitation.
       share requests <invite>             List answers to an invitation.
       share compare <vault> <invite> [request]
-                                          Show the code and device pair to compare.
+                                          Show the code and device pair; accepts --vault-dir.
       share approve <vault> <invite> <code>
                                           Approve the compared joining Mac.
       share accept <vault> <invite> <code>
-                                          Trust and select the approved vault here.
+                                          Trust and select the approved vault; accepts --vault-dir.
       get <name> [--allow-stale]         Print a secret or current TOTP code.
       copy <name> [--allow-stale]        Copy a secret or current TOTP code.
       add [--totp] <name>                Add a new secret from stdin or prompt.
@@ -118,7 +120,10 @@ public enum CLIParser {
       Help, version, and lock work before setup. Existing vaults do not need init again.
       Config setters require an existing config; vault-dir requires an existing directory.
       A missing configured folder or key is an error, not permission to create a replacement.
-      Unconfigured-Mac enrollment is pending in this development build; do not use init for it.
+      Joining an existing vault uses the current directory when this Mac has no config.
+      Use --vault-dir <directory> on invitations/join/compare/accept to run from elsewhere.
+      A configured Mac uses its configured folder; --vault-dir cannot switch vaults.
+      Enrollment never creates a vault folder. Only verified acceptance saves new config.
 
     Version 3 safety and recovery:
       Init requires an empty directory, or creates the final directory if missing.
