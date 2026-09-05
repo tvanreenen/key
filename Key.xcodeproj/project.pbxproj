@@ -93,6 +93,7 @@
 		A5480001A5480001A5480001 /* V3DeviceWrappedVaultUnlockRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5480002A5480002A5480002 /* V3DeviceWrappedVaultUnlockRuntime.swift */; };
 		A5490001A5490001A5490001 /* V3DeviceWrappedReadOnlyVaultRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5490002A5490002A5490002 /* V3DeviceWrappedReadOnlyVaultRuntime.swift */; };
 		A5500001A5500001A5500001 /* V3DeviceWrappedGenesisInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5500002A5500002A5500002 /* V3DeviceWrappedGenesisInstaller.swift */; };
+		A8030001A8030001A8030001 /* V3NewVaultDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8030002A8030002A8030002 /* V3NewVaultDirectory.swift */; };
 		A5510001A5510001A5510001 /* V3DeviceWrappedManifestCandidateBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5510002A5510002A5510002 /* V3DeviceWrappedManifestCandidateBuilder.swift */; };
 		A5520001A5520001A5520001 /* V3DeviceWrappedTransactionValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5520002A5520002A5520002 /* V3DeviceWrappedTransactionValidation.swift */; };
 		A5530001A5530001A5530001 /* V3DeviceWrappedContentMutationPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5530002A5530002A5530002 /* V3DeviceWrappedContentMutationPublisher.swift */; };
@@ -313,6 +314,7 @@
 		D54100000000000000000001 /* V3ReplacementDeviceIdentityAuthorityAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ReplacementDeviceIdentityAuthorityAdapter.swift; sourceTree = "<group>"; };
 		D54200000000000000000001 /* V3ReplacementEnrollmentWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ReplacementEnrollmentWorkflow.swift; sourceTree = "<group>"; };
 		A5500002A5500002A5500002 /* V3DeviceWrappedGenesisInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedGenesisInstaller.swift; sourceTree = "<group>"; };
+		A8030002A8030002A8030002 /* V3NewVaultDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3NewVaultDirectory.swift; sourceTree = "<group>"; };
 		A5510002A5510002A5510002 /* V3DeviceWrappedManifestCandidateBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedManifestCandidateBuilder.swift; sourceTree = "<group>"; };
 		A5520002A5520002A5520002 /* V3DeviceWrappedTransactionValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedTransactionValidation.swift; sourceTree = "<group>"; };
 		A5530002A5530002A5530002 /* V3DeviceWrappedContentMutationPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedContentMutationPublisher.swift; sourceTree = "<group>"; };
@@ -470,6 +472,7 @@
 				D54100000000000000000001 /* V3ReplacementDeviceIdentityAuthorityAdapter.swift */,
 				D54200000000000000000001 /* V3ReplacementEnrollmentWorkflow.swift */,
 				A5500002A5500002A5500002 /* V3DeviceWrappedGenesisInstaller.swift */,
+				A8030002A8030002A8030002 /* V3NewVaultDirectory.swift */,
 				A5510002A5510002A5510002 /* V3DeviceWrappedManifestCandidateBuilder.swift */,
 				A5520002A5520002A5520002 /* V3DeviceWrappedTransactionValidation.swift */,
 				A5530002A5530002A5530002 /* V3DeviceWrappedContentMutationPublisher.swift */,
@@ -892,6 +895,7 @@
 				D54100000000000000000002 /* V3ReplacementDeviceIdentityAuthorityAdapter.swift in Sources */,
 				D54200000000000000000002 /* V3ReplacementEnrollmentWorkflow.swift in Sources */,
 				A5500001A5500001A5500001 /* V3DeviceWrappedGenesisInstaller.swift in Sources */,
+				A8030001A8030001A8030001 /* V3NewVaultDirectory.swift in Sources */,
 				A5510001A5510001A5510001 /* V3DeviceWrappedManifestCandidateBuilder.swift in Sources */,
 				A5520001A5520001A5520001 /* V3DeviceWrappedTransactionValidation.swift in Sources */,
 				A5530001A5530001A5530001 /* V3DeviceWrappedContentMutationPublisher.swift in Sources */,

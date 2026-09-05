@@ -41,7 +41,7 @@ The v3 list change is observable and needs release notes and tests. Do not repla
 
 ## V2 retirement direction
 
-Planning direction agreed for the next development track on 2026-09-05: warn first, require explicit migration before further v2 writes later, and target v3-only normal operation by `1.0`. These are release gates, not an implemented cutoff or a promise tied to a date. The warning portion of `V2-801` is now implemented locally after `CFG-801`; new-vault v3 setup remains pending. No v2 write restriction is implemented.
+Planning direction agreed for the next development track on 2026-09-05: warn first, require explicit migration before further v2 writes later, and target v3-only normal operation by `1.0`. These are release gates, not an implemented cutoff or a promise tied to a date. The warning portion of `V2-801` and an internal new-vault genesis installer are now implemented locally after `CFG-801`; user-facing v3 setup remains pending. No v2 write restriction is implemented.
 
 | Stage | Proposed behavior | Gate before release |
 |---|---|---|
@@ -64,6 +64,16 @@ Routine secret reads, copy, mutations, unlock/lock, migration commands, and raw 
 Migration remains explicit. Installing an update must not convert a vault, delete its old files or Keychain items, or silently block all access to its secrets. Users can skip the warning release, so later versions must explain the migration route themselves. Unsupported hardware or failed preflight must leave the source accessible through a documented compatible reader or migration path, not an automatic repair.
 
 Coordinate the other Macs before migration: they can otherwise keep writing to the old snapshot, and those edits do not enter v3. Require a clear continuity/recovery decision before enforcing the write cutoff. PIV availability alone is not that decision; hardware purchase is not a migration prerequisite, and catastrophe recovery remains unimplemented until its own gates pass.
+
+### New-vault installer foundation
+
+New-vault creation has a separate internal entry point, `V3DeviceWrappedGenesisInstaller.installNewVault`. It shares migration's identity persistence, random vault-key generation, wrapped-key verification, immutable manifest publication, checkpoint/cache installation, and verified reopen. It does not read or create a v2 key. The migration entry point retains its existing source checks, including the requirement for an existing v2 key when migrating an empty v2 vault.
+
+Loosening that empty-migration check would make a missing key look like permission to initialize another vault. A separate creation path keeps that distinction explicit without duplicating the cryptographic installation pipeline. The caller must first reserve a new child directory through `V3NewVaultDirectory`; existing directories, files, and symlinks are refused, even when a directory appears empty. This avoids treating an unhydrated synced folder as a new vault.
+
+The directory reservation is process-local and single-use once installation begins. Root and parent identity checks refuse observed replacement. Before selection, the installer requires the root to contain only this attempt's genesis manifest and rechecks its exact bytes. Unexpected delivered files, identity changes, and interrupted phase checks prevent selection and invalidate the attempted session. These checks detect observed filesystem changes; they do not lock out a sync provider or another process.
+
+Failure can leave the new directory, identity, published manifest, or local verification state for inspection. The installer removes only its own recognized staging artifacts; it neither deletes the destination nor silently adopts it for another attempt. A reservation is not a durable recovery record. Production setup still needs helper-owned selection bound to the original configuration, restart handling, explicit retry/inspection behavior after interruption, and CLI qualification. No setup command is exposed and no default format changes in this slice.
 
 ## CFG-802: shorter v3 file with a bounded legacy path
 
@@ -109,6 +119,8 @@ Normal parallel runs were not clean: existing concurrency tests exceeded one-sec
 
 Warning-slice verification on 2026-09-05: 116 focused tests passed, followed by a complete serial rerun with all 765 tests in 72 suites passing. Both release-script suites and whitespace checks passed. The first full serial run encountered one `.invalidSignature` error in the unchanged `sharedEnrollmentRejectsMembersAndExistingDevices` test; its 12-test suite and the full serial suite passed on rerun. The cause of that intermittent signature failure has not been diagnosed. No crypto code, installed product, or hardware was changed, and no release qualification is claimed.
 
+New-vault foundation verification on 2026-09-05: all 30 focused tests in three suites passed, followed by all 775 tests in 73 suites with `swift test --no-parallel`. Coverage includes creation without a legacy key, 14 interruption boundaries, occupied destinations, invalid names, parent/root replacement, unexpected delivered data, and preserved migration checks. An unsigned `KeyCLI` Xcode build and both release-script suites passed. All vault fixtures were disposable; no installed app, live configuration, vault, or hardware was modified. Signed-release and production setup qualification remain pending.
+
 ## Next implementation boundary
 
-Review `CFG-801` and the warning slice before installation or release. Next, design explicit new-v3-vault setup and define the bounded legacy-source record needed for `CFG-802`. Keep write enforcement, normal-runtime removal, and recovery-format changes in separate reviewed slices. No default-format switch, v2 write restriction, installed-app change, live-config rewrite, provider change, or YubiKey operation is included.
+Review `CFG-801`, the warning slice, and the new-vault installer foundation before installation or release. Next, connect explicit new-v3-vault setup to helper-owned configuration selection and define interrupted-attempt handling before exposing the CLI. Define the bounded legacy-source record needed for `CFG-802` separately. Keep write enforcement, normal-runtime removal, and recovery-format changes in separate reviewed slices. No default-format switch, v2 write restriction, installed-app change, live-config rewrite, provider change, or YubiKey operation is included.
