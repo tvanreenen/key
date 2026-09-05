@@ -312,10 +312,7 @@ struct V3LocalMigrationTests {
         defer { try? FileManager.default.removeItem(at: home) }
         let root = home.appendingPathComponent("Vault", isDirectory: true)
         let configStore = KeyConfigStore(homeDirectoryURL: home)
-        _ = try configStore.setValue(
-            root.path,
-            for: .vaultDir
-        )
+        try writeLegacyTestConfiguration(home: home, root: root)
         let rootHandle = try VaultRootDirectoryHandle(opening: root)
 
         let selected = try configStore.selectV3Vault(
@@ -342,7 +339,7 @@ struct V3LocalMigrationTests {
             isDirectory: true
         )
         let changedStore = KeyConfigStore(homeDirectoryURL: otherHome)
-        _ = try changedStore.setValue(otherRoot.path, for: .vaultDir)
+        try writeLegacyTestConfiguration(home: otherHome, root: otherRoot)
         _ = try changedStore.setValue("icloud", for: .keychainMode)
         let changedRootHandle = try VaultRootDirectoryHandle(
             opening: otherRoot
@@ -370,10 +367,7 @@ struct V3LocalMigrationTests {
         let replacedStore = KeyConfigStore(
             homeDirectoryURL: replacedHome
         )
-        _ = try replacedStore.setValue(
-            replacedRoot.path,
-            for: .vaultDir
-        )
+        try writeLegacyTestConfiguration(home: replacedHome, root: replacedRoot)
         let originalRootHandle = try VaultRootDirectoryHandle(
             opening: replacedRoot
         )

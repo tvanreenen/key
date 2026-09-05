@@ -7,6 +7,7 @@ public final class KeyServiceHandler {
     private let keyStore: VaultKeyStoring
     private let entryStore: EntryStore
     private let configStore: KeyConfigStore?
+    private let configuredRootHandle: VaultRootDirectoryHandle?
     private let cipher: VaultCipher
     private let now: () -> Date
     private let mutationOwner: any VaultTransactionMutationOwning
@@ -85,6 +86,9 @@ public final class KeyServiceHandler {
         self.keyStore = keyStore
         self.entryStore = entryStore
         self.configStore = configStore
+        self.configuredRootHandle = configStore == nil
+            ? nil
+            : try? VaultRootDirectoryHandle(opening: entryStore.rootURL)
         self.cipher = cipher
         self.now = now
         self.mutationOwner = mutationOwner
@@ -595,8 +599,7 @@ public final class KeyServiceHandler {
                     try vaultReader.unlock()
                 } else {
                     _ = try loadVaultKey(
-                        reason: "Unlock key vault.",
-                        createIfMissing: true
+                        reason: "Unlock key vault."
                     )
                 }
                 return .success()
@@ -704,8 +707,7 @@ public final class KeyServiceHandler {
                 )
                 let encrypted = try entryStore.load(name)
                 let keyData = try loadVaultKey(
-                    reason: "Unlock key vault to read '\(name)'.",
-                    createIfMissing: false
+                    reason: "Unlock key vault to read '\(name)'."
                 )
                 let decrypted = try decryptSecret(encrypted, named: name, keyData: keyData)
                 return .success(try renderValue(for: encrypted.type, decryptedValue: decrypted))
@@ -1164,6 +1166,15 @@ public final class KeyServiceHandler {
                 "The vault configuration changed while Key Agent was running. Run `key lock`, then retry the command."
             )
         }
+        do {
+            guard let configuredRootHandle else {
+                throw AppError.invalidConfiguration("The configured vault directory could not be opened when Key Agent started.")
+            }
+            try configuredRootHandle.requireConfiguredRootIdentity()
+        } catch {
+            keyStore.invalidate()
+            throw AppError.invalidConfiguration("The configured vault directory is unavailable or changed. Restore the existing vault; Key will not create a replacement. \(error.localizedDescription)")
+        }
     }
 
     private func setVaultDirectory(_ path: String) throws {
@@ -1200,8 +1211,7 @@ public final class KeyServiceHandler {
 
     private func storeAddedSecret(_ secret: String, as name: String, type: SecretEntryType) throws {
         let keyData = try loadVaultKey(
-            reason: "Unlock key vault to store '\(name)'.",
-            createIfMissing: true
+            reason: "Unlock key vault to store '\(name)'."
         )
         let normalized = try normalizeSecret(secret, for: type)
         let encrypted = try cipher.encrypt(normalized, type: type, keyData: keyData)
@@ -1215,8 +1225,7 @@ public final class KeyServiceHandler {
 
         let existing = try entryStore.load(name)
         let keyData = try loadVaultKey(
-            reason: "Unlock key vault to update '\(name)'.",
-            createIfMissing: false
+            reason: "Unlock key vault to update '\(name)'."
         )
         _ = try decryptSecret(existing, named: name, keyData: keyData)
         let normalized = try normalizeSecret(secret, for: type)
@@ -1224,51 +1233,30 @@ public final class KeyServiceHandler {
         try entryStore.save(encrypted, as: name, overwrite: true)
     }
 
-    private func loadVaultKey(reason: String, createIfMissing: Bool) throws -> Data {
+    private func loadVaultKey(reason: String) throws -> Data {
         switch keychainMode() {
         case .local:
-            return try loadVaultKeyFromLocal(reason: reason, createIfMissing: createIfMissing)
+            return try loadVaultKeyFromLocal(reason: reason)
         case .icloud:
-            return try loadVaultKeyFromICloud(reason: reason, createIfMissing: createIfMissing)
+            return try loadVaultKeyFromICloud(reason: reason)
         }
     }
 
-    private func loadVaultKeyFromLocal(reason: String, createIfMissing: Bool) throws -> Data {
-        let keyExists = try keyStore.keyExists(mode: .local)
-        if createIfMissing, !keyExists, try vaultContainsEntries() {
-            throw missingVaultKeyForExistingVaultError()
-        }
-
+    private func loadVaultKeyFromLocal(reason: String) throws -> Data {
         do {
-            return try keyStore.loadKey(mode: .local, reason: reason, createIfMissing: createIfMissing)
+            return try keyStore.loadKey(mode: .local, reason: reason, createIfMissing: false)
         } catch AppError.entryNotFound {
             if try vaultContainsEntries() {
                 throw missingVaultKeyForExistingVaultError()
             }
-            throw AppError.entryNotFound("Vault key does not exist yet.")
+            throw AppError.vaultKeyMismatch("The configured v2 vault key is missing. Restore its existing key or use device enrollment for an existing v3 vault. Key will not create a replacement key.")
         }
     }
 
-    private func loadVaultKeyFromICloud(reason: String, createIfMissing: Bool) throws -> Data {
+    private func loadVaultKeyFromICloud(reason: String) throws -> Data {
         let iCloudKeyExists = try keyStore.keyExists(mode: .icloud)
-        let hasEntries = try vaultContainsEntries()
-
         if !iCloudKeyExists {
-            if createIfMissing {
-                if hasEntries {
-                    throw waitingForICloudVaultKeyError()
-                }
-
-                let keyData = try keyStore.loadKey(mode: .icloud, reason: reason, createIfMissing: true)
-                try keyStore.storeKey(keyData, mode: .local, overwriteExisting: true)
-                return keyData
-            }
-
-            if hasEntries {
-                throw waitingForICloudVaultKeyError()
-            }
-
-            throw AppError.entryNotFound("Vault key does not exist yet.")
+            throw waitingForICloudVaultKeyError()
         }
 
         let keyData = try keyStore.loadKey(mode: .icloud, reason: reason, createIfMissing: false)

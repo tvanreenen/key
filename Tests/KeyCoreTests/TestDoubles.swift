@@ -30,6 +30,10 @@ final class MemoryVaultKeyStore: VaultKeyStoring, @unchecked Sendable {
     var invalidateCount = 0
     private(set) var requests: [(mode: KeychainMode, reason: String, createIfMissing: Bool)] = []
 
+    init(keyData: Data? = nil) {
+        localKeyData = keyData
+    }
+
     var keyData: Data? {
         get { localKeyData }
         set { localKeyData = newValue }

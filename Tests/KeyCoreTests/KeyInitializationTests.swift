@@ -5,6 +5,161 @@ import Testing
 struct KeyInitializationTests {
     private let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c4504"
 
+    @Test
+    func ordinaryUnconfiguredRequestsNeverComposeOrCreateState() throws {
+        let home = temporaryURL()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let config = KeyConfigStore(homeDirectoryURL: home)
+        let host = KeyServiceHost(hasConfiguration: { try config.hasConfiguration() }, makeHandler: {
+            Issue.record("Ordinary requests must not bootstrap a runtime")
+            return { _ in .success() }
+        }, initialize: { _ in Issue.record("Only init can initialize"); return "" })
+        let requests: [KeyServiceRequest] = [
+            .vaultStatus, .unlock, .list, .get(name: "one"),
+            .migrationPreflight, .migrationApply, .listConflicts,
+            .showConflict(id: "conflict"), .getConflictValue(id: "conflict", versionID: "version"),
+            .resolveConflicts([]), .share(.devices),
+            .addManual(name: "one", secret: "test", type: .secret),
+            .editManual(name: "one", secret: "test", type: .secret),
+            .copyEntry(source: "one", destination: "two", force: false),
+            .moveEntry(source: "one", destination: "two", force: false),
+            .removeEntry(name: "one"), .setKeychainMode(.local),
+            .setVaultDirectory(path: home.appendingPathComponent("Vault").path)
+        ]
+        for request in requests {
+            #expect(host.handle(request) == .failure(KeyConfigStore.notInitializedError))
+        }
+        #expect(!FileManager.default.fileExists(atPath: home.path))
+    }
+
+    @Test(arguments: [["help"], ["version"]])
+    func helpAndVersionDoNotRequireInitialization(arguments: [String]) {
+        let home = temporaryURL()
+        let io = MemoryIO(stdinIsTTY: false, stdoutIsTTY: false)
+        let transport = MemoryTransport { _ in Issue.record("Help and version must stay local"); return .success() }
+        let app = KeyCLIApplication(
+            transport: transport, io: io, clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: home)
+        )
+        #expect(app.run(arguments: arguments) == EXIT_SUCCESS)
+        #expect(!io.stdout.isEmpty)
+        #expect(io.stderr.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: home.path))
+    }
+
+    @Test
+    func configWritesRequireExistingConfigurationAndDestination() throws {
+        let home = temporaryURL()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let config = KeyConfigStore(homeDirectoryURL: home)
+        let destination = home.appendingPathComponent("Missing Vault")
+        #expect(throws: KeyConfigStore.notInitializedError) {
+            try config.setValue(destination.path, for: .vaultDir)
+        }
+        #expect(throws: KeyConfigStore.notInitializedError) {
+            try config.setValue("local", for: .keychainMode)
+        }
+        #expect(!FileManager.default.fileExists(atPath: home.path))
+        let existing = try writeLegacyTestConfiguration(home: home)
+        let bytes = try Data(contentsOf: existing.configFileURL)
+        #expect(throws: AppError.self) { try config.setValue(destination.path, for: .vaultDir) }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        #expect(try Data(contentsOf: existing.configFileURL) == bytes)
+    }
+
+    @Test(arguments: [KeychainMode.local, .icloud])
+    func emptyLegacyVaultNeverCreatesAMissingKey(mode: KeychainMode) throws {
+        let home = try makeHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let existing = try writeLegacyTestConfiguration(home: home)
+        let config = KeyConfigStore(homeDirectoryURL: home)
+        _ = try config.setValue(mode.rawValue, for: .keychainMode)
+        let keys = MemoryVaultKeyStore()
+        let handler = KeyServiceHandler(
+            keyStore: keys, entryStore: EntryStore(rootURL: existing.vaultDirectoryURL),
+            keychainMode: mode, configStore: config
+        )
+        for request: KeyServiceRequest in [.unlock, .addManual(name: "one", secret: "test", type: .secret)] {
+            #expect(handler.handle(request).errorCode == .vaultKeyMismatch)
+        }
+        #expect(keys.requests.allSatisfy { !$0.createIfMissing })
+        #expect(keys.localKeyData == nil)
+        #expect(keys.iCloudKeyData == nil)
+        #expect(keys.storeCount == 0)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: existing.vaultDirectoryURL.path).isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func unavailableRunningVaultRefusesBeforeKeyAccess(replace: Bool) throws {
+        let home = try makeHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let existing = try writeLegacyTestConfiguration(home: home)
+        let keys = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
+        let handler = KeyServiceHandler(
+            keyStore: keys, entryStore: EntryStore(rootURL: existing.vaultDirectoryURL),
+            configStore: KeyConfigStore(homeDirectoryURL: home)
+        )
+        try FileManager.default.moveItem(at: existing.vaultDirectoryURL, to: home.appendingPathComponent("Moved Vault"))
+        if replace {
+            try FileManager.default.createDirectory(at: existing.vaultDirectoryURL, withIntermediateDirectories: false)
+        }
+        #expect(handler.handle(.unlock).errorCode == .invalidConfiguration)
+        #expect(handler.handle(.addManual(name: "one", secret: "test", type: .secret)).errorCode == .invalidConfiguration)
+        #expect(keys.loadCount == 0)
+        #expect(keys.storeCount == 0)
+        #expect(keys.invalidateCount == 2)
+        #expect(FileManager.default.fileExists(atPath: existing.vaultDirectoryURL.path) == replace)
+        if replace {
+            #expect(try FileManager.default.contentsOfDirectory(atPath: existing.vaultDirectoryURL.path).isEmpty)
+        }
+        #expect(handler.handle(.lock) == .success())
+    }
+
+    @Test
+    func lockDoesNotReadMalformedConfigurationBeforeRuntimeComposition() {
+        let host = KeyServiceHost(hasConfiguration: {
+            Issue.record("Lock must not need configuration")
+            throw AppError.invalidConfiguration("Malformed config")
+        }, makeHandler: {
+            Issue.record("Lock must not need a runtime")
+            return { _ in .success() }
+        }, initialize: { _ in "" })
+        #expect(host.handle(.lock) == .success())
+    }
+
+    @Test(arguments: [false, true])
+    func liveHostCanCorrectAMovedVaultWithoutComposingItsOldRuntime(version3: Bool) throws {
+        let home = try makeHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let existing = try writeLegacyTestConfiguration(home: home)
+        if version3 {
+            var bytes = try Data(contentsOf: existing.configFileURL)
+            bytes.append(Data("vault_id = \"\(vaultID)\"\n".utf8))
+            try bytes.write(to: existing.configFileURL)
+        }
+        let destination = home.appendingPathComponent("Moved Vault")
+        try FileManager.default.moveItem(at: existing.vaultDirectoryURL, to: destination)
+        let config = KeyConfigStore(homeDirectoryURL: home)
+        let keys = MemoryVaultKeyStore()
+        let host = KeyServiceHost.live(
+            keyStore: keys, configStore: config,
+            runtimeConfiguration: RuntimeConfiguration(productIdentity: .stable)
+        )
+        #expect(host.handle(.list).errorCode == .invalidConfiguration)
+        #expect(host.handle(.setVaultDirectory(path: home.appendingPathComponent("Missing").path)).errorCode == .invalidConfiguration)
+        #expect(host.handle(.setVaultDirectory(path: destination.path)) == .success())
+        let selected = try config.load()
+        #expect(selected.vaultDirectoryURL.standardizedFileURL == destination.standardizedFileURL)
+        #expect(selected.vaultID == (version3 ? vaultID : nil))
+        #expect(selected.keychainMode == .local)
+        #expect(keys.loadCount == 0)
+        #expect(keys.storeCount == 0)
+        #expect(keys.invalidateCount == 1)
+        #expect(host.handle(.list).errorMessage?.contains("restarting") == true)
+        #expect(host.handle(.lock) == .success())
+        #expect(!FileManager.default.fileExists(atPath: existing.vaultDirectoryURL.path))
+    }
+
     @Test(arguments: [["config", "list"], ["config", "get", "vault-dir"], ["config", "get", "keychain-mode"]])
     func unconfiguredConfigInspectionDoesNotCreateAnything(arguments: [String]) throws {
         let home = temporaryURL()

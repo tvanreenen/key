@@ -108,6 +108,7 @@ struct ConfigCompatibilityTests {
         #expect(selected.authority == .v3(vaultID: ConfigFixture.vaultID))
         #expect(selected.keychainMode == mode)
         let newRoot = fixture.home.appendingPathComponent("Moved Vault")
+        try FileManager.default.createDirectory(at: newRoot, withIntermediateDirectories: false)
         let updated = try fixture.store.setValue(newRoot.path, for: .vaultDir)
         #expect(updated.authority == selected.authority)
         #expect(updated.keychainMode == mode)
@@ -183,7 +184,7 @@ private struct ConfigFixture {
             .standardizedFileURL
         root = home.appendingPathComponent("Vault", isDirectory: true)
         store = KeyConfigStore(homeDirectoryURL: home)
-        configURL = try store.setValue(root.path, for: .vaultDir).configFileURL
+        configURL = try writeLegacyTestConfiguration(home: home, root: root).configFileURL
         var contents = "# Stable-compatible fixture\nvault_dir = \"\(root.path)\"\n"
         if storedMode != "omitted" {
             contents += "keychain_mode = \"\(storedMode)\"\n"

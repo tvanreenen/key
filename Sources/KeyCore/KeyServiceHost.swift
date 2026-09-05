@@ -8,17 +8,20 @@ public final class KeyServiceHost {
     private let hasConfiguration: () throws -> Bool
     private let makeHandler: () throws -> (KeyServiceRequest) -> KeyServiceResponse
     private let initialize: (String) throws -> String
+    private let updateVaultDirectory: ((String) throws -> Void)?
     private var handler: ((KeyServiceRequest) -> KeyServiceResponse)?
     private var restartPending = false
 
     init(
         hasConfiguration: @escaping () throws -> Bool,
         makeHandler: @escaping () throws -> (KeyServiceRequest) -> KeyServiceResponse,
-        initialize: @escaping (String) throws -> String
+        initialize: @escaping (String) throws -> String,
+        updateVaultDirectory: ((String) throws -> Void)? = nil
     ) {
         self.hasConfiguration = hasConfiguration
         self.makeHandler = makeHandler
         self.initialize = initialize
+        self.updateVaultDirectory = updateVaultDirectory
     }
 
     public static func live(
@@ -41,7 +44,11 @@ public final class KeyServiceHost {
                 )
                 return handler.handle
             },
-            initialize: initialization.initialize
+            initialize: initialization.initialize,
+            updateVaultDirectory: { path in
+                _ = try configStore.setValue(path, for: .vaultDir)
+                keyStore.invalidate()
+            }
         )
     }
 
@@ -59,23 +66,35 @@ public final class KeyServiceHost {
                 }
             }
         }
-        return queue.sync {
+        let flags: DispatchWorkItemFlags
+        if case .setVaultDirectory = request {
+            flags = .barrier
+        } else {
+            flags = []
+        }
+        return queue.sync(flags: flags) {
             respond {
                 if restartPending {
                     return request == .lock ? .success() : restarting()
                 }
                 let resolved = try compositionLock.withLock {
                     if let handler { return handler }
+                    if request == .lock { return { _ in .success() } }
                     if try !hasConfiguration() {
                         // Opening the app polls this endpoint. It must not
                         // accidentally select v2 before the first `key init`.
                         if request == .status {
                             return { _ in .success(helperStatus: .locked(inactivityTimeoutSeconds: 15 * 60)) }
                         }
-                        if request == .lock { return { _ in .success() } }
-                        if request == .vaultStatus {
-                            return { _ in .failure("No vault is configured. Run `key init [directory]` for a new vault, or use device enrollment for an existing vault.", code: .operationRefused) }
-                        }
+                        return { _ in .failure(KeyConfigStore.notInitializedError) }
+                    }
+                    // A moved vault cannot compose its old runtime. Correct
+                    // only an existing selection, without opening the old root.
+                    if case let .setVaultDirectory(path) = request,
+                       let updateVaultDirectory {
+                        try updateVaultDirectory(path)
+                        restartPending = true
+                        return { _ in .success() }
                     }
                     let composed = try makeHandler()
                     handler = composed
@@ -93,6 +112,6 @@ public final class KeyServiceHost {
     }
 
     private func restarting() -> KeyServiceResponse {
-        .failure("The new vault was selected and Key Agent is restarting. Run `key lock`, then `key status`; do not initialize another vault.")
+        .failure("The vault configuration changed and Key Agent is restarting. Run `key lock`, then `key status`; do not initialize another vault.")
     }
 }

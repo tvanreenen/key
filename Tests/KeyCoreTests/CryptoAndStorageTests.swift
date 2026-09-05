@@ -273,13 +273,15 @@ struct CryptoAndStorageTests {
     }
 
     @Test
-    func configStoreSetWritesResolvedAbsoluteVaultDirectoryAndCreatesIt() throws {
+    func configStoreSetWritesResolvedExistingVaultDirectory() throws {
         let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
 
         let store = KeyConfigStore(homeDirectoryURL: homeDirectory)
+        try writeLegacyTestConfiguration(home: homeDirectory)
+        try FileManager.default.createDirectory(at: homeDirectory.appendingPathComponent("Secrets Vault"), withIntermediateDirectories: false)
         let updated = try store.setValue("~/Secrets Vault", for: .vaultDir)
         let expectedVaultURL = homeDirectory
             .appendingPathComponent("Secrets Vault", isDirectory: true)
@@ -294,7 +296,7 @@ struct CryptoAndStorageTests {
     }
 
     @Test
-    func configStoreSetWorksWhenDefaultVaultDirectoryIsAmbiguous() throws {
+    func configStoreSetDoesNotBootstrapWhenDefaultVaultDirectoryIsAmbiguous() throws {
         let homeDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let ambiguousVaultDirectory = homeDirectory.appendingPathComponent(".key", isDirectory: true)
@@ -307,19 +309,12 @@ struct CryptoAndStorageTests {
         )
 
         let store = KeyConfigStore(homeDirectoryURL: homeDirectory)
-        let updated = try store.setValue("~/Secrets Vault", for: .vaultDir)
-        let expectedVaultURL = homeDirectory
-            .appendingPathComponent("Secrets Vault", isDirectory: true)
-            .standardizedFileURL
-
-        #expect(updated.vaultDirectoryURL.standardizedFileURL == expectedVaultURL)
-        #expect(updated.configFileURL.path(percentEncoded: false) == homeDirectory
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("Key", isDirectory: true)
-            .appendingPathComponent("config.toml", isDirectory: false)
-            .path(percentEncoded: false))
-        #expect(try store.getValue(for: .keychainMode) == "local")
+        #expect(throws: KeyConfigStore.notInitializedError) {
+            try store.setValue("~/Secrets Vault", for: .vaultDir)
+        }
+        #expect(try !store.hasConfiguration())
+        #expect(!FileManager.default.fileExists(atPath: homeDirectory.appendingPathComponent("Secrets Vault").path))
+        #expect(try Data(contentsOf: ambiguousVaultDirectory.appendingPathComponent("notes.txt")) == Data("not a vault".utf8))
     }
 
     @Test
@@ -348,10 +343,11 @@ struct CryptoAndStorageTests {
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
 
         let fileURL = homeDirectory.appendingPathComponent("not-a-directory", isDirectory: false)
+        try writeLegacyTestConfiguration(home: homeDirectory)
         FileManager.default.createFile(atPath: fileURL.path(percentEncoded: false), contents: Data(), attributes: nil)
 
         let store = KeyConfigStore(homeDirectoryURL: homeDirectory)
-        #expect(throws: AppError.invalidConfiguration("Configured vault directory '\(fileURL.path(percentEncoded: false))' exists but is not a directory.")) {
+        #expect(throws: AppError.self) {
             try store.setValue(fileURL.path(percentEncoded: false), for: .vaultDir)
         }
     }

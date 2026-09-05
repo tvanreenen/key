@@ -44,7 +44,7 @@ final class V3NewVaultDirectory {
             guard mkdirat(descriptor, name, mode_t(0o700)) == 0 else {
                 let code = errno
                 throw AppError.operationRefused(
-                    "Cannot create a new vault directory (POSIX error \(code)). Choose a new, unused directory name; existing directories are never adopted."
+                    "Cannot create the requested vault directory (POSIX error \(code)). Its parent must exist. If the destination appeared during initialization, inspect it before retrying; Key will not overwrite it."
                 )
             }
             guard fsync(descriptor) == 0 else {

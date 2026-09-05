@@ -245,26 +245,22 @@ public struct KeyConfigStore {
     }
 
     public func setValue(_ value: String, for key: ConfigKey) throws -> KeyConfiguration {
-        let paths = try bootstrapPaths()
+        guard try hasConfiguration() else { throw Self.notInitializedError }
+        let paths = configurationPaths()
+        let current = try loadConfigurationFile(from: paths.configFileURL)
         let updatedFile: KeyConfigurationFile
 
         switch key {
         case .vaultDir:
             let resolvedURL = try resolveConfiguredPath(value, configFileURL: paths.configFileURL)
-            try ensureDirectoryExists(
-                at: resolvedURL,
-                failureMessage: "Configured vault directory '\(resolvedURL.path)' exists but is not a directory."
-            )
-            let current = try currentConfigurationFile(
-                for: paths.configFileURL
-            )
+            try requireExistingVaultDirectory(resolvedURL)
             updatedFile = KeyConfigurationFile(
                 vaultDirectoryURL: resolvedURL,
                 keychainMode: current.keychainMode,
                 vaultID: current.vaultID
             )
         case .keychainMode:
-            let current = try load()
+            try requireExistingVaultDirectory(current.vaultDirectoryURL)
             guard let mode = KeychainMode(rawValue: value) else {
                 throw AppError.invalidConfiguration("Unsupported keychain mode '\(value)'. Expected 'local' or 'icloud'.")
             }
@@ -615,20 +611,6 @@ public struct KeyConfigStore {
         }
 
         return result
-    }
-
-    private func currentConfigurationFile(
-        for configFileURL: URL
-    ) throws -> KeyConfigurationFile {
-        guard fileManager.fileExists(atPath: configFileURL.path(percentEncoded: false)) else {
-            return KeyConfigurationFile(
-                vaultDirectoryURL: configurationPaths().defaultVaultURL,
-                keychainMode: .local,
-                vaultID: nil
-            )
-        }
-
-        return try loadConfigurationFile(from: configFileURL)
     }
 
     private func resolveConfiguredPath(_ path: String, configFileURL: URL) throws -> URL {

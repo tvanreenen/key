@@ -12,10 +12,7 @@ struct VaultRootChangeCoordinationTests {
             isDirectory: true
         )
         let configStore = KeyConfigStore(homeDirectoryURL: home)
-        _ = try configStore.setValue(
-            originalRoot.path(percentEncoded: false),
-            for: .vaultDir
-        )
+        try writeLegacyTestConfiguration(home: home, root: originalRoot)
         let keyStore = MemoryVaultKeyStore()
         let handler = KeyServiceHandler(
             keyStore: keyStore,
@@ -23,6 +20,7 @@ struct VaultRootChangeCoordinationTests {
             configStore: configStore
         )
 
+        try FileManager.default.createDirectory(at: home.appendingPathComponent("Replacement Vault"), withIntermediateDirectories: false)
         #expect(
             handler.handle(
                 .setVaultDirectory(path: "~/Replacement Vault")
@@ -79,10 +77,7 @@ struct VaultRootChangeCoordinationTests {
             isDirectory: false
         )
         let configStore = KeyConfigStore(homeDirectoryURL: home)
-        _ = try configStore.setValue(
-            originalRoot.path(percentEncoded: false),
-            for: .vaultDir
-        )
+        try writeLegacyTestConfiguration(home: home, root: originalRoot)
         try Data("file".utf8).write(to: invalidRoot)
         let keyStore = MemoryVaultKeyStore()
         let handler = KeyServiceHandler(
@@ -121,10 +116,7 @@ struct VaultRootChangeCoordinationTests {
             isDirectory: true
         )
         let configStore = KeyConfigStore(homeDirectoryURL: home)
-        _ = try configStore.setValue(
-            originalRoot.path(percentEncoded: false),
-            for: .vaultDir
-        )
+        try writeLegacyTestConfiguration(home: home, root: originalRoot)
         let keyStore = MemoryVaultKeyStore()
         let handler = KeyServiceHandler(
             keyStore: keyStore,
@@ -132,6 +124,7 @@ struct VaultRootChangeCoordinationTests {
             configStore: configStore
         )
 
+        try FileManager.default.createDirectory(at: replacementRoot, withIntermediateDirectories: false)
         _ = try configStore.setValue(
             replacementRoot.path(percentEncoded: false),
             for: .vaultDir
@@ -156,10 +149,7 @@ struct VaultRootChangeCoordinationTests {
             isDirectory: true
         )
         let configStore = KeyConfigStore(homeDirectoryURL: home)
-        let configuration = try configStore.setValue(
-            originalRoot.path(percentEncoded: false),
-            for: .vaultDir
-        )
+        let configuration = try writeLegacyTestConfiguration(home: home, root: originalRoot)
         let keyStore = MemoryVaultKeyStore()
         let handler = KeyServiceHandler(
             keyStore: keyStore,
@@ -197,10 +187,7 @@ struct VaultRootChangeCoordinationTests {
             isDirectory: true
         )
         let configStore = KeyConfigStore(homeDirectoryURL: home)
-        let configuration = try configStore.setValue(
-            originalRoot.path(percentEncoded: false),
-            for: .vaultDir
-        )
+        let configuration = try writeLegacyTestConfiguration(home: home, root: originalRoot)
         let keyStore = MemoryVaultKeyStore()
         let handler = KeyServiceHandler(
             keyStore: keyStore,
