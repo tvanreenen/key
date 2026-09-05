@@ -39,10 +39,6 @@ lost, the vault is permanently inaccessible. This is safer than weakening the
 device-bound model with a recovery mechanism that has not been settled and
 physically qualified.
 
-The [PIV feasibility procedure](piv-feasibility-procedure.md) defines the next
-hardware experiment, its setup choices, and separate approval gates. It does
-not change this released promise or authorize real-vault enrollment.
-
 ## The Unavoidable Tradeoff
 
 Secure Enclave private keys are non-exportable and available only on the

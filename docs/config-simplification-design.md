@@ -63,7 +63,7 @@ Routine secret reads, copy, mutations, unlock/lock, migration commands, and raw 
 
 Migration remains explicit. Installing an update must not convert a vault, delete its old files or Keychain items, or silently block all access to its secrets. Users can skip the warning release, so later versions must explain the migration route themselves. Unsupported hardware or failed preflight must leave the source accessible through a documented compatible reader or migration path, not an automatic repair.
 
-Coordinate the other Macs before migration: they can otherwise keep writing to the old snapshot, and those edits do not enter v3. Require a clear continuity/recovery decision before enforcing the write cutoff. PIV availability alone is not that decision; hardware purchase is not a migration prerequisite, and catastrophe recovery remains unimplemented until its own gates pass.
+Coordinate the other Macs before migration: they can otherwise keep writing to the old snapshot, and those edits do not enter v3. Require a clear continuity/recovery decision before enforcing the write cutoff. Hardware purchase is not a migration prerequisite, and catastrophe recovery remains unimplemented until its own gates pass.
 
 ### New-vault installer foundation
 
