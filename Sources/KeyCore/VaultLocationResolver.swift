@@ -244,6 +244,72 @@ public struct KeyConfigStore {
         }
     }
 
+    /// Binds an explicit joining ceremony to a root without selecting a vault.
+    /// Call with `create` only after authenticating the selected invitation.
+    func prepareEnrollmentSelection(
+        rootHandle: VaultRootDirectoryHandle,
+        invitationDigest: Data,
+        vaultID: String,
+        create: Bool
+    ) throws -> (String) throws -> Void {
+        try requireUnconfigured()
+        guard invitationDigest.count == 32, isValidV3UUID(vaultID) else {
+            throw AppError.invalidConfiguration("Invalid enrollment invitation or vault ID.")
+        }
+        try rootHandle.requireConfiguredRootIdentity()
+        let paths = create ? try bootstrapPaths() : configurationPaths()
+        let configRoot = try VaultRootDirectoryHandle(opening: paths.configDirectoryURL)
+        let recordPath = "v3-enrollment-roots/\(v3LowercaseHex(invitationDigest)).json"
+        let record = EnrollmentRootRecord(
+            version: 1, vaultID: vaultID,
+            invitationID: v3LowercaseHex(invitationDigest),
+            vaultDirectory: rootHandle.rootURL.standardizedFileURL.path,
+            deviceID: rootHandle.identity.deviceID,
+            fileID: rootHandle.identity.fileID
+        )
+        let writer = V3AtomicStagedObjectWriter(rootHandle: configRoot)
+        if create {
+            do {
+                try writer.install(JSONEncoder().encode(record), at: recordPath)
+            } catch {
+                // An exact retry may reuse the durable record, never replace it.
+                try requireEnrollmentRoot(record, at: recordPath, in: configRoot)
+            }
+        }
+        try requireEnrollmentRoot(record, at: recordPath, in: configRoot)
+        return { selectedID in
+            guard selectedID == vaultID else {
+                throw AppError.operationRefused("Enrollment verified a different vault than the selected invitation.")
+            }
+            try requireUnconfigured()
+            try rootHandle.requireConfiguredRootIdentity()
+            try configRoot.requireConfiguredRootIdentity()
+            try requireEnrollmentRoot(record, at: recordPath, in: configRoot)
+            let configuration = KeyConfigurationFile(
+                vaultDirectoryURL: rootHandle.rootURL,
+                keychainMode: .local,
+                vaultID: vaultID
+            )
+            try writer.install(configurationData(configuration), at: paths.configFileURL.lastPathComponent)
+        }
+    }
+
+    private func requireEnrollmentRoot(
+        _ expected: EnrollmentRootRecord,
+        at path: String,
+        in root: VaultRootDirectoryHandle
+    ) throws {
+        let observed = try root.withResolvedDescriptor(at: path, expecting: .regularFile) {
+            readObjectData(descriptor: $0.rawValue, maximumBytes: 16_384)
+        }
+        guard case let .available(bytes) = observed,
+              let record = try? JSONDecoder().decode(EnrollmentRootRecord.self, from: bytes),
+              record == expected
+        else {
+            throw AppError.operationRefused("This enrollment has no matching folder record. Use the same folder and invitation as the join request; leave existing enrollment records intact for inspection.")
+        }
+    }
+
     public func setValue(_ value: String, for key: ConfigKey) throws -> KeyConfiguration {
         guard try hasConfiguration() else { throw Self.notInitializedError }
         let paths = configurationPaths()
@@ -631,6 +697,15 @@ public struct KeyConfigStore {
 
         return URL(fileURLWithPath: resolvedPath, isDirectory: true).standardizedFileURL
     }
+}
+
+private struct EnrollmentRootRecord: Codable, Equatable {
+    let version: Int
+    let vaultID: String
+    let invitationID: String
+    let vaultDirectory: String
+    let deviceID: UInt64
+    let fileID: UInt64
 }
 
 private struct NewVaultInitializationRecord: Encodable {
