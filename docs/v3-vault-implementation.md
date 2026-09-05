@@ -14,8 +14,8 @@ state.
 | Current device-enrolled profile | [Version 3 device-wrapped key architecture](v3-device-wrapped-key-architecture.md) |
 | Historical alpha.6 format | [Role-bearing version 3 vault storage format](v3-vault-storage-format.md) |
 | Canonical JSON module | [Intent, constraints, and extraction plan](json-canonicalization.md) |
-| Active work | Observe the published Stable release and triage concrete field findings |
-| Next work | Make any corrective release under a new version and build; do not move or replace `v0.2.0` |
+| Active work | Plan config simplification and PIV hardware-key catastrophe-recovery feasibility; continue triaging Stable findings |
+| Next work | Complete the post-0.2.0 work packages below before choosing a recovery format or release scope |
 
 Stable `0.2.0` supports the device-enrolled profile after an explicit migration;
 new and upgraded vaults remain on the Keychain-backed model until that choice.
@@ -2208,8 +2208,55 @@ Stable stabilization ledger:
 
 ## Immediate Next Action
 
-Observe ordinary Stable use and triage concrete field findings. Any artifact or
-code correction must use a new version and build; do not replace the published
-`v0.2.0` tag or asset. A third physical Mac, additional storage-provider matrix,
-portable recovery authority, and independent audit remain possible future
-assurance work rather than retroactive `0.2.0` gates.
+Start config simplification and PIV hardware-key feasibility, as selected on
+2026-09-05. Continue observing ordinary Stable use. Any artifact or code
+correction must use a new version and build; do not replace the published
+`v0.2.0` tag or asset.
+
+### Post-0.2.0 work packages
+
+This is the next development track, not a commitment that catastrophe recovery
+will ship in `0.3.0`. Physical feasibility must precede a permanent recovery
+schema. The existing two-Mac continuity promise remains the released contract.
+
+| ID | Status | Exit criteria |
+|---|---|---|
+| `CFG-801` | Planned | Model Keychain-backed v2 and device-enrolled v3 selections explicitly. Read existing Stable configs, retain v2 local/iCloud key lookup and migration, and make config output describe the selected model without presenting keychain mode as a v3 choice. Preserve detection of changes to the selected directory and vault identity while the helper runs. |
+| `CFG-802` | Planned | Simplify persisted v3 configuration after defining how legacy migration provenance is retained. Cover upgrades from both local and iCloud v2 selections, migration interruption, helper restart, root changes, and deliberate rollback using retained v2 data. Keep `vault_id` under verified migration/enrollment ownership. Do not treat removing a field from one local config as product migration. |
+| `REC-801` | Selected; physical feasibility pending | Prototype two independent PIV P-256 keys on supported Macs with disposable data. Establish the supported macOS API path and provisioning requirements; verify ECDH, PIN and touch behavior, token removal, restart, and failure handling. Record token models, firmware, slots, and host versions. Do not reset or overwrite existing token material. |
+| `REC-802` | Pending `REC-801` | Specify recovery recipient registration, rotation, removal, authorization, format compatibility, and recovery after loss of every enrolled Mac. Bind recovery to authenticated vault identity and history, explain the absence of a surviving freshness checkpoint, and define replacement of lost device and recovery authority. Review the proposal before changing the permanent format. |
+| `REC-803` | Pending `REC-802` | Implement and qualify recovery using disposable vaults and real hardware, including interruption and retry, missing provider objects, old recovery material, and recovery with either independent token. Establish release gates from observed feasibility results. |
+
+Config cleanup can proceed while physical recovery testing waits for hardware.
+The existing [recovery alternatives](offline-recovery-models.md) remain the
+decision record if PIV fails feasibility. Dashboard live status and the menu-bar
+surface remain separate proposed work.
+
+Preparation artifacts added on 2026-09-05:
+
+- [Config compatibility design](config-simplification-design.md): proposes an
+  explicit v2/v3 runtime selection with retained file compatibility for
+  `CFG-801`. Persistence cleanup remains `CFG-802`, pending the provenance and
+  old-writer contract. No runtime changes have been implemented.
+- [PIV setup and safety procedure](piv-feasibility-procedure.md): separates
+  owner-controlled credential setup, test-key creation, and targeted cleanup
+  into individual approval gates. Read-only inspection does not authorize
+  any of these writes. Real-vault enrollment remains a later gate.
+
+Baseline checked on 2026-09-05:
+
+- GitHub's latest published Stable release is `v0.2.0`, published on
+  2026-08-17 at 22:50:03 UTC; Preview remains `v0.2.0-beta.1`.
+- Local `main` was fast-forwarded to `957d561`, including PR #66's release
+  publication changes. Homebrew publication now dispatches the tap-owned PR
+  workflow through `just publish-homebrew <tag>`.
+- The installed Stable CLI reports `0.2.0 (19)`.
+- Release target/publication/Homebrew dispatch tests and 34 focused config,
+  root-change, and product-identity tests pass. This was a baseline check, not
+  a new full release qualification.
+- Initial sandbox smart-card inspection reported no readers. Subsequent
+  host-level inspection detected the user's newly connected YubiKey 5C NFC;
+  read-only PIV commands reported firmware `5.8.0`, no keys in the 24 user
+  slots, and default PIN/PUK/management-key flags with full PIN/PUK counters.
+  No credentials or token objects were changed. This qualifies detection only,
+  not hardware key agreement or catastrophe recovery.
