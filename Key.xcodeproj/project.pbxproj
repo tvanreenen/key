@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		EA0906000000000000000004 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = EA0906000000000000000010 /* ArgumentParser */; };
 		0E471F29FE657B084CEAD58B /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
 		11A1C24BB4C342B4948D95FE /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
 		1B7D7F2E9AE24855D9046ED3 /* VaultKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B094CFE4AAED257F0AB41EDF /* VaultKeyStore.swift */; };
@@ -331,6 +332,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		EA0906000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EA0906000000000000000004 /* ArgumentParser in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		2B31DF9D21304F93B6A5D2FB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -612,6 +621,7 @@
 			buildConfigurationList = 6E2826F49F33D976AECE1ABF /* Build configuration list for PBXNativeTarget "KeyCore" */;
 			buildPhases = (
 				CCA0E08CEA58FC9136784A92 /* Sources */,
+				EA0906000000000000000005 /* Frameworks */,
 				A8FB063C683BB17899FB3E36 /* Copy Swift Objective-C Interface Header */,
 			);
 			buildRules = (
@@ -621,6 +631,7 @@
 			);
 			name = KeyCore;
 			packageProductDependencies = (
+				EA0906000000000000000010 /* ArgumentParser */,
 			);
 			productName = KeyCore;
 			productReference = 395A88A800D635A7EF9FE33F /* libKeyCore.a */;
@@ -695,6 +706,9 @@
 			);
 			mainGroup = 68E3A48CE4AE472480CEDDC2;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				EA0906000000000000000011 /* XCRemoteSwiftPackageReference "swift-argument-parser" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 85F4BBC8E3480B2592A6D5A0 /* Products */;
 			projectDirPath = "";
@@ -1798,6 +1812,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		EA0906000000000000000011 /* XCRemoteSwiftPackageReference "swift-argument-parser" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-argument-parser.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.8.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		EA0906000000000000000010 /* ArgumentParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EA0906000000000000000011 /* XCRemoteSwiftPackageReference "swift-argument-parser" */;
+			productName = ArgumentParser;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 986EA7B2F1EA72BF555E9C36 /* Project object */;
 }

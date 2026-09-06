@@ -44,13 +44,7 @@ public final class KeyCLIApplication {
         let response: KeyServiceResponse
 
         switch command {
-        case .help:
-            io.writeStdout(CLIParser.usageText + "\n")
-            return EXIT_SUCCESS
-        case let .commandHelp(topic):
-            guard let text = CLIParser.helpText(for: topic) else {
-                throw AppError.usage("Unknown help topic '\(topic)'. Run `key help` to list commands.")
-            }
+        case let .help(text):
             io.writeStdout(text + "\n")
             return EXIT_SUCCESS
         case let .version(json):
@@ -141,7 +135,7 @@ public final class KeyCLIApplication {
         }
 
         switch command {
-        case .help, .commandHelp:
+        case .help:
             break
         case .version(json: _):
             break

@@ -1,6 +1,8 @@
 .build/
 .swiftpm/
 Package.resolved
+!/Package.resolved
+!/Key.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 build/
 *.xcarchive
 *.zip

@@ -49,8 +49,7 @@ public enum ShareCommand: Equatable, Sendable {
 }
 
 public enum Command: Equatable {
-    case help
-    case commandHelp(topic: String)
+    case help(text: String)
     case version(json: Bool)
     case config(ConfigCommand)
     case initializeVault(path: String?)
