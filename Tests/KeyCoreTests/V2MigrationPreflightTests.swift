@@ -17,9 +17,9 @@ struct V2MigrationPreflightTests {
         let response = handler.handle(.migrationPreflight)
 
         #expect(response == .success("""
-        Migration preflight passed.
+        Your vault is ready to migrate.
         Entries checked: 0 (0 secrets, 0 TOTP entries).
-        The version 2 vault is empty.
+        The original vault has no entries.
         No files or Keychain items were changed. Migration has not started.
 
         """))
@@ -62,9 +62,9 @@ struct V2MigrationPreflightTests {
         let response = handler.handle(.migrationPreflight)
 
         #expect(response == .success("""
-        Migration preflight passed.
+        Your vault is ready to migrate.
         Entries checked: 2 (1 secret, 1 TOTP entry).
-        Every entry uses the supported version 2 format, has a version 3-compatible name, and decrypts with the current vault key.
+        Key could read and verify every entry, and each name is supported by the new format.
         No files or Keychain items were changed. Migration has not started.
 
         """))
@@ -159,12 +159,12 @@ struct V2MigrationPreflightTests {
         let message = try #require(response.errorMessage)
 
         #expect(response.exitCode == EXIT_FAILURE)
-        #expect(message.contains(#"" leading-space": the entry name is not compatible with the version 3 format."#))
+        #expect(message.contains(#"" leading-space": the entry name is not supported by the new vault format."#))
         #expect(message.contains(#""bad-payload": the file contains an invalid encrypted payload."#))
-        #expect(message.contains(#""broken": the file is not a readable version 2 secret."#))
-        #expect(message.contains(#""invalid-totp": the decrypted TOTP seed is not valid Base32."#))
-        #expect(message.contains(#""legacy": the file does not use the supported version 2 AES-GCM format."#))
-        #expect(message.contains(#""wrong-key": the entry cannot be authenticated with the current vault key."#))
+        #expect(message.contains(#""broken": the file is not a readable entry in the older vault format."#))
+        #expect(message.contains(#""invalid-totp": the authenticator setup secret is not valid Base32."#))
+        #expect(message.contains(#""legacy": the file does not use the supported encryption format (v2 AES-GCM)."#))
+        #expect(message.contains(#""wrong-key": the entry could not be verified with this vault's encryption key."#))
         #expect(message.hasSuffix("No files or Keychain items were changed. Migration has not started."))
         #expect(!message.contains("safe"))
         #expect(!message.contains("other"))

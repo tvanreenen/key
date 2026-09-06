@@ -155,9 +155,9 @@ struct V3DeviceWrappedVaultUnlockRuntimeTests {
             Issue.record("Expected the missing device identity to be refused.")
         } catch let error as V3DeviceWrappedVaultUnlockRuntimeError {
             #expect(error == .deviceIdentityUnavailable)
-            #expect(error.localizedDescription.contains("surviving enrolled Mac"))
+            #expect(error.localizedDescription.contains("Mac that still has access"))
             #expect(error.localizedDescription.contains("permanently inaccessible"))
-            #expect(error.localizedDescription.contains("files alone cannot recover"))
+            #expect(error.localizedDescription.contains("folder alone cannot restore access"))
         }
     }
 

@@ -44,8 +44,8 @@ public final class KeyCLIApplication {
         let response: KeyServiceResponse
 
         switch command {
-        case .help:
-            io.writeStdout(CLIParser.usageText + "\n")
+        case let .help(text):
+            io.writeStdout(text + "\n")
             return EXIT_SUCCESS
         case let .version(json):
             writeVersion(json: json)
@@ -56,7 +56,7 @@ public final class KeyCLIApplication {
             let directory = path.map {
                 URL(fileURLWithPath: $0, isDirectory: true, relativeTo: currentDirectory())
             } ?? currentDirectory()
-            io.writeStderr("Initializing a NEW device-enrolled vault at '\(directory.standardizedFileURL.path)'. Use enrollment instead for a vault from another Mac. If every enrolled Mac is lost, this vault cannot currently be recovered.\n")
+            io.writeStderr("Creating a new vault at '\(directory.standardizedFileURL.path)'. To use a vault from another Mac, join it with `key share` instead. If every enrolled Mac is lost, this vault cannot currently be recovered.\n")
             response = try transport.send(.initializeVault(path: directory.standardizedFileURL.path))
             return try handle(response, for: command)
         case .migrationPreflight:
@@ -258,9 +258,9 @@ public final class KeyCLIApplication {
             directory = currentDirectory()
         }
         let path = directory.standardizedFileURL.path
-        io.writeStderr("Enrollment folder: '\(path)'.\n")
+        io.writeStderr("Vault folder: '\(path)'.\n")
         if case .join = request {
-            io.writeStderr("Joining uses this Mac's enrollment identity and publishes a request. It does not create a new vault or provision a hardware key.\n")
+            io.writeStderr("Key will set up this Mac's access credentials and send a request to join. This does not create a new vault or change any hardware security key.\n")
         }
         return .shareInDirectory(request: request, path: path)
     }
@@ -301,13 +301,13 @@ public final class KeyCLIApplication {
         _ review: V3VaultDeviceRevocationReview
     ) {
         var lines = [
-            "Review device revocation:",
+            "Review removal of vault access:",
             "Device: \(review.revokedDevice.displayName)",
             "  ID: \(review.revokedDevice.deviceID)",
             "Authorized by: \(review.authorizingDevice.displayName)",
             "",
-            "This permanently removes the device from future vault versions.",
-            "Key will rotate the vault key and re-encrypt the current vault for the remaining active devices.",
+            "This removes the Mac's access to the current vault and future changes. It cannot erase secrets or older vault data the Mac already obtained.",
+            "Key will change the encryption key and encrypt the vault again for the Macs that keep access.",
             "Remaining active devices: \(review.remainingActiveDevices.count)"
         ]
         lines.append(contentsOf: review.remainingActiveDevices.map {
@@ -321,7 +321,7 @@ public final class KeyCLIApplication {
                 "WARNING: This will leave \(remainingDevice.displayName) as the vault's only active device."
             )
             lines.append(
-                "If that Mac is lost, synchronized vault files cannot recover the vault."
+                "If that Mac is lost, a backup of the vault folder alone cannot restore access."
             )
         }
         io.writeStdout(lines.joined(separator: "\n") + "\n")
@@ -329,7 +329,7 @@ public final class KeyCLIApplication {
 
     private func confirmDeviceRevocation() throws {
         let answer = try io.readLine(
-            prompt: "Type REVOKE to rotate the vault key and continue: "
+            prompt: "Type REVOKE to remove the reviewed Mac's access and change the encryption key: "
         ).trimmingCharacters(in: .whitespacesAndNewlines)
         guard answer == "REVOKE" else {
             throw AppError.operationRefused("Device revocation cancelled.")
@@ -402,7 +402,7 @@ public final class KeyCLIApplication {
         _ review: V3VaultDeviceReplacementReview
     ) {
         var lines = [
-            "This Mac previously belonged to this vault and has been revoked.",
+            "This Mac previously had access to this vault, but its access was removed.",
             "Review rejoin:",
             "Vault ID: \(review.vaultID)",
             "Previous identity: \(review.replacedDevice.displayName)",
@@ -411,7 +411,7 @@ public final class KeyCLIApplication {
         switch review.authorityKind {
         case .trustedCheckpoint:
             lines.append(
-                "Revocation source: this Mac's authenticated trusted checkpoint"
+                "Confirmed by: this Mac's last verified vault record"
             )
         case .survivingDevice:
             if let authorizingDevice = review.authorizingDevice {
@@ -422,16 +422,16 @@ public final class KeyCLIApplication {
         }
         lines.append(contentsOf: [
             "",
-            "Rejoining removes this Mac's unusable local enrollment identity and trusted checkpoint, then creates a new identity through this invitation.",
+            "Rejoining replaces this Mac's old access credentials and local vault record. Key creates new credentials for this invitation.",
             "Synchronized vault files will not be changed.",
-            "The other active Mac must still compare and approve the new identity."
+            "The other Mac must still compare the code and approve this Mac's new access."
         ])
         io.writeStdout(lines.joined(separator: "\n") + "\n")
     }
 
     private func confirmDeviceRejoin() throws {
         let answer = try io.readLine(
-            prompt: "Type REJOIN to replace the revoked identity and continue: "
+            prompt: "Type REJOIN to replace this Mac's old access credentials: "
         ).trimmingCharacters(in: .whitespacesAndNewlines)
         guard answer == "REJOIN" else {
             throw AppError.operationRefused("Device rejoin cancelled.")
@@ -447,7 +447,7 @@ public final class KeyCLIApplication {
     }
 
     private func readSecretFromInput(type: SecretEntryType) throws -> String {
-        let prompt = type == .totp ? "TOTP seed: " : "Secret: "
+        let prompt = type == .totp ? "Authenticator setup secret (Base32): " : "Secret: "
         let secret: String
         if io.stdinIsTTY {
             secret = try io.readSecureLine(prompt: prompt)
@@ -576,15 +576,15 @@ public final class KeyCLIApplication {
         case .ready:
             "Vault is ready."
         case .incomplete:
-            "Vault files are still arriving."
+            "Some required vault files are unavailable on this Mac."
         case .contentConflicted:
-            "Vault has content conflicts that need your choice."
+            "Some entries have conflicting changes. Choose which versions to keep."
         case .securityConflicted:
-            "Vault authority differs between authenticated versions."
+            "Vault history contains conflicting changes to device access or encryption keys."
         case .rollbackDetected:
-            "Vault contains an authenticated revision rollback."
+            "Vault history includes an older entry revision. Key has blocked the rollback."
         case .recoveryRequired:
-            "Vault needs recovery before it can be changed safely."
+            "Key cannot safely use this vault until its state has been investigated."
         }
         let entryLabel = switch status.entries.basis {
         case .effective:
@@ -594,9 +594,11 @@ public final class KeyCLIApplication {
         }
         var lines = [
             headline,
-            "Format: \(status.format == .version2 ? "version 2" : "version 3")",
             "\(entryLabel): \(status.entries.count)"
         ]
+        if verbose {
+            lines.append("Storage format: \(status.format == .version2 ? "version 2" : "version 3")")
+        }
         if status.conflictCount > 0 {
             lines.append("Conflicts: \(status.conflictCount)")
             switch status.health {
@@ -604,12 +606,20 @@ public final class KeyCLIApplication {
                 lines.append("Next: run `key conflict list`.")
             case .rollbackDetected:
                 lines.append(
-                    "Next: inspect with `key conflict list`, then recover from a known-good state."
+                    "Next: inspect with `key conflict list`. Keep vault files and local records intact; ordinary conflict resolution cannot accept this rollback."
                 )
             case .ready, .incomplete, .securityConflicted,
                 .recoveryRequired:
                 break
             }
+        }
+        switch status.health {
+        case .incomplete:
+            lines.append("Next: check that your sync provider has downloaded the vault files, then run `key status` again.")
+        case .securityConflicted, .recoveryRequired:
+            lines.append("Keep vault files and local records intact for investigation. Do not delete them or run init to bypass this check.")
+        case .ready, .contentConflicted, .rollbackDetected:
+            break
         }
         if verbose, let trustedVersionID = status.trustedVersionID {
             lines.append(
@@ -630,7 +640,7 @@ public final class KeyCLIApplication {
     private func writeV2DeprecationWarning() {
         guard io.stdoutIsTTY else { return }
         io.writeStderr(
-            "Warning: Keychain-backed vaults (v2) are deprecated; v2 reads and writes remain supported. Run `key migrate --check` for a read-only readiness check. Migration is explicit; review device enrollment and recovery before applying.\n"
+            "Warning: this vault uses the older storage format (v2), which is deprecated. Reading and saving secrets still work. Run `key migrate --check` to check migration readiness without changing the vault. Before migrating, review `key help migrate` for other-Mac setup and recovery limits.\n"
         )
     }
 
@@ -653,11 +663,11 @@ public final class KeyCLIApplication {
         _ inventory: V3VaultDeviceInventory
     ) {
         guard inventory.mode == .shared else {
-            io.writeStdout("This version 3 vault has not been shared yet.\n")
+            io.writeStdout("This vault does not have an enrolled-device list yet.\n")
             return
         }
 
-        var lines = ["Devices in the authenticated vault record:"]
+        var lines = ["Macs recorded for this vault:"]
         for device in inventory.devices {
             let current = device.deviceID == inventory.currentDeviceID
                 ? " (this Mac)"
@@ -669,16 +679,16 @@ public final class KeyCLIApplication {
         }
         lines.append("")
         if inventory.activeDeviceCount == 1 {
-            lines.append("Continuity: 1 active device.")
+            lines.append("Only one Mac currently has access.")
             lines.append(
-                "Attention: add another Mac. If the only active device is lost, synchronized vault files cannot recover the vault."
+                "Attention: add another Mac. If the only Mac with access is lost, the vault folder alone cannot restore access."
             )
         } else {
             lines.append(
-                "Continuity: \(inventory.activeDeviceCount) active devices."
+                "Macs with access: \(inventory.activeDeviceCount)."
             )
             lines.append(
-                "A surviving enrolled Mac can authorize a replacement if another is lost."
+                "A Mac that still has access can add a replacement if another is lost."
             )
         }
         if let currentDeviceID = inventory.currentDeviceID,
@@ -686,11 +696,11 @@ public final class KeyCLIApplication {
                $0.deviceID == currentDeviceID
            }) {
             lines.append(
-                "Attention: this Mac's recorded identity is not authorized by the current vault."
+                "Attention: this Mac's access credentials are not recognized by the current vault."
             )
         } else if inventory.currentDeviceID == nil {
             lines.append(
-                "Attention: this Mac has no recorded enrollment identity for the vault."
+                "Attention: this Mac has no saved access credentials for this vault."
             )
         }
         io.writeStdout(lines.joined(separator: "\n") + "\n")
@@ -701,7 +711,7 @@ public final class KeyCLIApplication {
             "Conflict: \(conflict.summary.id)",
             "Entry: \(conflict.summary.entryName ?? "(deleted or renamed)")",
             "Reason: \(humanConflictKind(conflict.summary.kind))",
-            "Authenticated versions:"
+            "Verified versions:"
         ]
         for version in conflict.versions {
             var description = "  \(version.id)  "
@@ -725,7 +735,7 @@ public final class KeyCLIApplication {
             )
         case .recoveryRequired:
             lines.append(
-                "This rollback cannot be resolved with `key conflict resolve`. Recover from a known-good state."
+                "This older revision cannot be accepted with `key conflict resolve`. Keep vault files and local records intact for investigation. Do not delete them or run init to bypass this check."
             )
         }
         io.writeStdout(lines.joined(separator: "\n") + "\n")
@@ -781,7 +791,7 @@ public final class KeyCLIApplication {
             io.writeStdout(configuration.value(for: key) + "\n")
             if key == .keychainMode, case .v3 = configuration.authority {
                 io.writeStderr(
-                    "keychain-mode is retained legacy metadata for this v3 vault. Device enrollment supplies key authority; vault-dir selects storage, including iCloud Drive.\n"
+                    "keychain-mode does not control access or file synchronization for this vault. Key retains it for compatibility. vault-dir specifies the folder used to store and synchronize vault files.\n"
                 )
             }
         case let .set(key, value):

@@ -72,7 +72,7 @@ struct V3VaultObservationBuilder: Sendable {
                 issues: [
                     VaultIssue(
                         code: .authorityDiverged,
-                        message: "Authenticated versions disagree about vault authority. Key will not select one automatically."
+                        message: "Vault history contains conflicting changes to device access or encryption keys. Key cannot safely choose between them."
                     )
                 ],
                 heads: classification.heads
@@ -94,7 +94,7 @@ struct V3VaultObservationBuilder: Sendable {
                     issues: [
                         VaultIssue(
                             code: .invalidReferencedObject,
-                            message: "Authenticated conflict details are unavailable."
+                            message: "Key could not verify the details of these conflicts."
                         )
                     ],
                     heads: classification.heads
@@ -145,7 +145,7 @@ struct V3VaultObservationBuilder: Sendable {
                 issues: [
                     VaultIssue(
                         code: .authorityDiverged,
-                        message: "Authenticated versions disagree about vault authority. Key will not select one automatically."
+                        message: "Vault history contains conflicting changes to device access or encryption keys. Key cannot safely choose between them."
                     )
                 ],
                 heads: heads
@@ -158,7 +158,7 @@ struct V3VaultObservationBuilder: Sendable {
                 issues: [
                     VaultIssue(
                         code: .ambiguousHistory,
-                        message: "Authenticated history has more than one nearest common ancestor. Key will not guess which history to merge."
+                        message: "Key found more than one possible shared starting point for these changes. It cannot safely combine their histories."
                     )
                 ],
                 heads: expectedHeads
@@ -226,27 +226,27 @@ private func vaultIssue(
     case .manifestDirectoryUnavailable:
         VaultIssue(
             code: .transportUnavailable,
-            message: "The manifest directory is not available yet."
+            message: "The folder containing vault history is unavailable."
         )
     case .manifestUnavailable:
         VaultIssue(
             code: .referencedObjectUnavailable,
-            message: "A referenced manifest is not available yet."
+            message: "A required vault-history file is unavailable."
         )
     case .entryUnavailable:
         VaultIssue(
             code: .referencedObjectUnavailable,
-            message: "A referenced encrypted entry is not available yet."
+            message: "A required encrypted entry file is unavailable."
         )
     case .invalidReferencedObject:
         VaultIssue(
             code: .invalidReferencedObject,
-            message: "A referenced immutable object failed validation."
+            message: "A required vault file failed verification. Keep the files intact for investigation."
         )
     case .resourceLimitExceeded:
         VaultIssue(
             code: .resourceLimitExceeded,
-            message: "Repository inspection exceeded a safety limit."
+            message: "Checking the vault exceeded Key's size or item-count limits."
         )
     }
 }

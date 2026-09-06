@@ -29,7 +29,7 @@ struct V3DeviceWrappedVaultRuntimeTests {
             Issue.record("Expected the missing device identity to be refused.")
         } catch let error as VaultUXServiceError {
             #expect(error == .deviceIdentityUnavailable)
-            #expect(error.localizedDescription.contains("surviving enrolled Mac"))
+            #expect(error.localizedDescription.contains("Mac that still has access"))
             #expect(error.localizedDescription.contains("permanently inaccessible"))
         }
     }
@@ -42,8 +42,8 @@ struct V3DeviceWrappedVaultRuntimeTests {
             Issue.record("Expected the revoked device to be refused.")
         } catch let error as VaultUXServiceError {
             #expect(error == .deviceRevoked)
-            #expect(error.localizedDescription.contains("revoked"))
-            #expect(error.localizedDescription.contains("replacement device"))
+            #expect(error.localizedDescription.contains("access to the vault was removed"))
+            #expect(error.localizedDescription.contains("invite it again"))
         }
     }
 

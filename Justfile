@@ -12,6 +12,11 @@ test:
 test-release-scripts:
   Tests/ReleaseScripts/release-tests.sh
 
+# Build and verify real CLI help at narrow, standard, and wide terminal widths.
+test-cli-help:
+  swift build --product key
+  zsh Tests/CLIScripts/help-tests.sh .build/debug/key
+
 # Run the opt-in 300-entry in-process migration scale gate.
 test-migration-scale:
   scripts/test-migration-qualification.sh

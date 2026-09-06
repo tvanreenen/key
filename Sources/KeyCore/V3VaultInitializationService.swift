@@ -25,9 +25,9 @@ struct V3VaultInitializationService {
         )
         do {
             let report = try install(directory, operationID, select)
-            return "Created and selected a device-enrolled vault at '\(directory.rootHandle.rootURL.path)'.\nVault ID: \(report.vaultID)\nRun `key status`, then `key add <name>`. Enroll another Mac for device-loss continuity; catastrophe recovery is not yet available.\n"
+            return "Created a new vault at '\(directory.rootHandle.rootURL.path)'.\nVault ID: \(report.vaultID)\nKey will use this vault for future commands on this Mac.\nRun `key status`, then `key add <name>`. Add another Mac before relying on this vault. If every enrolled Mac is lost, the vault folder alone cannot restore access.\n"
         } catch {
-            throw AppError.operationRefused("Initialization did not finish cleanly: \(error.localizedDescription)\nLeave the directory and local initialization record intact. Run `key status` to check whether selection completed. If it did not, this attempt requires inspection; rerunning init will not silently replace it.")
+            throw AppError.operationRefused("Vault setup did not finish: \(error.localizedDescription)\nLeave the vault folder and local setup record intact. Run `key status` to check whether Key finished configuring this vault. If not, this attempt needs investigation; init cannot safely restart it automatically.")
         }
     }
 

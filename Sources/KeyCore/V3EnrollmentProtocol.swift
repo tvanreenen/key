@@ -15,21 +15,21 @@ enum V3EnrollmentProtocolError: Error, Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidFormat:
-            "The version 3 device-enrollment message is invalid."
+            "The message for adding this Mac to the vault is invalid. Key has stopped joining."
         case .invalidDeviceIdentity:
-            "The version 3 device-enrollment message contains an invalid device identity."
+            "The joining message contains invalid Mac access credentials. Key has stopped joining."
         case .unsupportedMessageVersion(let version):
             "Device-enrollment message version \(version) is not supported by this version of Key."
         case .unsupportedVaultFormatVersion(let version):
             "Vault format version \(version) is not supported by this version of Key."
         case .invitationMismatch:
-            "The join request does not answer this exact device invitation."
+            "The join request does not match this invitation. Use the invitation ID shown by the existing Mac."
         case .sameDevice:
-            "A device cannot enroll itself as a second device."
+            "This Mac cannot join the same vault as a second Mac."
         case .publicKeyReuse:
-            "Enrollment requires distinct signing and wrapping keys for both devices."
+            "The Macs' access credentials reuse security keys that must be different. Key has stopped joining."
         case .expired:
-            "The device invitation has expired. Create a new invitation and try again."
+            "The invitation has expired. Create a new one on the Mac that already has access, then join using the new invitation ID."
         }
     }
 }

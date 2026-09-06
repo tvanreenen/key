@@ -1,708 +1,478 @@
+import ArgumentParser
 import Foundation
 
+/// Translates command-line syntax into requests without performing vault operations.
 public enum CLIParser {
     public static func parse(arguments: [String]) throws -> Command {
-        guard let subcommand = arguments.first else {
+        guard !arguments.isEmpty else { throw AppError.usage(usageText) }
+        do {
+            var parsed = try KeyArguments.parseAsRoot(arguments)
+            if let request = parsed as? any CLIRequest {
+                return request.command
+            }
+            if parsed is KeyArguments || !type(of: parsed).configuration.subcommands.isEmpty {
+                throw AppError.usage(KeyArguments.helpMessage(for: type(of: parsed), columns: helpColumns)
+                    .trimmingCharacters(in: .newlines))
+            }
+            // The remaining parsed command is Argument Parser's built-in help.
+            // Its run() throws the selected help request. Render it directly:
+            // exitCode(for:) would also render at the unchecked terminal width,
+            // which can assert for very narrow terminals in Argument Parser 1.8.2.
+            do {
+                try parsed.run()
+            } catch {
+                return .help(text: KeyArguments.fullMessage(for: error, columns: helpColumns)
+                    .trimmingCharacters(in: .newlines))
+            }
             throw AppError.usage(usageText)
-        }
-
-        switch subcommand {
-        case "help":
-            return try parseHelp(arguments: Array(arguments.dropFirst()))
-        case "version":
-            return try parseVersion(arguments: Array(arguments.dropFirst()))
-        case "config":
-            return try parseConfig(arguments: Array(arguments.dropFirst()))
-        case "init":
-            return try parseInit(arguments: Array(arguments.dropFirst()))
-        case "migrate":
-            return try parseMigrate(arguments: Array(arguments.dropFirst()))
-        case "status":
-            return try parseStatus(arguments: Array(arguments.dropFirst()))
-        case "conflict":
-            return try parseConflict(arguments: Array(arguments.dropFirst()))
-        case "share":
-            return try parseShare(arguments: Array(arguments.dropFirst()))
-        case "unlock":
-            return try parseUnlock(arguments: Array(arguments.dropFirst()))
-        case "lock":
-            return try parseLock(arguments: Array(arguments.dropFirst()))
-        case "get":
-            return try parseGet(arguments: Array(arguments.dropFirst()))
-        case "copy":
-            return try parseCopy(arguments: Array(arguments.dropFirst()))
-        case "add":
-            return try parseAdd(arguments: Array(arguments.dropFirst()))
-        case "edit":
-            return try parseEdit(arguments: Array(arguments.dropFirst()))
-        case "duplicate":
-            return try parseDuplicate(arguments: Array(arguments.dropFirst()))
-        case "rename":
-            return try parseRename(arguments: Array(arguments.dropFirst()))
-        case "remove":
-            return try parseRemove(arguments: Array(arguments.dropFirst()), commandName: subcommand)
-        case "list":
-            return try parseList(arguments: Array(arguments.dropFirst()), commandName: subcommand)
-        default:
-            throw AppError.usage("Unknown command '\(subcommand)'.\n\n\(usageText)")
-        }
-    }
-
-    public static let usageText = """
-    Usage:
-      key <command> [arguments]
-
-    Commands:
-      init [directory]                  Create and select a new v3 vault; defaults to the current directory.
-      config get <config-name>           Print a config value.
-      config set <config-name> <value>   Update a config value.
-      config list                        List known config values.
-      migrate --check                    Check v2 migration readiness without changing the vault.
-      migrate --apply                    Create and select a verified v3 copy on this Mac.
-      status [--json] [--verbose]        Explain vault health without changing it.
-      conflict list [--json]             List unresolved content conflicts.
-      conflict show <id> [--json]        Show authenticated versions of a conflict.
-      conflict get <id> <version>        Print one conflicted secret version.
-      conflict copy <id> <version>       Copy one conflicted secret version.
-      conflict resolve <id>=<version>…   Resolve every listed conflict together.
-      share devices [--json]              List authenticated vault devices.
-      share revoke <device-id>            Review and revoke one vault device.
-      share invitations [--vault-dir <directory>]
-                                          List short-lived vault invitations.
-      share invite --name <name>          Invite a device from the current v3 Mac.
-      share join <invite> --name <name> [--vault-dir <directory>]
-                                          Answer one exact invitation.
-      share requests <invite>             List answers to an invitation.
-      share compare <vault> <invite> [request]
-                                          Show the code and device pair; accepts --vault-dir.
-      share approve <vault> <invite> <code>
-                                          Approve the compared joining Mac.
-      share accept <vault> <invite> <code>
-                                          Trust and select the approved vault; accepts --vault-dir.
-      get <name> [--allow-stale]         Print a secret or current TOTP code.
-      copy <name> [--allow-stale]        Copy a secret or current TOTP code.
-      add [--totp] <name>                Add a new secret from stdin or prompt.
-      edit [--totp] <name>               Update a secret from stdin or prompt.
-      duplicate <src> <dst> [--force]    Duplicate an entry.
-      rename <src> <dst> [--force]       Rename an entry.
-      remove <name> [--force]            Remove a secret.
-      list                               List stored secrets.
-      unlock                             Warm the helper session.
-      lock                               Clear the helper session and stop the helper.
-      version [--json]                   Print the CLI version.
-      help                               Show this help.
-
-    Options:
-      --force  Skip overwrite or removal confirmation.
-      --check  Run the read-only v2 migration preflight.
-      --apply  Explicitly create and select a verified local v3 copy.
-      --json   Print supported diagnostics as stable JSON.
-      --verbose  Include authenticated version details in human-readable status.
-      --allow-stale  Read the last complete trusted version when newer transport is incomplete.
-      --totp   Treat add/edit input as a Base32 TOTP seed.
-
-    Config names:
-      vault-dir      Effective vault directory.
-      keychain-mode  Version 2 key storage (`local` or `icloud`); legacy metadata for v3.
-
-    Version 3 uses device enrollment for key authority and vault-dir for storage,
-    including iCloud Drive. Config list omits keychain-mode for v3; an explicit
-    config get retains its legacy value and explains it on stderr.
-
-    Version 2 retirement:
-      Keychain-backed vaults are deprecated, but reads and writes still work.
-      Terminal status and config list warn on stderr; JSON and redirected output do not.
-      Run `key migrate --check` for a read-only readiness check. Migration is explicit.
-      No removal release has been scheduled. Review device enrollment and recovery first.
-
-    First-time setup:
-      Run `key init [directory]` to create a new vault; ordinary commands never create one.
-      Help, version, and lock work before setup. Existing vaults do not need init again.
-      Config setters require an existing config; vault-dir requires an existing directory.
-      A missing configured folder or key is an error, not permission to create a replacement.
-      Joining an existing vault uses the current directory when this Mac has no config.
-      Use --vault-dir <directory> on invitations/join/compare/accept to run from elsewhere.
-      A configured Mac uses its configured folder; --vault-dir cannot switch vaults.
-      Enrollment never creates a vault folder. Only verified acceptance saves new config.
-
-    Version 3 safety and recovery:
-      Init requires an empty directory, or creates the final directory if missing.
-      Its parent must exist. Existing configuration is never replaced by init.
-      Init creates a NEW vault; use device enrollment for a vault from another Mac.
-      An empty synced folder may still have files waiting to download.
-      Local APFS and iCloud Drive are directly validated for 0.2.0.
-      Other ordinary folder-backed providers may work, but are not directly validated.
-      Keep at least two active enrolled Macs; either can enroll or revoke another Mac.
-      Invitations expire after 10 minutes. Compare the exact device pair and code.
-      A lost or revoked Mac rejoins through an invitation from a surviving active Mac.
-      The provider stores encrypted authenticated files, never the vault key or authority.
-      Provider files alone are not a backup. If every enrolled Mac is lost, the vault is
-      permanently unrecoverable in 0.2.0; there is no password, cloud, or support fallback.
-    """
-
-    private static func parseInit(arguments: [String]) throws -> Command {
-        var paths = arguments
-        if paths.first == "--" {
-            paths.removeFirst()
-        } else if paths.first?.hasPrefix("-") == true {
-            throw AppError.usage("Unknown option for init. Use `key init [directory]`; use `--` before a directory beginning with '-'.")
-        }
-        guard paths.count <= 1, paths.first?.isEmpty != true,
-              paths.first?.utf8.contains(0) != true else {
-            throw AppError.usage("Use `key init [directory]` with one nonempty directory path.")
-        }
-        return .initializeVault(path: paths.first)
-    }
-
-    private static func parseHelp(arguments: [String]) throws -> Command {
-        guard arguments.isEmpty else {
-            throw AppError.usage("Unknown option '\(arguments[0])' for help.\n\n\(usageText)")
-        }
-
-        return .help
-    }
-
-    private static func parseVersion(arguments: [String]) throws -> Command {
-        guard arguments.count <= 1 else {
-            throw AppError.usage("Unknown option '\(arguments[1])' for version.\n\n\(usageText)")
-        }
-
-        if let argument = arguments.first {
-            guard argument == "--json" else {
-                throw AppError.usage("Unknown option '\(argument)' for version.\n\n\(usageText)")
+        } catch let error as AppError {
+            throw error
+        } catch {
+            let text = KeyArguments.fullMessage(for: error, columns: helpColumns)
+                .trimmingCharacters(in: .newlines)
+            if KeyArguments.exitCode(for: error) == .success {
+                return .help(text: text)
             }
-            return .version(json: true)
-        }
-
-        return .version(json: false)
-    }
-
-    private static func parseConfig(arguments: [String]) throws -> Command {
-        guard let action = arguments.first else {
-            throw AppError.usage("Missing config subcommand.\n\n\(usageText)")
-        }
-
-        switch action {
-        case "get":
-            return try parseConfigGet(arguments: Array(arguments.dropFirst()))
-        case "set":
-            return try parseConfigSet(arguments: Array(arguments.dropFirst()))
-        case "list":
-            return try parseConfigList(arguments: Array(arguments.dropFirst()))
-        default:
-            throw AppError.usage("Unknown config subcommand '\(action)'.\n\n\(usageText)")
+            throw AppError.usage(text)
         }
     }
 
-    private static func parseConfigGet(arguments: [String]) throws -> Command {
-        guard let key = arguments.first else {
-            throw AppError.usage("Missing config key for config get.\n\n\(usageText)")
-        }
-        guard arguments.count == 1 else {
-            throw AppError.usage("Unknown option '\(arguments[1])' for config get.\n\n\(usageText)")
-        }
-
-        return .config(.get(key: try parseConfigKey(key)))
+    public static var usageText: String {
+        KeyArguments.helpMessage(columns: helpColumns).trimmingCharacters(in: .newlines)
     }
 
-    private static func parseConfigSet(arguments: [String]) throws -> Command {
-        guard let key = arguments.first else {
-            throw AppError.usage("Missing config key for config set.\n\n\(usageText)")
+    public static func helpText(for topic: String) -> String? {
+        var command: any ParsableCommand.Type = KeyArguments.self
+        for name in topic.split(separator: " ") {
+            guard let child = command.configuration.subcommands.first(where: {
+                $0.configuration.commandName == String(name)
+            }) else { return nil }
+            command = child
         }
-        guard arguments.count >= 2 else {
-            throw AppError.usage("Missing value for config set.\n\n\(usageText)")
-        }
-        guard arguments.count == 2 else {
-            throw AppError.usage("Unknown option '\(arguments[2])' for config set.\n\n\(usageText)")
-        }
-
-        return .config(.set(key: try parseConfigKey(key), value: arguments[1]))
+        return KeyArguments.helpMessage(for: command, columns: helpColumns).trimmingCharacters(in: .newlines)
     }
 
-    private static func parseConfigList(arguments: [String]) throws -> Command {
-        guard arguments.isEmpty else {
-            throw AppError.usage("Unknown option '\(arguments[0])' for config list.\n\n\(usageText)")
-        }
-
-        return .config(.list)
+    private static var helpColumns: Int {
+        var size = winsize()
+        let terminalWidth = ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0
+            ? Int(size.ws_col) : 0
+        let width = ProcessInfo.processInfo.environment["COLUMNS"].flatMap(Int.init)
+            ?? (terminalWidth > 0 ? terminalWidth : 80)
+        // Keep wide terminals readable and avoid Argument Parser's fixed label
+        // column exceeding a very narrow window. Usage and long tokens stay intact.
+        return min(80, max(40, width))
     }
+}
 
-    private static func parseConfigKey(_ key: String) throws -> ConfigKey {
-        guard let configKey = ConfigKey(rawValue: key) else {
-            throw AppError.usage("Unknown config key '\(key)'.\n\n\(usageText)")
-        }
+/// These declarations describe syntax only; KeyCLIApplication owns execution.
+private protocol CLIRequest: ParsableCommand {
+    var command: Command { get }
+}
 
-        return configKey
-    }
+private struct KeyArguments: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "key",
+        abstract: "Manage secrets with macOS authentication and an encrypted vault folder.",
+        discussion: CLIHelp.overview,
+        groupedSubcommands: [
+            CommandGroup(name: "Get started", subcommands: [Init.self, Share.self]),
+            CommandGroup(name: "Work with secrets", subcommands: [
+                Add.self, Edit.self, Get.self, Copy.self, List.self,
+                Duplicate.self, Rename.self, Remove.self
+            ]),
+            CommandGroup(name: "Check and manage your vault", subcommands: [
+                Status.self, Conflict.self, Config.self, Migrate.self,
+                Unlock.self, Lock.self, Version.self
+            ])
+        ]
+    )
 
-    private static func parseMigrate(arguments: [String]) throws -> Command {
-        guard let argument = arguments.first else {
-            throw AppError.usage(
-                "Migration does not start automatically. Use `key migrate --check` to inspect readiness or `key migrate --apply` to convert this device explicitly.\n\n\(usageText)"
-            )
-        }
-        guard arguments.count == 1 else {
-            throw AppError.usage("Unknown option '\(arguments[1])' for migrate.\n\n\(usageText)")
-        }
-        return switch argument {
-        case "--check":
-            .migrationPreflight
-        case "--apply":
-            .migrationApply
-        default:
-            throw AppError.usage(
-                "Unknown option '\(argument)' for migrate.\n\n\(usageText)"
-            )
-        }
-    }
-
-    private static func parseStatus(arguments: [String]) throws -> Command {
-        var json = false
-        var verbose = false
-        for argument in arguments {
-            switch argument {
-            case "--json":
-                json = true
-            case "--verbose":
-                verbose = true
-            default:
-                throw AppError.usage(
-                    "Unknown option '\(argument)' for status.\n\n\(usageText)"
-                )
-            }
-        }
-        guard !(json && verbose) else {
-            throw AppError.usage(
-                "Use either --json or --verbose with status, not both.\n\n\(usageText)"
-            )
-        }
-        return .status(json: json, verbose: verbose)
-    }
-
-    private static func parseConflict(arguments: [String]) throws -> Command {
-        guard let action = arguments.first else {
-            throw AppError.usage(
-                "Missing conflict subcommand.\n\n\(usageText)"
-            )
-        }
-        let remaining = Array(arguments.dropFirst())
-        switch action {
-        case "list":
-            let json = try parseOptionalJSON(
-                remaining,
-                commandName: "conflict list"
-            )
-            return .conflict(.list(json: json))
-        case "show":
-            guard let id = remaining.first else {
-                throw AppError.usage(
-                    "Missing conflict ID for conflict show.\n\n\(usageText)"
-                )
-            }
-            let json = try parseOptionalJSON(
-                Array(remaining.dropFirst()),
-                commandName: "conflict show"
-            )
-            return .conflict(.show(id: id, json: json))
-        case "get":
-            return .conflict(
-                try parseConflictValue(remaining, copy: false)
-            )
-        case "copy":
-            return .conflict(
-                try parseConflictValue(remaining, copy: true)
-            )
-        case "resolve":
-            guard !remaining.isEmpty else {
-                throw AppError.usage(
-                    "Provide every resolution as <conflict-id>=<version-id>.\n\n\(usageText)"
-                )
-            }
-            return .conflict(.resolve(
-                try remaining.map(parseConflictResolution)
-            ))
-        default:
-            throw AppError.usage(
-                "Unknown conflict subcommand '\(action)'.\n\n\(usageText)"
-            )
-        }
-    }
-
-    private static func parseShare(arguments: [String]) throws -> Command {
-        guard let action = arguments.first else {
-            throw AppError.usage(
-                "Missing share subcommand.\n\n\(usageText)"
-            )
-        }
-        let remaining = Array(arguments.dropFirst())
-        if let index = remaining.firstIndex(of: "--vault-dir") {
-            guard ["invitations", "join", "compare", "accept"].contains(action),
-                  index + 1 < remaining.count,
-                  !remaining[index + 1].isEmpty,
-                  !remaining[index + 1].hasPrefix("--"),
-                  !remaining[index + 1].utf8.contains(0)
-            else {
-                throw AppError.usage("Use --vault-dir <existing-directory> with share invitations, join, compare, or accept.")
-            }
-            let path = remaining[index + 1]
-            var rest = remaining
-            rest.removeSubrange(index...index + 1)
-            guard !rest.contains("--vault-dir"),
-                  case let .share(command, _) = try parseShare(arguments: [action] + rest)
-            else {
-                throw AppError.usage("Specify --vault-dir only once.")
-            }
-            return .share(command, vaultDirectory: path)
-        }
-        switch action {
-        case "devices":
-            return .share(.devices(json: try parseOptionalJSON(
-                remaining,
-                commandName: "share devices"
-            )))
-        case "revoke":
-            guard remaining.count == 1 else {
-                throw AppError.usage(
-                    "Use `key share revoke <device-id>`.\n\n\(usageText)"
-                )
-            }
-            return .share(.revoke(deviceID: remaining[0]))
-        case "invitations":
-            guard remaining.isEmpty else {
-                throw AppError.usage(
-                    "Unknown option '\(remaining[0])' for share invitations.\n\n\(usageText)"
-                )
-            }
-            return .share(.invitations)
-        case "invite":
-            let name = try parseShareIdentityOptions(remaining)
-            return .share(.invite(deviceName: name))
-        case "join":
-            guard let invitationID = remaining.first else {
-                throw AppError.usage(
-                    "Missing invitation ID for share join.\n\n\(usageText)"
-                )
-            }
-            let name = try parseShareIdentityOptions(
-                Array(remaining.dropFirst())
-            )
-            return .share(.join(
-                invitationID: invitationID,
-                deviceName: name
-            ))
-        case "requests":
-            guard remaining.count == 1 else {
-                throw AppError.usage(
-                    "Use `key share requests <invitation-id>`.\n\n\(usageText)"
-                )
-            }
-            return .share(.requests(invitationID: remaining[0]))
-        case "compare":
-            guard remaining.count == 2 || remaining.count == 3 else {
-                throw AppError.usage(
-                    "Use `key share compare <vault-id> <invitation-id> [join-request-id]`.\n\n\(usageText)"
-                )
-            }
-            return .share(.compare(
-                vaultID: remaining[0],
-                invitationID: remaining[1],
-                joinRequestID: remaining.count == 3 ? remaining[2] : nil
-            ))
-        case "approve", "accept":
-            guard remaining.count == 3 else {
-                throw AppError.usage(
-                    "Use `key share \(action) <vault-id> <invitation-id> <comparison-code>`.\n\n\(usageText)"
-                )
-            }
-            return .share(
-                action == "approve"
-                    ? .approve(
-                        vaultID: remaining[0],
-                        invitationID: remaining[1],
-                        comparisonCode: remaining[2]
-                    )
-                    : .accept(
-                        vaultID: remaining[0],
-                        invitationID: remaining[1],
-                        comparisonCode: remaining[2]
-                    )
-            )
-        default:
-            throw AppError.usage(
-                "Unknown share subcommand '\(action)'.\n\n\(usageText)"
-            )
-        }
-    }
-
-    private static func parseShareIdentityOptions(
-        _ arguments: [String]
-    ) throws -> String {
-        var name: String?
-        var index = 0
-        while index < arguments.count {
-            switch arguments[index] {
-            case "--name":
-                guard index + 1 < arguments.count, name == nil else {
-                    throw AppError.usage(
-                        "Provide one device name after --name.\n\n\(usageText)"
-                    )
-                }
-                name = arguments[index + 1]
-                index += 2
-            default:
-                throw AppError.usage(
-                    "Unknown option '\(arguments[index])' for share.\n\n\(usageText)"
-                )
-            }
-        }
-        guard let name else {
-            throw AppError.usage(
-                "Provide this Mac's readable name with --name.\n\n\(usageText)"
-            )
-        }
-        return name
-    }
-
-    private static func parseOptionalJSON(
-        _ arguments: [String],
-        commandName: String
-    ) throws -> Bool {
-        guard arguments.count <= 1 else {
-            throw AppError.usage(
-                "Unknown option '\(arguments[1])' for \(commandName).\n\n\(usageText)"
-            )
-        }
-        guard let argument = arguments.first else {
-            return false
-        }
-        guard argument == "--json" else {
-            throw AppError.usage(
-                "Unknown option '\(argument)' for \(commandName).\n\n\(usageText)"
-            )
-        }
-        return true
-    }
-
-    private static func parseConflictValue(
-        _ arguments: [String],
-        copy: Bool
-    ) throws -> ConflictCommand {
-        let commandName = copy ? "conflict copy" : "conflict get"
-        guard let id = arguments.first else {
-            throw AppError.usage(
-                "Missing conflict ID for \(commandName).\n\n\(usageText)"
-            )
-        }
-        guard arguments.count >= 2 else {
-            throw AppError.usage(
-                "Missing version ID for \(commandName).\n\n\(usageText)"
-            )
-        }
-        guard arguments.count == 2 else {
-            throw AppError.usage(
-                "Unknown option '\(arguments[2])' for \(commandName).\n\n\(usageText)"
-            )
-        }
-        return copy
-            ? .copy(id: id, versionID: arguments[1])
-            : .get(id: id, versionID: arguments[1])
-    }
-
-    private static func parseConflictResolution(
-        _ argument: String
-    ) throws -> VaultConflictResolution {
-        let components = argument.split(
-            separator: "=",
-            maxSplits: 1,
-            omittingEmptySubsequences: false
+    struct Init: CLIRequest {
+        static let configuration = CommandConfiguration(
+            commandName: "init", abstract: "Create a new vault and use it on this Mac.",
+            discussion: CLIHelp.initialize
         )
-        guard components.count == 2,
-              !components[0].isEmpty,
-              !components[1].isEmpty
-        else {
-            throw AppError.usage(
-                "Invalid conflict resolution '\(argument)'. Expected <conflict-id>=<version-id>.\n\n\(usageText)"
-            )
+        @Argument(help: "An empty directory. Defaults to the current directory.", completion: .directory)
+        var directory: String?
+        mutating func validate() throws {
+            if let directory { try validateDirectory(directory) }
         }
-        return VaultConflictResolution(
-            conflictID: String(components[0]),
-            versionID: String(components[1])
-        )
+        var command: Command { .initializeVault(path: directory) }
     }
 
-    private static func parseUnlock(arguments: [String]) throws -> Command {
-        guard arguments.isEmpty else {
-            throw AppError.usage("Unknown option '\(arguments[0])' for unlock.\n\n\(usageText)")
+    struct Version: CLIRequest {
+        static let configuration = CommandConfiguration(
+            commandName: "version", abstract: "Show the installed CLI's version and build number."
+        )
+        @Flag(help: "Print machine-readable version information.") var json = false
+        var command: Command { .version(json: json) }
+    }
+
+    struct Migrate: CLIRequest {
+        static let configuration = CommandConfiguration(
+            commandName: "migrate", abstract: "Check or migrate a vault in the older format.",
+            usage: "key migrate (--check | --apply)",
+            discussion: CLIHelp.migrate
+        )
+        enum Action: String, EnumerableFlag { case check, apply }
+        @Flag(exclusivity: .exclusive, help: "Use --check to inspect readiness or --apply to create and verify a migrated copy.")
+        var action: Action
+        var command: Command {
+            action == .check ? .migrationPreflight : .migrationApply
         }
-
-        return .unlock
     }
 
-    private static func parseLock(arguments: [String]) throws -> Command {
-        guard arguments.isEmpty else {
-            throw AppError.usage("Unknown option '\(arguments[0])' for lock.\n\n\(usageText)")
+    struct Status: CLIRequest {
+        static let configuration = CommandConfiguration(
+            commandName: "status", abstract: "Check vault health without editing its contents.",
+            usage: "key status [--json | --verbose]",
+            discussion: CLIHelp.status
+        )
+        @Flag(help: "Print machine-readable status with stable field names and codes.") var json = false
+        @Flag(help: "Include storage-format and verified-history identifiers.") var verbose = false
+        mutating func validate() throws {
+            guard !(json && verbose) else {
+                throw ValidationError("Use either --json or --verbose with status, not both.")
+            }
         }
-
-        return .lock
+        var command: Command { .status(json: json, verbose: verbose) }
     }
 
-    private static func parseGet(arguments: [String]) throws -> Command {
-        let (name, allowStale) = try parseRead(
-            arguments: arguments,
-            commandName: "get"
-        )
-        return .get(name: name, allowStale: allowStale)
-    }
-
-    private static func parseCopy(arguments: [String]) throws -> Command {
-        let (name, allowStale) = try parseRead(
-            arguments: arguments,
-            commandName: "copy"
-        )
-        return .copy(name: name, allowStale: allowStale)
-    }
-
-    private static func parseRead(
-        arguments: [String],
-        commandName: String
-    ) throws -> (name: String, allowStale: Bool) {
-        var name: String?
+    struct ReadOptions: ParsableArguments {
+        @Argument(help: "The saved entry name.") var name: String
+        @Flag(help: "Read the last complete version verified on this Mac, even if out of date.")
         var allowStale = false
-        for argument in arguments {
-            if argument == "--allow-stale" {
-                allowStale = true
-            } else if argument.hasPrefix("-") {
-                throw AppError.usage(
-                    "Unknown option '\(argument)' for \(commandName).\n\n\(usageText)"
-                )
-            } else if name == nil {
-                name = argument
-            } else {
-                throw AppError.usage(
-                    "Unknown option '\(argument)' for \(commandName).\n\n\(usageText)"
-                )
+    }
+
+    struct Get: CLIRequest {
+        static let configuration = CommandConfiguration(
+            commandName: "get", abstract: "Print a secret or current one-time code.",
+            discussion: CLIHelp.read
+        )
+        @OptionGroup var entry: ReadOptions
+        var command: Command { .get(name: entry.name, allowStale: entry.allowStale) }
+    }
+
+    struct Copy: CLIRequest {
+        static let configuration = CommandConfiguration(
+            commandName: "copy", abstract: "Copy a secret or current one-time code to the clipboard.",
+            discussion: CLIHelp.read
+        )
+        @OptionGroup var entry: ReadOptions
+        var command: Command { .copy(name: entry.name, allowStale: entry.allowStale) }
+    }
+
+    struct WriteOptions: ParsableArguments {
+        @Argument(help: "The entry name to save.") var name: String
+        @Flag(help: "Store a Base32 authenticator setup secret to generate one-time codes.")
+        var totp = false
+        var type: SecretEntryType { totp ? .totp : .secret }
+    }
+
+    struct Add: CLIRequest {
+        static let configuration = CommandConfiguration(
+            commandName: "add", abstract: "Save a secret or authenticator setup secret.",
+            discussion: CLIHelp.write + "\n\nExisting entries are not overwritten; use key edit to replace one."
+        )
+        @OptionGroup var entry: WriteOptions
+        var command: Command { .add(name: entry.name, type: entry.type) }
+    }
+
+    struct Edit: CLIRequest {
+        static let configuration = CommandConfiguration(
+            commandName: "edit", abstract: "Replace a saved secret or authenticator setup secret.",
+            discussion: CLIHelp.write + "\n\nUse --totp again when replacing an authenticator setup secret."
+        )
+        @OptionGroup var entry: WriteOptions
+        var command: Command { .edit(name: entry.name, type: entry.type) }
+    }
+
+    struct TransferOptions: ParsableArguments {
+        @Argument(help: "The existing entry name.") var source: String
+        @Argument(help: "The new entry name.") var destination: String
+        @Flag(help: "Replace an existing destination without asking for confirmation.")
+        var force = false
+    }
+
+    struct Duplicate: CLIRequest {
+        static let configuration = CommandConfiguration(
+            commandName: "duplicate", abstract: "Copy an entry under another name.",
+            discussion: "An existing destination is refused unless you supply --force.\n\nExample: key duplicate github/old github/new"
+        )
+        @OptionGroup var entries: TransferOptions
+        var command: Command { .duplicate(source: entries.source, destination: entries.destination, force: entries.force) }
+    }
+
+    struct Rename: CLIRequest {
+        static let configuration = CommandConfiguration(
+            commandName: "rename", abstract: "Change an entry's name.",
+            discussion: "An existing destination is refused unless you supply --force.\n\nExample: key rename github/old github/new"
+        )
+        @OptionGroup var entries: TransferOptions
+        var command: Command { .rename(source: entries.source, destination: entries.destination, force: entries.force) }
+    }
+
+    struct Remove: CLIRequest {
+        static let configuration = CommandConfiguration(
+            commandName: "remove", abstract: "Delete an entry after confirmation.",
+            discussion: "Key asks for confirmation in an interactive terminal. --force skips confirmation and is required when running non-interactively."
+        )
+        @Argument(help: "The entry name to delete.") var name: String
+        @Flag(help: "Delete without asking for confirmation.") var force = false
+        var command: Command { .remove(name: name, force: force) }
+    }
+
+    struct List: CLIRequest {
+        static let configuration = CommandConfiguration(
+            commandName: "list", abstract: "List saved entry names.",
+            discussion: "Print saved entry names, one per line. Secret values are not printed."
+        )
+        var command: Command { .list }
+    }
+
+    struct Unlock: CLIRequest {
+        static let configuration = CommandConfiguration(
+            commandName: "unlock", abstract: "Unlock the vault before running other commands.",
+            discussion: CLIHelp.unlock
+        )
+        var command: Command { .unlock }
+    }
+
+    struct Lock: CLIRequest {
+        static let configuration = CommandConfiguration(
+            commandName: "lock", abstract: "Lock the vault on this Mac.",
+            discussion: CLIHelp.lock
+        )
+        var command: Command { .lock }
+    }
+
+    struct Config: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "config", abstract: "Show or change this Mac's vault settings.",
+            discussion: CLIHelp.config, subcommands: [Get.self, Set.self, List.self]
+        )
+        enum Setting: String, ExpressibleByArgument, CaseIterable {
+            case vaultDir = "vault-dir"
+            case keychainMode = "keychain-mode"
+            var key: ConfigKey {
+                switch self {
+                case .vaultDir: .vaultDir
+                case .keychainMode: .keychainMode
+                }
             }
         }
-        guard let name else {
-            throw AppError.usage(
-                "Missing entry name for \(commandName).\n\n\(usageText)"
+        struct Get: CLIRequest {
+            static let configuration = CommandConfiguration(commandName: "get", abstract: "Print one setting.")
+            @Argument(help: "The setting name.") var name: Setting
+            var command: Command { .config(.get(key: name.key)) }
+        }
+        struct Set: CLIRequest {
+            static let configuration = CommandConfiguration(
+                commandName: "set", abstract: "Change a setting in existing configuration.",
+                discussion: "Changing vault-dir does not move files or join another vault. The complete vault must already exist at the new path. See key config --help for details."
             )
+            @Argument(help: "The setting name.") var name: Setting
+            @Argument(help: "The new directory path, or local/icloud for the legacy keychain-mode setting.") var value: String
+            var command: Command { .config(.set(key: name.key, value: value)) }
         }
-        return (name, allowStale)
-    }
-
-    private static func parseAdd(arguments: [String]) throws -> Command {
-        let (name, type) = try parseSecretWrite(arguments: arguments, commandName: "add")
-        return .add(name: name, type: type)
-    }
-
-    private static func parseEdit(arguments: [String]) throws -> Command {
-        let (name, type) = try parseSecretWrite(arguments: arguments, commandName: "edit")
-        return .edit(name: name, type: type)
-    }
-
-    private static func parseSecretWrite(
-        arguments: [String],
-        commandName: String
-    ) throws -> (name: String, type: SecretEntryType) {
-        guard !arguments.isEmpty else {
-            throw AppError.usage("Missing entry name for \(commandName).\n\n\(usageText)")
+        struct List: CLIRequest {
+            static let configuration = CommandConfiguration(commandName: "list", abstract: "Print this Mac's vault settings.")
+            var command: Command { .config(.list) }
         }
+    }
 
-        var type: SecretEntryType = .secret
-        var name: String?
-
-        for argument in arguments {
-            switch argument {
-            case "--totp":
-                type = .totp
-            default:
-                guard !argument.hasPrefix("-") else {
-                    throw AppError.usage("Unknown option '\(argument)' for \(commandName).\n\n\(usageText)")
+    struct Conflict: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "conflict", abstract: "Review conflicting entries and choose what to keep.",
+            discussion: CLIHelp.conflict,
+            subcommands: [List.self, Show.self, Get.self, Copy.self, Resolve.self]
+        )
+        struct List: CLIRequest {
+            static let configuration = CommandConfiguration(commandName: "list", abstract: "List the current conflicts.")
+            @Flag(help: "Print machine-readable conflicts.") var json = false
+            var command: Command { .conflict(.list(json: json)) }
+        }
+        struct Show: CLIRequest {
+            static let configuration = CommandConfiguration(commandName: "show", abstract: "Show the choices for one conflict.")
+            @Argument(help: "The conflict ID from key conflict list.") var conflictID: String
+            @Flag(help: "Print machine-readable conflict details.") var json = false
+            var command: Command { .conflict(.show(id: conflictID, json: json)) }
+        }
+        struct ValueOptions: ParsableArguments {
+            @Argument(help: "The conflict ID.") var conflictID: String
+            @Argument(help: "The version ID from key conflict show.") var versionID: String
+        }
+        struct Get: CLIRequest {
+            static let configuration = CommandConfiguration(commandName: "get", abstract: "Print one conflicting secret version.")
+            @OptionGroup var choice: ValueOptions
+            var command: Command { .conflict(.get(id: choice.conflictID, versionID: choice.versionID)) }
+        }
+        struct Copy: CLIRequest {
+            static let configuration = CommandConfiguration(commandName: "copy", abstract: "Copy one conflicting secret version to the clipboard.")
+            @OptionGroup var choice: ValueOptions
+            var command: Command { .conflict(.copy(id: choice.conflictID, versionID: choice.versionID)) }
+        }
+        struct Resolve: CLIRequest {
+            static let configuration = CommandConfiguration(
+                commandName: "resolve", abstract: "Choose a version for every current conflict.",
+                discussion: "Review all versions first. Choosing a version can discard another edit or keep a deletion. If the vault changes during review, review the new conflicts before retrying.\n\nExample: key conflict resolve conflict-a=version-a conflict-b=version-b"
+            )
+            @Argument(help: ArgumentHelp("One conflict-id=version-id choice per conflict.", valueName: "conflict-id=version-id"), transform: parseResolution)
+            var choices: [VaultConflictResolution]
+            mutating func validate() throws {
+                guard !choices.isEmpty else {
+                    throw ValidationError("Provide every resolution as <conflict-id>=<version-id>.")
                 }
-                guard name == nil else {
-                    throw AppError.usage("Unknown option '\(argument)' for \(commandName).\n\n\(usageText)")
+            }
+            var command: Command { .conflict(.resolve(choices)) }
+        }
+    }
+
+    struct Share: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "share", abstract: "Add another Mac to an existing vault or manage access.",
+            discussion: CLIHelp.share,
+            subcommands: [Devices.self, Invite.self, Invitations.self, Join.self,
+                          Requests.self, Compare.self, Approve.self, Accept.self, Revoke.self]
+        )
+
+        // Arrays preserve occurrences so validate() can reject duplicates instead
+        // of silently accepting Argument Parser's last value for a scalar option.
+        struct IdentityOptions: ParsableArguments {
+            @Option(name: .customLong("name"), help: ArgumentHelp("This Mac's readable name. Required; specify exactly once.", valueName: "this-mac-name"))
+            var names: [String]
+            mutating func validate() throws {
+                guard names.count == 1 else {
+                    throw ValidationError("Provide this Mac's readable name once with --name.")
                 }
-                name = argument
+            }
+            var name: String { names[0] }
+        }
+
+        struct DirectoryOptions: ParsableArguments {
+            @Option(name: .customLong("vault-dir"), help: ArgumentHelp("An existing vault directory. Specify at most once; never switches a configured Mac to another vault.", valueName: "directory"), completion: .directory)
+            var directories: [String] = []
+            mutating func validate() throws {
+                guard directories.count <= 1 else {
+                    throw ValidationError("Specify --vault-dir only once.")
+                }
+                if let directory { try validateDirectory(directory) }
+            }
+            var directory: String? { directories.first }
+        }
+
+        struct Devices: CLIRequest {
+            static let configuration = CommandConfiguration(commandName: "devices", abstract: "List enrolled Macs and their recorded names.")
+            @Flag(help: "Print machine-readable device information.") var json = false
+            var command: Command { .share(.devices(json: json)) }
+        }
+
+        struct Invite: CLIRequest {
+            static let configuration = CommandConfiguration(
+                commandName: "invite", abstract: "Create an invitation on a Mac that already has access.",
+                usage: "key share invite --name <this-mac-name>",
+                discussion: "Use this Mac's exact recorded name from key share devices, not the joining Mac's name. Invitations expire after 10 minutes. See key share --help for the full sequence."
+            )
+            @OptionGroup var identity: IdentityOptions
+            var command: Command { .share(.invite(deviceName: identity.name)) }
+        }
+
+        struct Invitations: CLIRequest {
+            static let configuration = CommandConfiguration(
+                commandName: "invitations", abstract: "Find invitations in the existing vault folder.",
+                usage: "key share invitations [--vault-dir <directory>]",
+                discussion: CLIHelp.joiningDirectory
+            )
+            @OptionGroup var location: DirectoryOptions
+            var command: Command { .share(.invitations, vaultDirectory: location.directory) }
+        }
+
+        struct Join: CLIRequest {
+            static let configuration = CommandConfiguration(
+                commandName: "join", abstract: "Request access from the joining Mac.",
+                usage: "key share join <invitation-id> --name <this-mac-name> [--vault-dir <directory>]",
+                discussion: "Use --name for the name you want to give this joining Mac. Follow the commands printed on both Macs; joining is not complete until verified acceptance.\n\n" + CLIHelp.joiningDirectory
+            )
+            @Argument(help: "The invitation ID from key share invitations.") var invitationID: String
+            @OptionGroup var identity: IdentityOptions
+            @OptionGroup var location: DirectoryOptions
+            var command: Command {
+                .share(.join(invitationID: invitationID, deviceName: identity.name), vaultDirectory: location.directory)
             }
         }
 
-        guard let name else {
-            throw AppError.usage("Missing entry name for \(commandName).\n\n\(usageText)")
+        struct Requests: CLIRequest {
+            static let configuration = CommandConfiguration(commandName: "requests", abstract: "Review requests on the Mac that created the invitation.")
+            @Argument(help: "The invitation ID from key share invite.") var invitationID: String
+            var command: Command { .share(.requests(invitationID: invitationID)) }
         }
 
-        return (name, type)
-    }
-
-    private static func parseDuplicate(arguments: [String]) throws -> Command {
-        try parseEntryTransfer(arguments: arguments, commandName: "duplicate") { source, destination, force in
-            .duplicate(source: source, destination: destination, force: force)
-        }
-    }
-
-    private static func parseRename(arguments: [String]) throws -> Command {
-        try parseEntryTransfer(arguments: arguments, commandName: "rename") { source, destination, force in
-            .rename(source: source, destination: destination, force: force)
-        }
-    }
-
-    private static func parseEntryTransfer(
-        arguments: [String],
-        commandName: String,
-        build: (String, String, Bool) -> Command
-    ) throws -> Command {
-        guard let source = arguments.first else {
-            throw AppError.usage("Missing source entry name for \(commandName).\n\n\(usageText)")
-        }
-        guard arguments.count >= 2 else {
-            throw AppError.usage("Missing destination entry name for \(commandName).\n\n\(usageText)")
-        }
-
-        let destination = arguments[1]
-        var force = false
-        var index = 2
-
-        while index < arguments.count {
-            let argument = arguments[index]
-            switch argument {
-            case "--force":
-                force = true
-                index += 1
-            default:
-                throw AppError.usage("Unknown option '\(argument)' for \(commandName).\n\n\(usageText)")
+        struct Compare: CLIRequest {
+            static let configuration = CommandConfiguration(
+                commandName: "compare", abstract: "Show the comparison code and Mac names for this attempt.",
+                usage: "key share compare <vault-id> <invitation-id> [<request-id>] [--vault-dir <directory>]",
+                discussion: "Compare the exact code and both Mac names on the two screens. Stop if they differ. On the existing Mac, include the request ID printed by key share requests.\n\n" + CLIHelp.joiningDirectory
+            )
+            @Argument(help: "The vault ID printed during this attempt.") var vaultID: String
+            @Argument(help: "The invitation ID.") var invitationID: String
+            @Argument(help: "The joining request ID, required on the existing Mac.") var requestID: String?
+            @OptionGroup var location: DirectoryOptions
+            var command: Command {
+                .share(.compare(vaultID: vaultID, invitationID: invitationID, joinRequestID: requestID), vaultDirectory: location.directory)
             }
         }
 
-        return build(source, destination, force)
-    }
-
-    private static func parseRemove(arguments: [String], commandName: String) throws -> Command {
-        guard let name = arguments.first else {
-            throw AppError.usage("Missing entry name for \(commandName).\n\n\(usageText)")
+        struct ConfirmationOptions: ParsableArguments {
+            @Argument(help: "The vault ID printed during this attempt.") var vaultID: String
+            @Argument(help: "The invitation ID.") var invitationID: String
+            @Argument(help: "The exact comparison code verified on both screens.") var comparisonCode: String
         }
 
-        var force = false
-        var index = 1
-
-        while index < arguments.count {
-            let argument = arguments[index]
-            switch argument {
-            case "--force":
-                force = true
-                index += 1
-            default:
-                throw AppError.usage("Unknown option '\(argument)' for \(commandName).\n\n\(usageText)")
+        struct Approve: CLIRequest {
+            static let configuration = CommandConfiguration(
+                commandName: "approve", abstract: "Approve access on the Mac that created the invitation.",
+                discussion: "Compare the exact code and both Mac names on the two screens first. Stop if they differ. After approval, run the printed accept command on the joining Mac."
+            )
+            @OptionGroup var confirmation: ConfirmationOptions
+            var command: Command {
+                .share(.approve(vaultID: confirmation.vaultID, invitationID: confirmation.invitationID, comparisonCode: confirmation.comparisonCode))
             }
         }
 
-        return .remove(name: name, force: force)
-    }
-
-    private static func parseList(arguments: [String], commandName: String) throws -> Command {
-        guard arguments.isEmpty else {
-            throw AppError.usage("Unknown option '\(arguments[0])' for \(commandName).\n\n\(usageText)")
+        struct Accept: CLIRequest {
+            static let configuration = CommandConfiguration(
+                commandName: "accept", abstract: "Verify approved access and configure the joining Mac.",
+                usage: "key share accept <vault-id> <invitation-id> <comparison-code> [--vault-dir <directory>]",
+                discussion: "Compare the exact code and both Mac names on the two screens before approval and acceptance. Stop if they differ. Only verified acceptance saves this Mac's vault configuration.\n\n" + CLIHelp.joiningDirectory
+            )
+            @OptionGroup var confirmation: ConfirmationOptions
+            @OptionGroup var location: DirectoryOptions
+            var command: Command {
+                .share(.accept(vaultID: confirmation.vaultID, invitationID: confirmation.invitationID, comparisonCode: confirmation.comparisonCode), vaultDirectory: location.directory)
+            }
         }
 
-        return .list
+        struct Revoke: CLIRequest {
+            static let configuration = CommandConfiguration(
+                commandName: "revoke", abstract: "Review and remove a Mac's access.",
+                discussion: "Key shows a review and requires you to type REVOKE. The removed Mac cannot read the new vault or future changes, but keeps any secrets and older vault data it already obtained.\n\nA lost or revoked Mac rejoins through an invitation from a surviving Mac. If every enrolled Mac is lost, the vault folder alone cannot restore access."
+            )
+            @Argument(help: "The device ID from key share devices.") var deviceID: String
+            var command: Command { .share(.revoke(deviceID: deviceID)) }
+        }
     }
+}
+
+private func validateDirectory(_ path: String) throws {
+    guard !path.isEmpty, !path.utf8.contains(0) else {
+        throw ValidationError("Provide one nonempty directory path without NUL characters.")
+    }
+}
+
+private func parseResolution(_ argument: String) throws -> VaultConflictResolution {
+    let parts = argument.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+    guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
+        throw ValidationError("Expected <conflict-id>=<version-id> for each resolution.")
+    }
+    return VaultConflictResolution(conflictID: String(parts[0]), versionID: String(parts[1]))
 }

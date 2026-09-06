@@ -20,15 +20,15 @@ enum V3DeviceWrappedVaultUnlockRuntimeError:
         case .locked:
             "The vault is locked. Unlock it to continue."
         case .temporaryUnavailable:
-            "The exact trusted vault state is not available from the file provider yet."
+            "The vault files matching this Mac's last verified state are unavailable. Check file synchronization before retrying."
         case .checkpointChanged:
             "The trusted vault state changed during unlock. Retry the operation."
         case .recoveryRequired:
-            "This Mac cannot authenticate and open its exact trusted vault state. Recovery or re-enrollment is required."
+            "Key cannot verify and open this Mac's last trusted vault state. Keep vault files and local records intact for investigation. Do not delete them or run init to bypass this check."
         case .deviceIdentityUnavailable:
-            "This Mac has no usable enrolled device identity for this vault. Use a surviving enrolled Mac to enroll this Mac again. If no enrolled Mac survives, the vault is permanently inaccessible; synchronized vault files alone cannot recover it."
+            "This Mac no longer has usable access credentials for this vault. A Mac that still has access must invite it again; see `key help share`. If no enrolled Mac survives, the vault is permanently inaccessible. The vault folder alone cannot restore access."
         case .deviceRevoked:
-            "This Mac has been revoked from the vault and cannot unlock its current key."
+            "This Mac's access to the vault was removed. Use a Mac that still has access to invite it again."
         case .legacyAlphaProfile:
             "This vault uses a retired prerelease version 3 key profile and cannot be opened by this release. Return to its retained version 2 source and migrate again, or reset this test vault."
         case .upgradeRequired:

@@ -6,6 +6,49 @@ struct KeyInitializationTests {
     private let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c4504"
 
     @Test
+    func completedSetupRestartGuidanceDoesNotRepeatCompletedOperations() {
+        let acceptance = KeyShareRequest.accept(
+            vaultID: vaultID, invitationID: String(repeating: "a", count: 64),
+            comparisonCode: "123456"
+        )
+        let requests: [KeyServiceRequest] = [
+            .initializeVault(path: "/tmp/Vault"), .migrationApply,
+            .share(acceptance), .shareInDirectory(request: acceptance, path: "/tmp/Vault")
+        ]
+        for request in requests {
+            let message = KeyXPCClientTransport.helperRestartTimeoutError(
+                for: request, helperName: "Test Agent", timeoutSeconds: 5
+            ).localizedDescription
+            #expect(message.contains("key status"))
+            #expect(message.contains("Test Agent"))
+            #expect(!message.contains("Run the same command again"))
+        }
+    }
+
+    @Test(arguments: [
+        V3DeviceWrappedGenesisInstallError.persistedIdentityUnavailable,
+        .checkpointChanged, .verifiedReopenMismatch
+    ])
+    func interruptedInitDoesNotDescribeAnOlderConfiguredVault(error: V3DeviceWrappedGenesisInstallError) throws {
+        let home = try makeHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let config = KeyConfigStore(homeDirectoryURL: home)
+        let service = V3VaultInitializationService(configStore: config) { _, _, _ in
+            throw error
+        }
+        do {
+            _ = try service.initialize(path: home.appendingPathComponent("Vault").path)
+            Issue.record("Expected initialization to fail")
+        } catch let failure as AppError {
+            #expect(!failure.localizedDescription.lowercased().contains("version 2"))
+            #expect(failure.localizedDescription.contains("key status"))
+            #expect(failure.localizedDescription.contains("intact"))
+        }
+        #expect(try !config.hasConfiguration())
+        #expect(try attemptRecords(config).count == 1)
+    }
+
+    @Test
     func ordinaryUnconfiguredRequestsNeverComposeOrCreateState() throws {
         let home = temporaryURL()
         defer { try? FileManager.default.removeItem(at: home) }
@@ -250,7 +293,7 @@ struct KeyInitializationTests {
             try select(vaultID)
             return report()
         }
-        #expect(try service.initialize(path: root.path).contains("Created and selected"))
+        #expect(try service.initialize(path: root.path).contains("Created a new vault"))
         let selection = try config.configuredVaultRuntimeSelection()
         #expect(selection.vaultID == vaultID)
         #expect(selection.rootURL.standardizedFileURL == root.standardizedFileURL)

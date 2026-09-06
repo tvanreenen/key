@@ -154,7 +154,7 @@ struct V3DeviceWrappedRevocationService:
                 .invalidAuthorizingDevice
         }
         let trusted = try stateLoader.authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to review device revocation."
+            reason: "Unlock the vault to review removal of a Mac's access."
         )
         let plan = try planner.plan(
             from: trusted,
@@ -210,7 +210,7 @@ struct V3DeviceWrappedRevocationService:
         }
 
         let parent = try stateLoader.authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to revoke the reviewed device."
+            reason: "Unlock the vault to remove the reviewed Mac's access."
         )
         guard parent.checkpoint == plan.expectedCheckpoint else {
             throw V3ImmutableTransactionError.expectedHeadsChanged
@@ -243,7 +243,7 @@ struct V3DeviceWrappedRevocationService:
             nextVaultKey: nextVaultKey,
             authorityTransitionID: transitionID,
             owner: identity,
-            authorizationReason: "Revoke the reviewed device and rotate this vault's key."
+            authorizationReason: "Remove the reviewed Mac's access and change the vault's encryption key."
         )
         return try publisher.publish(
             candidate,

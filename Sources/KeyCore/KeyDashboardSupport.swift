@@ -368,7 +368,7 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
         let identity = context.productIdentity
         return KeyDashboardHero(
             title: "Welcome to \(identity.appName)",
-            detail: "\(identity.appName) is a file-based, CLI-first secret vault for macOS. Your vault encryption key stays in Keychain, key-backed commands unlock with macOS user presence, and \(identity.helperName) briefly reuses that unlocked session in memory while it stays active."
+            detail: "\(identity.appName) stores encrypted secrets in a folder you control. Use the \(identity.cliExecutableName) command in your terminal to work with them. macOS asks you to authenticate when access is needed; \(identity.helperName), the background service, keeps that access unlocked briefly between commands."
         )
     }
 
@@ -380,27 +380,27 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
                 detail: detail,
                 guidance: [
                     KeyDashboardGuidance(
-                        title: "Allow the helper in System Settings",
-                        detail: "Approve \(context.productIdentity.appName) in Login Items & Extensions so launchd can start \(context.productIdentity.helperName) on demand.",
+                        title: "Allow Key to run in the background",
+                        detail: "Approve \(context.productIdentity.appName) in Login Items & Extensions so \(context.productIdentity.appName) can handle vault commands when needed.",
                         command: nil
                     )
                 ]
             )
         case let .notRegistered(detail):
             return KeyDashboardCallout(
-                title: "Setup is still finishing",
+                title: "Background service is not ready",
                 detail: detail,
                 guidance: [
                     KeyDashboardGuidance(
                         title: "Reopen \(context.productIdentity.appName) if setup doesn’t complete",
-                        detail: "The app registers the LaunchAgent helper on open.",
+                        detail: "Opening the app sets up the background service used by vault commands.",
                         command: nil
                     )
                 ]
             )
         case let .unknown(detail):
             return KeyDashboardCallout(
-                title: "Helper status is unavailable",
+                title: "Background service status is unavailable",
                 detail: detail,
                 guidance: []
             )
@@ -412,13 +412,13 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
         case .missing:
             let identity = context.productIdentity
             return KeyDashboardCallout(
-                title: "External CLI not found",
+                title: "Terminal command not found",
                 detail: "\(identity.appName) could not find an external `\(identity.cliExecutableName)` CLI through your login shell or standard Homebrew install locations. You can still use the bundled CLI directly from \(identity.appName).app.",
                 guidance: [
                     KeyDashboardGuidance(
-                        title: "Use the bundled CLI directly",
+                        title: "Use the command included with the app",
                         detail: "Run the app’s bundled CLI until an external `\(identity.cliExecutableName)` install is available again.",
-                        command: bundledCLICommand("unlock")
+                        command: bundledCLICommand("help")
                     )
                 ]
             )
@@ -427,13 +427,13 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
             let path = shellCLIStatus.resolvedPath ?? "the resolved CLI path"
             let detail = shellCLIStatus.conciseVersionErrorDescription(
                 executableName: identity.cliExecutableName
-            ) ?? "The CLI returned an unreadable version payload."
+            ) ?? "The terminal command returned version information Key could not read."
             let sourceDescription = shellCLIStatus.resolutionSource?.detectionDescription ?? "the detected install location"
             let guidance: [KeyDashboardGuidance]
             if detail.contains("does not support") {
                 guidance = [
                     KeyDashboardGuidance(
-                        title: "Use the bundled CLI directly",
+                        title: "Use the command included with the app",
                         detail: "The external `\(identity.cliExecutableName)` CLI is older than this app. Use the bundled CLI until the external CLI is updated.",
                         command: bundledCLICommand("version")
                     )
@@ -441,7 +441,7 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
             } else {
                 guidance = [
                     KeyDashboardGuidance(
-                        title: "Inspect the external CLI",
+                        title: "Check the terminal command",
                         detail: "Run the CLI version command from the same shell environment you expect to use.",
                         command: "\(identity.cliExecutableName) version"
                     )
@@ -449,7 +449,7 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
             }
 
             return KeyDashboardCallout(
-                title: "CLI version unavailable",
+                title: "Terminal command version unavailable",
                 detail: "\(path) was detected from \(sourceDescription), but version inspection failed: \(detail)",
                 guidance: guidance
             )
@@ -459,12 +459,12 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
             let path = shellCLIStatus.resolvedPath ?? "the resolved CLI path"
             let sourceDescription = shellCLIStatus.resolutionSource?.detectionDescription ?? "the detected install location"
             return KeyDashboardCallout(
-                title: "CLI version mismatch",
+                title: "App and terminal command versions differ",
                 detail: "\(identity.appName) detected \(path) from \(sourceDescription) at version \(shellVersion), while this app is \(context.appVersion.displayString).",
                 guidance: [
                     KeyDashboardGuidance(
-                        title: "Inspect the external CLI",
-                        detail: "Confirm which `\(identity.cliExecutableName)` binary your shell environment is actually using.",
+                        title: "Check the terminal command",
+                        detail: "Check which `\(identity.cliExecutableName)` binary your shell environment is actually using.",
                         command: "\(identity.cliExecutableName) version"
                     )
                 ]
@@ -475,12 +475,12 @@ public struct KeyAppDiagnosticsSnapshot: Equatable, Sendable {
 
         if let helperStatusErrorDescription, isHelperRunning {
             return KeyDashboardCallout(
-                title: "Helper status is temporarily unavailable",
+                title: "Background service status is unavailable",
                 detail: helperStatusErrorDescription,
                 guidance: [
                     KeyDashboardGuidance(
-                        title: "Refresh helper status",
-                        detail: "If the helper was shutting down while \(context.productIdentity.appName) checked it, refreshing should settle the dashboard.",
+                        title: "Refresh status",
+                        detail: "If the helper was shutting down while \(context.productIdentity.appName) checked it, refreshing may show its current status.",
                         command: nil
                     )
                 ]
