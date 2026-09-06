@@ -2,7 +2,7 @@
 
 ![Key](.github/assets/hero.png)
 
-Key is a secret manager for macOS, used from your terminal. Store passwords, tokens, and authenticator setup secrets in an encrypted vault folder you control. Keep the folder on your Mac or synchronize it through iCloud Drive or another file-sync provider. macOS asks you to authenticate when vault access is needed.
+Key is a secret manager for macOS, used from your terminal. It combines familiar macOS authentication with an encrypted vault folder you control, for passwords, tokens, and authenticator setup secrets. In a device-enrolled vault, Key verifies access and saved history itself; your sync provider delivers the files.
 
 ## Quick start
 
@@ -43,15 +43,27 @@ Full `otpauth://` URLs are not accepted yet; provide only their `secret` value. 
 
 ## How access works
 
-Key uses macOS authentication, such as Touch ID, Apple Watch, or your Mac password, to unlock access. Its background service, Key Agent, handles encryption and keeps an unlocked session briefly between commands. Run `key lock` to end that session on this Mac. This does not erase secrets you have already printed or copied.
+When a command first needs protected key material, macOS asks you to confirm your presence using Touch ID, Apple Watch approval, or your Mac password, depending on your hardware and settings. macOS enforces this requirement on access to the protected keys themselves. Apple explains the available [macOS authentication methods](https://developer.apple.com/documentation/LocalAuthentication/LAPolicy/deviceOwnerAuthentication) and how to [enable Apple Watch approval](https://support.apple.com/en-us/102442).
 
-In a device-enrolled vault, each Mac must be invited and approved by a Mac that already has access. Having a copy of the vault folder is not enough to unlock it. See [vault protection](#how-key-protects-a-vault) for the differences between older and newer vault formats.
+For a device-enrolled vault, each approved Mac has its own private access keys protected by the Secure Enclave. Those private keys cannot be exported to another Mac. After authentication, they let Key Agent, the signed background service, unlock the vault's encryption key in memory. The CLI asks that service to perform vault operations rather than loading protected keys itself. Another Mac needs an invitation and approval; copying the vault folder or signing into the same cloud account does not grant access.
+
+Once unlocked, ordinary commands reuse the in-memory session instead of prompting every time. The session expires after 15 minutes of inactivity; using the vault key extends that window. Run `key lock` to end it immediately on this Mac. This convenience means user presence is checked when protected key access is needed, not separately for every secret read. Locking does not erase secrets already printed or copied, and an unlocked session is not a defense against malicious software operating through an authorized CLI on your Mac.
+
+> [!NOTE]
+> There is no separate vault password to remember. Your Mac password authorizes local key access; it is not used to derive the vault's encryption key and cannot restore access after every enrolled Mac is lost. See [vault protection](#how-key-protects-a-vault) for the differences between older and newer vault formats.
 
 ## Choose your sync provider
 
 Put the vault folder in the location you want to use for file synchronization. For a device-enrolled vault, iCloud Drive works through the folder location, not a Keychain-mode setting. The sync provider carries encrypted files; it cannot approve another Mac or decide which vault history Key should trust.
 
-Files can arrive late, out of order, or incompletely. Key combines independent changes when it can do so safely and asks you to choose between conflicting edits. If required files are missing, saving changes pauses. Failed verification or conflicting changes to device access also stop operations; they are not treated as ordinary edit conflicts. See [provider setup and conflicts](#provider-setup-and-conflicts) for the commands to inspect these states.
+The device-enrolled format also protects how changes are saved. Key writes new encrypted entries and history records without overwriting existing versions, verifies the saved files, and only then advances this Mac's record of the verified vault state. Local transaction records let it recognize interrupted ordinary writes and finish a verified change or retain the previous state. If the evidence needed to continue is missing or contradictory, Key stops instead of guessing. This crash-recovery behavior does not mean every interrupted setup or enrollment step can resume automatically.
+
+Those checks matter when files arrive late, out of order, or incompletely. Key combines independent edits when it can do so safely and preserves conflicting edits for your choice, rather than letting a sync provider's timestamps decide which one wins. Files that do not match their authenticated history are rejected. An enrolled Mac checks history against its locally saved record, so presenting an older copy does not silently reset what that Mac already trusts. Missing files pause operations that need them; they do not cause Key to create an empty replacement vault.
+
+> [!NOTE]
+> Your sync provider delivers files; Key decides what it can safely use. Encryption, verified history, crash-aware writes, and conflict handling belong to the device-enrolled vault, so they do not require an iCloud-specific service.
+
+These protections cannot make a provider deliver files, prevent it from deleting its copies, or recover a vault after all usable copies or all enrolled Macs are lost. Keep backups as well as another enrolled Mac. Local APFS and iCloud Drive have been directly qualified; other providers still need compatible filesystem behavior and testing. See [provider setup and conflicts](#provider-setup-and-conflicts) for the supported scope and inspection commands.
 
 ## Install and choose a release channel
 
