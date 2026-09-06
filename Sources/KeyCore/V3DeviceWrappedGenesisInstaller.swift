@@ -20,25 +20,25 @@ enum V3DeviceWrappedGenesisInstallError:
     var errorDescription: String? {
         switch self {
         case .invalidGeneratedKey:
-            "Permanent version 3 creation did not generate a 32-byte vault key."
+            "Key could not create a valid encryption key for the new vault."
         case .generatedIdentityMismatch:
-            "The generated Secure Enclave identity does not belong to the new vault."
+            "The access credentials created for this Mac do not match the new vault."
         case .persistedIdentityUnavailable:
-            "The new Secure Enclave identity could not be reloaded from device-local storage. Version 2 remains selected."
+            "Key could not reload this Mac's new access credentials. The new vault has not been added to your configuration."
         case .localStateAlreadyExists:
-            "Permanent version 3 creation found existing local state for its generated vault identity."
+            "Key found existing local records for the new vault's ID and stopped to avoid replacing them."
         case .checkpointChanged:
-            "The permanent version 3 checkpoint changed before vault selection. Version 2 remains selected."
+            "This Mac's verified vault record changed during setup. The new vault has not been added to your configuration."
         case .objectTooLarge:
-            "The permanent version 3 vault would exceed a repository resource limit."
+            "The new vault would exceed Key's size or item-count limits."
         case .stagedObjectUnavailable:
-            "A staged permanent version 3 object could not be reopened exactly."
+            "Key could not read back and verify a temporary file for the new vault."
         case .publishedObjectUnavailable:
-            "A published permanent version 3 object could not be reopened exactly."
+            "Key could not read back and verify a file saved in the new vault."
         case .verifiedReopenMismatch:
-            "The completed permanent version 3 vault did not reproduce the exact version 2 source."
+            "The new vault did not match the contents or encryption key Key expected when it was reopened."
         case .sourceChanged:
-            "The version 2 vault changed during creation. Version 2 remains selected; retry after file synchronization settles."
+            "The original vault changed during migration. This Mac still uses the original vault. Check that file synchronization has finished before trying again."
         }
     }
 }
