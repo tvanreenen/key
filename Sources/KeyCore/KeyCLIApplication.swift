@@ -6,19 +6,24 @@ public final class KeyCLIApplication {
     private let clipboard: ClipboardWriting
     private let configStore: KeyConfigStore
     private let version: KeyVersionInfo
+    private let currentDirectory: () -> URL
 
     public init(
         transport: KeyServiceTransport,
         io: InputOutput,
         clipboard: ClipboardWriting,
         configStore: KeyConfigStore = KeyConfigStore(),
-        version: KeyVersionInfo = KeyVersionInfo.currentProcess()
+        version: KeyVersionInfo = KeyVersionInfo.currentProcess(),
+        currentDirectory: @escaping () -> URL = {
+            URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+        }
     ) {
         self.transport = transport
         self.io = io
         self.clipboard = clipboard
         self.configStore = configStore
         self.version = version
+        self.currentDirectory = currentDirectory
     }
 
     @discardableResult
@@ -47,6 +52,13 @@ public final class KeyCLIApplication {
             return EXIT_SUCCESS
         case let .config(configCommand):
             return try executeConfigCommand(configCommand)
+        case let .initializeVault(path):
+            let directory = path.map {
+                URL(fileURLWithPath: $0, isDirectory: true, relativeTo: currentDirectory())
+            } ?? currentDirectory()
+            io.writeStderr("Initializing a NEW device-enrolled vault at '\(directory.standardizedFileURL.path)'. Use enrollment instead for a vault from another Mac. If every enrolled Mac is lost, this vault cannot currently be recovered.\n")
+            response = try transport.send(.initializeVault(path: directory.standardizedFileURL.path))
+            return try handle(response, for: command)
         case .migrationPreflight:
             response = try transport.send(.migrationPreflight)
             return try handle(response, for: command)
@@ -67,8 +79,8 @@ public final class KeyCLIApplication {
             return response.exitCode
         case let .conflict(conflictCommand):
             return try executeConflictCommand(conflictCommand)
-        case let .share(shareCommand):
-            return try executeShareCommand(shareCommand)
+        case let .share(shareCommand, vaultDirectory):
+            return try executeShareCommand(shareCommand, vaultDirectory: vaultDirectory)
         case .unlock:
             response = try transport.send(.unlock)
             return try handle(response, for: command)
@@ -129,7 +141,7 @@ public final class KeyCLIApplication {
             break
         case .config:
             break
-        case .migrationPreflight, .migrationApply, .share,
+        case .initializeVault, .migrationPreflight, .migrationApply, .share,
             .unlock, .lock, .list:
             if let value = response.value, !value.isEmpty {
                 io.writeStdout(value)
@@ -149,7 +161,8 @@ public final class KeyCLIApplication {
     }
 
     private func executeShareCommand(
-        _ command: ShareCommand
+        _ command: ShareCommand,
+        vaultDirectory: String?
     ) throws -> Int32 {
         switch command {
         case let .revoke(deviceID):
@@ -170,7 +183,7 @@ public final class KeyCLIApplication {
             }
             return response.exitCode
         case .invitations:
-            return try executeSimpleShareCommand(command, request: .invitations)
+            return try executeSimpleShareCommand(command, request: .invitations, vaultDirectory: vaultDirectory)
         case let .invite(deviceName):
             return try executeSimpleShareCommand(
                 command,
@@ -179,7 +192,8 @@ public final class KeyCLIApplication {
         case let .join(invitationID, deviceName):
             return try executeJoin(
                 invitationID: invitationID,
-                deviceName: deviceName
+                deviceName: deviceName,
+                vaultDirectory: vaultDirectory
             )
         case let .requests(invitationID):
             return try executeSimpleShareCommand(
@@ -193,7 +207,8 @@ public final class KeyCLIApplication {
                     vaultID: vaultID,
                     invitationID: invitationID,
                     joinRequestID: joinRequestID
-                )
+                ),
+                vaultDirectory: vaultDirectory
             )
         case let .approve(vaultID, invitationID, comparisonCode):
             return try executeSimpleShareCommand(
@@ -211,19 +226,43 @@ public final class KeyCLIApplication {
                     vaultID: vaultID,
                     invitationID: invitationID,
                     comparisonCode: comparisonCode
-                )
+                ),
+                vaultDirectory: vaultDirectory
             )
         }
     }
 
     private func executeSimpleShareCommand(
         _ command: ShareCommand,
-        request: KeyShareRequest
+        request: KeyShareRequest,
+        vaultDirectory: String? = nil
     ) throws -> Int32 {
         try handle(
-            transport.send(.share(request)),
+            transport.send(shareServiceRequest(request, vaultDirectory: vaultDirectory)),
             for: .share(command)
         )
+    }
+
+    private func shareServiceRequest(
+        _ request: KeyShareRequest,
+        vaultDirectory: String?
+    ) throws -> KeyServiceRequest {
+        guard request.supportsDirectorySelection else { return .share(request) }
+        let directory: URL
+        if let vaultDirectory {
+            let base = URL(fileURLWithPath: currentDirectory().path, isDirectory: true)
+            directory = URL(fileURLWithPath: vaultDirectory, isDirectory: true, relativeTo: base)
+        } else if try configStore.hasConfiguration() {
+            directory = try configStore.load().vaultDirectoryURL
+        } else {
+            directory = currentDirectory()
+        }
+        let path = directory.standardizedFileURL.path
+        io.writeStderr("Enrollment folder: '\(path)'.\n")
+        if case .join = request {
+            io.writeStderr("Joining uses this Mac's enrollment identity and publishes a request. It does not create a new vault or provision a hardware key.\n")
+        }
+        return .shareInDirectory(request: request, path: path)
     }
 
     private func executeDeviceRevocation(deviceID: String) throws -> Int32 {
@@ -299,7 +338,8 @@ public final class KeyCLIApplication {
 
     private func executeJoin(
         invitationID: String,
-        deviceName: String
+        deviceName: String,
+        vaultDirectory: String?
     ) throws -> Int32 {
         let command = ShareCommand.join(
             invitationID: invitationID,
@@ -309,7 +349,8 @@ public final class KeyCLIApplication {
             invitationID: invitationID,
             deviceName: deviceName
         )
-        let initialResponse = try transport.send(.share(request))
+        let serviceRequest = try shareServiceRequest(request, vaultDirectory: vaultDirectory)
+        let initialResponse = try transport.send(serviceRequest)
         guard let review = initialResponse.deviceReplacementReview else {
             return try handle(initialResponse, for: .share(command))
         }
@@ -322,7 +363,7 @@ public final class KeyCLIApplication {
         writeDeviceRejoinReview(review)
         try confirmDeviceRejoin()
 
-        let revalidationResponse = try transport.send(.share(request))
+        let revalidationResponse = try transport.send(serviceRequest)
         guard revalidationResponse.exitCode == EXIT_SUCCESS else {
             return try handle(
                 revalidationResponse,
@@ -352,7 +393,7 @@ public final class KeyCLIApplication {
         }
 
         return try handle(
-            transport.send(.share(request)),
+            transport.send(serviceRequest),
             for: .share(command)
         )
     }
@@ -579,6 +620,18 @@ public final class KeyCLIApplication {
             "Attention: \($0.message)"
         })
         io.writeStdout(lines.joined(separator: "\n") + "\n")
+        if status.format == .version2 {
+            writeV2DeprecationWarning()
+        }
+    }
+
+    /// Warn only on explicit, terminal-facing inspection. Never probe config
+    /// or contact the helper just to add a warning to an ordinary command.
+    private func writeV2DeprecationWarning() {
+        guard io.stdoutIsTTY else { return }
+        io.writeStderr(
+            "Warning: Keychain-backed vaults (v2) are deprecated; v2 reads and writes remain supported. Run `key migrate --check` for a read-only readiness check. Migration is explicit; review device enrollment and recovery before applying.\n"
+        )
     }
 
     private func writeConflictList(
@@ -724,7 +777,13 @@ public final class KeyCLIApplication {
     private func executeConfigCommand(_ command: ConfigCommand) throws -> Int32 {
         switch command {
         case let .get(key):
-            io.writeStdout(try configStore.getValue(for: key) + "\n")
+            let configuration = try configStore.load()
+            io.writeStdout(configuration.value(for: key) + "\n")
+            if key == .keychainMode, case .v3 = configuration.authority {
+                io.writeStderr(
+                    "keychain-mode is retained legacy metadata for this v3 vault. Device enrollment supplies key authority; vault-dir selects storage, including iCloud Drive.\n"
+                )
+            }
         case let .set(key, value):
             switch key {
             case .vaultDir:
@@ -740,12 +799,15 @@ public final class KeyCLIApplication {
                 return try handle(response, for: .config(command))
             }
         case .list:
-            let values = try configStore.listValues()
-            let output = values
+            let configuration = try configStore.load()
+            let output = configuration.listedValues
                 .map { "\($0.key.rawValue)=\($0.value)" }
                 .joined(separator: "\n")
             if !output.isEmpty {
                 io.writeStdout(output + "\n")
+            }
+            if case .v2 = configuration.authority {
+                writeV2DeprecationWarning()
             }
         }
 

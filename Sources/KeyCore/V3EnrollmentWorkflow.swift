@@ -9,18 +9,25 @@ private final class V3EnrollmentVaultSelectionCommitter:
     private let configStore: KeyConfigStore
     private let rootHandle: VaultRootDirectoryHandle
     private let keychainMode: KeychainMode
+    private let unconfiguredSelection: ((String) throws -> Void)?
 
     init(
         configStore: KeyConfigStore,
         rootHandle: VaultRootDirectoryHandle,
-        keychainMode: KeychainMode
+        keychainMode: KeychainMode,
+        unconfiguredSelection: ((String) throws -> Void)? = nil
     ) {
         self.configStore = configStore
         self.rootHandle = rootHandle
         self.keychainMode = keychainMode
+        self.unconfiguredSelection = unconfiguredSelection
     }
 
     func select(_ vaultID: String) throws {
+        if let unconfiguredSelection {
+            try unconfiguredSelection(vaultID)
+            return
+        }
         _ = try configStore.selectV3Vault(
             vaultID: vaultID,
             expectedRootHandle: rootHandle,
@@ -51,7 +58,9 @@ func makeLiveV3EnrollmentWorkflowService(
     keyStore: any VaultKeyStoring,
     keyConfiguration: KeyConfiguration,
     configStore: KeyConfigStore,
-    runtimeConfiguration: RuntimeConfiguration
+    runtimeConfiguration: RuntimeConfiguration,
+    unconfiguredSelection: ((String) throws -> Void)? = nil,
+    deviceWrappedSession: V3DeviceWrappedVaultKeySessionStore = V3DeviceWrappedVaultKeySessionStore()
 ) throws -> V3EnrollmentWorkflowService {
     precondition(selectedVaultID == nil || replacementVaultID == nil)
     precondition(
@@ -78,11 +87,12 @@ func makeLiveV3EnrollmentWorkflowService(
     let cache = try KeyServiceHandler.makeV3CheckpointManifestCache(
         keyConfiguration: keyConfiguration
     )
-    let session = V3DeviceWrappedVaultKeySessionStore()
+    let session = deviceWrappedSession
     let selectionCommitter = V3EnrollmentVaultSelectionCommitter(
         configStore: configStore,
         rootHandle: rootHandle,
-        keychainMode: keyConfiguration.keychainMode
+        keychainMode: keyConfiguration.keychainMode,
+        unconfiguredSelection: unconfiguredSelection
     )
     let deviceWrappedAdoption = V3DeviceWrappedEnrollmentAdoptionService(
         source: objectStore,
@@ -374,13 +384,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
     }
 
     func listInvitations() throws -> String {
-        let digests = try exchange.availableInvitationDigests(
-            maximumCount: Self.maximumMailboxObjects
-        ).sorted(by: { $0.lexicographicallyPrecedes($1) })
-        guard !digests.isEmpty else {
-            return "No enrollment invitations are available yet.\n"
-        }
-        return digests.map(v3LowercaseHex).joined(separator: "\n") + "\n"
+        try exchange.renderedInvitations()
     }
 
     func createInvitation(
@@ -445,7 +449,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             "Vault: \(vaultID)",
             "Invitation: \(v3LowercaseHex(invitation.digest))",
             "Expires in 10 minutes.",
-            "On the other Mac, run `key share join \(v3LowercaseHex(invitation.digest)) --name <device-name>`."
+            "On the other Mac, run `key share join \(v3LowercaseHex(invitation.digest)) --name <device-name>` from the existing vault folder, or add `--vault-dir <existing-folder>`."
         ].joined(separator: "\n") + "\n"
     }
 
@@ -629,7 +633,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             authorizationReason: "Approve the compared Mac for this vault.",
             operationID: operationID
         )
-        return "Enrollment approved. The other Mac can now run `key share accept \(vaultID) \(v3LowercaseHex(invitationDigest)) \(comparisonCode)`.\n"
+        return "Enrollment approved. From the same vault folder, the other Mac can now run `key share accept \(vaultID) \(v3LowercaseHex(invitationDigest)) \(comparisonCode)`; when running elsewhere, add `--vault-dir <existing-folder>`.\n"
     }
 
     func accept(

@@ -186,7 +186,10 @@ public final class KeyXPCClientTransport: KeyServiceTransport {
         helperName: String,
         timeoutSeconds: Int
     ) -> AppError {
-        AppError.service(
+        if case .initializeVault = request {
+            return AppError.service("Vault initialization completed, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Run `key status` after the helper restarts; do not initialize another vault.")
+        }
+        return AppError.service(
             "The \(request.completedOperationDescription) completed, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Run the same command again; Key will resume safely from the completed state."
         )
     }
@@ -203,10 +206,11 @@ private extension KeyServiceRequest {
         case .showConflict: "conflict show"
         case .getConflictValue: "conflict get"
         case .resolveConflicts: "conflict resolve"
-        case .share: "device sharing"
+        case .share, .shareInDirectory: "device sharing"
         case .list: "list"
         case .migrationPreflight: "migration preflight"
         case .migrationApply: "migration"
+        case .initializeVault: "vault initialization"
         case .setVaultDirectory: "vault directory configuration"
         case .setKeychainMode: "keychain configuration"
         case .get: "get"
@@ -226,7 +230,7 @@ private extension KeyServiceRequest {
             "vault migration"
         case .setVaultDirectory:
             "vault directory update"
-        case .share(.accept):
+        case .share(.accept), .shareInDirectory(.accept, _):
             "enrollment acceptance"
         case .share(.replaceCurrentDevice):
             "revoked-device cleanup"

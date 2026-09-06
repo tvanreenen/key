@@ -52,11 +52,12 @@ public enum Command: Equatable {
     case help
     case version(json: Bool)
     case config(ConfigCommand)
+    case initializeVault(path: String?)
     case migrationPreflight
     case migrationApply
     case status(json: Bool, verbose: Bool)
     case conflict(ConflictCommand)
-    case share(ShareCommand)
+    case share(ShareCommand, vaultDirectory: String? = nil)
     case unlock
     case lock
     case get(name: String, allowStale: Bool)

@@ -181,6 +181,7 @@ struct KeyCLIApplicationTests {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
+        try writeLegacyTestConfiguration(home: homeDirectory)
 
         let transport = MemoryTransport { _ in
             Issue.record("transport should not be called for config get")
@@ -206,6 +207,7 @@ struct KeyCLIApplicationTests {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
+        try writeLegacyTestConfiguration(home: homeDirectory)
 
         let transport = MemoryTransport { request in
             #expect(
@@ -246,6 +248,7 @@ struct KeyCLIApplicationTests {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
+        try writeLegacyTestConfiguration(home: homeDirectory)
 
         let transport = MemoryTransport { _ in
             Issue.record("transport should not be called for config list")
@@ -271,6 +274,7 @@ struct KeyCLIApplicationTests {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
+        try writeLegacyTestConfiguration(home: homeDirectory)
 
         let transport = MemoryTransport { _ in
             Issue.record("transport should not be called for config get")
@@ -296,6 +300,7 @@ struct KeyCLIApplicationTests {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
+        try writeLegacyTestConfiguration(home: homeDirectory)
 
         let transport = MemoryTransport { request in
             #expect(request == .setKeychainMode(.icloud))
@@ -373,29 +378,32 @@ struct KeyCLIApplicationTests {
 
     @Test
     func shareAcceptSendsOnlyPublicCeremonyInputsAndPrintsReport() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
         let invitationID = String(repeating: "ab", count: 32)
         let code = "1234-5678-9abc-def0-1234"
         let transport = MemoryTransport { request in
-            #expect(request == .share(.accept(
+            #expect(request == .shareInDirectory(request: .accept(
                 vaultID: vaultID,
                 invitationID: invitationID,
                 comparisonCode: code
-            )))
+            ), path: directory.path))
             return .success("Enrollment completed.\n")
         }
         let io = MemoryIO(stdinIsTTY: false)
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
             "share", "accept", vaultID, invitationID, code
         ]) == EXIT_SUCCESS)
         #expect(io.stdout == "Enrollment completed.\n")
-        #expect(io.stderr.isEmpty)
+        #expect(io.stderr.contains("Enrollment folder:"))
     }
 
     @Test
@@ -575,15 +583,16 @@ struct KeyCLIApplicationTests {
 
     @Test
     func shareJoinGuidesARevokedMacThroughRejoinAndRetriesJoin() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let review = deviceReplacementReviewFixture()
         let invitationID = String(repeating: "a", count: 64)
         var joinAttempts = 0
         let transport = MemoryTransport { request in
             switch request {
-            case .share(.join(
+            case .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )):
+            ), path: directory.path):
                 joinAttempts += 1
                 if joinAttempts <= 2 {
                     return .deviceReplacementReview(review)
@@ -605,29 +614,31 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
             "share", "join", invitationID, "--name", "Laptop"
         ]) == EXIT_SUCCESS)
         #expect(transport.requests == [
-            .share(.join(
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )),
-            .share(.join(
+            ), path: directory.path),
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )),
+            ), path: directory.path),
             .share(.replaceCurrentDevice(
                 invitationID: invitationID,
                 confirmationToken: review.confirmationToken
             )),
-            .share(.join(
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            ))
+            ), path: directory.path)
         ])
         #expect(io.stdout == """
         This Mac previously belonged to this vault and has been revoked.
@@ -644,17 +655,18 @@ struct KeyCLIApplicationTests {
         Join request published.
 
         """)
-        #expect(io.stderr ==
-            "Type REJOIN to replace the revoked identity and continue: ")
+        #expect(io.stderr.hasSuffix(
+            "Type REJOIN to replace the revoked identity and continue: "))
     }
 
     @Test
     func shareJoinKeepsTheOrdinaryNewMacPathDirect() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let invitationID = String(repeating: "a", count: 64)
-        let request = KeyServiceRequest.share(.join(
+        let request = KeyServiceRequest.shareInDirectory(request: .join(
             invitationID: invitationID,
             deviceName: "Laptop"
-        ))
+        ), path: directory.path)
         let transport = MemoryTransport { received in
             #expect(received == request)
             return .success("Join request published.\n")
@@ -663,7 +675,9 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
@@ -671,17 +685,18 @@ struct KeyCLIApplicationTests {
         ]) == EXIT_SUCCESS)
         #expect(transport.requests == [request])
         #expect(io.stdout == "Join request published.\n")
-        #expect(io.stderr.isEmpty)
+        #expect(io.stderr.contains("Enrollment folder:"))
     }
 
     @Test
     func shareJoinRefusesNoninteractiveRejoinBeforeReview() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let invitationID = String(repeating: "a", count: 64)
         let transport = MemoryTransport { request in
-            #expect(request == .share(.join(
+            #expect(request == .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )))
+            ), path: directory.path))
             return .deviceReplacementReview(
                 deviceReplacementReviewFixture()
             )
@@ -690,28 +705,31 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
             "share", "join", invitationID, "--name", "Laptop"
         ]) == KeyExitCode.failure.rawValue)
-        #expect(transport.requests == [.share(.join(
+        #expect(transport.requests == [.shareInDirectory(request: .join(
             invitationID: invitationID,
             deviceName: "Laptop"
-        ))])
+        ), path: directory.path)])
         #expect(io.stdout.isEmpty)
-        #expect(io.stderr ==
-            "Rejoining a revoked Mac requires interactive confirmation.\n")
+        #expect(io.stderr.hasSuffix(
+            "Rejoining a revoked Mac requires interactive confirmation.\n"))
     }
 
     @Test
     func shareJoinCancellationKeepsRevokedLocalState() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let review = deviceReplacementReviewFixture()
         let invitationID = String(repeating: "a", count: 64)
         let transport = MemoryTransport { request in
             switch request {
-            case .share(.join):
+            case .shareInDirectory(.join, _):
                 return .deviceReplacementReview(review)
             default:
                 Issue.record("Unexpected request: \(request)")
@@ -722,17 +740,19 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
             "share", "join", invitationID, "--name", "Laptop"
         ]) == KeyExitCode.failure.rawValue)
         #expect(transport.requests == [
-            .share(.join(
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            ))
+            ), path: directory.path)
         ])
         #expect(io.stdout.contains("Synchronized vault files will not be changed."))
         #expect(io.stderr.hasSuffix("Device rejoin cancelled.\n"))
@@ -740,11 +760,12 @@ struct KeyCLIApplicationTests {
 
     @Test
     func shareJoinStopsWhenRejoinCleanupFails() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let review = deviceReplacementReviewFixture()
         let invitationID = String(repeating: "a", count: 64)
         let transport = MemoryTransport { request in
             switch request {
-            case .share(.join):
+            case .shareInDirectory(.join, _):
                 return .deviceReplacementReview(review)
             case .share(.replaceCurrentDevice):
                 return .failure("Cleanup failed safely.")
@@ -757,21 +778,23 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
             "share", "join", invitationID, "--name", "Laptop"
         ]) == KeyExitCode.failure.rawValue)
         #expect(transport.requests == [
-            .share(.join(
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )),
-            .share(.join(
+            ), path: directory.path),
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )),
+            ), path: directory.path),
             .share(.replaceCurrentDevice(
                 invitationID: invitationID,
                 confirmationToken: review.confirmationToken
@@ -783,13 +806,14 @@ struct KeyCLIApplicationTests {
 
     @Test
     func shareJoinDoesNotCleanUpWhenInvitationExpiresAtConfirmation() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let review = deviceReplacementReviewFixture()
         let invitationID = String(repeating: "a", count: 64)
         let expiresAt: UInt64 = 1_900_000_000
         var currentTime = expiresAt
         var joinAttempts = 0
         let transport = MemoryTransport { request in
-            guard case .share(.join) = request else {
+            guard case .shareInDirectory(.join, _) = request else {
                 Issue.record("Unexpected request: \(request)")
                 return .failure("Unexpected request.")
             }
@@ -809,21 +833,23 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
             "share", "join", invitationID, "--name", "Laptop"
         ]) == KeyExitCode.failure.rawValue)
         #expect(transport.requests == [
-            .share(.join(
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )),
-            .share(.join(
+            ), path: directory.path),
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            ))
+            ), path: directory.path)
         ])
         #expect(io.stderr.hasSuffix(
             "The selected enrollment invitation expired.\n"
@@ -834,6 +860,7 @@ struct KeyCLIApplicationTests {
 
     @Test
     func shareJoinResumesAfterCompletedCleanupOutlivesClientWait() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let review = deviceReplacementReviewFixture()
         let invitationID = String(repeating: "a", count: 64)
         let arguments = [
@@ -844,7 +871,7 @@ struct KeyCLIApplicationTests {
         var cleanupAttempts = 0
         let transport = MemoryTransport { request in
             switch request {
-            case .share(.join):
+            case .shareInDirectory(.join, _):
                 joinAttempts += 1
                 if cleanupCompleted {
                     return .success("Join request published.\n")
@@ -871,7 +898,9 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: arguments) == KeyExitCode.failure.rawValue)
@@ -885,28 +914,29 @@ struct KeyCLIApplicationTests {
         #expect(joinAttempts == 3)
         #expect(cleanupAttempts == 1)
         #expect(transport.requests == [
-            .share(.join(
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )),
-            .share(.join(
+            ), path: directory.path),
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            )),
+            ), path: directory.path),
             .share(.replaceCurrentDevice(
                 invitationID: invitationID,
                 confirmationToken: review.confirmationToken
             )),
-            .share(.join(
+            .shareInDirectory(request: .join(
                 invitationID: invitationID,
                 deviceName: "Laptop"
-            ))
+            ), path: directory.path)
         ])
         #expect(io.stdout.hasSuffix("Join request published.\n"))
     }
 
     @Test
     func shareJoinDoesNotCleanUpWhenTheReviewedStateChanges() {
+        let directory = URL(fileURLWithPath: "/tmp/Key CLI Enrollment", isDirectory: true)
         let initialReview = deviceReplacementReviewFixture()
         let changedReview = deviceReplacementReviewFixture(
             checkpointID: String(repeating: "f", count: 64),
@@ -915,7 +945,7 @@ struct KeyCLIApplicationTests {
         let invitationID = String(repeating: "a", count: 64)
         var joinAttempts = 0
         let transport = MemoryTransport { request in
-            guard case .share(.join) = request else {
+            guard case .shareInDirectory(.join, _) = request else {
                 Issue.record("Unexpected request: \(request)")
                 return .failure("Unexpected request.")
             }
@@ -928,7 +958,9 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(
             transport: transport,
             io: io,
-            clipboard: MemoryClipboard()
+            clipboard: MemoryClipboard(),
+            configStore: KeyConfigStore(homeDirectoryURL: directory.appendingPathComponent(UUID().uuidString)),
+            currentDirectory: { directory }
         )
 
         #expect(app.run(arguments: [
@@ -1211,12 +1243,12 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore()
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
         #expect(handler.handle(.unlock) == .success())
         #expect(keyStore.loadCount == 1)
-        #expect(keyStore.requests.last?.createIfMissing == true)
+        #expect(keyStore.requests.last?.createIfMissing == false)
         #expect(keyStore.requests.last?.mode == .local)
     }
 
@@ -1254,7 +1286,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let store = SessionVaultKeyStore(underlying: MemoryVaultKeyStore(), inactivityTimeout: 120)
+        let store = SessionVaultKeyStore(underlying: MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init))), inactivityTimeout: 120)
         let handler = KeyServiceHandler(keyStore: store, entryStore: EntryStore(rootURL: tempDirectory))
 
         #expect(handler.handle(.unlock) == .success())
@@ -1272,7 +1304,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore()
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
         let putResponse = handler.handle(.addManual(name: "mail/personal", secret: "hunter2", type: .secret))
@@ -1301,7 +1333,8 @@ struct KeyServiceHandlerTests {
         let response = handler.handle(.unlock)
         #expect(response.exitCode == KeyExitCode.securityFailure.rawValue)
         #expect(response.errorMessage?.contains("Refusing to create a new vault key") == true)
-        #expect(keyStore.loadCount == 0)
+        #expect(keyStore.loadCount == 1)
+        #expect(keyStore.requests.allSatisfy { !$0.createIfMissing })
     }
 
     @Test
@@ -1335,9 +1368,9 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
 
         let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
-        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+        try writeLegacyTestConfiguration(home: homeDirectory, root: vaultDirectory)
 
-        let keyStore = MemoryVaultKeyStore()
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
         let handler = KeyServiceHandler(
             keyStore: keyStore,
             entryStore: EntryStore(rootURL: vaultDirectory),
@@ -1362,7 +1395,7 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
 
         let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
-        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+        try writeLegacyTestConfiguration(home: homeDirectory, root: vaultDirectory)
 
         let store = EntryStore(rootURL: vaultDirectory)
         let originalKey = Data((0..<32).map(UInt8.init))
@@ -1394,7 +1427,7 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
 
         let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
-        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+        try writeLegacyTestConfiguration(home: homeDirectory, root: vaultDirectory)
 
         let store = EntryStore(rootURL: vaultDirectory)
         let sharedKey = Data((0..<32).map(UInt8.init))
@@ -1426,7 +1459,7 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
 
         let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
-        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+        try writeLegacyTestConfiguration(home: homeDirectory, root: vaultDirectory)
         _ = try configStore.setValue("icloud", for: .keychainMode)
 
         let store = EntryStore(rootURL: vaultDirectory)
@@ -1458,7 +1491,7 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
 
         let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
-        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+        try writeLegacyTestConfiguration(home: homeDirectory, root: vaultDirectory)
         _ = try configStore.setValue("icloud", for: .keychainMode)
 
         let store = EntryStore(rootURL: vaultDirectory)
@@ -1490,7 +1523,7 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
 
         let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
-        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+        try writeLegacyTestConfiguration(home: homeDirectory, root: vaultDirectory)
 
         let sharedKey = Data((0..<32).map(UInt8.init))
         let otherEntryKey = Data((32..<64).map(UInt8.init))
@@ -1524,7 +1557,7 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
 
         let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
-        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+        try writeLegacyTestConfiguration(home: homeDirectory, root: vaultDirectory)
         _ = try configStore.setValue("icloud", for: .keychainMode)
 
         let sharedKey = Data((0..<32).map(UInt8.init))
@@ -1559,7 +1592,7 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: homeDirectory) }
 
         let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
-        _ = try configStore.setValue(vaultDirectory.path(percentEncoded: false), for: .vaultDir)
+        try writeLegacyTestConfiguration(home: homeDirectory, root: vaultDirectory)
         _ = try configStore.setValue("icloud", for: .keychainMode)
 
         let sharedKey = Data((0..<32).map(UInt8.init))
@@ -1597,7 +1630,7 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
         let handler = KeyServiceHandler(
-            keyStore: MemoryVaultKeyStore(),
+            keyStore: MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init))),
             entryStore: EntryStore(rootURL: tempDirectory)
         )
 
@@ -1615,7 +1648,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore()
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
         #expect(handler.handle(.addManual(name: "mail/personal", secret: "one", type: .secret)) == .success())
@@ -1660,7 +1693,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore()
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
         let handler = KeyServiceHandler(
             keyStore: keyStore,
             entryStore: EntryStore(rootURL: tempDirectory),
@@ -1683,7 +1716,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore()
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
         let handler = KeyServiceHandler(
             keyStore: keyStore,
             entryStore: EntryStore(rootURL: tempDirectory),
@@ -1706,7 +1739,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore()
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
         #expect(handler.handle(.addManual(name: "mail/personal", secret: "one", type: .secret)) == .success())
@@ -1728,7 +1761,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore()
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
         #expect(handler.handle(.addManual(name: "mail/personal", secret: "one", type: .secret)) == .success())
@@ -1755,7 +1788,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore()
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
         let handler = KeyServiceHandler(
             keyStore: keyStore,
             entryStore: EntryStore(rootURL: tempDirectory),
@@ -1779,7 +1812,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore()
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
         let store = EntryStore(rootURL: tempDirectory)
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: store)
 
@@ -1830,7 +1863,7 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
         let handler = KeyServiceHandler(
-            keyStore: MemoryVaultKeyStore(),
+            keyStore: MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init))),
             entryStore: EntryStore(rootURL: tempDirectory)
         )
 
@@ -1925,7 +1958,7 @@ struct SessionVaultKeyStoreTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let underlying = MemoryVaultKeyStore()
+        let underlying = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
         let store = SessionVaultKeyStore(underlying: underlying)
         let handler = KeyServiceHandler(keyStore: store, entryStore: EntryStore(rootURL: tempDirectory))
 
@@ -1941,7 +1974,7 @@ struct SessionVaultKeyStoreTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let underlying = MemoryVaultKeyStore()
+        let underlying = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
         let store = SessionVaultKeyStore(underlying: underlying)
         let handler = KeyServiceHandler(keyStore: store, entryStore: EntryStore(rootURL: tempDirectory))
 

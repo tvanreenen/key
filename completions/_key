@@ -2,6 +2,7 @@
 
 typeset -ga _key_commands
 _key_commands=(
+  'init:create and select a new device-enrolled vault'
   'config:read or update config values'
   'status:explain vault health'
   'conflict:inspect or resolve authenticated content conflicts'
@@ -89,6 +90,9 @@ case "${state}" in
     ;;
   args)
     case "${words[1]}" in
+      init)
+        _arguments '1:directory:_files -/'
+        ;;
       config)
         if (( CURRENT == 2 )); then
           _describe -t config-commands 'config command' \
@@ -175,16 +179,17 @@ case "${state}" in
                 '--json[print stable machine-readable device inventory]'
               ;;
             invitations)
+              _arguments '--vault-dir[existing enrollment folder]:directory:_files -/'
               ;;
             invite)
               _arguments \
-                '--name[set the joining Mac name]:device name:' \
-                '--owner[invite the device as an owner]'
+                '--name[this Mac recorded name]:device name:'
               ;;
             join)
               _arguments \
                 '1:invitation ID:' \
-                '--name[set this Mac name]:device name:'
+                '--name[set this Mac name]:device name:' \
+                '--vault-dir[existing enrollment folder]:directory:_files -/'
               ;;
             requests)
               _arguments \
@@ -194,13 +199,21 @@ case "${state}" in
               _arguments \
                 '1:vault ID:' \
                 '2:invitation ID:' \
-                '3:join request ID:'
+                '3:join request ID:' \
+                '--vault-dir[existing enrollment folder]:directory:_files -/'
               ;;
-            approve|accept)
+            approve)
               _arguments \
                 '1:vault ID:' \
                 '2:invitation ID:' \
                 '3:comparison code:'
+              ;;
+            accept)
+              _arguments \
+                '1:vault ID:' \
+                '2:invitation ID:' \
+                '3:comparison code:' \
+                '--vault-dir[existing enrollment folder]:directory:_files -/'
               ;;
           esac
         fi

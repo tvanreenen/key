@@ -33,6 +33,7 @@ struct XPCSecurityPolicyTests {
         .list,
         .migrationPreflight,
         .migrationApply,
+        .initializeVault(path: "/tmp/new-vault"),
         .setVaultDirectory(path: "/tmp/vault"),
         .setKeychainMode(.local),
         .get(name: "entry"),

@@ -988,7 +988,7 @@ private final class AdoptionCheckpointStore:
     }
 }
 
-private final class AdoptionIdentityRecordStore:
+final class AdoptionIdentityRecordStore:
     V3EnrollmentDeviceKeyRecordStoring,
     @unchecked Sendable
 {
@@ -1006,7 +1006,7 @@ private final class AdoptionIdentityRecordStore:
     }
 }
 
-private struct AdoptionDeviceKeyOperations:
+struct AdoptionDeviceKeyOperations:
     V3EnrollmentDeviceKeyOperating,
     Sendable
 {

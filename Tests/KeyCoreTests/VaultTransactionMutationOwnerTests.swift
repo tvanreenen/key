@@ -155,7 +155,7 @@ struct VaultTransactionMutationOwnerTests {
         let owner = RecordingMutationOwner()
         let vaultUXService = RecordingVaultUXService()
         let handler = KeyServiceHandler(
-            keyStore: MemoryVaultKeyStore(),
+            keyStore: MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init))),
             entryStore: EntryStore(rootURL: root),
             mutationOwner: owner,
             vaultUXService: vaultUXService

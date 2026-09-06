@@ -239,6 +239,39 @@ struct V3DeviceWrappedGenesisInstaller {
             // in progress. Stop before creating a new identity or vault key.
             try requireUnchangedV2Source([])
         }
+        return try installGenesis(
+            sourceEntries: sourceEntries,
+            operationID: operationID,
+            deviceName: deviceName,
+            newDirectory: nil
+        )
+    }
+
+    /// Creates an empty genesis only in an explicitly reserved new directory.
+    /// This never loads or creates a legacy v2 key and is not a migration mode.
+    func installNewVault(
+        in directory: V3NewVaultDirectory,
+        operationID: VaultTransactionOperationID,
+        deviceName: String
+    ) throws -> V3DeviceWrappedGenesisInstallReport {
+        try directory.begin(for: entryStore.rootURL)
+        return try installGenesis(
+            sourceEntries: [],
+            operationID: operationID,
+            deviceName: deviceName,
+            newDirectory: directory
+        )
+    }
+
+    private func installGenesis(
+        sourceEntries: [V2MigrationSourceEntry],
+        operationID: VaultTransactionOperationID,
+        deviceName: String,
+        newDirectory: V3NewVaultDirectory?
+    ) throws -> V3DeviceWrappedGenesisInstallReport {
+        // Cover failures before candidate staging as well as publication.
+        var selected = false
+        defer { if !selected { session.invalidate() } }
         let vaultID = makeUUID()
         let authorityTransitionID = makeUUID()
         let entryIDs = sourceEntries.map { _ in makeUUID() }
@@ -287,12 +320,8 @@ struct V3DeviceWrappedGenesisInstaller {
             operationID: operationID
         )
 
-        var selected = false
         defer {
             removeStagingArtifacts(candidate, operationID: operationID)
-            if !selected {
-                session.invalidate()
-            }
         }
 
         for (index, entry) in candidate.entries.enumerated() {
@@ -411,7 +440,12 @@ struct V3DeviceWrappedGenesisInstaller {
             .verifiedReopenCompleted,
             operationID: operationID
         )
-        try requireUnchangedV2Source(sourceEntries)
+        if let newDirectory {
+            removeStagingArtifacts(candidate, operationID: operationID)
+            try newDirectory.requireInstalledGenesis(digest: candidate.genesis.manifestDigest)
+        } else {
+            try requireUnchangedV2Source(sourceEntries)
+        }
         try phaseObserver.didReach(
             .sourceRechecked,
             operationID: operationID
@@ -422,14 +456,19 @@ struct V3DeviceWrappedGenesisInstaller {
             operationID: operationID
         )
 
+        if let newDirectory {
+            try newDirectory.requireInstalledGenesis(digest: candidate.genesis.manifestDigest)
+            _ = try exactPublishedManifest(candidate)
+        }
+
         try selectVault(vaultID)
         selected = true
         return V3DeviceWrappedGenesisInstallReport(
             vaultID: vaultID,
             deviceID: identity.publicIdentity.deviceID,
-            entryCount: inspection.report.entryCount,
-            secretCount: inspection.report.secretCount,
-            totpCount: inspection.report.totpCount
+            entryCount: sourceEntries.count,
+            secretCount: sourceEntries.filter { $0.type == .secret }.count,
+            totpCount: sourceEntries.filter { $0.type == .totp }.count
         )
     }
 

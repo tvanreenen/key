@@ -30,6 +30,15 @@ public enum KeyShareRequest: Codable, Equatable, Sendable {
     )
 }
 
+extension KeyShareRequest {
+    var supportsDirectorySelection: Bool {
+        switch self {
+        case .invitations, .join, .compare, .accept: true
+        default: false
+        }
+    }
+}
+
 public enum KeyServiceRequest: Codable, Equatable {
     case unlock
     case lock
@@ -40,9 +49,11 @@ public enum KeyServiceRequest: Codable, Equatable {
     case getConflictValue(id: String, versionID: String)
     case resolveConflicts([VaultConflictResolution])
     case share(KeyShareRequest)
+    case shareInDirectory(request: KeyShareRequest, path: String)
     case list
     case migrationPreflight
     case migrationApply
+    case initializeVault(path: String)
     case setVaultDirectory(path: String)
     case setKeychainMode(KeychainMode)
     case get(name: String, allowStale: Bool)
@@ -62,7 +73,7 @@ public enum KeyServiceRequest: Codable, Equatable {
             120
         case .list:
             30
-        case .migrationApply, .share, .setVaultDirectory, .setKeychainMode,
+        case .initializeVault, .migrationApply, .share, .shareInDirectory, .setVaultDirectory, .setKeychainMode,
             .addManual, .editManual,
             .copyEntry, .moveEntry, .removeEntry, .resolveConflicts:
             nil
@@ -72,8 +83,8 @@ public enum KeyServiceRequest: Codable, Equatable {
     /// Whether the XPC client must complete the post-reply shutdown handshake.
     public var requiresHelperShutdownAfterSuccess: Bool {
         switch self {
-        case .lock, .setVaultDirectory, .migrationApply,
-            .share(.accept), .share(.replaceCurrentDevice):
+        case .lock, .initializeVault, .setVaultDirectory, .migrationApply,
+            .share(.accept), .share(.replaceCurrentDevice), .shareInDirectory(.accept, _):
             true
         default:
             false
@@ -107,9 +118,11 @@ public enum KeyServiceRequest: Codable, Equatable {
         case getConflictValue
         case resolveConflicts
         case share
+        case shareInDirectory
         case list
         case migrationPreflight
         case migrationApply
+        case initializeVault
         case setVaultDirectory
         case setKeychainMode
         case get
@@ -159,12 +172,19 @@ public enum KeyServiceRequest: Codable, Equatable {
                     forKey: .shareRequest
                 )
             )
+        case .shareInDirectory:
+            self = .shareInDirectory(
+                request: try container.decode(KeyShareRequest.self, forKey: .shareRequest),
+                path: try container.decode(String.self, forKey: .vaultDirectory)
+            )
         case .list:
             self = .list
         case .migrationPreflight:
             self = .migrationPreflight
         case .migrationApply:
             self = .migrationApply
+        case .initializeVault:
+            self = .initializeVault(path: try container.decode(String.self, forKey: .vaultDirectory))
         case .setVaultDirectory:
             self = .setVaultDirectory(
                 path: try container.decode(
@@ -237,12 +257,19 @@ public enum KeyServiceRequest: Codable, Equatable {
         case let .share(request):
             try container.encode(Kind.share, forKey: .kind)
             try container.encode(request, forKey: .shareRequest)
+        case let .shareInDirectory(request, path):
+            try container.encode(Kind.shareInDirectory, forKey: .kind)
+            try container.encode(request, forKey: .shareRequest)
+            try container.encode(path, forKey: .vaultDirectory)
         case .list:
             try container.encode(Kind.list, forKey: .kind)
         case .migrationPreflight:
             try container.encode(Kind.migrationPreflight, forKey: .kind)
         case .migrationApply:
             try container.encode(Kind.migrationApply, forKey: .kind)
+        case let .initializeVault(path):
+            try container.encode(Kind.initializeVault, forKey: .kind)
+            try container.encode(path, forKey: .vaultDirectory)
         case let .setVaultDirectory(path):
             try container.encode(Kind.setVaultDirectory, forKey: .kind)
             try container.encode(path, forKey: .vaultDirectory)

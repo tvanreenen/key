@@ -21,6 +21,16 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
     }
 
     /// Lists bounded invitation candidates without trusting their contents.
+    func renderedInvitations() throws -> String {
+        let digests = try availableInvitationDigests(maximumCount: 4_096)
+            .sorted(by: { $0.lexicographicallyPrecedes($1) })
+        guard !digests.isEmpty else {
+            return "No enrollment invitations are available yet.\n"
+        }
+        return digests.map(v3LowercaseHex).joined(separator: "\n") + "\n"
+    }
+
+    /// Lists bounded invitation candidates without trusting their contents.
     func availableInvitationDigests(
         maximumCount: Int
     ) throws -> [Data] {

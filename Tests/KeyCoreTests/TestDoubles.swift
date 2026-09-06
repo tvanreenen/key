@@ -2,6 +2,25 @@ import CryptoKit
 import Foundation
 @testable import KeyCore
 
+/// Models an installation created by a released version. Production config
+/// reads must not create this state as a side effect of a test's setup.
+@discardableResult
+func writeLegacyTestConfiguration(
+    home: URL,
+    root: URL? = nil,
+    product: KeyProductIdentity = .stable
+) throws -> KeyConfiguration {
+    let directory = root ?? home.appendingPathComponent(product.defaultVaultDirectoryName, isDirectory: true)
+    let config = KeyConfigStore(productIdentity: product, homeDirectoryURL: home)
+    let configURL = config.initializationConfigFileURL
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: configURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let escaped = directory.path.replacingOccurrences(of: "\\", with: "\\\\")
+        .replacingOccurrences(of: "\"", with: "\\\"")
+    try Data("vault_dir = \"\(escaped)\"\nkeychain_mode = \"local\"\n".utf8).write(to: configURL)
+    return try config.load()
+}
+
 final class MemoryVaultKeyStore: VaultKeyStoring, @unchecked Sendable {
     var localKeyData: Data?
     var iCloudKeyData: Data?
@@ -10,6 +29,10 @@ final class MemoryVaultKeyStore: VaultKeyStoring, @unchecked Sendable {
     var storeCount = 0
     var invalidateCount = 0
     private(set) var requests: [(mode: KeychainMode, reason: String, createIfMissing: Bool)] = []
+
+    init(keyData: Data? = nil) {
+        localKeyData = keyData
+    }
 
     var keyData: Data? {
         get { localKeyData }

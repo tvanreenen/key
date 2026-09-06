@@ -12,6 +12,8 @@ trust decisions away from the sync provider.
 
 ## Quick start
 
+The commands below work in released Stable `0.2.0`. The development build also supports [direct v3 initialization](#unreleased-direct-v3-initialization), without first creating and migrating a Keychain-backed vault.
+
 After installing Key, add a secret from a secure prompt:
 
 ```sh
@@ -141,6 +143,56 @@ The current Preview is older than Stable `0.2.0`. Do not point it at the live
 Stable vault; use its isolated default vault or a disposable copy. In the
 examples below, replace `key` with `key-preview` when reproducing Preview
 behavior.
+
+## Unreleased: direct v3 initialization
+
+The development build adds `key init [directory]`. This command is not available in Stable `0.2.0`. After installing a build that includes it and opening Key once, initialize a brand-new vault in your current empty directory:
+
+```sh
+key init
+key status
+key add github/personal
+```
+
+Alternatively, give a relative or absolute destination. Key creates the final directory if missing; its parent must already exist. No separate `mkdir`, `key config set`, Keychain-mode choice, or v2 migration is needed:
+
+```sh
+key init "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Key Vault"
+```
+
+Init verifies the new device-enrolled vault before saving its path and vault ID in the local config. It refuses nonempty directories, destination symlinks, and any existing configuration, including malformed configuration. Hidden files count as contents. It never overwrites an existing vault or switches away from a configured one. Unlike Git, rerunning init does not reinitialize anything. Use `key init -- -vault` for a directory name beginning with a dash.
+
+In this development build, creating a new vault requires `key init`. Ordinary vault commands and config reads or writes fail with setup guidance when no config exists; they do not create a default folder, config, or legacy vault key. `key help`, `key version`, and `key lock` remain available before setup. Existing configured v2 and v3 vaults do not need to run init again.
+
+If a configured folder or v2 key is missing, Key reports the problem instead of creating a replacement. Restore the existing vault or key. After deliberately moving the complete vault, use `key config set vault-dir <existing-directory>` to correct its path; the destination must already exist, and this preserves the selected vault ID. A directory replaced while the helper is running is refused until the helper restarts.
+
+Init means **create a new vault**, not open a vault synchronized from another Mac. Use [device enrollment](#enrolling-another-mac) for that. An empty local directory listing cannot prove that a provider has no files waiting to arrive. Key checks for unexpected arrivals during initialization but does not control provider delivery.
+
+In the development build, a Mac without config can enroll directly from the existing synced vault folder. It does not need init or a temporary v2 config. The directory supplies the files to inspect; the invitation, comparison, approval, and verified acceptance establish trust.
+
+On the joining Mac, after the existing Mac creates an invitation:
+
+```sh
+cd "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Key Vault"
+key share invitations
+key share join <invitation-id> --name "Laptop"
+```
+
+Complete the [comparison and approval](#enrolling-another-mac) on the existing Mac, then accept from the same folder on the joining Mac:
+
+```sh
+key share accept <vault-id> <invitation-id> <comparison-code>
+key status
+key list
+```
+
+To run from elsewhere, add `--vault-dir <existing-directory>` to `share invitations`, `share join`, `share compare`, or `share accept`. Relative paths resolve against the CLI's current directory. Key prints the selected folder before sending the request. With an existing config, these commands use the configured folder regardless of the terminal's directory; an explicit different folder is refused, not selected. Enrollment never creates the vault folder or searches parent directories.
+
+A join request leaves the Mac unconfigured until acceptance verifies the approved vault and saves config automatically. Local `v3-enrollment-roots` records beside the config bind each attempt to its invitation, vault ID, path, and filesystem identity. They contain no secret keys and remain after success. Keep them and the existing ceremony state intact when retrying after an interruption. A copied, renamed, or replaced folder cannot silently reuse the attempt. Missing invitations or approvals may need time to sync; retry the same command against the same folder. If acceptance already saved config, run `key status` after the helper restarts instead of starting another enrollment.
+
+If initialization is interrupted, leave the destination and the local `v3-init-attempts` records beside `config.toml` intact. Run `key status` to check whether selection completed. If it did, continue using the selected vault after the helper restarts. If it did not, the attempt requires inspection; init refuses to start another identity in that same directory, even after it is renamed. This release of the implementation has no automatic resume or cleanup command. The records contain an operation ID, path, and filesystem identity, not secret keys, and remain as local receipts after success.
+
+Keep at least two Macs enrolled for device-loss continuity. Init does not add catastrophe recovery or require a YubiKey. Existing v2 selections and their migration path remain supported. Removing retained `keychain_mode` from existing config files is separate work.
 
 ## How Key protects a vault
 
@@ -310,6 +362,7 @@ directory already contains unrelated files, Key refuses to adopt it.
 
 ```text
 key status [--json] [--verbose]        Explain vault health and the next safe action
+key init [directory]                   Create and select a new v3 vault (unreleased)
 key unlock                             Warm the helper session
 key lock                               Clear the session and stop the helper
 

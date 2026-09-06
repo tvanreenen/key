@@ -81,10 +81,7 @@ struct V3ReadOnlyServiceIntegrationTests {
             isDirectory: true
         )
         let configStore = KeyConfigStore(homeDirectoryURL: home)
-        let initial = try configStore.setValue(
-            root.path(percentEncoded: false),
-            for: .vaultDir
-        )
+        let initial = try writeLegacyTestConfiguration(home: home, root: root)
         let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
         try """
         # key configuration
@@ -206,10 +203,7 @@ struct V3ReadOnlyServiceIntegrationTests {
             isDirectory: true
         )
         let configStore = KeyConfigStore(homeDirectoryURL: home)
-        let configuration = try configStore.setValue(
-            root.path(percentEncoded: false),
-            for: .vaultDir
-        )
+        let configuration = try writeLegacyTestConfiguration(home: home, root: root)
         let keys = RecordingV3VaultKeyStore()
         let handler = try KeyServiceHandler.live(
             keyStore: keys,
@@ -220,7 +214,7 @@ struct V3ReadOnlyServiceIntegrationTests {
 
         let response = handler.handle(.unlock)
         #expect(response == .success())
-        #expect(keys.createIfMissingValues == [true])
+        #expect(keys.createIfMissingValues == [false])
     }
 
     @Test
@@ -249,10 +243,10 @@ struct V3ReadOnlyServiceIntegrationTests {
             handler.handle(.migrationPreflight).errorCode
                 == .operationRefused
         )
-        #expect(
-            handler.handle(.setKeychainMode(.icloud)).errorCode
-                == .operationRefused
-        )
+        let modeChange = handler.handle(.setKeychainMode(.icloud))
+        #expect(modeChange.errorCode == .operationRefused)
+        #expect(modeChange.errorMessage?.contains("device enrollment") == true)
+        #expect(modeChange.errorMessage?.contains("iCloud Drive") == true)
     }
 }
 
