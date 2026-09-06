@@ -59,7 +59,7 @@ struct CryptoAndStorageTests {
 
     @Test
     func totpSeedValidationRejectsInvalidBase32() {
-        #expect(throws: AppError.invalidSecret("TOTP seed must be valid Base32.")) {
+        #expect(throws: AppError.invalidSecret("Enter a Base32 authenticator setup secret, not a current one-time code or a full otpauth:// URL.")) {
             _ = try TOTPGenerator.normalizeBase32Seed("nope!")
         }
     }

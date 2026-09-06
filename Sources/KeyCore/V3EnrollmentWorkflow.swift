@@ -359,12 +359,12 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
     func deviceInventory() throws -> V3VaultDeviceInventory {
         guard let vaultID = selectedVaultID else {
             throw AppError.operationRefused(
-                "Device inspection requires a selected version 3 vault."
+                "This command needs a configured device-enrolled vault. Run `key status` to check this Mac's setup."
             )
         }
         let authority = try currentAuthenticatedDeviceAuthority(
             vaultID: vaultID,
-            reason: "Unlock version 3 vault to inspect authenticated devices."
+            reason: "Unlock the vault to check which Macs have access."
         )
         let localIdentity = try identityManager.loadRecordedPublicIdentity(
             vaultID: vaultID
@@ -393,12 +393,12 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
     ) throws -> String {
         guard let vaultID = selectedVaultID else {
             throw AppError.operationRefused(
-                "Create an enrollment invitation on a Mac that already uses the version 3 vault."
+                "Create the invitation on a Mac that already has access to this vault."
             )
         }
         let current = try currentTrustedState(
             vaultID: vaultID,
-            reason: "Unlock version 3 vault to create an enrollment invitation."
+            reason: "Unlock the vault to invite another Mac."
         )
         let parentBody = current.effective.envelope.content.manifest
         let identity: any V3EnrollmentMessageSigning
@@ -407,12 +407,12 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             identity = try loadOrCreateIdentity(
                 vaultID: vaultID,
                 deviceName: deviceName,
-                reason: "Create this Mac's enrollment identity."
+                reason: "Set up this Mac's access credentials for the vault."
             )
         case .shared:
             guard let existing = try identityManager.loadIdentity(
                 vaultID: vaultID,
-                reason: "Load this Mac's enrollment identity."
+                reason: "Use this Mac's vault access credentials."
             ), existing.publicIdentity.displayName == deviceName,
                let inviter = parentBody.devices.first(where: {
                    $0.deviceID == existing.publicIdentity.deviceID
@@ -441,7 +441,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         let signed = try V3EnrollmentMessageAuthenticator().sign(
             invitation,
             using: identity,
-            reason: "Publish a short-lived invitation for the joining Mac."
+            reason: "Create a 10-minute invitation for another Mac."
         )
         _ = try exchange.beginInviting(signed, at: unixTime)
         return [
@@ -460,7 +460,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
     ) throws -> String {
         guard selectedVaultID == nil else {
             throw AppError.operationRefused(
-                "This Mac already selects a version 3 vault and cannot join another one."
+                "This Mac is already configured to use a vault. Joining cannot switch it to another vault."
             )
         }
         let invitation = try exchange.receiveInvitation(
@@ -485,14 +485,14 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             }
             return comparisonText(
                 transcript,
-                heading: "Join request republished.",
+                heading: "Request sent again. This Mac still needs approval.",
                 next: "Compare this code on both Macs. The existing Mac can run `key share requests \(v3LowercaseHex(invitationDigest))`, then `key share compare \(vaultID) \(v3LowercaseHex(invitationDigest)) <request-id>`."
             )
         }
         let identity = try loadOrCreateIdentity(
             vaultID: vaultID,
             deviceName: deviceName,
-            reason: "Create this Mac's enrollment identity."
+            reason: "Set up this Mac's access credentials for the vault."
         )
         let request = try V3EnrollmentJoinRequest(
             invitationDigest: invitationDigest,
@@ -503,7 +503,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             request,
             answering: invitation,
             using: identity,
-            reason: "Answer the selected vault invitation."
+            reason: "Send this Mac's request to join the vault."
         )
         let state = try exchange.beginJoining(
             signed,
@@ -515,7 +515,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         }
         return comparisonText(
             transcript,
-            heading: "Join request published.",
+            heading: "Request sent. This Mac still needs approval.",
             next: "Compare this code on both Macs. The existing Mac can run `key share requests \(v3LowercaseHex(invitationDigest))`, then `key share compare \(vaultID) \(v3LowercaseHex(invitationDigest)) <request-id>`."
         )
     }
@@ -575,8 +575,8 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         let action = state.role == .inviter ? "approve" : "accept"
         return comparisonText(
             transcript,
-            heading: "Enrollment comparison ready.",
-            next: "If both Macs show this exact code and device pair, run `key share \(action) \(vaultID) \(v3LowercaseHex(invitationDigest)) \(transcript.comparisonCode)`."
+            heading: "Compare these details on both Macs.",
+            next: "Only if both Macs show this exact code and both Mac names, run `key share \(action) \(vaultID) \(v3LowercaseHex(invitationDigest)) \(transcript.comparisonCode)`."
         )
     }
 
@@ -601,13 +601,13 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         )
         guard let identity = try identityManager.loadIdentity(
             vaultID: vaultID,
-            reason: "Load this Mac's enrollment identity."
+            reason: "Use this Mac's vault access credentials."
         ) else {
             throw V3EnrollmentAdoptionError.identityUnavailable
         }
         let current = try currentTrustedState(
             vaultID: vaultID,
-            reason: "Unlock version 3 vault to approve the compared Mac."
+            reason: "Unlock the vault to approve the Mac whose code you compared."
         )
         let observer = V3LiveManifestAncestryObserver(
             source: source,
@@ -645,7 +645,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
     ) throws -> String {
         guard selectedVaultID == nil else {
             throw AppError.operationRefused(
-                "This Mac already selects a version 3 vault."
+                "This Mac is already configured to use a vault. Run `key status` to check it."
             )
         }
         try requirePermittedJoiningVault(vaultID)

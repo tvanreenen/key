@@ -27,7 +27,7 @@ struct VaultUXCLITests {
             app.run(arguments: ["status"])
                 == KeyExitCode.conflict.rawValue
         )
-        #expect(io.stdout.contains("Vault has content conflicts"))
+        #expect(io.stdout.contains("Some entries have conflicting changes"))
         #expect(io.stdout.contains("Last trusted entries: 7"))
         #expect(io.stdout.contains("Conflicts: 2"))
         #expect(io.stdout.contains("key conflict list"))
@@ -118,7 +118,7 @@ struct VaultUXCLITests {
             statusApp.run(arguments: ["status"])
                 == KeyExitCode.securityFailure.rawValue
         )
-        #expect(statusIO.stdout.contains("recover from a known-good state"))
+        #expect(statusIO.stdout.contains("Keep vault files and local records intact"))
         #expect(!statusIO.stdout.contains("Next: run `key conflict list`."))
 
         let conflictIO = MemoryIO(stdinIsTTY: false)
@@ -134,7 +134,7 @@ struct VaultUXCLITests {
         )
         #expect(
             conflictIO.stdout.contains(
-                "cannot be resolved with `key conflict resolve`"
+                "cannot be accepted with `key conflict resolve`"
             )
         )
         #expect(
@@ -371,7 +371,7 @@ struct VaultUXCLITests {
 
         #expect(response.errorCode == .recoveryRequired)
         #expect(response.exitCode == KeyExitCode.securityFailure.rawValue)
-        #expect(response.errorMessage?.contains("surviving enrolled Mac") == true)
+        #expect(response.errorMessage?.contains("Mac that still has access") == true)
         #expect(response.errorMessage?.contains("permanently inaccessible") == true)
     }
 
@@ -383,8 +383,8 @@ struct VaultUXCLITests {
 
         #expect(response.errorCode == .recoveryRequired)
         #expect(response.exitCode == KeyExitCode.securityFailure.rawValue)
-        #expect(response.errorMessage?.contains("revoked") == true)
-        #expect(response.errorMessage?.contains("replacement device") == true)
+        #expect(response.errorMessage?.contains("access to the vault was removed") == true)
+        #expect(response.errorMessage?.contains("invite it again") == true)
     }
 
     @Test(arguments: [

@@ -42,14 +42,14 @@ public final class SystemIO: InputOutput {
         writeStderr(prompt)
 
         guard let originalState = currentTerminalState() else {
-            throw AppError.io("Unable to configure terminal for secure input.")
+            throw AppError.io("Key could not prepare the terminal to hide your typing. The secret was not read.")
         }
 
         var hiddenState = originalState
         hiddenState.c_lflag &= ~UInt(ECHO)
 
         guard tcsetattr(STDIN_FILENO, TCSAFLUSH, &hiddenState) == 0 else {
-            throw AppError.io("Unable to disable terminal echo.")
+            throw AppError.io("Key could not hide your typing in this terminal. The secret was not read.")
         }
 
         defer {

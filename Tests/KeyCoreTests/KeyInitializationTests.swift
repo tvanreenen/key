@@ -293,7 +293,7 @@ struct KeyInitializationTests {
             try select(vaultID)
             return report()
         }
-        #expect(try service.initialize(path: root.path).contains("Created and selected"))
+        #expect(try service.initialize(path: root.path).contains("Created a new vault"))
         let selection = try config.configuredVaultRuntimeSelection()
         #expect(selection.vaultID == vaultID)
         #expect(selection.rootURL.standardizedFileURL == root.standardizedFileURL)

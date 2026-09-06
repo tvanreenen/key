@@ -109,7 +109,7 @@ struct V3DeviceWrappedVaultMutationService:
     /// publication authority.
     func authorizeMutation() throws {
         let trusted = try stateLoader.authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to authorize a change."
+            reason: "Unlock the vault to save your change."
         )
         _ = try stateLoader.loadVaultKey(keyID: trusted.envelope.body.keyID)
     }
@@ -272,7 +272,7 @@ struct V3DeviceWrappedVaultMutationService:
     ) throws -> Base {
         let publisher = makePublisher(operationID)
         var trusted = try stateLoader.authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to publish a guarded change."
+            reason: "Unlock the vault to save your change."
         )
         var vaultKey = try stateLoader.loadVaultKey(
             keyID: trusted.envelope.body.keyID
@@ -283,7 +283,7 @@ struct V3DeviceWrappedVaultMutationService:
         )
         if recovery != .nothingToRecover {
             trusted = try stateLoader.authenticatedCheckpoint(
-                reason: "Revalidate version 3 vault after transaction recovery."
+                reason: "Verify the vault after finishing an interrupted change."
             )
             vaultKey = try stateLoader.loadVaultKey(
                 keyID: trusted.envelope.body.keyID

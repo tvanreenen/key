@@ -431,11 +431,11 @@ private actor HelperRegistrationCoordinator {
                 .trimmingCharacters(in: .whitespaces)
             return .requiresApproval(detail: detail)
         case .notRegistered:
-            return .notRegistered(detail: message ?? "The LaunchAgent helper is not registered yet.")
+            return .notRegistered(detail: message ?? "The background service has not been set up yet.")
         case .notFound:
-            return .notRegistered(detail: message ?? "macOS has not recorded the bundled LaunchAgent yet.")
+            return .notRegistered(detail: message ?? "macOS has not finished setting up the background service.")
         @unknown default:
-            return .unknown(detail: message ?? "ServiceManagement returned an unrecognized helper status.")
+            return .unknown(detail: message ?? "macOS reported a background-service status Key does not recognize.")
         }
     }
 }
@@ -580,7 +580,7 @@ private struct ContentView: View {
         let items = statusStripItems(for: snapshot)
 
         VStack(alignment: .leading, spacing: 14) {
-            sectionHeader("Live Status", detail: "Registered, running, and unlocked are tracked independently.")
+            sectionHeader("Current status", detail: "The background service can be ready while idle. Vault access unlocks separately.")
 
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 12) {
@@ -712,36 +712,36 @@ private struct ContentView: View {
         case .registered:
             registrationItem = StatusStripItem(
                 id: "registered",
-                title: "Agent Registration",
+                title: "Background service",
                 value: "Ready",
-                detail: "launchd can start \(productIdentity.helperName) on demand.",
+                detail: "macOS can start \(productIdentity.helperName) when needed.",
                 tint: .green
             )
         case .requiresApproval:
             registrationItem = StatusStripItem(
                 id: "registered",
-                title: "Agent Registration",
+                title: "Background service",
                 value: "Approval",
-                detail: "macOS still needs permission to launch the helper.",
+                detail: "Allow the background service in System Settings.",
                 tint: .orange
             )
         case .notRegistered, .unknown:
             registrationItem = StatusStripItem(
                 id: "registered",
-                title: "Agent Registration",
+                title: "Background service",
                 value: "Not ready",
-                detail: "The helper registration is still incomplete.",
+                detail: "Open the app again to set up its background service.",
                 tint: .red
             )
         }
 
         let runningItem = StatusStripItem(
             id: "running",
-            title: "Agent Process",
+            title: "Service activity",
             value: snapshot.isHelperRunning ? "Running" : "Idle",
             detail: snapshot.isHelperRunning
-                ? "The helper process is alive right now."
-                : "The helper will launch only when the CLI needs it.",
+                ? "The background service is running."
+                : "The background service starts when a command needs it.",
             tint: snapshot.isHelperRunning ? .green : .secondary
         )
 
@@ -751,32 +751,32 @@ private struct ContentView: View {
                 if let remaining = helperStatus.remainingSessionTime(at: snapshot.generatedAt) {
                     let minutes = Int(ceil(remaining / 60))
                     detail = minutes == 1
-                        ? "Warm for about 1 more minute."
-                        : "Warm for about \(minutes) more minutes."
+                        ? "Locks in about 1 minute if unused."
+                        : "Locks in about \(minutes) minutes if unused."
                 } else {
-                    detail = "The current helper session is warm."
+                    detail = "Vault access is unlocked for this session."
                 }
             unlockedItem = StatusStripItem(
                 id: "unlocked",
-                title: "Vault Session",
-                value: "Warm",
+                title: "Vault access",
+                value: "Unlocked",
                 detail: detail,
                 tint: .green
             )
         } else if snapshot.helperStatusErrorDescription != nil {
             unlockedItem = StatusStripItem(
                 id: "unlocked",
-                title: "Vault Session",
+                title: "Vault access",
                 value: "Unknown",
-                detail: "The helper was running, but its session status couldn’t be read.",
+                detail: "Key could not check whether vault access is unlocked.",
                 tint: .orange
             )
         } else {
             unlockedItem = StatusStripItem(
                 id: "unlocked",
-                title: "Vault Session",
+                title: "Vault access",
                 value: "Locked",
-                detail: "The next key-backed request will require local authentication.",
+                detail: "The next command that needs the vault key will ask you to authenticate.",
                 tint: .secondary
             )
         }

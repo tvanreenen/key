@@ -34,29 +34,29 @@ enum VaultUXServiceError: Error, Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .vaultIncomplete:
-            "Newer vault files are not available yet. Wait for the file provider and retry, or use --allow-stale for an explicit read of the last complete version."
+            "Some newer vault files are unavailable on this Mac. Check file synchronization before retrying. To read the last complete version already verified on this Mac, use --allow-stale; the value may be out of date."
         case .contentConflict:
-            "That entry has multiple authenticated versions. Use `key conflict show` and select a version explicitly."
+            "That entry has conflicting changes. Run `key conflict list`, then `key conflict show <conflict-id>` to review the versions."
         case .catchUpContentConflict:
-            "Authenticated newer vault history has competing content versions. Key will not choose one automatically. Normal writes are paused; use --allow-stale only for an explicit read of the version already trusted on this Mac."
+            "Newer vault history contains competing edits. Saving changes is paused because Key cannot choose between them safely. Use --allow-stale only if you want to read the last complete version already verified on this Mac; it may be out of date."
         case .securityConflict:
-            "Authenticated vault versions disagree about authority. Key will not choose one automatically."
+            "Vault history contains conflicting changes to device access or encryption keys. Key cannot safely choose between them. Keep vault files and local records intact for investigation."
         case .rollbackDetected:
-            "An authenticated branch moves an entry to an older revision. Key will not accept the rollback."
+            "Vault history would move an entry back to an older revision. Key has blocked this rollback. Run `key status --verbose` to inspect the problem; keep vault files and local records intact."
         case .recoveryRequired:
-            "The vault requires recovery before this operation can continue."
+            "Key cannot safely continue with the available vault state. Keep vault files and local records intact for investigation. Do not delete them or run init to bypass this check."
         case .deviceIdentityUnavailable:
-            "This Mac has no usable enrolled device identity for this vault. Use a surviving enrolled Mac to enroll this Mac again. If no enrolled Mac survives, the vault is permanently inaccessible; synchronized vault files alone cannot recover it."
+            "This Mac no longer has usable access credentials for this vault. A Mac that still has access must invite it again; see `key help share`. If no enrolled Mac survives, the vault is permanently inaccessible. The vault folder alone cannot restore access."
         case .deviceRevoked:
-            "This Mac has been revoked from the vault and cannot unlock its current key. Use a surviving active Mac to enroll a replacement device."
+            "This Mac's access to the vault was removed. A Mac that still has access must invite it again; see `key help share`."
         case .conflictNotFound:
             "That conflict is no longer present. Run `key conflict list` again."
         case .conflictVersionNotFound:
-            "That conflict version is no longer present. Run `key conflict show` again."
+            "That version is no longer part of the conflict. Run `key conflict list`, then review it again with `key conflict show <conflict-id>`."
         case .expectedHeadsChanged:
             "The vault changed after you reviewed the conflict. No resolution was applied; review the current conflicts and try again."
         case .unavailableForCurrentFormat:
-            "Conflict commands are available only when a version 3 vault has an unresolved content conflict."
+            "Conflict resolution is available only for unresolved entry conflicts in a device-enrolled vault."
         }
     }
 }

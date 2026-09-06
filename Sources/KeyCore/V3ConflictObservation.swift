@@ -117,7 +117,7 @@ struct V3ConflictObservationBuilder: Sendable {
             ? [
                 VaultIssue(
                     code: .revisionRollback,
-                    message: "At least one authenticated branch moves an entry to an older revision. Key will not resolve a rollback as an ordinary content choice."
+                    message: "Vault history would move an entry back to an older revision. Key cannot accept this rollback as an ordinary conflict choice."
                 )
             ]
             : []

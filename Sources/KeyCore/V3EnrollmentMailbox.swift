@@ -9,13 +9,13 @@ enum V3EnrollmentMailboxError: Error, Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidDigest:
-            "A version 3 enrollment mailbox digest is invalid."
+            "The invitation or join-request ID is invalid."
         case .invalidMessage:
-            "A version 3 enrollment mailbox message is invalid."
+            "An invitation or join-request file is invalid."
         case .digestMismatch:
-            "A version 3 enrollment mailbox message does not match its digest path."
+            "An invitation or join-request file does not match its ID. Key will not use it."
         case .invalidLimit:
-            "A version 3 enrollment mailbox listing limit is invalid."
+            "Key received an invalid limit for listing invitations or join requests."
         }
     }
 }

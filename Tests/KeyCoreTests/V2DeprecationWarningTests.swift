@@ -37,15 +37,19 @@ struct V2DeprecationWarningTests {
                     #expect(decoded == status)
                     #expect(!io.stdout.contains("deprecated"))
                 } else {
-                    #expect(io.stdout.contains("Format: version \(isV3 ? 3 : 2)\n"))
+                    if flags.contains("--verbose") {
+                        #expect(io.stdout.contains("Storage format: version \(isV3 ? 3 : 2)\n"))
+                    } else {
+                        #expect(!io.stdout.contains("Storage format:"))
+                    }
                     #expect(io.stdout.contains("Entries: 2\n"))
                     #expect(!io.stdout.contains("Warning:"))
                 }
                 if !isV3 && terminal && !json {
                     #expect(io.stderr.components(separatedBy: "Warning:").count == 2)
                     #expect(io.stderr.contains("key migrate --check"))
-                    #expect(io.stderr.contains("read-only readiness check"))
-                    #expect(io.stderr.contains("review device enrollment and recovery"))
+                    #expect(io.stderr.contains("without changing the vault"))
+                    #expect(io.stderr.contains("other-Mac setup and recovery limits"))
                 } else {
                     #expect(io.stderr.isEmpty)
                 }

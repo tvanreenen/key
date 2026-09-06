@@ -89,7 +89,7 @@ struct V3DeviceWrappedSameEpochCatchUpService: Sendable {
     {
         try mutationOwner.perform(.catchUpVault) { _ in
             let trusted = try stateLoader.authenticatedCheckpoint(
-                reason: "Unlock version 3 vault to authenticate newer device history."
+                reason: "Unlock the vault to check changes to which Macs have access."
             )
             let vaultKey = try stateLoader.loadVaultKey(
                 keyID: trusted.envelope.body.keyID

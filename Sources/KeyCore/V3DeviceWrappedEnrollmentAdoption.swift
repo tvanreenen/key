@@ -22,23 +22,23 @@ enum V3DeviceWrappedEnrollmentAdoptionError:
         case .invalidCeremony:
             "Joining this vault requires the exact enrollment comparison approved on both Macs."
         case .approvalUnavailable:
-            "The approved vault state is not available from the file provider yet."
+            "The approved vault files are unavailable on this Mac. Check file synchronization, then retry acceptance from the same folder."
         case .upgradeRequired:
             "The approved vault state requires a newer version of Key. Upgrade this Mac before accepting the enrollment."
         case .ambiguousApproval:
-            "More than one vault state matches this enrollment ceremony. Wait for synchronization to settle and try again."
+            "More than one vault version matches this joining attempt. Key cannot safely choose one. Keep the vault files and local joining records intact for investigation."
         case .invalidApproval:
-            "The available vault state does not authenticate the exact approved enrollment ceremony."
+            "The vault files do not verify the joining request you approved. Key has stopped joining; keep the files and local records intact."
         case .identityUnavailable:
-            "This Mac no longer has the Secure Enclave identity that created the enrollment request."
+            "This Mac no longer has the access credentials used for this joining request. Keep the local records intact for investigation."
         case .authenticationCancelled:
-            "Device authentication was cancelled while opening this Mac's vault-key wrapper."
+            "Authentication did not complete while unlocking the approved vault for this Mac."
         case .invalidWrappedKey:
             "The approved vault state does not contain a valid vault key for this Mac."
         case .conflictingCheckpoint:
-            "This Mac already trusts a different version 3 vault state. The checkpoint was not replaced."
+            "This Mac has already verified a different vault state. Its saved record was not replaced."
         case .selectionFailed:
-            "The verified shared vault could not be selected on this Mac."
+            "Key verified the approved vault but could not finish configuring this Mac to use it. Keep this attempt's files and local records intact."
         }
     }
 }
@@ -49,10 +49,10 @@ struct V3DeviceWrappedEnrollmentAdoptionReport: Equatable, Sendable {
 
     var rendered: String {
         [
-            "Enrollment completed.",
-            "This Mac (\(deviceName)) is now an active device in version 3 vault '\(vaultID)'.",
-            "Its Secure Enclave identity can open only this Mac's wrapped copy of the current vault key.",
-            "The raw vault key remains only in the running helper session."
+            "This Mac can now use the vault.",
+            "Mac: \(deviceName)",
+            "Vault ID: \(vaultID)",
+            "Run `key status` to check the vault."
         ].joined(separator: "\n") + "\n"
     }
 }
@@ -161,7 +161,7 @@ struct V3DeviceWrappedEnrollmentAdoptionService:
         }
         guard let identity = try loadIdentity(
             vaultID,
-            "Use this Mac's Secure Enclave identity to join the approved vault."
+            "Use this Mac's access credentials to join the approved vault."
         ), identity.publicIdentity == transcript.joinRequest.joiningDevice
         else {
             throw V3DeviceWrappedEnrollmentAdoptionError.identityUnavailable

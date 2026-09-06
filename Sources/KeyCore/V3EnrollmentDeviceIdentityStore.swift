@@ -23,25 +23,25 @@ enum V3EnrollmentDeviceIdentityStoreError:
     var errorDescription: String? {
         switch self {
         case .invalidRecord:
-            "The device-local version 3 enrollment identity is invalid."
+            "This Mac's saved vault access credentials are invalid. Keep the local records intact for investigation."
         case .invalidIdentityRequest:
-            "The version 3 enrollment identity request is invalid."
+            "Key could not validate the request to create this Mac's vault access credentials."
         case .identityAlreadyExists:
-            "This device already has a version 3 enrollment identity for the vault."
+            "This Mac already has access credentials for the vault. Key will not replace them automatically."
         case .conflict:
-            "The device-local version 3 enrollment identity changed concurrently."
+            "This Mac's vault access credentials changed during the operation. Key has stopped."
         case .identityMismatch:
-            "The stored Secure Enclave keys do not match the device enrollment identity."
+            "This Mac's Secure Enclave keys do not match its saved vault access credentials."
         case .secureEnclaveUnavailable:
-            "The Secure Enclave is unavailable on this Mac."
+            "This Mac's Secure Enclave is unavailable. Key needs it to protect device-enrolled vault access."
         case .authenticationCancelled:
             "Device authentication was cancelled or is not currently available."
         case .invalidConfiguration:
-            "Version 3 enrollment identity storage is not configured."
+            "This build of Key is not configured to store vault access credentials."
         case .keyOperationFailed:
-            "The Secure Enclave enrollment key operation failed."
+            "Key could not use this Mac's Secure Enclave for vault access."
         case .keychainStatus(let status):
-            "Version 3 enrollment identity Keychain operation failed (\(status))."
+            "Keychain could not complete the vault access-credential operation (\(status))."
         }
     }
 }

@@ -27,9 +27,9 @@ struct ConfigCompatibilityTests {
             #expect(io.stderr.isEmpty)
         } else {
             #expect(io.stderr.components(separatedBy: "Warning:").count == 2)
-            #expect(io.stderr.contains("deprecated; v2 reads and writes remain supported"))
+            #expect(io.stderr.contains("Reading and saving secrets still work"))
             #expect(io.stderr.contains("key migrate --check"))
-            #expect(io.stderr.contains("Migration is explicit"))
+            #expect(io.stderr.contains("without changing the vault"))
         }
         #expect(transport.requests.isEmpty)
         #expect(try Data(contentsOf: fixture.configURL) == original)
@@ -83,9 +83,9 @@ struct ConfigCompatibilityTests {
             } else {
                 #expect(io.stdout == "\(mode.rawValue)\n")
                 if isV3 {
-                    #expect(io.stderr.contains("retained legacy metadata"))
-                    #expect(io.stderr.contains("Device enrollment"))
-                    #expect(io.stderr.contains("iCloud Drive"))
+                    #expect(io.stderr.contains("retains it for compatibility"))
+                    #expect(io.stderr.contains("does not control access"))
+                    #expect(io.stderr.contains("store and synchronize vault files"))
                 } else {
                     #expect(io.stderr.isEmpty)
                 }

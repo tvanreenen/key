@@ -100,7 +100,7 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
         }
         guard let identity = try loadIdentity(
             vaultID,
-            "Load this Mac's permanent enrollment identity."
+            "Use this Mac's vault access credentials."
         ) else {
             throw V3EnrollmentAdoptionError.identityUnavailable
         }
@@ -135,7 +135,7 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
         }
         try state.signedInvitation.invitation.requireUnexpired(at: unixTime)
         let parent = try stateLoader.authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to approve the compared Mac."
+            reason: "Unlock the vault to approve the Mac whose code you compared."
         )
         guard parent.checkpoint.envelopeDigest
                 == state.signedInvitation.invitation.parentManifestDigest
@@ -168,7 +168,7 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
             authorityTransitionID: authorityTransitionID,
             owner: identity,
             at: unixTime,
-            authorizationReason: "Approve the compared Mac and rotate this vault's key."
+            authorizationReason: "Give the Mac whose code you compared access to this vault and change its encryption key."
         )
         return try publisher.publish(
             candidate,

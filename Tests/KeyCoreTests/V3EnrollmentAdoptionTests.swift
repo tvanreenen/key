@@ -481,7 +481,7 @@ struct V3EnrollmentAdoptionTests {
             at: Self.activeTime
         )
 
-        #expect(rendered.contains("Join request published."))
+        #expect(rendered.contains("Request sent. This Mac still needs approval."))
         #expect(mailbox.publishedJoinRequests.count == 1)
 
         let wrongVaultService = V3EnrollmentWorkflowService(

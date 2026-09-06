@@ -873,7 +873,7 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
         #expect(keys.loadCount == 0)
         #expect(keys.storeCount == 0)
         #expect(restarted.handle(.list).errorMessage?.contains("restarting") == true)
-        #expect(io.stdout.contains("Verified and selected the existing vault"))
+        #expect(io.stdout.contains("Key will use the existing vault"))
     }
 
     @Test

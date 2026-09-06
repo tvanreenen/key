@@ -16,7 +16,7 @@ struct V3UnconfiguredEnrollmentService {
         guard request.supportsDirectorySelection,
               path.hasPrefix("/"), !path.utf8.contains(0)
         else {
-            throw AppError.operationRefused("Joining requires an existing absolute vault directory and a joining-side command.")
+            throw AppError.operationRefused("Key needs an existing vault folder for this joining step. Use `key help share` for instructions.")
         }
         try configStore.requireUnconfigured()
         let root = try VaultRootDirectoryHandle(opening: URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL)
@@ -37,7 +37,7 @@ struct V3UnconfiguredEnrollmentService {
             create = true
         case let .compare(id, invitationID, requestID):
             guard requestID == nil else {
-                throw AppError.operationRefused("Compare a join request ID on the configured inviting Mac, not the joining Mac.")
+                throw AppError.operationRefused("Compare a request ID on the Mac that created the invitation, not the joining Mac.")
             }
             digest = try enrollmentDigest(invitationID)
             vaultID = id
@@ -60,12 +60,12 @@ struct V3UnconfiguredEnrollmentService {
             guard selected.vaultID == vaultID,
                   selected.rootURL.standardizedFileURL == root.rootURL.standardizedFileURL
             else {
-                throw AppError.operationRefused("Enrollment did not select the expected vault. Leave this attempt intact for inspection.")
+                throw AppError.operationRefused("Key could not confirm that this Mac is configured to use the approved vault. Leave this attempt intact for investigation.")
             }
             try root.requireConfiguredRootIdentity()
-            return .success((response.value ?? "") + "Verified and selected the existing vault at '\(root.rootURL.path)'. Run `key status`.\n")
+            return .success((response.value ?? "") + "Key will use the existing vault at '\(root.rootURL.path)'. Run `key status`.\n")
         }
-        return .success((response.value ?? "") + "This Mac has not selected the vault yet. Continue from this folder, or pass --vault-dir with this same folder.\n")
+        return .success((response.value ?? "") + "This Mac is not configured to use the vault yet. Continue from this folder, or pass --vault-dir with this same folder.\n")
     }
 
     static func live(

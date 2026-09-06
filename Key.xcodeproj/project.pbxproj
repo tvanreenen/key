@@ -142,6 +142,7 @@
 		AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA3251E5B71729E191F7889A /* Command.swift */; };
 		B4BE69F25B811392D2FBBE3C /* KeyCLIApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E86CB92C583D90F5DEF67D4 /* KeyCLIApplication.swift */; };
 		B611695A8D40D95DE0EF69BD /* CLIParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF28C31FF780A4FCCB3294D7 /* CLIParser.swift */; };
+		3A018DC5CEB04729B7533701 /* CLIHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A018DC5CEB04729B7533702 /* CLIHelp.swift */; };
 		BCE7D9A786F2E2489DE3ACCB /* SystemClipboardWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E827F7A4531EEAF53BCF3AA5 /* SystemClipboardWriter.swift */; };
 		CC2B47A4B45D4DA85E9C209D /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76DB380BC4A9ECD7FE009152 /* main.swift */; };
 		D4D0ACDBCDB375050F096CEC /* EntryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E585E32FBAF3D8FD5F64230 /* EntryStore.swift */; };
@@ -217,6 +218,7 @@
 		D52000000000000000000001 /* KeyProductIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyProductIdentity.swift; sourceTree = "<group>"; };
 		F35BE94A97915FDC6921A8F0 /* VaultCipher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultCipher.swift; sourceTree = "<group>"; };
 		FF28C31FF780A4FCCB3294D7 /* CLIParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIParser.swift; sourceTree = "<group>"; };
+		3A018DC5CEB04729B7533702 /* CLIHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIHelp.swift; sourceTree = "<group>"; };
 		A3A8B5F52B03F55CDB345501 /* TOTPGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGenerator.swift; sourceTree = "<group>"; };
 		A2090002A2090002A2090002 /* V2MigrationPreflight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2MigrationPreflight.swift; sourceTree = "<group>"; };
 		A2090004A2090004A2090004 /* V3FormatValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3FormatValidation.swift; sourceTree = "<group>"; };
@@ -365,6 +367,7 @@
 				DE09A18FF4CC11995E958F80 /* AppError.swift */,
 				A4030002A4030002A4030002 /* Base64URL.swift */,
 				FF28C31FF780A4FCCB3294D7 /* CLIParser.swift */,
+				3A018DC5CEB04729B7533702 /* CLIHelp.swift */,
 				E1EE5012D730E62376078026 /* ClipboardWriting.swift */,
 				BA3251E5B71729E191F7889A /* Command.swift */,
 				5E585E32FBAF3D8FD5F64230 /* EntryStore.swift */,
@@ -793,6 +796,7 @@
 				3E06CBB9790C0F544B940F1B /* AppError.swift in Sources */,
 				A4030001A4030001A4030001 /* Base64URL.swift in Sources */,
 				B611695A8D40D95DE0EF69BD /* CLIParser.swift in Sources */,
+				3A018DC5CEB04729B7533701 /* CLIHelp.swift in Sources */,
 				70A1989598F246AF88CA0C88 /* ClipboardWriting.swift in Sources */,
 				AC467D3A21454DE3CB9394E3 /* Command.swift in Sources */,
 				D4D0ACDBCDB375050F096CEC /* EntryStore.swift in Sources */,

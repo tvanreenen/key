@@ -48,7 +48,7 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
 
     func deviceInventory() throws -> V3VaultDeviceInventory {
         let trusted = try stateLoader.authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to inspect authenticated devices."
+            reason: "Unlock the vault to check which Macs have access."
         )
         let localIdentity = try loadPublicIdentity(vaultID)
         return V3VaultDeviceInventory(
@@ -80,12 +80,12 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
         at unixTime: UInt64
     ) throws -> String {
         let trusted = try stateLoader.authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to create an enrollment invitation."
+            reason: "Unlock the vault to invite another Mac."
         )
         guard trusted.checkpoint.vaultID == vaultID,
               let identity = try loadIdentity(
                   vaultID,
-                  "Load this Mac's permanent enrollment identity."
+                  "Use this Mac's vault access credentials."
               ), identity.publicIdentity.displayName == deviceName,
               let owner = trusted.envelope.body.devices.first(where: {
                   $0.identity.deviceID == identity.publicIdentity.deviceID
@@ -109,7 +109,7 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
         let signed = try V3EnrollmentMessageAuthenticator().sign(
             invitation,
             using: identity,
-            reason: "Publish a short-lived invitation for the joining Mac."
+            reason: "Create a 10-minute invitation for another Mac."
         )
         _ = try exchange.beginInviting(signed, at: unixTime)
         return [
@@ -127,7 +127,7 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
         at _: UInt64
     ) throws -> String {
         throw AppError.operationRefused(
-            "This Mac already selects a version 3 vault and cannot join another one."
+            "This Mac is already configured to use a vault. Joining cannot switch it to another vault."
         )
     }
 
@@ -174,8 +174,8 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
         let transcript = try requiredTranscript(state)
         return comparisonText(
             transcript,
-            heading: "Enrollment comparison ready.",
-            next: "If both Macs show this exact code and device pair, run `key share approve \(vaultID) \(v3LowercaseHex(invitationDigest)) \(transcript.comparisonCode)`."
+            heading: "Compare these details on both Macs.",
+            next: "Only if both Macs show this exact code and both Mac names, run `key share approve \(vaultID) \(v3LowercaseHex(invitationDigest)) \(transcript.comparisonCode)`."
         )
     }
 
@@ -214,7 +214,7 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
         operationID _: VaultTransactionOperationID
     ) throws -> String {
         throw AppError.operationRefused(
-            "Permanent version 3 acceptance is not enabled in this helper runtime yet."
+            "This Mac is already configured to use a vault. It cannot accept another invitation here. Run `key status` to check it."
         )
     }
 
