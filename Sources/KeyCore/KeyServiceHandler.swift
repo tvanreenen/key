@@ -593,7 +593,7 @@ public final class KeyServiceHandler {
 
             switch request {
             case .initializeVault:
-                throw AppError.operationRefused("Key already has a configured vault. Init does not replace it; use migration for v2 or enrollment for another Mac.")
+                throw AppError.operationRefused("Key already has a configured vault. Init does not replace it. Run `key status` to check it or `key help migrate` for older-vault migration.")
             case .unlock:
                 if let vaultReader {
                     try vaultReader.unlock()
@@ -1251,7 +1251,7 @@ public final class KeyServiceHandler {
             if try vaultContainsEntries() {
                 throw missingVaultKeyForExistingVaultError()
             }
-            throw AppError.vaultKeyMismatch("The configured v2 vault key is missing. Restore its existing key or use device enrollment for an existing v3 vault. Key will not create a replacement key.")
+            throw AppError.vaultKeyMismatch("The encryption key for this older vault is missing. Restore its existing Keychain key. To join a device-enrolled vault from another Mac, use `key help share`. Key will not create a replacement key.")
         }
     }
 
@@ -1460,7 +1460,7 @@ public final class KeyServiceHandler {
 
 private func v3ReadOnlyOperationError() -> AppError {
     AppError.operationRefused(
-        "This device already selects a version 3 vault. Local version 2 migration is unavailable, and general version 3 writes are not enabled in this release."
+        "This Mac already uses a device-enrolled vault. Migration is only for the older Keychain-backed format. Run `key status` to check the current vault."
     )
 }
 

@@ -158,7 +158,7 @@ public struct KeyConfigStore {
     }
 
     static var notInitializedError: AppError {
-        .operationRefused("No vault is configured. Run `key init [directory]` to create a new vault. Use device enrollment for an existing vault from another Mac.")
+        .operationRefused("No vault is configured on this Mac. To create a new vault, run `key init [directory]`. To join one from another Mac, run `key help share` for instructions. Do not use init for an existing vault.")
     }
 
     private func requireExistingVaultDirectory(_ url: URL) throws {
@@ -186,7 +186,7 @@ public struct KeyConfigStore {
 
     func requireUnconfigured() throws {
         guard try !hasConfiguration() else {
-            throw AppError.operationRefused("Key already has a configuration. Init never replaces it. Run `key status`; use `key migrate --check` for v2 or device enrollment for an existing v3 vault.")
+            throw AppError.operationRefused("Key already has a configuration on this Mac. Init never replaces it. Run `key status` to check the vault. For an older vault, `key migrate --check` checks migration readiness without changing it.")
         }
     }
 
@@ -221,7 +221,7 @@ public struct KeyConfigStore {
         }
         return { vaultID in
             guard isValidV3UUID(vaultID) else {
-                throw AppError.invalidConfiguration("Cannot select an invalid version 3 vault ID.")
+                throw AppError.invalidConfiguration("Key cannot configure a vault with an invalid ID.")
             }
             try requireUnconfigured()
             try rootHandle.requireConfiguredRootIdentity()
@@ -231,7 +231,7 @@ public struct KeyConfigStore {
                 readObjectData(descriptor: $0.rawValue, maximumBytes: bytes.count)
             }
             guard case let .available(data) = observed, data == bytes else {
-                throw AppError.operationRefused("The initialization reservation changed. Leave this attempt in place for inspection.")
+                throw AppError.operationRefused("The local record for this setup attempt changed. Leave the vault folder and setup record intact for investigation.")
             }
             let configuration = KeyConfigurationFile(
                 vaultDirectoryURL: rootHandle.rootURL,
@@ -284,7 +284,7 @@ public struct KeyConfigStore {
         try requireEnrollmentRoot(record, at: recordPath, in: configRoot)
         return { selectedID in
             guard selectedID == vaultID else {
-                throw AppError.operationRefused("Enrollment verified a different vault than the selected invitation.")
+                throw AppError.operationRefused("The verified vault does not match the invitation you used. Key has stopped joining.")
             }
             try requireUnconfigured()
             try rootHandle.requireConfiguredRootIdentity()
@@ -311,7 +311,7 @@ public struct KeyConfigStore {
               let record = try? JSONDecoder().decode(EnrollmentRootRecord.self, from: bytes),
               record == expected
         else {
-            throw AppError.operationRefused("This enrollment has no matching folder record. Use the same folder and invitation as the join request; leave existing enrollment records intact for inspection.")
+            throw AppError.operationRefused("This joining attempt does not match the saved folder record. Use the same folder and invitation as the join request; leave existing records intact for investigation.")
         }
     }
 
@@ -395,13 +395,13 @@ public struct KeyConfigStore {
     ) throws -> KeyConfiguration {
         guard isValidV3UUID(vaultID) else {
             throw AppError.invalidConfiguration(
-                "Cannot select an invalid version 3 vault ID."
+                "Key cannot configure a vault with an invalid ID."
             )
         }
         let current = try configuredVaultRuntimeSelection()
         guard case let .v2(sourceMode) = current.authority else {
             throw AppError.operationRefused(
-                "This device already selects a version 3 vault."
+                "This Mac is already configured to use a device-enrolled vault."
             )
         }
         guard current.rootURL.standardizedFileURL
@@ -409,7 +409,7 @@ public struct KeyConfigStore {
               sourceMode == expectedKeychainMode
         else {
             throw AppError.operationRefused(
-                "The vault configuration changed during migration. Version 2 remains selected; retry with the current configuration."
+                "The vault configuration changed during migration. Key did not replace it. Check the current configuration before trying again."
             )
         }
         try expectedRootHandle.requireConfiguredRootIdentity()

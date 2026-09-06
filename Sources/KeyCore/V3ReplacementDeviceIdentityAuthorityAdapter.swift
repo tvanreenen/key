@@ -44,7 +44,7 @@ struct V3ReplacementDeviceIdentityAuthorityAdapter:
 
         return try stateManager.withCatchUpSession {
             let trusted = try stateManager.authenticatedCheckpoint(
-                reason: "Unlock version 3 vault to verify this Mac was revoked before replacing it."
+                reason: "Check that this Mac's access was removed before replacing its credentials."
             )
             let checkpointClassification = try classifier.classify(
                 target,

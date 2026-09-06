@@ -326,7 +326,7 @@ struct KeyCLIApplicationTests {
     @Test
     func migrationPreflightPrintsTheHelperReport() throws {
         let report = """
-        Migration preflight passed.
+        Your vault is ready to migrate.
         Entries checked: 2 (1 secret, 1 TOTP entry).
         No files or Keychain items were changed. Migration has not started.
 
@@ -354,9 +354,9 @@ struct KeyCLIApplicationTests {
         Migration completed.
         Entries migrated: 2 (1 secret, 1 TOTP entry).
         This Mac now uses authenticated version 3 vault '018f4d38-7d5a-7b20-b0f1-97d6e96c44b3'.
-        The version 2 source files were retained unchanged. No cleanup was performed.
-        After Key Agent restarts, ordinary entry commands publish guarded version 3 history.
-        Other devices remain on version 2 and their later changes are not copied into this snapshot. To enroll a second Mac into this v3 vault, start with `key share invite --name <device-name>`.
+        Your original vault files were kept unchanged. No files were removed.
+        Run `key status` after Key's background service restarts to check the migrated vault.
+        Other Macs still use the original vault. Later changes there are not copied into this one. Run `key help share` to add another Mac to the migrated vault.
 
         """
         let transport = MemoryTransport { request in
@@ -403,7 +403,7 @@ struct KeyCLIApplicationTests {
             "share", "accept", vaultID, invitationID, code
         ]) == EXIT_SUCCESS)
         #expect(io.stdout == "Enrollment completed.\n")
-        #expect(io.stderr.contains("Enrollment folder:"))
+        #expect(io.stderr.contains("Vault folder:"))
     }
 
     @Test
@@ -422,14 +422,14 @@ struct KeyCLIApplicationTests {
 
         #expect(app.run(arguments: ["share", "devices"]) == EXIT_SUCCESS)
         #expect(io.stdout == """
-        Devices in the authenticated vault record:
+        Macs recorded for this vault:
         Office Mac — active (this Mac)
           ID: owner-device-id
         Laptop — active
           ID: member-device-id
 
-        Continuity: 2 active devices.
-        A surviving enrolled Mac can authorize a replacement if another is lost.
+        Macs with access: 2.
+        A Mac that still has access can add a replacement if another is lost.
 
         """)
         #expect(io.stderr.isEmpty)
@@ -466,9 +466,9 @@ struct KeyCLIApplicationTests {
         )
 
         #expect(app.run(arguments: ["share", "devices"]) == EXIT_SUCCESS)
-        #expect(io.stdout.contains("Continuity: 1 active device."))
+        #expect(io.stdout.contains("Only one Mac currently has access."))
         #expect(io.stdout.contains(
-            "Attention: add another Mac. If the only active device is lost, synchronized vault files cannot recover the vault."
+            "Attention: add another Mac. If the only Mac with access is lost, the vault folder alone cannot restore access."
         ))
         #expect(inventory.activeDeviceCount == 1)
         #expect(io.stderr.isEmpty)
@@ -540,23 +540,23 @@ struct KeyCLIApplicationTests {
             ))
         ])
         #expect(io.stdout == """
-        Review device revocation:
+        Review removal of vault access:
         Device: Laptop
           ID: member-device-id
         Authorized by: Office Mac
 
-        This permanently removes the device from future vault versions.
-        Key will rotate the vault key and re-encrypt the current vault for the remaining active devices.
+        This removes the Mac's access to the current vault and future changes. It cannot erase secrets or older vault data the Mac already obtained.
+        Key will change the encryption key and encrypt the vault again for the Macs that keep access.
         Remaining active devices: 1
           Office Mac
 
         WARNING: This will leave Office Mac as the vault's only active device.
-        If that Mac is lost, synchronized vault files cannot recover the vault.
+        If that Mac is lost, a backup of the vault folder alone cannot restore access.
         Device revoked.
 
         """)
         #expect(io.stderr ==
-            "Type REVOKE to rotate the vault key and continue: ")
+            "Type REVOKE to remove the reviewed Mac's access and change the encryption key: ")
     }
 
     @Test
@@ -597,7 +597,7 @@ struct KeyCLIApplicationTests {
                 if joinAttempts <= 2 {
                     return .deviceReplacementReview(review)
                 }
-                return .success("Join request published.\n")
+                return .success("Request sent. This Mac still needs approval.\n")
             case .share(.replaceCurrentDevice(
                 invitationID: invitationID,
                 confirmationToken: review.confirmationToken
@@ -641,22 +641,22 @@ struct KeyCLIApplicationTests {
             ), path: directory.path)
         ])
         #expect(io.stdout == """
-        This Mac previously belonged to this vault and has been revoked.
+        This Mac previously had access to this vault, but its access was removed.
         Review rejoin:
         Vault ID: 018f4d38-7d5a-7b20-b0f1-97d6e96c44b3
         Previous identity: Laptop
           ID: member-device-id
         Revoked by: Office Mac
 
-        Rejoining removes this Mac's unusable local enrollment identity and trusted checkpoint, then creates a new identity through this invitation.
+        Rejoining replaces this Mac's old access credentials and local vault record. Key creates new credentials for this invitation.
         Synchronized vault files will not be changed.
-        The other active Mac must still compare and approve the new identity.
+        The other Mac must still compare the code and approve this Mac's new access.
         Revoked device state removed. This Mac is ready to create a new enrollment identity.
-        Join request published.
+        Request sent. This Mac still needs approval.
 
         """)
         #expect(io.stderr.hasSuffix(
-            "Type REJOIN to replace the revoked identity and continue: "))
+            "Type REJOIN to replace this Mac's old access credentials: "))
     }
 
     @Test
@@ -669,7 +669,7 @@ struct KeyCLIApplicationTests {
         ), path: directory.path)
         let transport = MemoryTransport { received in
             #expect(received == request)
-            return .success("Join request published.\n")
+            return .success("Request sent. This Mac still needs approval.\n")
         }
         let io = MemoryIO(stdinIsTTY: false)
         let app = KeyCLIApplication(
@@ -684,8 +684,8 @@ struct KeyCLIApplicationTests {
             "share", "join", invitationID, "--name", "Laptop"
         ]) == EXIT_SUCCESS)
         #expect(transport.requests == [request])
-        #expect(io.stdout == "Join request published.\n")
-        #expect(io.stderr.contains("Enrollment folder:"))
+        #expect(io.stdout == "Request sent. This Mac still needs approval.\n")
+        #expect(io.stderr.contains("Vault folder:"))
     }
 
     @Test
@@ -874,7 +874,7 @@ struct KeyCLIApplicationTests {
             case .shareInDirectory(.join, _):
                 joinAttempts += 1
                 if cleanupCompleted {
-                    return .success("Join request published.\n")
+                    return .success("Request sent. This Mac still needs approval.\n")
                 }
                 return .deviceReplacementReview(review)
             case .share(.replaceCurrentDevice(
@@ -931,7 +931,7 @@ struct KeyCLIApplicationTests {
                 deviceName: "Laptop"
             ), path: directory.path)
         ])
-        #expect(io.stdout.hasSuffix("Join request published.\n"))
+        #expect(io.stdout.hasSuffix("Request sent. This Mac still needs approval.\n"))
     }
 
     @Test
@@ -976,7 +976,7 @@ struct KeyCLIApplicationTests {
     func blockedMigrationPreflightPrintsOnlyToStderr() throws {
         let transport = MemoryTransport { request in
             #expect(request == .migrationPreflight)
-            return .failure("Migration preflight blocked.\nMigration has not started.")
+            return .failure("Your vault is not ready to migrate.\nMigration has not started.")
         }
         let io = MemoryIO(stdinIsTTY: false)
         let app = KeyCLIApplication(
@@ -987,7 +987,7 @@ struct KeyCLIApplicationTests {
 
         #expect(app.run(arguments: ["migrate", "--check"]) == EXIT_FAILURE)
         #expect(io.stdout == "")
-        #expect(io.stderr == "Migration preflight blocked.\nMigration has not started.\n")
+        #expect(io.stderr == "Your vault is not ready to migrate.\nMigration has not started.\n")
     }
 
     @Test
@@ -1104,7 +1104,7 @@ struct KeyCLIApplicationTests {
         let app = KeyCLIApplication(transport: transport, io: io, clipboard: clipboard)
 
         #expect(app.run(arguments: ["add", "--totp", "aws/prod/token"]) == EXIT_FAILURE)
-        #expect(io.stderr == "TOTP seed must be valid Base32.\n")
+        #expect(io.stderr == "Enter a Base32 authenticator setup secret, not a current one-time code or a full otpauth:// URL.\n")
     }
 
     @Test
@@ -2093,7 +2093,7 @@ struct KeyAppDiagnosticsCollectorTests {
 
         #expect(snapshot.shellCLIStatus.matchState(appVersion: snapshot.context.appVersion) == .mismatch)
         #expect(snapshot.hero.title == "Welcome to Key")
-        #expect(snapshot.callout?.title == "CLI version mismatch")
+        #expect(snapshot.callout?.title == "App and terminal command versions differ")
     }
 
     @Test
@@ -2203,8 +2203,8 @@ struct KeyAppDiagnosticsCollectorTests {
         ).load()
 
         #expect(snapshot.shellCLIStatus.matchState(appVersion: snapshot.context.appVersion) == .missing)
-        #expect(snapshot.callout?.title == "External CLI not found")
-        #expect(snapshot.callout?.guidance.first?.command == "\"/Applications/Key.app/Contents/MacOS/key\" unlock")
+        #expect(snapshot.callout?.title == "Terminal command not found")
+        #expect(snapshot.callout?.guidance.first?.command == "\"/Applications/Key.app/Contents/MacOS/key\" help")
     }
 
     @Test
@@ -2229,7 +2229,7 @@ struct KeyAppDiagnosticsCollectorTests {
             }
         ).load()
 
-        #expect(snapshot.callout?.title == "CLI version unavailable")
+        #expect(snapshot.callout?.title == "Terminal command version unavailable")
         #expect(snapshot.callout?.detail.contains("Usage:") == false)
         #expect(snapshot.callout?.detail.contains("does not support `key version` yet.") == true)
         #expect(snapshot.callout?.guidance.first?.command == "\"/Applications/Key.app/Contents/MacOS/key\" version")

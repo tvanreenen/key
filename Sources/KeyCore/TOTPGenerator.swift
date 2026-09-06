@@ -22,7 +22,7 @@ public enum TOTPGenerator {
             .uppercased()
 
         guard !normalized.isEmpty else {
-            throw AppError.invalidSecret("TOTP seed must not be empty.")
+            throw AppError.invalidSecret("The authenticator setup secret must not be empty.")
         }
 
         _ = try decodeBase32Seed(normalized)
@@ -85,7 +85,7 @@ public enum TOTPGenerator {
             }
 
             guard let value = alphabet[character] else {
-                throw AppError.invalidSecret("TOTP seed must be valid Base32.")
+                throw AppError.invalidSecret("Enter a Base32 authenticator setup secret, not a current one-time code or a full otpauth:// URL.")
             }
 
             buffer = (buffer << 5) | UInt32(value)
@@ -99,7 +99,7 @@ public enum TOTPGenerator {
         }
 
         guard !output.isEmpty else {
-            throw AppError.invalidSecret("TOTP seed must be valid Base32.")
+            throw AppError.invalidSecret("Enter a Base32 authenticator setup secret, not a current one-time code or a full otpauth:// URL.")
         }
 
         return output

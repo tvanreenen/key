@@ -2,11 +2,11 @@
 
 typeset -ga _key_commands
 _key_commands=(
-  'init:create and select a new device-enrolled vault'
+  'init:create a new vault and use it on this Mac'
   'config:read or update config values'
   'status:explain vault health'
-  'conflict:inspect or resolve authenticated content conflicts'
-  'share:inspect or change version 3 device sharing'
+  'conflict:review conflicting entries and choose what to keep'
+  'share:add another Mac or manage vault access'
   'get:print a secret'
   'copy:copy a secret to the clipboard'
   'add:add a new secret from stdin or prompt'
@@ -15,9 +15,9 @@ _key_commands=(
   'rename:rename an entry'
   'remove:remove a secret'
   'list:list stored secrets'
-  'migrate:check readiness or explicitly migrate this device to version 3'
-  'unlock:warm the helper session'
-  'lock:clear the helper session and stop the helper'
+  'migrate:check or migrate an older vault'
+  'unlock:unlock the vault before running other commands'
+  'lock:lock the vault on this Mac'
   'version:print the CLI version'
   'help:show this help'
 )
@@ -89,9 +89,12 @@ case "${state}" in
     _describe -t commands 'key command' _key_commands
     ;;
   args)
+    if (( CURRENT == 2 )) && [[ "${words[1]}" != help ]]; then
+      compadd -- --help
+    fi
     case "${words[1]}" in
       init)
-        _arguments '1:directory:_files -/'
+        _arguments '--help[show setup instructions]' '1:directory:_files -/'
         ;;
       config)
         if (( CURRENT == 2 )); then
@@ -128,13 +131,13 @@ case "${state}" in
       status)
         _arguments \
           '--json[print stable machine-readable status]' \
-          '--verbose[include the local trusted version identifier]'
+          '--verbose[include storage format and verified-history identifiers]'
         ;;
       conflict)
         if (( CURRENT == 2 )); then
           _describe -t conflict-commands 'conflict command' \
             'list:list unresolved content conflicts' \
-            'show:show authenticated versions of a conflict' \
+            'show:show verified versions of a conflict' \
             'get:print one conflicted secret version' \
             'copy:copy one conflicted secret version' \
             'resolve:resolve every current conflict together'
@@ -164,32 +167,36 @@ case "${state}" in
       share)
         if (( CURRENT == 2 )); then
           _describe -t share-commands 'share command' \
-            'devices:list authenticated vault devices' \
+            'devices:list Macs recorded for this vault' \
+            'revoke:review and remove a Mac from the vault' \
             'invitations:list short-lived vault invitations' \
             'invite:invite another Mac' \
-            'join:answer one invitation' \
+            'join:request access from this Mac' \
             'requests:list answers to an invitation' \
             'compare:compare one device pair' \
             'approve:approve the compared joining Mac' \
-            'accept:trust and select the approved vault'
+            'accept:finish joining the approved vault'
         else
           case "${words[2]}" in
             devices)
               _arguments \
                 '--json[print stable machine-readable device inventory]'
               ;;
+            revoke)
+              _arguments '1:device ID:'
+              ;;
             invitations)
-              _arguments '--vault-dir[existing enrollment folder]:directory:_files -/'
+              _arguments '--vault-dir[existing vault folder]:directory:_files -/'
               ;;
             invite)
               _arguments \
-                '--name[this Mac recorded name]:device name:'
+                '--name[existing name of the Mac creating the invitation]:device name:'
               ;;
             join)
               _arguments \
                 '1:invitation ID:' \
-                '--name[set this Mac name]:device name:' \
-                '--vault-dir[existing enrollment folder]:directory:_files -/'
+                '--name[name to give this joining Mac]:device name:' \
+                '--vault-dir[existing vault folder]:directory:_files -/'
               ;;
             requests)
               _arguments \
@@ -200,7 +207,7 @@ case "${state}" in
                 '1:vault ID:' \
                 '2:invitation ID:' \
                 '3:join request ID:' \
-                '--vault-dir[existing enrollment folder]:directory:_files -/'
+                '--vault-dir[existing vault folder]:directory:_files -/'
               ;;
             approve)
               _arguments \
@@ -213,19 +220,19 @@ case "${state}" in
                 '1:vault ID:' \
                 '2:invitation ID:' \
                 '3:comparison code:' \
-                '--vault-dir[existing enrollment folder]:directory:_files -/'
+                '--vault-dir[existing vault folder]:directory:_files -/'
               ;;
           esac
         fi
         ;;
       add)
         _arguments \
-          '--totp[treat input as a Base32 TOTP seed]' \
+          '--totp[store a Base32 authenticator setup secret]' \
           '1:path:_key_complete_paths'
         ;;
       edit)
         _arguments \
-          '--totp[treat input as a Base32 TOTP seed]' \
+          '--totp[store a Base32 authenticator setup secret]' \
           '1:entry:_key_complete_entries'
         ;;
       duplicate)
@@ -248,7 +255,7 @@ case "${state}" in
       migrate)
         _arguments \
           '--check[check readiness without changing the vault]' \
-          '--apply[explicitly create, verify, and select a read-only version 3 copy]'
+          '--apply[create and verify a migrated copy, then use it on this Mac]'
         ;;
       list|unlock|lock)
         ;;
@@ -257,6 +264,9 @@ case "${state}" in
           '--json[print version info as JSON]'
         ;;
       help)
+        local -a help_topics
+        help_topics=("${(@)_key_commands:#help:*}")
+        _describe -t commands 'help topic' help_topics
         ;;
     esac
     ;;

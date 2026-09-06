@@ -42,7 +42,7 @@ struct V3DeviceWrappedReadOnlyVaultRuntime:
 
     func unlock() throws {
         _ = try unlockRuntime.unlock(
-            reason: "Unlock and authenticate version 3 vault."
+            reason: "Unlock the vault."
         )
     }
 
@@ -51,7 +51,7 @@ struct V3DeviceWrappedReadOnlyVaultRuntime:
         allowStale _: Bool
     ) throws -> VaultReadValue {
         let trusted = try authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to read '\(name)'."
+            reason: "Unlock the vault to read '\(name)'."
         )
         let plan = try planner.planCheckpointRead(
             named: name,
@@ -71,7 +71,7 @@ struct V3DeviceWrappedReadOnlyVaultRuntime:
 
     func list(allowStale: Bool) throws -> [String] {
         let trusted = try authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to list authenticated entries."
+            reason: "Unlock the vault to list saved entries."
         )
         switch try contentValidator.validate(
             entries: trusted.envelope.body.entries,
@@ -96,7 +96,7 @@ struct V3DeviceWrappedReadOnlyVaultRuntime:
 
     func status() throws -> VaultStatus {
         let trusted = try authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to inspect its authenticated state."
+            reason: "Unlock the vault to check its status."
         )
         let validation = try contentValidator.validate(
             entries: trusted.envelope.body.entries,
@@ -116,21 +116,21 @@ struct V3DeviceWrappedReadOnlyVaultRuntime:
             entries = .lastTrusted(trusted.envelope.body.entries.count)
             issues = [VaultIssue(
                 code: .referencedObjectUnavailable,
-                message: "A referenced encrypted entry is not available yet."
+                message: "A required encrypted entry file is unavailable."
             )]
         case .invalid:
             health = .recoveryRequired
             entries = .lastTrusted(trusted.envelope.body.entries.count)
             issues = [VaultIssue(
                 code: .invalidReferencedObject,
-                message: "A referenced encrypted entry failed validation."
+                message: "A required encrypted entry failed verification. Keep the files intact for investigation."
             )]
         case .resourceLimitExceeded:
             health = .recoveryRequired
             entries = .lastTrusted(trusted.envelope.body.entries.count)
             issues = [VaultIssue(
                 code: .resourceLimitExceeded,
-                message: "Checkpoint inspection exceeded a safety limit."
+                message: "Checking the last verified vault state exceeded Key's size or item-count limits."
             )]
         }
         return VaultStatus(
@@ -149,7 +149,7 @@ struct V3DeviceWrappedReadOnlyVaultRuntime:
         allowStale _: Bool
     ) throws {
         let trusted = try authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to authenticate '\(name)'."
+            reason: "Unlock the vault to verify '\(name)'."
         )
         _ = try planner.planCheckpointRead(
             named: name,

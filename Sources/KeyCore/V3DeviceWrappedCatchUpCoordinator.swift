@@ -145,7 +145,7 @@ struct V3DeviceWrappedCatchUpCoordinator: Sendable {
 
         while true {
             let trusted = try stateLoader.authenticatedCheckpoint(
-                reason: "Unlock version 3 vault to authenticate newer device history."
+                reason: "Unlock the vault to check changes to which Macs have access."
             )
             guard trusted.checkpoint.vaultID == vaultID else {
                 throw V3DeviceWrappedCatchUpError.recoveryRequired

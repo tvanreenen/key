@@ -368,10 +368,8 @@ struct CLIParserTests {
     }
 
     @Test
-    func rejectsRemovedLongHelpFlag() throws {
-        #expect(throws: AppError.usage("Unknown command '--help'.\n\n\(CLIParser.usageText)")) {
-            try CLIParser.parse(arguments: ["--help"])
-        }
+    func acceptsLongHelpFlag() throws {
+        #expect(try CLIParser.parse(arguments: ["--help"]) == .help)
     }
 
     @Test
@@ -496,17 +494,35 @@ struct CLIParserTests {
     }
 
     @Test
-    func helpDocumentsVersion3ContinuityAndPermanentLoss() {
+    func helpExplainsAccessLossAndKeepsDetailsInRelevantTopics() throws {
         let help = CLIParser.usageText
-
-        #expect(help.contains("Local APFS and iCloud Drive"))
-        #expect(help.contains("directly validated for 0.2.0"))
-        #expect(help.contains("may work, but are not directly validated"))
+        let status = try #require(CLIParser.helpText(for: "status"))
+        let share = try #require(CLIParser.helpText(for: "share"))
+        #expect(status.contains("Local APFS and iCloud Drive"))
+        #expect(status.contains("directly validated for Stable 0.2.0"))
+        #expect(status.contains("may work, but are not directly validated"))
         #expect(help.contains("at least two active enrolled Macs"))
-        #expect(help.contains("Invitations expire after 10 minutes"))
-        #expect(help.contains("lost or revoked Mac rejoins"))
-        #expect(help.contains("Provider files alone are not a backup"))
-        #expect(help.contains("permanently unrecoverable in 0.2.0"))
+        #expect(share.contains("Invitations expire after 10 minutes"))
+        #expect(share.contains("lost or revoked Mac rejoins"))
+        #expect(help.contains("cannot recover access from the vault folder alone"))
         #expect(help.contains("no password, cloud, or support fallback"))
+        #expect(!help.contains("v3"))
+        #expect(share.contains("--name identifies this Mac, not the Mac you are inviting"))
+        #expect(share.contains("Stop if they differ"))
+    }
+
+    @Test(arguments: ["init", "share", "config", "migrate", "status", "conflict", "get", "copy", "add", "edit", "duplicate", "rename", "remove", "unlock", "lock", "list", "version"])
+    func commandHelpHasBothSpellings(topic: String) throws {
+        #expect(try CLIParser.parse(arguments: ["help", topic]) == .commandHelp(topic: topic))
+        #expect(try CLIParser.parse(arguments: [topic, "--help"]) == .commandHelp(topic: topic))
+        #expect(CLIParser.helpText(for: topic) != nil)
+    }
+
+    @Test
+    func helpDoesNotSwallowArgumentsOrLiteralInitDirectory() throws {
+        #expect(try CLIParser.parse(arguments: ["init", "--", "--help"]) == .initializeVault(path: "--help"))
+        for arguments in [["init", "--help", "folder"], ["help", "init", "extra"], ["help", "unknown"], ["unknown", "--help"], ["--help", "extra"]] {
+            #expect(throws: AppError.self) { try CLIParser.parse(arguments: arguments) }
+        }
     }
 }

@@ -289,7 +289,7 @@ struct V3DeviceWrappedVaultRuntime:
                 health: .contentConflicted,
                 issue: VaultIssue(
                     code: .ambiguousHistory,
-                    message: "Authenticated content history has competing versions. Key will not choose one automatically; normal writes remain paused, but an explicit stale read can use the version already trusted on this Mac."
+                    message: "Vault history contains competing edits. Saving changes is paused. Use --allow-stale only to read the last complete version already verified on this Mac; it may be out of date."
                 )
             )
         case let .securityConflict(trusted, _, _):
@@ -298,7 +298,7 @@ struct V3DeviceWrappedVaultRuntime:
                 health: .securityConflicted,
                 issue: VaultIssue(
                     code: .authorityDiverged,
-                    message: "Authenticated history contains competing vault-key or membership changes. Key will not choose one automatically."
+                    message: "Vault history contains conflicting changes to encryption keys or device access. Key cannot safely choose between them."
                 )
             )
         }

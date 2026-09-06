@@ -287,7 +287,7 @@ struct V3DeviceWrappedGenesisInstaller {
         let identity = try identityManager.createDeviceWrappedIdentity(
             vaultID: vaultID,
             displayName: deviceName,
-            reason: "Create this Mac's permanent version 3 vault identity."
+            reason: "Set up this Mac's access credentials for the new vault."
         )
         guard identity.vaultID == vaultID else {
             throw V3DeviceWrappedGenesisInstallError
@@ -299,7 +299,7 @@ struct V3DeviceWrappedGenesisInstaller {
         )
         guard let persistedIdentity = try identityManager.loadDeviceIdentity(
             vaultID: vaultID,
-            reason: "Verify this Mac's permanent version 3 vault identity."
+            reason: "Verify this Mac's new vault access credentials."
         ), persistedIdentity.vaultID == vaultID,
            persistedIdentity.publicIdentity == identity.publicIdentity
         else {
@@ -563,7 +563,7 @@ struct V3DeviceWrappedGenesisInstaller {
             manifestData: candidate.genesis.manifestData,
             identity: identity,
             session: validationSession,
-            reason: "Verify this Mac can reopen its permanent version 3 vault key."
+            reason: "Verify that this Mac can unlock the new vault."
         )
         guard try validationSession.load(
             vaultID: checkpoint.vaultID,

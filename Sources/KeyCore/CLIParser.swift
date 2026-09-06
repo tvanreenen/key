@@ -6,6 +6,14 @@ public enum CLIParser {
             throw AppError.usage(usageText)
         }
 
+        if arguments.count == 1, subcommand == "--help" {
+            return .help
+        }
+        if arguments.count == 2, arguments[1] == "--help",
+           helpText(for: subcommand) != nil {
+            return .commandHelp(topic: subcommand)
+        }
+
         switch subcommand {
         case "help":
             return try parseHelp(arguments: Array(arguments.dropFirst()))
@@ -48,97 +56,6 @@ public enum CLIParser {
         }
     }
 
-    public static let usageText = """
-    Usage:
-      key <command> [arguments]
-
-    Commands:
-      init [directory]                  Create and select a new v3 vault; defaults to the current directory.
-      config get <config-name>           Print a config value.
-      config set <config-name> <value>   Update a config value.
-      config list                        List known config values.
-      migrate --check                    Check v2 migration readiness without changing the vault.
-      migrate --apply                    Create and select a verified v3 copy on this Mac.
-      status [--json] [--verbose]        Explain vault health without changing it.
-      conflict list [--json]             List unresolved content conflicts.
-      conflict show <id> [--json]        Show authenticated versions of a conflict.
-      conflict get <id> <version>        Print one conflicted secret version.
-      conflict copy <id> <version>       Copy one conflicted secret version.
-      conflict resolve <id>=<version>…   Resolve every listed conflict together.
-      share devices [--json]              List authenticated vault devices.
-      share revoke <device-id>            Review and revoke one vault device.
-      share invitations [--vault-dir <directory>]
-                                          List short-lived vault invitations.
-      share invite --name <name>          Invite a device from the current v3 Mac.
-      share join <invite> --name <name> [--vault-dir <directory>]
-                                          Answer one exact invitation.
-      share requests <invite>             List answers to an invitation.
-      share compare <vault> <invite> [request]
-                                          Show the code and device pair; accepts --vault-dir.
-      share approve <vault> <invite> <code>
-                                          Approve the compared joining Mac.
-      share accept <vault> <invite> <code>
-                                          Trust and select the approved vault; accepts --vault-dir.
-      get <name> [--allow-stale]         Print a secret or current TOTP code.
-      copy <name> [--allow-stale]        Copy a secret or current TOTP code.
-      add [--totp] <name>                Add a new secret from stdin or prompt.
-      edit [--totp] <name>               Update a secret from stdin or prompt.
-      duplicate <src> <dst> [--force]    Duplicate an entry.
-      rename <src> <dst> [--force]       Rename an entry.
-      remove <name> [--force]            Remove a secret.
-      list                               List stored secrets.
-      unlock                             Warm the helper session.
-      lock                               Clear the helper session and stop the helper.
-      version [--json]                   Print the CLI version.
-      help                               Show this help.
-
-    Options:
-      --force  Skip overwrite or removal confirmation.
-      --check  Run the read-only v2 migration preflight.
-      --apply  Explicitly create and select a verified local v3 copy.
-      --json   Print supported diagnostics as stable JSON.
-      --verbose  Include authenticated version details in human-readable status.
-      --allow-stale  Read the last complete trusted version when newer transport is incomplete.
-      --totp   Treat add/edit input as a Base32 TOTP seed.
-
-    Config names:
-      vault-dir      Effective vault directory.
-      keychain-mode  Version 2 key storage (`local` or `icloud`); legacy metadata for v3.
-
-    Version 3 uses device enrollment for key authority and vault-dir for storage,
-    including iCloud Drive. Config list omits keychain-mode for v3; an explicit
-    config get retains its legacy value and explains it on stderr.
-
-    Version 2 retirement:
-      Keychain-backed vaults are deprecated, but reads and writes still work.
-      Terminal status and config list warn on stderr; JSON and redirected output do not.
-      Run `key migrate --check` for a read-only readiness check. Migration is explicit.
-      No removal release has been scheduled. Review device enrollment and recovery first.
-
-    First-time setup:
-      Run `key init [directory]` to create a new vault; ordinary commands never create one.
-      Help, version, and lock work before setup. Existing vaults do not need init again.
-      Config setters require an existing config; vault-dir requires an existing directory.
-      A missing configured folder or key is an error, not permission to create a replacement.
-      Joining an existing vault uses the current directory when this Mac has no config.
-      Use --vault-dir <directory> on invitations/join/compare/accept to run from elsewhere.
-      A configured Mac uses its configured folder; --vault-dir cannot switch vaults.
-      Enrollment never creates a vault folder. Only verified acceptance saves new config.
-
-    Version 3 safety and recovery:
-      Init requires an empty directory, or creates the final directory if missing.
-      Its parent must exist. Existing configuration is never replaced by init.
-      Init creates a NEW vault; use device enrollment for a vault from another Mac.
-      An empty synced folder may still have files waiting to download.
-      Local APFS and iCloud Drive are directly validated for 0.2.0.
-      Other ordinary folder-backed providers may work, but are not directly validated.
-      Keep at least two active enrolled Macs; either can enroll or revoke another Mac.
-      Invitations expire after 10 minutes. Compare the exact device pair and code.
-      A lost or revoked Mac rejoins through an invitation from a surviving active Mac.
-      The provider stores encrypted authenticated files, never the vault key or authority.
-      Provider files alone are not a backup. If every enrolled Mac is lost, the vault is
-      permanently unrecoverable in 0.2.0; there is no password, cloud, or support fallback.
-    """
 
     private static func parseInit(arguments: [String]) throws -> Command {
         var paths = arguments
@@ -155,6 +72,9 @@ public enum CLIParser {
     }
 
     private static func parseHelp(arguments: [String]) throws -> Command {
+        if arguments.count == 1, helpText(for: arguments[0]) != nil {
+            return .commandHelp(topic: arguments[0])
+        }
         guard arguments.isEmpty else {
             throw AppError.usage("Unknown option '\(arguments[0])' for help.\n\n\(usageText)")
         }
