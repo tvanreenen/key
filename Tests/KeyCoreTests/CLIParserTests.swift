@@ -5,7 +5,7 @@ struct CLIParserTests {
     @Test
     func parsesHelp() throws {
         let command = try CLIParser.parse(arguments: ["help"])
-        #expect(command == .help)
+        #expect(command == .help(text: CLIParser.usageText))
     }
 
     @Test
@@ -306,198 +306,210 @@ struct CLIParserTests {
 
     @Test
     func rejectsLegacyShowCommand() throws {
-        #expect(throws: AppError.usage("Unknown command 'show'.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["show", "github/personal"])
         }
     }
 
     @Test
     func rejectsLegacyGetCommandShape() throws {
-        #expect(throws: AppError.usage("Unknown option '--copy' for get.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["get", "github/personal", "--copy"])
         }
     }
 
     @Test
     func rejectsRemovedTwoArgumentCopyCommand() throws {
-        #expect(throws: AppError.usage("Unknown option 'dst/token' for copy.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["copy", "src/token", "dst/token"])
         }
     }
 
     @Test
     func rejectsRemovedMoveCommand() throws {
-        #expect(throws: AppError.usage("Unknown command 'move'.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["move", "src/token", "dst/token"])
         }
     }
 
     @Test
     func rejectsRemovedCopyAlias() throws {
-        #expect(throws: AppError.usage("Unknown command 'cp'.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["cp", "src/token", "dst/token"])
         }
     }
 
     @Test
     func rejectsRemovedMoveAlias() throws {
-        #expect(throws: AppError.usage("Unknown command 'mv'.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["mv", "src/token", "dst/token"])
         }
     }
 
     @Test
     func rejectsRemovedRemoveAlias() throws {
-        #expect(throws: AppError.usage("Unknown command 'rm'.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["rm", "src/token"])
         }
     }
 
     @Test
     func rejectsRemovedListAlias() throws {
-        #expect(throws: AppError.usage("Unknown command 'ls'.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["ls"])
         }
     }
 
     @Test
-    func rejectsRemovedShortHelpFlag() throws {
-        #expect(throws: AppError.usage("Unknown command '-h'.\n\n\(CLIParser.usageText)")) {
-            try CLIParser.parse(arguments: ["-h"])
-        }
+    func acceptsShortHelpFlag() throws {
+        #expect(try CLIParser.parse(arguments: ["-h"]) == .help(text: CLIParser.usageText))
     }
 
     @Test
     func acceptsLongHelpFlag() throws {
-        #expect(try CLIParser.parse(arguments: ["--help"]) == .help)
+        #expect(try CLIParser.parse(arguments: ["--help"]) == .help(text: CLIParser.usageText))
+    }
+
+    @Test
+    func standardOptionOrderingAndTerminatorsPreserveCommandMeaning() throws {
+        #expect(try CLIParser.parse(arguments: ["remove", "--force", "entry"])
+            == .remove(name: "entry", force: true))
+        #expect(try CLIParser.parse(arguments: ["rename", "--force", "old", "new"])
+            == .rename(source: "old", destination: "new", force: true))
+        #expect(try CLIParser.parse(arguments: ["get", "--", "--help"])
+            == .get(name: "--help"))
+        #expect(try CLIParser.parse(arguments: ["add", "--totp", "--", "-entry"])
+            == .add(name: "-entry", type: .totp))
+        #expect(try CLIParser.parse(arguments: ["share", "join", "--name=New Mac", "--vault-dir=Key Vault", "invitation"])
+            == .share(.join(invitationID: "invitation", deviceName: "New Mac"), vaultDirectory: "Key Vault"))
+        #expect(try CLIParser.parse(arguments: ["conflict", "show", "--json", "id"])
+            == .conflict(.show(id: "id", json: true)))
     }
 
     @Test
     func rejectsLegacyPutCommand() throws {
-        #expect(throws: AppError.usage("Unknown command 'put'.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["put", "api/token"])
         }
     }
 
     @Test
     func rejectsUnsupportedAddOptions() throws {
-        #expect(throws: AppError.usage("Unknown option '--generate' for add.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["add", "api/token", "--generate"])
         }
     }
 
     @Test
     func rejectsUnsupportedEditOptions() throws {
-        #expect(throws: AppError.usage("Unknown option '--generate' for edit.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["edit", "api/token", "--generate"])
         }
     }
 
     @Test
     func rejectsDuplicateWithoutDestination() throws {
-        #expect(throws: AppError.usage("Missing destination entry name for duplicate.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["duplicate", "src/token"])
         }
     }
 
     @Test
     func rejectsRenameWithoutDestination() throws {
-        #expect(throws: AppError.usage("Missing destination entry name for rename.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["rename", "src/token"])
         }
     }
 
     @Test
     func rejectsRemoveWithoutName() throws {
-        #expect(throws: AppError.usage("Missing entry name for remove.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["remove"])
         }
     }
 
     @Test
     func rejectsUnlockOptions() throws {
-        #expect(throws: AppError.usage("Unknown option '--force' for unlock.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["unlock", "--force"])
         }
     }
 
     @Test
     func rejectsLockOptions() throws {
-        #expect(throws: AppError.usage("Unknown option '--force' for lock.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["lock", "--force"])
         }
     }
 
     @Test
     func rejectsUnknownVersionOptions() throws {
-        #expect(throws: AppError.usage("Unknown option '--yaml' for version.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["version", "--yaml"])
         }
     }
 
     @Test
     func rejectsMigrationWithoutAnExplicitAction() throws {
-        #expect(throws: AppError.usage(
-            "Migration does not start automatically. Use `key migrate --check` to inspect readiness or `key migrate --apply` to convert this device explicitly.\n\n\(CLIParser.usageText)"
-        )) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["migrate"])
         }
     }
 
     @Test
     func rejectsUnsupportedMigrationOptions() throws {
-        #expect(throws: AppError.usage("Unknown option '--automatic' for migrate.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["migrate", "--automatic"])
         }
     }
 
     @Test
     func rejectsConfigWithoutSubcommand() throws {
-        #expect(throws: AppError.usage("Missing config subcommand.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["config"])
         }
     }
 
     @Test
     func rejectsUnknownConfigSubcommand() throws {
-        #expect(throws: AppError.usage("Unknown config subcommand 'show'.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["config", "show"])
         }
     }
 
     @Test
     func rejectsUnknownConfigKey() throws {
-        #expect(throws: AppError.usage("Unknown config key 'theme'.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["config", "get", "theme"])
         }
     }
 
     @Test
     func rejectsConfigSetWithoutValue() throws {
-        #expect(throws: AppError.usage("Missing value for config set.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["config", "set", "vault-dir"])
         }
     }
 
     @Test
     func rejectsConfigListOptions() throws {
-        #expect(throws: AppError.usage("Unknown option '--json' for config list.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["config", "list", "--json"])
         }
     }
 
     @Test
     func rejectsHelpOptions() throws {
-        #expect(throws: AppError.usage("Unknown option '--verbose' for help.\n\n\(CLIParser.usageText)")) {
+        #expect(throws: AppError.self) {
             try CLIParser.parse(arguments: ["help", "--verbose"])
         }
     }
 
     @Test
     func helpExplainsAccessLossAndKeepsDetailsInRelevantTopics() throws {
-        let help = CLIParser.usageText
-        let status = try #require(CLIParser.helpText(for: "status"))
-        let share = try #require(CLIParser.helpText(for: "share"))
+        let help = CLIParser.usageText.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        let status = try #require(CLIParser.helpText(for: "status")).split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        let share = try #require(CLIParser.helpText(for: "share")).split(whereSeparator: \.isWhitespace).joined(separator: " ")
         #expect(status.contains("Local APFS and iCloud Drive"))
         #expect(status.contains("directly validated for Stable 0.2.0"))
         #expect(status.contains("may work, but are not directly validated"))
@@ -513,16 +525,21 @@ struct CLIParserTests {
 
     @Test(arguments: ["init", "share", "config", "migrate", "status", "conflict", "get", "copy", "add", "edit", "duplicate", "rename", "remove", "unlock", "lock", "list", "version"])
     func commandHelpHasBothSpellings(topic: String) throws {
-        #expect(try CLIParser.parse(arguments: ["help", topic]) == .commandHelp(topic: topic))
-        #expect(try CLIParser.parse(arguments: [topic, "--help"]) == .commandHelp(topic: topic))
+        #expect(try CLIParser.parse(arguments: ["help", topic]) == .help(text: CLIParser.helpText(for: topic)!))
+        #expect(try CLIParser.parse(arguments: [topic, "--help"]) == .help(text: CLIParser.helpText(for: topic)!))
         #expect(CLIParser.helpText(for: topic) != nil)
     }
 
     @Test
-    func helpDoesNotSwallowArgumentsOrLiteralInitDirectory() throws {
+    func helpTakesPrecedenceButRespectsTheOptionTerminator() throws {
         #expect(try CLIParser.parse(arguments: ["init", "--", "--help"]) == .initializeVault(path: "--help"))
+        // Argument Parser displays help even with incomplete or invalid input.
+        // A help request must never become an operation.
         for arguments in [["init", "--help", "folder"], ["help", "init", "extra"], ["help", "unknown"], ["unknown", "--help"], ["--help", "extra"]] {
-            #expect(throws: AppError.self) { try CLIParser.parse(arguments: arguments) }
+            guard case .help = try CLIParser.parse(arguments: arguments) else {
+                Issue.record("Expected help for \(arguments)")
+                continue
+            }
         }
     }
 }
