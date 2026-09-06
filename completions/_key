@@ -90,11 +90,11 @@ case "${state}" in
     ;;
   args)
     if (( CURRENT == 2 )) && [[ "${words[1]}" != help ]]; then
-      compadd -- --help
+      compadd -- -h --help
     fi
     case "${words[1]}" in
       init)
-        _arguments '--help[show setup instructions]' '1:directory:_files -/'
+        _arguments '(-h --help)'{-h,--help}'[show setup instructions]' '1:directory:_files -/'
         ;;
       config)
         if (( CURRENT == 2 )); then

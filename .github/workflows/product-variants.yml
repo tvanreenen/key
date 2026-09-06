@@ -54,3 +54,10 @@ jobs:
       - name: Test Preview install safety
         if: matrix.variant == 'preview'
         run: Tests/PreviewScripts/preview-install-tests.sh
+
+      - name: Test CLI help and output boundaries
+        run: |
+          cli_name=key
+          if [[ "${{ matrix.variant }}" == preview ]]; then cli_name=key-preview; fi
+          zsh Tests/CLIScripts/help-tests.sh \
+            "${RUNNER_TEMP}/DerivedData/Build/Products/${{ matrix.configuration }}/${{ matrix.app }}/Contents/MacOS/${cli_name}"
