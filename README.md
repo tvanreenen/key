@@ -278,51 +278,55 @@ Do not repoint one product at another product's live vault. If the default direc
 
 ## Command reference
 
-In the development build, `key help` shows a short overview. Use `key help init`, `key help share`, or `key <command> --help` for that command's options, safety notes, and examples. These help topics are not available in Stable `0.2.0`. Storage-format numbers remain available in `key status --verbose` and JSON diagnostics; they describe vault compatibility, not the app version.
+In the development build, `key help` shows an overview. Use `key help init`, `key help share`, or `key <command> --help` for options, safety notes, and examples. Nested commands have their own help, such as `key share join --help` or `key help share join`; `-h` also works. These help topics are not available in Stable `0.2.0`. Storage-format numbers remain available in `key status --verbose` and JSON diagnostics; they describe vault compatibility, not the app version.
+
+Options can appear before or after positional arguments. Use `--` before a name or path that begins with a dash. Help takes precedence over other arguments and never starts a vault operation, even when the rest of the command is incomplete or invalid. Invalid operational commands still fail with the existing usage exit code; their error wording and usage layout now come from Swift Argument Parser. Supply `--name` exactly once and `--vault-dir` at most once where supported. Secrets still belong at the hidden prompt or on standard input, never in command arguments.
+
+Help paragraphs and descriptions wrap to the terminal width, or the `COLUMNS` override, between 40 and 80 columns. Output defaults to 80 columns when no width is available. Usage lines and long tokens stay intact and may be wider; narrower terminals may wrap them further.
 
 ```text
-key status [--json] [--verbose]        Explain vault health and the next safe action
-key init [directory]                   Create a new vault and use it on this Mac (unreleased)
-key unlock                             Unlock the vault before running other commands
-key lock                               Lock the vault on this Mac
+key status [--json | --verbose]           Explain vault health and the next safe action
+key init [directory]                      Create a new vault and use it on this Mac (unreleased)
+key unlock                                Unlock the vault before running other commands
+key lock                                  Lock the vault on this Mac
 
-key get <name> [--allow-stale]         Print a secret or current TOTP code
-key copy <name> [--allow-stale]        Copy a secret or current TOTP code
-key add [--totp] <name>                Add a secret from stdin or a secure prompt
-key edit [--totp] <name>               Update a secret
-key duplicate <src> <dst> [--force]    Duplicate an entry
-key rename <src> <dst> [--force]       Rename an entry
-key remove <name> [--force]            Remove an entry
-key list                               List entry names
+key get <name> [--allow-stale]            Print a secret or current TOTP code
+key copy <name> [--allow-stale]           Copy a secret or current TOTP code
+key add [--totp] <name>                   Add a secret from stdin or a secure prompt
+key edit [--totp] <name>                  Update a secret
+key duplicate <src> <dst> [--force]       Duplicate an entry
+key rename <src> <dst> [--force]          Rename an entry
+key remove <name> [--force]               Remove an entry
+key list                                  List entry names
 
-key config get <config-name>           Print one configuration value
-key config set <config-name> <value>   Update one configuration value
-key config list                        List known configuration values
+key config get <config-name>              Print one configuration value
+key config set <config-name> <value>      Update one configuration value
+key config list                           List known configuration values
 
-key migrate --check                    Check migration readiness without changing the vault
-key migrate --apply                    Create and verify a migrated copy, then use it on this Mac
+key migrate --check                       Check migration readiness without changing the vault
+key migrate --apply                       Create and verify a migrated copy, then use it on this Mac
 
-key conflict list [--json]             List unresolved device-enrolled conflicts
-key conflict show <id> [--json]        Review the verified versions of a conflict
-key conflict get <id> <version>        Print one conflicted value
-key conflict copy <id> <version>       Copy one conflicted value
-key conflict resolve <id>=<version>…   Resolve the complete listed conflict set
+key conflict list [--json]                List unresolved device-enrolled conflicts
+key conflict show <id> [--json]           Review the verified versions of a conflict
+key conflict get <id> <version>           Print one conflicted value
+key conflict copy <id> <version>          Copy one conflicted value
+key conflict resolve <id>=<version>…      Resolve the complete listed conflict set
 
-key share devices [--json]             List Macs recorded for this vault
-key share revoke <device-id>           Review and remove a Mac's access
-key share invitations                  List available invitations
-key share invite --name <name>         Create an invitation from this Mac
-key share join <invite> --name <name>  Answer an invitation on the joining Mac
-key share requests <invite>            List answers to an invitation
+key share devices [--json]                List Macs recorded for this vault
+key share revoke <device-id>              Review and remove a Mac's access
+key share invitations                     List available invitations
+key share invite --name <name>            Create an invitation from this Mac
+key share join <invite> --name <name>     Answer an invitation on the joining Mac
+key share requests <invite>               List answers to an invitation
 key share compare <vault> <invite> [request]
-                                        Show the device pair and comparison code
+                                          Show the device pair and comparison code
 key share approve <vault> <invite> <code>
-                                        Approve the compared joining Mac
+                                          Approve the compared joining Mac
 key share accept <vault> <invite> <code>
-                                        Finish joining the approved vault on this Mac
+                                          Finish joining the approved vault on this Mac
 
-key version [--json]                   Print the CLI version
-key help                               Show the command overview
+key version [--json]                      Print the CLI version
+key help                                  Show the command overview
 ```
 
 ## macOS integration
@@ -356,6 +360,10 @@ The Swift package and release-script checks run with:
 just test
 ```
 
+Run `just test-cli-help` to build the CLI and check help alignment, narrow and wide terminal widths, output streams, and usage exits without accessing a vault. The product build workflow runs these checks against both bundled CLIs.
+
 The Xcode project builds the signed host apps and helpers. Signing, notarization, Preview isolation, and release publication are documented in the [release process](docs/release.md) and [Apple setup guide](docs/apple-setup.md).
+
+The CLI uses Apple's [Swift Argument Parser](https://github.com/apple/swift-argument-parser) for syntax, validation, and help. SwiftPM and Xcode both pin version `1.8.2`, with checked-in resolution files; initial builds need access to fetch the package. Command declarations only translate arguments into existing application requests. Authentication, secret input, service execution, and exit handling remain in Key's application layer. Workflow explanations live in `CLIHelp.swift` as unwrapped paragraphs. A few usage lines are explicitly supplied where duplicate-option limits or mutually exclusive choices need a more accurate synopsis than the generated one. Argument Parser is licensed under [Apache 2.0 with the Swift Runtime Library Exception](https://github.com/apple/swift-argument-parser/blob/1.8.2/LICENSE.txt).
 
 Key is available under the [MIT License](LICENSE).
