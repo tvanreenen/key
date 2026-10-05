@@ -66,11 +66,12 @@ See [the evidence summary](piv-feasibility-results.md) for provenance and limits
 The experiment sources and operational transcripts are archived locally, not
 part of the product build or a supported command interface.
 
-Retained domain code includes bounded public-object framing, the HPKE receiver
-adapter, and the isolated epoch-key capsule. The full recovery profile, graph
-selection, product token adapter, protected registration, lifecycle coverage,
-authenticated resume, and adoption remain to implement. One-token experiments
-do not qualify independent backup recovery or PIN/touch enforcement.
+Retained internal domain code includes bounded public-object framing, the HPKE
+receiver adapter, epoch capsule, recovery profile, anchored graph selection,
+and complete current-snapshot verification. Integrated review, the product token
+adapter, protected registration, lifecycle coverage, authenticated resume,
+and adoption remain. One-token experiments do not qualify independent backup
+recovery or PIN/touch enforcement.
 
 ## Tracking rules
 
@@ -92,7 +93,7 @@ are the implementation packages, not new names for already completed probes.
 |---|---|---|---|
 | `REC-804` | Format, authority, lifecycle, and compatibility contract | Baseline | In progress; AI review disposition recorded; experimental direction authorized; graph/platform/adoption decisions remain |
 | `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; profile-3 domain codecs, contexts, proof construction/checks, and fixtures implemented; final acceptance and integrated review remain |
-| `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | Planned |
+| `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
 | `REC-807` | Product token binding, supported administration, and credential lifecycle | 804 | Planned |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | Planned |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | Planned |
@@ -389,15 +390,15 @@ single deferred integration PR.
 - **Real-vault ready:** 813/814 pass and explicit adoption in 815 is qualified.
 - **Full completion:** 815's Stable artifact is released and verified.
 
-The current increment is `REC-805`, with remaining `REC-804` integrated decisions
-tracked explicitly. The [contract](piv-recovery-contract.md) describes the
+The current increment is `REC-806`, with final `REC-805` acceptance and remaining
+`REC-804` integrated decisions tracked explicitly. The [contract](piv-recovery-contract.md) describes the
 experimental dual-authorization direction and its reduced historical replay
 promise. The capsule, recipient roster, recovery contexts/wrappers, containing
-profile, and canonical proof projection are implemented as internal domain
-components. Final 805 acceptance and 806's anchored graph verification come
-next. Only the isolated capsule has a fresh independent AI review; the new
-components have software checks, not integrated review or product/hardware
-qualification.
+profile, canonical proof projection, anchor codec, graph selector, and snapshot
+verifier are implemented as internal domain components. Finish domain acceptance
+and integrate native token provenance next. Only the isolated capsule has a fresh
+independent AI review; the new components have software checks, not integrated
+review or product/hardware qualification.
 
 ## Implementation evidence ledger
 
@@ -411,6 +412,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Repository cleanup, 2026-10-04 | Removed experiment-only CLI/XPC and prototype dependencies; retained reusable crypto, framing, regression tests, and generic genesis groundwork | Raw files preserved under ignored root `tmp/`. No install, token operation, vault change, commit, or release. See the cleanup verification below. |
 | Second 805 domain component, 2026-10-04 | [Recipient roster/codec](../Sources/KeyCore/V3RecoveryRecipients.swift), [recovery HPKE](../Sources/KeyCore/V3RecoveryVaultKeyHPKE.swift), and software tests | No profile dispatch, epoch proof, token anchor, registration, source graph, service command, or real-vault activation. Verification details follow below. |
 | Third 805 domain component, 2026-10-04 | [Profile/codec](../Sources/KeyCore/V3RecoveryManifest.swift), [boundary transcripts](../Sources/KeyCore/V3RecoveryEpochBoundary.swift), [14 software tests](../Tests/KeyCoreTests/V3RecoveryManifestTests.swift), and [experimental schema](schemas/v3-recovery-manifest-body.schema.json) | Parsed/publicly checked state is not an anchored graph, a publication-approved candidate, or a restorable snapshot. No shipping profile-3 caller is enabled. |
+| First 806 domain increment, 2026-10-04 | [Anchor](../Sources/KeyCore/V3RecoveryAnchor.swift), [bounded history selector](../Sources/KeyCore/V3RecoveryHistory.swift), [snapshot verifier](../Sources/KeyCore/V3RecoverySnapshot.swift), and [graph/source tests](../Tests/KeyCoreTests/V3RecoveryHistoryTests.swift) | One software agreement across multiple epochs; complete selected current entries; no native token provenance, protected administration, restore service, or product activation. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -501,3 +503,47 @@ and publication services' responsibilities. Origin anchoring/adoption, hardware
 operation counts, fresh integrated review, and real-vault activation remain
 unqualified. No install, token operation, push, or release was performed. Raw
 logs stay under ignored `tmp/piv-recovery/`.
+
+### Anchored history and snapshot verification, 2026-10-04
+
+The first 806 increment reuses `V3ImmutableObjectReading` and ordinary repository
+budgets. Public selection and verified snapshots have separate construction
+boundaries; neither is an ordinary MAC-trusted checkpoint. The selector validates
+the floor's exact digest and recipient, all required parent paths, proof
+inheritance, dual-authorized epoch changes, monotonic rosters, revision rules,
+and visible branch conflicts. It refuses a same-vault tip with a missing link
+to the floor instead of treating it as unrelated. It does not privately replay
+known pre-floor history or fetch historical entry ciphertexts.
+
+The snapshot verifier reselects before one software agreement, validates the
+final capsule and current-epoch MACs, authenticates every selected current
+entry and its payload semantics, then rechecks source bytes before returning.
+Source changes and cancellation fail without another approval or fallback.
+Publication must revalidate again, including native token/directory bindings.
+The [contract](piv-recovery-contract.md#implemented-history-and-snapshot-verification)
+records the conservative opaque-object policy and its availability cost.
+
+The 27 new software tests cover exact anchor bytes and rejection, multi-epoch
+opening, floor cuts, all-parent merges, missing links, unsupported descendants,
+content/authority/closed-epoch branches, roster/revision policy, resource bounds,
+current MAC/capsule/entry/payload failures, cancellation and source changes.
+A disposable directory fixture uses the real filesystem source and checks
+symlink refusal. No private hardware callback is exercised by these tests.
+
+- Focused Debug regression: 129 tests across 13 suites passed, covering the new
+  anchor/history/snapshot checks and existing profile, HPKE, PIV framing,
+  capsule, entry-cipher and repository behavior.
+- Focused Release regression: 129 tests across the same 13 suites passed.
+  This is not a full Release pass.
+- Unsigned arm64/x86_64 Preview app, CLI and helper build, product-bundle
+  isolation and bundled CLI help passed. No recovery command was enabled.
+- Strict formatting, project plist syntax, 61 local documentation link targets
+  and `git diff --check` passed.
+- A negative compiler check confirmed that a separate source file cannot invoke
+  the verified snapshot's fileprivate initializer. Raw probe code/output remains
+  under ignored `tmp/piv-recovery/`, not in the product or committed tests.
+
+Full Debug verification still awaits an unlocked console; the unchanged full
+Release compatibility limitation is recorded above. No system lock setting or
+protected-file behavior was changed. Raw logs remain under ignored
+`tmp/piv-recovery/`; no install, token operation, push, or release was performed.
