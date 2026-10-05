@@ -276,8 +276,9 @@ new-vault recovery/read/edit/reopen rehearsal passed. These establish
 feasibility, not an ongoing recovery format or real-vault readiness.
 
 Current work is `REC-805`: the isolated epoch capsule is implemented and
-AI-reviewed; recipient contexts/wrappers are implemented. Full profile/proof
-integration remains. Remaining `REC-804` graph/platform/adoption decisions stay
+AI-reviewed; recipient contexts/wrappers, profile codecs, and boundary transcripts
+are implemented as internal domain components. Anchored graph and product
+integration remain. Remaining `REC-804` graph/platform/adoption decisions stay
 explicit. Implementation integrates registration, ordinary edits, key rotation,
 history verification, and restore into product services.
 Independent backup-token recovery, protected administration, compatibility,

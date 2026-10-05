@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/tvanreenen/key/main/docs/schemas/v3-recovery-manifest-body.schema.json",
+  "title": "Experimental Key vault recovery profile 3 manifest body",
+  "description": "An unfrozen internal profile, not enabled by shipping services. Common device and entry schemas remain shared with profile 2. Canonical JSON, ordering, valid points, low-S signatures, coverage, cross-role key separation and cryptographic authority require the normative codecs and validators.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "version", "profile", "profileVersion", "vaultID", "keyID", "authorityTransitionID", "hpkeSuite", "devices", "wrappedKeys", "entries", "epochAuthority", "recovery"],
+  "properties": {
+    "format": {"const": "key-vault-manifest"},
+    "version": {"const": 3},
+    "profile": {"const": "device-wrapped"},
+    "profileVersion": {"const": 3},
+    "vaultID": {"$ref": "v3-common.schema.json#/$defs/uuid"},
+    "keyID": {"$ref": "v3-common.schema.json#/$defs/vaultKeyID"},
+    "authorityTransitionID": {"$ref": "v3-common.schema.json#/$defs/uuid"},
+    "hpkeSuite": {"$ref": "v3-manifest-body.schema.json#/$defs/hpkeSuite"},
+    "devices": {"$ref": "v3-manifest-body.schema.json#/properties/devices"},
+    "wrappedKeys": {"$ref": "v3-manifest-body.schema.json#/properties/wrappedKeys"},
+    "entries": {"$ref": "v3-manifest-body.schema.json#/properties/entries"},
+    "epochAuthority": {"$ref": "#/$defs/epochAuthority"},
+    "recovery": {"$ref": "#/$defs/recovery"}
+  },
+  "$defs": {
+    "epochAuthority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "capsule", "transitionProof"],
+      "properties": {
+        "version": {"const": 1},
+        "capsule": {"$ref": "#/$defs/capsule"},
+        "transitionProof": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/transitionProof"}]}
+      }
+    },
+    "capsule": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "signingAlgorithm", "protectionAlgorithm", "publicKey", "protectedSigningKey"],
+      "properties": {
+        "version": {"const": 1},
+        "signingAlgorithm": {"const": "P-256-ECDSA-SHA256"},
+        "protectionAlgorithm": {"const": "HKDF-SHA256+AES-256-GCM"},
+        "publicKey": {"type": "string", "pattern": "^[A-Za-z0-9_-]{87}$"},
+        "protectedSigningKey": {"type": "string", "pattern": "^[A-Za-z0-9_-]{80}$"}
+      }
+    },
+    "transitionProof": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "algorithm", "parentEnvelopeDigest", "signature"],
+      "properties": {
+        "version": {"const": 1},
+        "algorithm": {"const": "P-256-ECDSA-SHA256"},
+        "parentEnvelopeDigest": {"$ref": "v3-common.schema.json#/$defs/sha256"},
+        "signature": {"$ref": "v3-common.schema.json#/$defs/p256RawSignature"}
+      }
+    },
+    "recovery": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "generationID", "recipients", "wrappedKeys"],
+      "properties": {
+        "version": {"const": 1},
+        "generationID": {"$ref": "v3-common.schema.json#/$defs/uuid"},
+        "recipients": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/recipient"}},
+        "wrappedKeys": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/recoveryWrappedKey"}}
+      }
+    },
+    "recipient": {
+      "type": "object", "additionalProperties": false,
+      "required": ["recipientID", "registrationID", "publicKey", "slot", "status"],
+      "properties": {
+        "recipientID": {"$ref": "v3-common.schema.json#/$defs/sha256"},
+        "registrationID": {"$ref": "v3-common.schema.json#/$defs/uuid"},
+        "publicKey": {"$ref": "#/$defs/recoveryPublicKey"},
+        "slot": {"const": "9d"},
+        "status": {"enum": ["active", "revoked"]}
+      }
+    },
+    "recoveryPublicKey": {
+      "type": "object", "additionalProperties": false,
+      "required": ["algorithm", "encoding", "value"],
+      "properties": {
+        "algorithm": {"const": "P-256-ECDH"}, "encoding": {"const": "x963"},
+        "value": {"type": "string", "pattern": "^[A-Za-z0-9_-]{87}$"}
+      }
+    },
+    "recoveryWrappedKey": {
+      "type": "object", "additionalProperties": false,
+      "required": ["recipientID", "registrationID", "encapsulatedKey", "ciphertext"],
+      "properties": {
+        "recipientID": {"$ref": "v3-common.schema.json#/$defs/sha256"},
+        "registrationID": {"$ref": "v3-common.schema.json#/$defs/uuid"},
+        "encapsulatedKey": {"$ref": "v3-common.schema.json#/$defs/hpkeP256EncapsulatedKey"},
+        "ciphertext": {"$ref": "v3-common.schema.json#/$defs/hpkeAESGCM256WrappedVaultKey"}
+      }
+    }
+  }
+}

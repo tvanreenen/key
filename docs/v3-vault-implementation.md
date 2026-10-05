@@ -2220,8 +2220,9 @@ are archived locally, not supported product commands. No public prerelease
 was cut for this work. The latest private artifact was `0.2.0-piv-test.2 (21)`.
 
 Current work is `REC-805`: an isolated epoch-key capsule is implemented and
-AI-reviewed; recipient contexts/wrappers are implemented. Full profile/proof
-integration, graph logic, and product lifecycle remain. The
+AI-reviewed; recipient contexts/wrappers, profile codecs, and boundary transcripts
+are implemented as internal domain components. Anchored graph and product
+lifecycle integration remain. The
 [contract](piv-recovery-contract.md) and [review dispositions](piv-recovery-ai-review.md)
 record the single-approval
 experimental direction and historical-verification/alternative-lineage limits.

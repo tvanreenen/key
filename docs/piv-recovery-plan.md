@@ -91,7 +91,7 @@ are the implementation packages, not new names for already completed probes.
 | Package | Deliverable | Depends on | Status |
 |---|---|---|---|
 | `REC-804` | Format, authority, lifecycle, and compatibility contract | Baseline | In progress; AI review disposition recorded; experimental direction authorized; graph/platform/adoption decisions remain |
-| `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; epoch capsule AI-reviewed; recipient roster, recovery contexts/wrappers, and exact codecs implemented; full profile/proof integration remains |
+| `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; profile-3 domain codecs, contexts, proof construction/checks, and fixtures implemented; final acceptance and integrated review remain |
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | Planned |
 | `REC-807` | Product token binding, supported administration, and credential lifecycle | 804 | Planned |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | Planned |
@@ -392,10 +392,12 @@ single deferred integration PR.
 The current increment is `REC-805`, with remaining `REC-804` integrated decisions
 tracked explicitly. The [contract](piv-recovery-contract.md) describes the
 experimental dual-authorization direction and its reduced historical replay
-promise. The capsule, recipient roster, and recovery contexts/wrappers are
-implemented. Full profile and canonical proof projection come next. The new
-recipient components have software checks, not a fresh independent review or
-product/hardware qualification.
+promise. The capsule, recipient roster, recovery contexts/wrappers, containing
+profile, and canonical proof projection are implemented as internal domain
+components. Final 805 acceptance and 806's anchored graph verification come
+next. Only the isolated capsule has a fresh independent AI review; the new
+components have software checks, not integrated review or product/hardware
+qualification.
 
 ## Implementation evidence ledger
 
@@ -408,6 +410,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | First 805 domain component, 2026-10-04 | [Epoch capsule](../Sources/KeyCore/V3EpochSigningKey.swift), [13 tests](../Tests/KeyCoreTests/V3EpochSigningKeyTests.swift); focused suite, 89-test seven-suite regression, and unsigned two-architecture KeyCore build passed before cleanup | Exact local capsule only; no product caller or new-profile activation. |
 | Repository cleanup, 2026-10-04 | Removed experiment-only CLI/XPC and prototype dependencies; retained reusable crypto, framing, regression tests, and generic genesis groundwork | Raw files preserved under ignored root `tmp/`. No install, token operation, vault change, commit, or release. See the cleanup verification below. |
 | Second 805 domain component, 2026-10-04 | [Recipient roster/codec](../Sources/KeyCore/V3RecoveryRecipients.swift), [recovery HPKE](../Sources/KeyCore/V3RecoveryVaultKeyHPKE.swift), and software tests | No profile dispatch, epoch proof, token anchor, registration, source graph, service command, or real-vault activation. Verification details follow below. |
+| Third 805 domain component, 2026-10-04 | [Profile/codec](../Sources/KeyCore/V3RecoveryManifest.swift), [boundary transcripts](../Sources/KeyCore/V3RecoveryEpochBoundary.swift), [14 software tests](../Tests/KeyCoreTests/V3RecoveryManifestTests.swift), and [experimental schema](schemas/v3-recovery-manifest-body.schema.json) | Parsed/publicly checked state is not an anchored graph, a publication-approved candidate, or a restorable snapshot. No shipping profile-3 caller is enabled. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -465,3 +468,36 @@ The one-callback assertion is software evidence, not hardware PIN/touch or
 integrated recovery qualification. No fresh independent review, product caller,
 token operation, installation, push, or release was performed. Raw verification
 logs remain under ignored `tmp/piv-recovery/`.
+
+### Profile and boundary verification, 2026-10-04
+
+This increment shares validated device/entry fields and outer-envelope syntax,
+not shipping profile acceptance. Existing services retain their profile-2 types
+and reject profile 3. Device HPKE now has an explicit profile-3 context using
+the same CryptoKit operation; all existing callers retain profile-2 defaults.
+The shared foundation is preserved locally as `9331268`.
+
+- Focused Debug: 28 tests across three suites passed, including 14 new software
+  tests and existing manifest/HPKE regressions. Exact canonical body/projection
+  fixtures, malformed/duplicate/unknown fields, old-reader refusal, cross-profile
+  device wrapping, separate signature checks, complete candidate commitments,
+  inherited proofs, MAC/capsule checks, and cancellation are covered.
+- Focused Release regression: 109 tests across 12 suites passed on the final
+  source state. No full Release pass is claimed; its prior limitation remains above.
+- The final unsigned arm64/x86_64 Preview app, CLI, and helper build passed.
+  Product-bundle isolation, bundled CLI help, new-file strict formatting, project
+  plist syntax, 53 local documentation targets, schema JSON syntax/shape, 60 local
+  schema references, and `git diff --check` passed. Schema shape checks are not
+  an independent JSON Schema validation engine.
+- Full Debug verification of this increment awaits an unlocked console. The Mac
+  locked again after the previous increment's passing full run. No protected
+  storage behavior, system lock setting, or token configuration was changed.
+
+Boundary validation checks one exact parent and both signatures. Same-epoch
+metadata validation preserves authority across edits/merges. Neither establishes
+anchor provenance, bounded graph selection, recipient-transition policy, full
+resealing, entry authentication, or a verified snapshot. Those remain the graph
+and publication services' responsibilities. Origin anchoring/adoption, hardware
+operation counts, fresh integrated review, and real-vault activation remain
+unqualified. No install, token operation, push, or release was performed. Raw
+logs stay under ignored `tmp/piv-recovery/`.
