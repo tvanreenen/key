@@ -438,7 +438,7 @@ hardware, installed-product, or real-vault qualification was performed here.
 
 The cleaned baseline was preserved locally as `49d8749` (generic genesis
 groundwork) and `3f11e0c` (crypto primitives, tests, reviewed direction, and
-tracking). This increment adds internal recipient/context/wrapper types without
+tracking). Commit `cca0b62` adds internal recipient/context/wrapper types without
 changing shipping profile-2 context bytes or enabling a recovery command.
 
 - Focused Debug checks: 22 tests across three suites passed, including exact
@@ -451,14 +451,14 @@ changing shipping profile-2 context bytes or enabling a recovery command.
   arm64 and x86_64. Product-bundle isolation, bundled CLI help, strict formatting
   of the four new Swift files, project plist syntax, local document-link targets,
   and `git diff --check` passed.
-- Full Debug run: 866 KeyCore tests ran with 65 issues; six JSON tests passed.
-  Failures included protected temporary-file writes in unchanged legacy storage
-  and downstream expectations. An isolated 27-test legacy storage/preflight
-  probe reproduced five issues. The Mac reported its console locked, while
-  `EntryStore` uses `.completeFileProtection` for those writes. Lock state is
-  a suspected cause, not established without an unlocked rerun. The full suite
-  is not a passing gate for this increment. No storage protections were changed.
-  The prior full Release limitation remains recorded above.
+- Full Debug rerun with the console unlocked: 866 KeyCore tests across 82 suites
+  and six JSON tests passed. The isolated 27-test legacy storage/preflight probe
+  also passed. The initial locked-console run had 65 issues, including protected
+  temporary-file writes and downstream expectations; its isolated probe had five
+  issues. Unlocking cleared those failures without code changes, supporting the
+  lock-state explanation for `EntryStore`'s `.completeFileProtection` writes.
+  Both initial and unlocked run logs are retained. No storage protections were
+  changed. The prior full Release limitation remains recorded above.
 
 Software fixtures use CryptoKit on both sides, not an independent HPKE library.
 The one-callback assertion is software evidence, not hardware PIN/touch or
