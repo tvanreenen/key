@@ -85,7 +85,7 @@ struct V3VaultKeyHPKEContext: Equatable, Sendable {
     }
 }
 
-/// RFC 9180 output carried by one permanent-profile device wrapper.
+/// RFC 9180 output shared by device and recovery vault-key wrappers.
 struct V3HPKEWrappedVaultKey: Equatable, Sendable {
     static let encapsulatedKeyByteCount = 65
     static let ciphertextByteCount = 32 + 16
@@ -148,6 +148,20 @@ struct V3VaultKeyHPKE: Sendable {
         recipientPublicKey: Data,
         context: V3VaultKeyHPKEContext
     ) throws -> V3HPKEWrappedVaultKey {
+        try Self.seal(
+            vaultKey: vaultKey,
+            recipientPublicKey: recipientPublicKey,
+            inputs: Self.inputs(for: context)
+        )
+    }
+
+    /// Shared CryptoKit sender operation. Typed device/recovery boundaries own
+    /// their context validation and domains; profile-2 inputs remain unchanged.
+    static func seal(
+        vaultKey: Data,
+        recipientPublicKey: Data,
+        inputs: Inputs
+    ) throws -> V3HPKEWrappedVaultKey {
         guard vaultKey.count == 32 else {
             throw V3VaultKeyHPKEError.invalidVaultKey
         }
@@ -163,7 +177,6 @@ struct V3VaultKeyHPKE: Sendable {
         }
 
         do {
-            let inputs = Self.inputs(for: context)
             // CryptoKit HPKE and Secure Enclave P-256 HPKE conformance are
             // available beginning in macOS 14, which is Key's minimum target.
             var sender = try HPKE.Sender(
