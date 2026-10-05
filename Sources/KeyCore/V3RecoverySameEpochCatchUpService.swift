@@ -69,11 +69,37 @@ struct V3RecoverySameEpochRepositoryObserver: Sendable {
   func observe(from floor: V3RecoveryContentCommit, vaultKey: Data) throws
     -> V3RecoverySameEpochObservation
   {
+    try observe(from: floor, vaultKey: vaultKey, excludingExactMerge: nil)
+  }
+
+  /// A locally owned merge may already be published during interrupted resume.
+  /// Exclude only its exact bytes from parent-head discovery, not from inventory
+  /// budgets. Any other branch or child remains visible and must authenticate.
+  func observeMergeParents(
+    from floor: V3RecoveryContentCommit, vaultKey: Data, candidate: V3RecoveryManifestEnvelope
+  ) throws -> V3RecoverySameEpochObservation {
+    try observe(from: floor, vaultKey: vaultKey, excludingExactMerge: candidate)
+  }
+
+  private func observe(
+    from floor: V3RecoveryContentCommit, vaultKey: Data,
+    excludingExactMerge candidate: V3RecoveryManifestEnvelope?
+  ) throws -> V3RecoverySameEpochObservation {
     try V3RecoveryContentMutationValidator(limits: limits).validateParent(
       floor.envelope, checkpoint: floor.checkpoint, vaultKey: vaultKey)
     var graph = V3RecoveryManifestGraph(
       source: source, limits: limits, maximumParentEdges: maximumParentEdges)
     let inventory = try graph.loadInventory(floor: floor.checkpoint.envelopeDigest)
+    let excluded: V3RecoveryManifestGraph.Object?
+    if let candidate, let object = graph.objects[candidate.digest] {
+      guard candidate.digest != floor.checkpoint.envelopeDigest,
+        object.bytes == candidate.canonicalBytes
+      else { throw V3RecoveryValidationError.sourceChanged }
+      excluded = graph.objects.removeValue(forKey: candidate.digest)
+      for parent in object.parents { graph.children[parent]?.remove(candidate.digest) }
+    } else {
+      excluded = nil
+    }
     guard graph.objects[floor.checkpoint.envelopeDigest]?.bytes == floor.envelope.canonicalBytes
     else {
       throw V3RecoveryValidationError.sourceChanged
@@ -142,9 +168,11 @@ struct V3RecoverySameEpochRepositoryObserver: Sendable {
       $0.lexicographicallyPrecedes($1)
     }
     guard !heads.isEmpty else { throw V3RecoveryValidationError.invalidTransition }
+    var observedBytes = graph.objects.mapValues(\.bytes)
+    if let candidate, let excluded { observedBytes[candidate.digest] = excluded.bytes }
     return V3RecoverySameEpochObservation(
       checkpoint: floor.checkpoint, envelopes: envelopes, order: order, heads: heads,
-      entryObjects: objects, observedManifestBytes: graph.objects.mapValues(\.bytes),
+      entryObjects: objects, observedManifestBytes: observedBytes,
       listedDigests: inventory.digests, listedObjectCount: inventory.objectCount)
   }
 

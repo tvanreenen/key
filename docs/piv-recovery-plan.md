@@ -396,7 +396,8 @@ single deferred integration PR.
 - **Real-vault ready:** 813/814 pass and explicit adoption in 815 is qualified.
 - **Full completion:** 815's Stable artifact is released and verified.
 
-The latest increment is internal all-parent merge/resolution construction under `REC-809`,
+The latest increment is internal all-parent merge/resolution publication and exact
+interruption reconciliation under `REC-809`,
 following internal durable adoption under `REC-804` and the `REC-808`
 registration service, with remaining `REC-807` integration,
 final `REC-805`/`REC-806` acceptance and `REC-804` integrated decisions tracked
@@ -418,8 +419,10 @@ branches without choosing a winner, and refuses key transitions or merged histor
 The new reconciler shares entry comparison policy with the existing profile,
 without converting profile-3 authority into older manifests or granting publication
 authority to a plan. All-parent construction now encodes and independently validates
-complete candidates, preserving exact coverage and the selected values. Finish
-all-parent publication/resume, merged-history catch-up,
+complete candidates, preserving exact coverage and the selected values. The merge
+publisher now reuses manifest-last durability with strict head/selector-bound
+intents and fresh parent validation, leaving ordinary single-parent contracts intact.
+Finish merged-history catch-up,
 lifecycle, domain acceptance and
 product integration next. Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
@@ -453,6 +456,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Fourth 809 content increment, 2026-10-05 | [Coordinated same-epoch walk](../Sources/KeyCore/V3RecoverySameEpochCatchUpService.swift) and [29 combined step/coordination tests](../Tests/KeyCoreTests/V3RecoverySameEpochCatchUpTests.swift) | One mutation boundary retains the original floor, advances direct children, and authenticates late siblings without selecting a winner. Complete repeated source checks, pending barriers, bounded partial progress and committed-child visibility guards. Operation-local classification only; durable branch reconciliation, merge/resolution, epoch lifecycle and native/product composition remain. |
 | Fifth 809 content increment, 2026-10-05 | [Profile-3 branch comparison](../Sources/KeyCore/V3RecoveryManifestReconciliation.swift), [shared entry comparison](../Sources/KeyCore/V3ManifestReconciliation.swift), and [11 filesystem/crypto tests](../Tests/KeyCoreTests/V3RecoveryManifestReconciliationTests.swift) | Authenticated forward-tree comparison returns exact independent-change merge entries or explicit conflicts, using the nearest shared forward ancestor. No encoded merge, provider write, checkpoint advancement or private operation. All-parent publication, merged-history observation and product/native integration remain. |
 | Sixth 809 content increment, 2026-10-05 | [All-parent construction and independent validation](../Sources/KeyCore/V3RecoveryMergeMutation.swift) and [16 software domain tests](../Tests/KeyCoreTests/V3RecoveryMergeMutationTests.swift) | Automatic merges reuse exact ciphertext; complete head-bound choices preserve selected values through bounded-revision resealing or explicit deletion. Full candidate snapshots and projected limits check; recovery coverage remains exact. Unpublished candidates only; one-parent intent/publisher are unchanged, and all-parent durability/native/product acceptance remain. |
+| Seventh 809 content increment, 2026-10-05 | [All-parent publication and source validation](../Sources/KeyCore/V3RecoveryMergeMutationPublisher.swift), [durable interruption tests](../Tests/KeyCoreTests/V3RecoveryMergeMutationPublisherTests.swift) and [strict intent tests](../Tests/KeyCoreTests/V3RecoveryMergeIntentTests.swift) | Explicit merge validator reuses manifest-last ordering; exact pinned heads/selectors and staged ciphertext resume without new choices or private operations. Current-only committed cleanup and ordinary saves after merge pass. Earlier-floor merged-history catch-up, durable below-floor siblings, product composition and hardware acceptance remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -1464,9 +1468,10 @@ selector/snapshot verifier with one software agreement. That fixture delivery is
 not production merge publication or physical-token qualification. The existing
 single-parent publisher refuses an all-parent candidate before creating intent.
 
-Choices are in-memory inputs only, not persisted approval or authority. Builder and
-validator have no provider writer, checkpoint store, native session or token
-capability. No durable intent or shipping profile dispatch was changed. All-parent
+At this increment, choices were in-memory inputs only, not persisted approval or
+authority. Builder and validator have no provider writer, checkpoint store, native
+session or token capability. No durable intent or shipping profile dispatch was
+changed in this increment. All-parent
 publication/resume, merged-history observation/catch-up, durable handling of siblings
 below a later local floor and product/native qualification remain unfinished.
 `REC-809` remains incomplete. The next increment is all-parent durable publication
@@ -1487,6 +1492,79 @@ Verification:
 - Strict Swift formatting, project plist syntax, 95 local documentation targets
   and `git diff --check` passed. Raw logs remain under ignored
   `tmp/piv-recovery/2026-10-05-merge-construction-*`; product artifacts stay in the
+  existing ignored build directory.
+
+No installed app, real vault/configuration or YubiKey was changed. No native
+authentication, token write, push, notarization or release was performed.
+
+### Seventh 809 content increment, 2026-10-05
+
+All-parent automatic merges and complete explicit conflict choices now have an
+internal durable publisher and exact interruption reconciliation. A separate
+durability state machine and reuse of the existing manifest-last kernel were
+compared. Reuse avoids duplicating ordering, intent/pin CAS and exact cleanup.
+The selected merge validator owns parent authentication, choice policy and source
+rechecks. Narrow intent construction/validation/reconstruction hooks keep the
+default ordinary content path single-parent; the kernel does not detect profiles
+or acquire private-key/token capabilities.
+
+Before intent, publication freshly authenticates the floor and complete forward
+parent history/snapshots, recomputes the exact head-bound merge or explicit choices,
+and verifies candidate coverage, selected plaintext, staging and projected limits.
+The local pin binds a strict canonical version 3 intent with exact sorted heads
+and bounded sorted conflict/version selectors. Selectors contain no plaintext and
+grant no independent authority. Empty selectors mark automatic merge. Existing
+version 1 content and version 2 enrollment bytes retain their schemas, including
+the older generic publisher's multi-head version 1 intents. Ordinary profile-2/
+profile-3 publishers and the older generic recoverer refuse the new merge shape;
+the merge publisher refuses ordinary intents, even before staging exists.
+
+The shared kernel stages and publishes ciphertext before the merge manifest,
+reads back exact bytes and rechecks source/checkpoint/pending state before CAS.
+Uncommitted resume revalidates all parents and choices against fresh source, then
+reuses the exact encrypted candidate bytes without another choice or resealing.
+An already-published exact candidate is excluded only from parent-head discovery,
+not from inventory budgets. Other branches and children remain visible. Projected
+manifest/entry/object/depth/edge budgets include the candidate once, including on
+resume. Late branches or authority work, changed ciphertext, wrong keys and local
+checkpoint/pin races cannot activate the stale candidate. Published-but-incomplete
+state retains the local pin and refuses. After checkpoint commitment, exact cleanup
+checks current authentication and the complete current snapshot without requiring
+superseded ciphertext or old manifest/cache files. Ordinary saves after a completed
+merge preserve the same recovery coverage.
+
+Nineteen publication test declarations and five intent test declarations use real
+crypto and contained immutable filesystem storage. They cover all 12 applicable
+durable phases for resealed resolution and all 10 for automatic merge, exact resume,
+checkpoint CAS failure, current-only committed cleanup, pending work and competing
+mutations, newly delivered branches, checkpoint/pin races, wrong keys, missing or
+changed ciphertext, pin/selector substitution, cross-publisher refusal, strict
+versioned canonical parsing, malformed/oversized intents, exact/tighter resource
+budgets and ordinary saves after merge. Both durably published merge kinds open
+through the public history/snapshot verifier with one software agreement. This is
+not physical approval-budget measurement or native session/Keychain qualification.
+
+`REC-809` remains incomplete. Next is observing and accepting merged history from
+an earlier local floor, with durable handling for siblings below a later floor.
+Service/CLI composition, lifecycle, integrated review and native/product/hardware
+acceptance remain separate work. No shipping profile dispatch was enabled.
+
+Verification:
+
+- Complete serial Debug regression passed 1,151 KeyCore tests in 99 suites and
+  six canonical-JSON tests, including all 24 new test declarations.
+- Affected serial Release regression passed 534 tests in 41 suites, including
+  recovery, capsule, ordinary publication, catch-up, reconciliation, merge durability,
+  conflict/mutation services, intent-sharing lifecycle paths and mutation ownership.
+  This is not a full Release result; the previously recorded qualification-bundle
+  limits remain.
+- The unsigned arm64/x86_64 Preview app, CLI and helper built. Bundle isolation
+  and bundled CLI help/completion checks passed; all three executables are universal.
+- Strict Swift formatting for the new/updated profile-3 and kernel files, project
+  plist syntax, 98 local documentation targets and `git diff --check` passed.
+  The older generic recoverer retains its existing layout with one shape guard.
+  Raw logs remain under ignored
+  `tmp/piv-recovery/2026-10-05-merge-publication-*`; product artifacts stay in the
   existing ignored build directory.
 
 No installed app, real vault/configuration or YubiKey was changed. No native
