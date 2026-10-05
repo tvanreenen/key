@@ -24,7 +24,7 @@ struct V3DeviceWrappedManifestEnvelopeCodec: Sendable {
     private static let authenticationAlgorithm = "HKDF-SHA256+HMAC-SHA256"
     private static let authorizationAlgorithm = "P-256-ECDSA-SHA256"
 
-    private struct ParsedContainer {
+    struct ParsedContainer {
         let manifestValue: CanonicalJSONValue
         let authenticationTag: Data
         let metadata: V3DeviceWrappedManifestEnvelopeMetadata
@@ -67,7 +67,8 @@ struct V3DeviceWrappedManifestEnvelopeCodec: Sendable {
         try parseContainer(data).metadata
     }
 
-    private func parseContainer(_ data: Data) throws -> ParsedContainer {
+    /// Shared outer syntax only; each caller dispatches its explicit body profile.
+    func parseContainer(_ data: Data) throws -> ParsedContainer {
         let value: CanonicalJSONValue
         do {
             value = try CanonicalJSON.parse(data)
