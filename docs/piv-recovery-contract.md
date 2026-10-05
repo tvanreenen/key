@@ -290,9 +290,10 @@ or claiming current status; reaching a terminal result at the exact bound is all
 
 The retained floor is operation-local, not new durable ancestry authority. A
 later invocation starting at an already-advanced checkpoint still refuses an
-unexplained sibling below that floor. Branch reconciliation and explicit
-merge/resolution publication remain separate work. Changed-key descendants and
-multi-parent merges refuse this path; no fallback key, private unwrap, token
+unexplained sibling below that floor. Durable branch ancestry handling and explicit
+merge/resolution publication remain separate work. Read-only branch comparison
+is implemented below. Changed-key descendants and multi-parent merges refuse
+this path; no fallback key, private unwrap, token
 retry or automatic resolution is available. Key-epoch refusal is not
 authentication of that new epoch. Neither API installs a native session or
 provides a shipping read/write access gate.
@@ -304,6 +305,40 @@ availability/authentication, competing heads, late delivery, pending work,
 CAS loss, bounded partial progress and source substitution.
 They do not qualify two physical Macs, provider delivery, native session unlock,
 the local Keychain stores or a shipping workflow.
+
+### Implemented same-epoch branch comparison
+
+The internal profile-3 reconciler consumes the ordinary observer's authenticated
+forward tree, not raw manifests or a profile-2 projection. Every visible branch
+has already passed current MAC/capsule, exact unchanged authority/coverage,
+revision and complete snapshot checks. The reconciler finds the nearest common
+ancestor within that tree, stopping at the exact local floor. It does not extend
+authority into older ancestry or grant a new checkpoint.
+
+The shared entry comparison policy keeps independent changes to different stable
+entry IDs, including additions and deletions. Competing edits, edit-versus-delete,
+rename-versus-edit, different renames and concurrent creation of the same identity
+remain explicit conflicts. Distinct identities sharing a destination name also
+remain ambiguous. Different ciphertext versions remain a conflict even when the
+plaintext happens to match; there is no new content-equality or rename exception.
+Conflict reports retain exact head references and changed entry versions, including
+nil for a deleted version. Shared comparison retains the older profile's revision
+rollback and same-revision-substitution checks.
+
+An automatic merge result is logical entries plus exact parent heads and comparison
+base. It is not an encoded manifest, fresh source observation, publication permit
+or local trust advancement. No entries are resealed, provider files published,
+checkpoint replaced or token/device operation requested. A future merge/resolution
+transaction must independently authenticate all exact parents and complete snapshots,
+preserve coverage/authority, recheck provider and local pending state, and publish
+manifest last. The existing one-parent persisted content intent was not widened.
+
+The observer still refuses already-merged multi-parent and changed-key histories.
+Durable ancestry handling for siblings below a newly selected floor, merged-history
+catch-up, explicit conflict choices and service/CLI integration remain unfinished.
+The new tests use real crypto and separate filesystem providers for independent
+ordinary publications before immutable file delivery. They are not native session,
+Keychain, physical-token or multi-Mac qualification.
 
 ## Proposed data contract
 

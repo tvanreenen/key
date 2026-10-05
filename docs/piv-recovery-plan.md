@@ -96,7 +96,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; candidate/intent, durable journal, native binding and internal prepare/resume/finish with manifest-last activation implemented; product composition/status, reciprocal pending barriers and physical qualification remain |
-| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; same-epoch construction, complete validation, durable publication/resume and guarded one-step/coordinated catch-up implemented internally; branch reconciliation/resolution and service/CLI acceptance remain |
+| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; same-epoch construction, complete validation, durable publication/resume, guarded catch-up and read-only branch reconciliation implemented internally; merge/resolution publication, merged-history catch-up and service/CLI acceptance remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | Planned |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
@@ -396,7 +396,7 @@ single deferred integration PR.
 - **Real-vault ready:** 813/814 pass and explicit adoption in 815 is qualified.
 - **Full completion:** 815's Stable artifact is released and verified.
 
-The latest increment is internal coordinated same-epoch catch-up under `REC-809`,
+The latest increment is internal read-only branch reconciliation under `REC-809`,
 following internal durable adoption under `REC-804` and the `REC-808`
 registration service, with remaining `REC-807` integration,
 final `REC-805`/`REC-806` acceptance and `REC-804` integrated decisions tracked
@@ -415,7 +415,10 @@ The ordinary catch-up step reuses recovery's bounded graph traversal but has
 separate local-checkpoint/session-key authentication. The coordinator retains its
 starting floor through a serialized walk, reports initial or newly delivered
 branches without choosing a winner, and refuses key transitions or merged history.
-Finish branch reconciliation/resolution, lifecycle, domain acceptance and
+The new reconciler shares entry comparison policy with the existing profile,
+without converting profile-3 authority into older manifests or granting publication
+authority to a plan. Finish merge/resolution publication, merged-history catch-up,
+lifecycle, domain acceptance and
 product integration next. Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -446,6 +449,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Second 809 content increment, 2026-10-05 | [Profile-3 publisher/validator](../Sources/KeyCore/V3RecoveryContentMutationPublisher.swift), [shared immutable publisher](../Sources/KeyCore/V3ContentTransactionPublisher.swift), [shared interrupted-save recovery](../Sources/KeyCore/V3ContentTransactionRecoverer.swift), and [16 filesystem/crypto tests](../Tests/KeyCoreTests/V3RecoveryContentMutationPublisherTests.swift) | Actual internal durable same-epoch saves/resume, pinned ownership and manifest-last checkpoint activation. Cold recovery now follows production publication of five edits. Local stores/software token are scripted; no shipping service/CLI dispatch, catch-up, branches/resolution, native qualification or hardware administration. |
 | Third 809 content increment, 2026-10-05 | [Ordinary same-epoch observer/step service](../Sources/KeyCore/V3RecoverySameEpochCatchUpService.swift), [shared bounded graph/progression checks](../Sources/KeyCore/V3RecoveryManifestGraph.swift), and [19 filesystem/crypto tests](../Tests/KeyCoreTests/V3RecoverySameEpochCatchUpTests.swift) | Two independent software checkpoint/cache states catch up and publish in turn. Whole-forward-graph authentication, pending-work refusal and fresh source/CAS guards; competing content heads remain unresolved. Not a full catch-up coordinator, merge/resolution path, epoch lifecycle, native unlock/local-store qualification or enabled product route. |
 | Fourth 809 content increment, 2026-10-05 | [Coordinated same-epoch walk](../Sources/KeyCore/V3RecoverySameEpochCatchUpService.swift) and [29 combined step/coordination tests](../Tests/KeyCoreTests/V3RecoverySameEpochCatchUpTests.swift) | One mutation boundary retains the original floor, advances direct children, and authenticates late siblings without selecting a winner. Complete repeated source checks, pending barriers, bounded partial progress and committed-child visibility guards. Operation-local classification only; durable branch reconciliation, merge/resolution, epoch lifecycle and native/product composition remain. |
+| Fifth 809 content increment, 2026-10-05 | [Profile-3 branch comparison](../Sources/KeyCore/V3RecoveryManifestReconciliation.swift), [shared entry comparison](../Sources/KeyCore/V3ManifestReconciliation.swift), and [11 filesystem/crypto tests](../Tests/KeyCoreTests/V3RecoveryManifestReconciliationTests.swift) | Authenticated forward-tree comparison returns exact independent-change merge entries or explicit conflicts, using the nearest shared forward ancestor. No encoded merge, provider write, checkpoint advancement or private operation. All-parent publication, merged-history observation and product/native integration remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -1345,6 +1349,71 @@ Verification:
 - Strict Swift formatting, project plist syntax, local documentation targets
   and `git diff --check` passed. Raw logs remain under ignored
   `tmp/piv-recovery/2026-10-05-content-coordination-*`; product artifacts stay in
+  the existing ignored build directory.
+
+No installed app, real vault/configuration or YubiKey was changed. No native
+authentication, token write, push, notarization or release was performed.
+
+### Fifth 809 content increment, 2026-10-05
+
+Profile-3 ordinary branches now have a read-only reconciliation path. It consumes
+the production observer's complete authenticated forward tree. It does not accept
+raw envelope arrays, invent a token anchor or convert profile-3 authority into an
+older-profile body. Current MAC/capsule authentication, exact coverage/authority
+equality, revision progression and complete entry snapshots remain the observer's
+responsibility. The reconciler follows each exact head back to the local floor and
+compares entries against their nearest common forward ancestor, not an arbitrary
+head or necessarily the oldest floor.
+
+Duplicating the existing conflict algorithm and extracting its content comparison
+were compared. A shared `V3EntryReconciler` avoids separate rules drifting while
+leaving profile-specific authentication and ancestry selection with their current
+owners. The older public reconciler retains its authority checks, complete graph
+validation, security/history conflict results and original merge-body construction.
+The shared helper accepts exact head identities and entry records only. It neither
+parses a profile nor authorizes a merge or checkpoint change.
+
+Independent changes to different stable entry IDs produce logical merge entries,
+including additions and deletions. Competing edits, edit-versus-delete, rename/edit,
+different renames, concurrent creation and colliding destination names retain exact
+conflict versions. Different ciphertext versions remain conflicted even when their
+plaintexts match. The shared revision-rollback and same-revision-substitution rules
+remain in place. The result is a merge plan or conflict report, not encoded bytes,
+fresh source state, a publication permit or an advanced checkpoint.
+
+Eleven new test declarations use real crypto, the production ordinary builder and
+publisher, and independent offline filesystem providers. Each branch completes its
+publication before exact immutable file delivery into a shared observation. Cases
+cover one visible head, independent two/three-head changes, a shared comparison base
+newer than the local floor, deterministic inventory ordering, competing ciphertext
+versions with equal or different plaintext, deletion/edit/rename conflicts, same-name
+destinations, concurrent creation, matching deletions and missing/substituted entries.
+Local checkpoint/pending state stays unchanged, with no additional software signer
+or private Mac unwrap calls after fixture registration.
+
+All-parent merge/resolution construction, independent validation, durable publication
+and resume remain next. The persisted ordinary one-parent intent is unchanged, and
+the observer still refuses multi-parent or changed-key histories. Durable handling
+of siblings below a later local floor and merged-history catch-up remain unfinished.
+No shipping profile dispatch, native session/access gate, Keychain qualification or
+physical multi-Mac/token acceptance was added. `REC-809` remains incomplete.
+
+Verification:
+
+- Focused old/new reconciliation regression passed 22 tests in two suites.
+- Complete serial Debug regression passed 1,111 KeyCore tests in 96 suites and
+  six canonical-JSON tests. The Mac no longer reported a locked screen; the
+  existing protected-file tests passed without any policy change. This also
+  closes the fourth increment's pending unlocked-host Debug verification.
+- Affected serial Release regression passed 481 tests in 36 suites, including
+  old/new reconciliation, recovery, publication, both catch-up paths and mutation
+  ownership. This is not a full Release result; the previously recorded
+  qualification-bundle limits remain.
+- The unsigned arm64/x86_64 Preview app, CLI and helper built. Bundle isolation
+  and bundled CLI help/completion checks passed; all three executables are universal.
+- Strict Swift formatting, project plist syntax, 93 local documentation targets
+  and `git diff --check` passed. Raw logs remain under ignored
+  `tmp/piv-recovery/2026-10-05-branch-reconciliation-*`; product artifacts stay in
   the existing ignored build directory.
 
 No installed app, real vault/configuration or YubiKey was changed. No native
