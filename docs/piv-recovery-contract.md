@@ -535,8 +535,41 @@ service edit. Old snapshot ciphertext is removed and the original session/Mac
 identity leaves scope before one software agreement opens the final state for
 each credential. Rotation candidates are seeded and checkpointed by test setup;
 there is no production rotation publisher, service, resume or key-transition
-catch-up yet. Device enrollment/revocation and recipient removal policy remain
-separate work. No public command or real-vault opt-in is enabled.
+catch-up yet. Device revocation and recipient removal policy remain separate work.
+Compared-device enrollment now has the internal component below. No public command
+or real-vault opt-in is enabled.
+
+### Implemented compared-device enrollment foundation
+
+The [enrollment builder/validator](../Sources/KeyCore/V3RecoveryDeviceEnrollment.swift)
+adds exactly one active Mac from the signed comparison ceremony. It verifies both
+message signatures, inviter role, awaiting-comparison phase, expiration, exact
+vault/checkpoint and active inviting identity. The existing transcript-derived
+transition ID binds the resulting signed epoch and wrappers to that comparison.
+No caller-selected unrelated transition ID is accepted. Enrolled identities and
+reused signing/wrapping keys refuse before signing.
+
+Every old device record/status, including revoked tombstones, remains exact.
+Recovery recipients, registrations/statuses and generation are unchanged. A fresh
+vault-key epoch reseals all entries without changing metadata or plaintext; every
+active Mac/recipient gets a current-key wrapper and revoked records get none.
+Construction requires stored public keys, not a connected recovery token.
+
+Rotation and enrollment share bounded cryptographic and full snapshot checks,
+while independent policy validators enforce their distinct roster decisions.
+Enrollment additionally checks exact transcript binding and the complete expected
+roster, not just a valid epoch signature. Full software checks precede optional
+one addressed inviting-Mac unwrap; cancellation is propagated without retry.
+This does not qualify physical prompt counts or create durable approval.
+
+[Software tests](../Tests/KeyCoreTests/V3RecoveryDeviceEnrollmentTests.swift)
+recover after two successive enrollments, an ordinary mutation-service save and
+removal of obsolete ciphertext, with one software agreement per primary/backup
+credential. The original Mac identities/sessions leave scope before recovery.
+Enrollment epochs/checkpoints are materialized by test setup; durable publication,
+resume, ceremony consumption, joining-Mac adoption, key-transition catch-up and
+shipping/native integration remain. Existing profile-2 dispatch and persisted
+formats are unchanged. No public command or real-vault opt-in is enabled.
 
 ## Proposed data contract
 
