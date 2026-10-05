@@ -474,6 +474,34 @@ and service leave scope. This is not native unlock or physical-token qualificati
 The conflict projection is serialized metadata inspection, not a concurrent-safe
 product read/status service. No shipping dispatch is enabled.
 
+### Implemented reciprocal internal pending-work guards
+
+Registration now requires explicit ordinary-transaction and adoption ownership
+stores, matching adoption's existing dependency pattern. Any present competing
+record blocks prepare, export resume, finish, committed repair and lost-reply
+recognition before private work. Read failures propagate; malformed records do
+not count as an empty namespace. The ordinary service already blocks registration
+and adoption work in the reverse direction.
+
+Both authority services recheck competing ownership with the exact checkpoint
+at effect boundaries, including session repair and final ownership cleanup.
+Registration also checks after public token revalidation and before publication
+and checkpoint CAS. Work delivered during an approval causes refusal of the
+remaining effects. An already completed checkpoint CAS is not undone; its exact
+preparation and pin remain for explicit reconciliation after competing work is
+resolved. Before commitment, a subsequent finish requires fresh possession.
+After commitment, reconciliation does not republish or repeat hardware agreement.
+An in-flight platform operation cannot be guaranteed cancellable by these guards.
+
+These are durable-resume checks, not a new lock or cross-process atomic protocol.
+All composed services must share the existing serialized mutation owner and exact
+device-local namespaces. Internal filesystem/software fixtures test both directions,
+including a real pinned save, registration-to-session activation, a following edit
+and software recovery. Product routing and shipping-runtime barriers still require
+integration. Adoption's explicit exact-operation abandonment of an unarmed
+reservation remains local-only: it can release its own pin without advancing
+trust, publishing or clearing competing work.
+
 ## Proposed data contract
 
 Keep outer vault/envelope version 3 and the understood envelope shape.
@@ -1091,8 +1119,8 @@ barriers. The [tracker](piv-recovery-plan.md#architecture-ownership) records
 ownership and package acceptance; do not ship archive diagnostics as product
 integration.
 
-Next is reciprocal pending-state barriers, profile-3 lifecycle and restore-service
-integration, final domain acceptance and integrated review. Native token binding and scoped
+Next is profile-3 lifecycle and restore-service integration, final domain acceptance,
+shipping-runtime barriers and integrated review. Native token binding and scoped
 agreement are implemented but not physically qualified in their final adapters.
 Shipping profile-2 bytes remain unchanged. Review exact bytes before format
 freeze; transcript checks alone are not a complete service validator.
