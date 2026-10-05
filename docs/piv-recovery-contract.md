@@ -585,7 +585,39 @@ current and resealed entry plaintexts, and verifies the local Mac wrapper before
 requesting one hardware opening of the exact candidate recovery wrapper. A
 restart requires a fresh possession check; never persist or reuse that result.
 
-This ordering is proposed for 808 and needs durable-phase tests. In particular,
+The internal preparation journal stores one complete canonical bundle containing
+the authenticated intent, candidate envelope and encrypted resealed entries.
+It reuses the contained atomic no-overwrite writer, with file synchronization
+before installation and directory synchronization afterward. Separate artifact
+writes were rejected because an interruption could leave randomized candidate
+bytes incomplete. The bundle is non-authoritative staging, never a current
+manifest, and contains no raw vault/epoch key or saved approval.
+
+A dedicated non-synchronizing device-local ownership record pins the operation,
+vault and exact intent digest. Its Keychain namespace and provider directory are
+separate from ordinary transaction recovery. Reserve ownership before installing
+the bundle; promote it to recoverable only after exact readback, full
+registration validation and confirmation of exact-file/directory local
+synchronization. Readable bytes alone cannot establish that an interrupted
+installation completed its durability steps. Return public anchor bytes only
+after that promotion and an ownership recheck. Recoverable means preparation
+retained, not token installation, possession, activation or registration readiness.
+Local synchronization does not establish provider upload, remote durability or
+freshness; those remain outside Key's storage-provider contract.
+
+Resume selects only the locally owned bundle, not synchronized records found by
+directory scanning. It repeats intent authentication, parent/owner checks,
+boundary/MAC/capsule verification and complete same-plaintext validation with
+newly authenticated keys. The service must still obtain fresh native observations
+and guard the current source/head/directory under mutation ownership. Parsed
+pending data is not permission to unwrap, export or publish without those checks.
+No candidate is regenerated, rebased or automatically deleted. A reservation
+interrupted before the complete bundle was installed stays attention-required;
+it cannot resume from a partial file or silently start a replacement. Missing,
+changed or invalid state also retains ownership for explicit reconciliation.
+
+The preparation journal has durable-phase software tests; the full service
+ordering still needs integrated phase tests. In particular,
 successful local possession verification cannot be treated as a reusable
 hardware proof after restart. Global status should describe authenticated
 configured coverage and the scope/time of last verified registration, not
