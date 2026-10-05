@@ -5,12 +5,19 @@ enum V3RecoveryContentCatchUpError: Error, Equatable {
   case checkpointChanged
   case localMutationPending
   case epochTransitionRequired
+  case stepLimitExceeded
 }
 
 enum V3RecoverySameEpochCatchUpOutcome: Sendable {
   case upToDate(V3RecoveryContentCommit)
   case advancedOneStep(V3RecoveryContentCommit)
   case contentConflict([Data])
+}
+
+enum V3RecoverySameEpochCoordinatedOutcome: Sendable {
+  case current(V3RecoveryContentCommit, advancedManifestCount: Int)
+  case contentConflict(
+    V3RecoveryContentCommit, manifestDigests: [Data], advancedManifestCount: Int)
 }
 
 /// A bounded authenticated forward graph, not checkpoint-write authority or
@@ -161,7 +168,8 @@ struct V3RecoverySameEpochRepositoryObserver: Sendable {
 /// authentication and a fresh equal observation precede checkpoint CAS. No
 /// provider writes, native authentication or token capability are available.
 /// Key transitions, merged histories and product/session composition remain
-/// separate work; the caller must rediscover after every advanced step.
+/// separate work. The one-step API requires caller rediscovery; the coordinated
+/// API retains its initial floor and repeats observation through a terminal result.
 struct V3RecoverySameEpochCatchUpService: Sendable {
   private let mutationOwner: any VaultTransactionMutationOwning
   private let checkpoints: any V3ManifestCheckpointStoring
@@ -192,32 +200,86 @@ struct V3RecoverySameEpochCatchUpService: Sendable {
     -> V3RecoverySameEpochCatchUpOutcome
   {
     try mutationOwner.perform(.catchUpVault) { _ in
-      try requireState(floor.checkpoint)
-      let observed = try observer.observe(from: floor, vaultKey: vaultKey)
-      try requireState(floor.checkpoint)
-      guard try observer.observe(from: floor, vaultKey: vaultKey) == observed else {
-        throw V3RecoveryValidationError.sourceChanged
-      }
-      try requireState(floor.checkpoint)
+      let observed = try stableObservation(from: floor, current: floor, vaultKey: vaultKey)
       if observed.heads.count > 1 { return .contentConflict(observed.heads) }
       guard observed.order.count > 1 else { return .upToDate(floor) }
       let digest = observed.order[1]
       guard let envelope = observed.envelopes[digest],
         envelope.parents == [floor.checkpoint.envelopeDigest]
       else { throw V3RecoveryValidationError.invalidTransition }
-      let next = try V3ManifestCheckpoint(vaultID: floor.checkpoint.vaultID, envelopeDigest: digest)
-      do {
-        try checkpoints.replaceCheckpoint(
-          next.canonicalBytes, expectedCheckpoint: floor.checkpoint.canonicalBytes,
-          vaultID: floor.checkpoint.vaultID)
-      } catch V3ManifestCheckpointStoreError.conflict {
-        throw V3RecoveryContentCatchUpError.checkpointChanged
-      }
-      // Exact checkpoint authority survives cache failure. This result promises
-      // one committed step, not a still-current provider head or session install.
-      try? cache.store(envelope.canonicalBytes, for: next)
-      return .advancedOneStep(V3RecoveryContentCommit(checkpoint: next, envelope: envelope))
+      return .advancedOneStep(try advance(envelope, from: floor))
     }
+  }
+
+  /// Retains the original authenticated floor for this entire serialized walk.
+  /// A sibling delivered after CAS is therefore authenticated as a branch on
+  /// the next observation, not hidden by moving the observation floor forward.
+  /// No session installation, key-epoch transition or merge publication occurs.
+  func catchUp(
+    from floor: V3RecoveryContentCommit, vaultKey: Data,
+    maximumStepCount: Int = V3ManifestRepositoryLimits.standard.maximumManifestObjects
+  ) throws -> V3RecoverySameEpochCoordinatedOutcome {
+    precondition(maximumStepCount > 0)
+    return try mutationOwner.perform(.catchUpVault) { _ in
+      var current = floor
+      var count = 0
+      while true {
+        let observed = try stableObservation(from: floor, current: current, vaultKey: vaultKey)
+        if observed.heads.count > 1 {
+          return .contentConflict(
+            current, manifestDigests: observed.heads, advancedManifestCount: count)
+        }
+        if observed.heads == [current.checkpoint.envelopeDigest] {
+          return .current(current, advancedManifestCount: count)
+        }
+        guard count < maximumStepCount else {
+          throw V3RecoveryContentCatchUpError.stepLimitExceeded
+        }
+        let children = observed.envelopes.values.filter {
+          $0.parents == [current.checkpoint.envelopeDigest]
+        }
+        guard children.count == 1, let child = children.first else {
+          throw V3RecoveryValidationError.invalidTransition
+        }
+        current = try advance(child, from: current)
+        count += 1
+      }
+    }
+  }
+
+  private func stableObservation(
+    from floor: V3RecoveryContentCommit, current: V3RecoveryContentCommit, vaultKey: Data
+  ) throws -> V3RecoverySameEpochObservation {
+    try requireState(current.checkpoint)
+    let observed = try observer.observe(from: floor, vaultKey: vaultKey)
+    // Never move trust backwards if a provider stops listing a committed child.
+    guard current.checkpoint.vaultID == floor.checkpoint.vaultID,
+      observed.envelopes[current.checkpoint.envelopeDigest] == current.envelope
+    else { throw V3RecoveryValidationError.sourceChanged }
+    try requireState(current.checkpoint)
+    guard try observer.observe(from: floor, vaultKey: vaultKey) == observed else {
+      throw V3RecoveryValidationError.sourceChanged
+    }
+    try requireState(current.checkpoint)
+    return observed
+  }
+
+  private func advance(
+    _ envelope: V3RecoveryManifestEnvelope, from current: V3RecoveryContentCommit
+  ) throws -> V3RecoveryContentCommit {
+    let next = try V3ManifestCheckpoint(
+      vaultID: current.checkpoint.vaultID, envelopeDigest: envelope.digest)
+    do {
+      try checkpoints.replaceCheckpoint(
+        next.canonicalBytes, expectedCheckpoint: current.checkpoint.canonicalBytes,
+        vaultID: current.checkpoint.vaultID)
+    } catch V3ManifestCheckpointStoreError.conflict {
+      throw V3RecoveryContentCatchUpError.checkpointChanged
+    }
+    // A cache failure cannot revoke a committed step. Only a fresh observation
+    // can establish that the resulting checkpoint is a visible current head.
+    try? cache.store(envelope.canonicalBytes, for: next)
+    return V3RecoveryContentCommit(checkpoint: next, envelope: envelope)
   }
 
   private func requireState(_ expected: V3ManifestCheckpoint) throws {
