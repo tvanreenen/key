@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D58300000000000000000002 /* V3RecoveryManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = D58300000000000000000001 /* V3RecoveryManifest.swift */; };
+		D58400000000000000000002 /* V3RecoveryEpochBoundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = D58400000000000000000001 /* V3RecoveryEpochBoundary.swift */; };
 		D58100000000000000000002 /* V3RecoveryRecipients.swift in Sources */ = {isa = PBXBuildFile; fileRef = D58100000000000000000001 /* V3RecoveryRecipients.swift */; };
 		D58200000000000000000002 /* V3RecoveryVaultKeyHPKE.swift in Sources */ = {isa = PBXBuildFile; fileRef = D58200000000000000000001 /* V3RecoveryVaultKeyHPKE.swift */; };
         F91900000000000000000009 /* PIVPublicObjectCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9190000000000000000000A; };
@@ -195,6 +197,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		D58300000000000000000001 /* V3RecoveryManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryManifest.swift; sourceTree = "<group>"; };
+		D58400000000000000000001 /* V3RecoveryEpochBoundary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryEpochBoundary.swift; sourceTree = "<group>"; };
 		D58100000000000000000001 /* V3RecoveryRecipients.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryRecipients.swift; sourceTree = "<group>"; };
 		D58200000000000000000001 /* V3RecoveryVaultKeyHPKE.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryVaultKeyHPKE.swift; sourceTree = "<group>"; };
         F9190000000000000000000A /* PIVPublicObjectCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PIVPublicObjectCodec.swift; sourceTree = "<group>"; };
@@ -492,6 +496,8 @@
 				D58000000000000000000001 /* V3EpochSigningKey.swift */,
 				D58100000000000000000001 /* V3RecoveryRecipients.swift */,
 				D58200000000000000000001 /* V3RecoveryVaultKeyHPKE.swift */,
+				D58300000000000000000001 /* V3RecoveryManifest.swift */,
+				D58400000000000000000001 /* V3RecoveryEpochBoundary.swift */,
 				D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */,
 				D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */,
 				D53300000000000000000001 /* V3DeviceWrappedRevocationTransitionPublisher.swift */,
@@ -929,6 +935,8 @@
 				D58000000000000000000002 /* V3EpochSigningKey.swift in Sources */,
 				D58100000000000000000002 /* V3RecoveryRecipients.swift in Sources */,
 				D58200000000000000000002 /* V3RecoveryVaultKeyHPKE.swift in Sources */,
+				D58300000000000000000002 /* V3RecoveryManifest.swift in Sources */,
+				D58400000000000000000002 /* V3RecoveryEpochBoundary.swift in Sources */,
 				D53100000000000000000002 /* V3DeviceWrappedRevocationTransitionValidation.swift in Sources */,
 				D53200000000000000000002 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift in Sources */,
 				D53300000000000000000002 /* V3DeviceWrappedRevocationTransitionPublisher.swift in Sources */,

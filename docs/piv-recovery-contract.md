@@ -271,9 +271,44 @@ checks the recovered key ID. Software fixtures establish one agreement callback
 and cancellation propagation without retry, not integrated hardware approval
 counts or PIN/touch policy.
 
-These bytes remain experimental until containing-profile integration and
-review. Parsing or opening alone proves neither origin, token possession,
+These bytes remain experimental until integrated review and qualification.
+Parsing or opening alone proves neither origin, token possession,
 anchor state, nor a verified snapshot. No product caller is enabled.
+
+### Implemented profile and boundary transcripts
+
+The [profile codec](../Sources/KeyCore/V3RecoveryManifest.swift) now dispatches
+explicit device-wrapped versions 2 and 3 inside the existing version-3 envelope.
+Shipping services still accept only profile 2. Both bodies share device/suite/
+entry shape and semantic validation; their typed profile discriminators remain
+separate. Parsing a canonical body/envelope is bounded by the existing 2 MiB
+manifest budget, with the canonical parser's existing nesting bound. Graph
+object/depth/aggregate budgets remain a separate responsibility.
+
+Profile 3 adds `epochAuthority` record version 1 and the recovery roster above.
+The authority contains the capsule and a nullable `transitionProof`. A stored
+`null` proof denotes an independently validated origin, not an authorized
+continuing boundary. A boundary proof has version 1, a fixed algorithm, exact
+parent-envelope digest, and canonical low-S signature. Cross-role reuse of an
+epoch/recovery credential as a Mac signing/wrapping key is rejected.
+
+[Boundary construction and checks](../Sources/KeyCore/V3RecoveryEpochBoundary.swift)
+use `work.tvr.key/v3/epoch-transition-authorization/v1`, a NUL delimiter, and
+canonical candidate content with only `epochAuthority.transitionProof.signature`
+omitted. The parent reference, algorithms, new capsule, device/recovery records,
+wrappers, and entries remain covered. The old epoch signs this statement, then
+the existing Mac signer signs finalized content through the existing manifest
+domain. The MAC is computed under the new vault key. A public check verifies
+both signatures against the exact parent, without treating historical MACs as
+verified. Separate current-key checks verify the MAC and capsule correspondence.
+
+Same-epoch metadata checks require unchanged device/recovery rosters, wrappers,
+epoch capsule and proof, vault/key/transition identity across every parent.
+These checks do not select or authorize a provider graph. Boundary construction
+does not replace roster policy, full publication validation, fresh-key policy,
+wrapper checks, or complete resealing. Its output is parsed state, not a
+publication-approved candidate or trusted checkpoint. The [experimental schema](schemas/v3-recovery-manifest-body.schema.json)
+and exact software fixtures are retained for review; shipping schemas are unchanged.
 
 ## Recovery ordering and operation budget
 
@@ -422,9 +457,10 @@ barriers. The [tracker](piv-recovery-plan.md#architecture-ownership) records
 ownership and package acceptance; do not ship archive diagnostics as product
 integration.
 
-Next is the rest of `REC-805`: containing profile, dispatch, exact production
-proof projection, and integrated canonical fixtures/validators. Shipping
-profile 2 remains unchanged. Review those exact bytes before format freeze.
+Next is final `REC-805` acceptance, then `REC-806`'s anchored graph and complete
+current-snapshot verifier. Shipping profile-2 bytes remain unchanged. Review the
+new exact bytes before format freeze; do not enable publication/recovery by
+treating transcript checks as a complete service validator.
 Graph/platform/adoption decisions remain open in 804 and dependent packages.
 Protected administration, durable-phase reconciliation, independent backup-token
 and OS qualification, a fresh integrated AI review, and explicit opt-in adoption
