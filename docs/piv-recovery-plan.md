@@ -96,7 +96,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; candidate/intent, durable journal, native binding and internal prepare/resume/finish with manifest-last activation implemented; product composition/status, reciprocal pending barriers and physical qualification remain |
-| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; ordinary and all-parent publication/resume, authenticated merged-history catch-up, checkpoint-linked late branches and DAG reconciliation implemented internally; service/CLI acceptance and integrated/native qualification remain |
+| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service composes exact sessions, publication/resume, catch-up and branch resolution; reciprocal runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | Planned |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
@@ -424,8 +424,10 @@ complete candidates, preserving exact coverage and the selected values. The merg
 publisher now reuses manifest-last durability with strict head/selector-bound
 intents and fresh parent validation, leaving ordinary single-parent contracts intact.
 Late branches below a later checkpoint now use its exact committed same-epoch
-ancestry, without a separate trusted journal or checkpoint rollback. Finish
-service composition, lifecycle, domain acceptance and product integration next.
+ancestry, without a separate trusted journal or checkpoint rollback. The internal
+ordinary mutation service now composes these components behind the existing save
+interface with an exact in-memory session. Finish reciprocal runtime barriers,
+lifecycle, domain acceptance and product integration next.
 Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -461,6 +463,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Seventh 809 content increment, 2026-10-05 | [All-parent publication and source validation](../Sources/KeyCore/V3RecoveryMergeMutationPublisher.swift), [durable interruption tests](../Tests/KeyCoreTests/V3RecoveryMergeMutationPublisherTests.swift) and [strict intent tests](../Tests/KeyCoreTests/V3RecoveryMergeIntentTests.swift) | Explicit merge validator reuses manifest-last ordering; exact pinned heads/selectors and staged ciphertext resume without new choices or private operations. Current-only committed cleanup and ordinary saves after merge pass. Earlier-floor merged-history catch-up, durable below-floor siblings, product composition and hardware acceptance remain. |
 | Eighth 809 content increment, 2026-10-05 | [Authenticated merge observation and catch-up](../Sources/KeyCore/V3RecoverySameEpochCatchUpService.swift), [bounded DAG policy](../Sources/KeyCore/V3RecoveryContentAncestry.swift), [14 publication-to-reader tests](../Tests/KeyCoreTests/V3RecoveryMergedCatchUpTests.swift) and [three graph/reference tests](../Tests/KeyCoreTests/V3RecoveryContentAncestryTests.swift) | Complete all-parent snapshots authenticate before the first unambiguous forward join can become the local checkpoint. Repeated joins and saves work; criss-cross bases report history conflict. Existing pending/CAS/source guards remain. Co-parents below a supplied later floor still refuse; durable ancestry and product/native acceptance remain. |
 | Ninth 809 content increment, 2026-10-05 | [Checkpoint-linked ancestry](../Sources/KeyCore/V3RecoveryCheckpointAncestry.swift), [observation/catch-up](../Sources/KeyCore/V3RecoverySameEpochCatchUpService.swift) and [late-branch integration cases](../Tests/KeyCoreTests/V3RecoveryMergedCatchUpTests.swift) | Exact committed same-epoch links explain older siblings/co-parents without rollback or another trusted journal. Current/new branch snapshots fully check; committed older ciphertext and pre-boundary state are not reopened. Reconciliation and manifest-last publication retain the advanced checkpoint. Service composition, lifecycle and integrated/native acceptance remain. |
+| Tenth 809 content increment, 2026-10-05 | [Internal mutation service](../Sources/KeyCore/V3RecoveryVaultMutationService.swift) and [19 service integration tests](../Tests/KeyCoreTests/V3RecoveryVaultMutationServiceTests.swift) | Existing ordinary interface, real exact-bound session, pinned interruption dispatch, catch-up, automatic merge and fresh explicit choices compose without a signer or unwrap. Cold software recovery follows actual service saves. No shipping dispatch, native unlock, concurrent-safe read/status service, reciprocal authority-service barriers or integrated/native qualification. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -1736,6 +1739,77 @@ Verification:
 - Raw logs use the ignored prefix
   `tmp/piv-recovery/2026-10-05-checkpoint-ancestry-`; product artifacts remain in
   the existing ignored build directory.
+
+No installed app, real vault/configuration or YubiKey was changed. No native
+authentication, token write, push, notarization or release was performed.
+
+### Tenth 809 content increment, 2026-10-05
+
+An internal ordinary mutation service now composes the production profile-3
+builders, publishers, pinned interruption recovery, coordinated same-epoch
+catch-up and branch reconciliation behind `VaultMutationServicing`. Extending
+the shipping profile-2 service with implicit profile selection was compared with
+an explicit profile-3 service. The explicit service avoids older-profile trust
+projections and keeps shipping dispatch unchanged. It reuses the existing
+in-memory Mac-bound vault-key session and the helper-owned serialized boundary.
+There is no new key store, signer, unwrap, token administration or native prompt.
+
+Every operation loads the exact checkpoint/provider manifest and matching session
+key. Provider bytes must match the checkpoint digest before they can affect
+session binding. Publication authority comes from fresh complete source validation,
+not the preliminary authorization check. Catch-up and observation repeat local
+pending/checkpoint/source guards before planning. An automatic merge uses a fresh
+separate operation identity, then the requested save is replanned at the committed
+merge. If that save fails, the merge remains committed and the request still fails.
+Explicit conflict choices are rebuilt against fresh metadata and current heads.
+Conflict inspection stays inside the serialized boundary; this is not yet the
+concurrent-safe read/status service used by the product.
+
+Interrupted ordinary or merge work is selected only from the exact operation
+pinned by device-local ownership. Canonical bounded intent bytes must match that
+pin before choosing the concrete validator. The shared kernel now accepts an
+optional expected ownership record and checks it before any resume or unstaged
+abandonment. A changed or missing pin cannot redirect recovery to another operation.
+Existing direct callers keep their defaults, schemas and validator selection.
+Unowned synchronized intents remain inert; missing recoverable evidence refuses.
+
+Nineteen integration declarations exercise actual sessions and filesystem/crypto
+publication: all ordinary entry methods, normalization/overwrite, catch-up before
+copy, separate automatic-merge/save identities, fresh explicit selectors, late
+branches, interruption before/after manifest publication and checkpoint CAS,
+missing/malformed/unowned intent handling, changed/missing ownership, session
+binding/invalidation, unavailable/substituted current provider objects, entry-ID
+collisions, failed post-merge saves, and authority work arriving during intent
+persistence. A cold software recovery case opens service-saved contents after the
+original session/service leave scope, with one software agreement and no original
+Mac record. These are not physical approval measurements or native qualification.
+
+`REC-809` remains incomplete. Next are reciprocal pending-state barriers in
+authority/runtime composition and final domain acceptance. Native unlock,
+concurrent-safe reads/status, profile-3 lifecycle (`REC-810`), restore orchestration,
+shipping product/CLI dispatch, integrated review and physical acceptance remain.
+No implementation package `REC-804` through `REC-815` is marked complete.
+
+Verification:
+
+- Complete serial Debug regression passed: 1,195 KeyCore tests in 102 suites and
+  six canonical-JSON tests, including all 19 new service declarations. The earlier
+  locked-host gap is closed: all 68 legacy declarations passed separately on the
+  unlocked host and are included in this full run. No storage protection policy
+  was changed.
+- Affected optimized Release regression passed: 578 tests in 44 suites, including
+  recovery/PIV software policy, epoch signing, reconciliation, device transitions,
+  immutable publication/resume, ordinary mutations/catch-up and mutation
+  ownership/UX. This was not a full Release run; the previously recorded
+  qualification-bundle limitations remain.
+- Unsigned universal Preview build passed. App, CLI and helper contain arm64 and
+  x86_64 slices. Product bundle and CLI help/completion checks passed; no app was
+  installed.
+- Strict Swift formatting, Xcode project plist validation, 109 local documentation
+  targets and `git diff --check` passed. Shared four-space source files retain
+  their existing formatting; formatter configuration and raw logs are ignored.
+- Raw logs use `tmp/piv-recovery/2026-10-05-service-composition-`; product artifacts
+  remain in the existing ignored build directory.
 
 No installed app, real vault/configuration or YubiKey was changed. No native
 authentication, token write, push, notarization or release was performed.

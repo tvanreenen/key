@@ -65,12 +65,14 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
 
     func recoverInterruptedTransaction(
         vaultID: String,
-        vaultKey: Data
+        vaultKey: Data,
+        expectedAnchor: Data? = nil
     ) throws -> V3ImmutableTransactionRecoveryOutcome {
         try mutationOwner.perform(.recoverInterruptedTransaction) { _ in
             try recoverer.recover(
                 vaultID: vaultID,
-                vaultKey: vaultKey
+                vaultKey: vaultKey,
+                expectedAnchor: expectedAnchor
             )
         }
     }
