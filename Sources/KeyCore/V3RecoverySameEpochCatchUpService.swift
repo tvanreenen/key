@@ -123,12 +123,12 @@ struct V3RecoverySameEpochRepositoryObserver: Sendable {
       }
       try boundary.verifyCurrentAuthentication(envelope, vaultKey: vaultKey)
       if digest != floor.checkpoint.envelopeDigest {
-        guard envelope.parents.count == 1, let parentDigest = envelope.parents.first,
-          let parent = envelopes[parentDigest],
-          envelope.body.fields.entries != parent.body.fields.entries
+        let parents = envelope.parents.compactMap { envelopes[$0] }
+        guard !parents.isEmpty, parents.count == envelope.parents.count,
+          parents.count > 1 || envelope.body.fields.entries != parents[0].body.fields.entries
         else { throw V3RecoveryValidationError.invalidTransition }
-        try boundary.verifySameEpochMetadata(envelope, parents: [parent])
-        try V3RecoveryContentProgressValidator().validate(envelope, parents: [parent])
+        try boundary.verifySameEpochMetadata(envelope, parents: parents)
+        try V3RecoveryContentProgressValidator().validate(envelope, parents: parents)
       }
       var current: [V3EntryObjectKey: V3EncryptedEntry] = [:]
       for record in envelope.body.fields.entries {
@@ -195,7 +195,7 @@ struct V3RecoverySameEpochRepositoryObserver: Sendable {
 /// One serialized, exact local trust advancement. Full same-epoch forward
 /// authentication and a fresh equal observation precede checkpoint CAS. No
 /// provider writes, native authentication or token capability are available.
-/// Key transitions, merged histories and product/session composition remain
+/// Key transitions and product/session composition remain
 /// separate work. The one-step API requires caller rediscovery; the coordinated
 /// API retains its initial floor and repeats observation through a terminal result.
 struct V3RecoverySameEpochCatchUpService: Sendable {
@@ -231,9 +231,10 @@ struct V3RecoverySameEpochCatchUpService: Sendable {
       let observed = try stableObservation(from: floor, current: floor, vaultKey: vaultKey)
       if observed.heads.count > 1 { return .contentConflict(observed.heads) }
       guard observed.order.count > 1 else { return .upToDate(floor) }
-      let digest = observed.order[1]
-      guard let envelope = observed.envelopes[digest],
-        envelope.parents == [floor.checkpoint.envelopeDigest]
+      guard let head = observed.heads.first,
+        let digest = try V3RecoveryContentAncestry(observed).nextAdvance(
+          after: floor.checkpoint.envelopeDigest, to: head),
+        let envelope = observed.envelopes[digest]
       else { throw V3RecoveryValidationError.invalidTransition }
       return .advancedOneStep(try advance(envelope, from: floor))
     }
@@ -263,10 +264,11 @@ struct V3RecoverySameEpochCatchUpService: Sendable {
         guard count < maximumStepCount else {
           throw V3RecoveryContentCatchUpError.stepLimitExceeded
         }
-        let children = observed.envelopes.values.filter {
-          $0.parents == [current.checkpoint.envelopeDigest]
-        }
-        guard children.count == 1, let child = children.first else {
+        guard let head = observed.heads.first,
+          let digest = try V3RecoveryContentAncestry(observed).nextAdvance(
+            after: current.checkpoint.envelopeDigest, to: head),
+          let child = observed.envelopes[digest]
+        else {
           throw V3RecoveryValidationError.invalidTransition
         }
         current = try advance(child, from: current)
