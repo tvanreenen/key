@@ -144,6 +144,12 @@ final class PIVRecoveryTokenReader: Sendable {
     guard candidate.owner == owner else { throw PIVRecoveryTokenError.invalidSelection }
     let lease = try gate.acquire()
     defer { withExtendedLifetime(lease) {} }
+    return try read(candidate, lease: lease)
+  }
+
+  private func read(
+    _ candidate: PIVRecoveryTokenCandidate, lease: PIVTokenOperationLease
+  ) throws -> PIVRecoveryTokenObservation {
     let connection = candidate.connection
     guard connection.isValid, connection.tokenID == candidate.tokenID,
       connection.readerSlotName == candidate.readerSlotName
@@ -202,6 +208,31 @@ final class PIVRecoveryTokenReader: Sendable {
   func revalidate(_ observation: PIVRecoveryTokenObservation) throws {
     guard observation.owner == owner else { throw PIVRecoveryTokenError.invalidSelection }
     let current = try read(observation.candidate)
+    try requireEquivalent(current, observation)
+  }
+
+  /// One operation lease spans closed public sessions and the provider call.
+  /// The worker retains it if its caller stops waiting for native completion.
+  func withVerifiedObservation<T>(
+    _ observation: PIVRecoveryTokenObservation,
+    _ consume: (_ revalidate: () throws -> Void) throws -> T
+  ) throws -> T {
+    guard observation.owner == owner else { throw PIVRecoveryTokenError.invalidSelection }
+    let lease = try gate.acquire()
+    defer { withExtendedLifetime(lease) {} }
+    func validate() throws {
+      let current = try read(observation.candidate, lease: lease)
+      try requireEquivalent(current, observation)
+    }
+    try validate()
+    let result = try consume(validate)
+    try validate()
+    return result
+  }
+
+  private func requireEquivalent(
+    _ current: PIVRecoveryTokenObservation, _ observation: PIVRecoveryTokenObservation
+  ) throws {
     guard current.publicKey == observation.publicKey, current.anchor == observation.anchor,
       current.objectDigest == observation.objectDigest
     else {
