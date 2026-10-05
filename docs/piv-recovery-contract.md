@@ -434,10 +434,41 @@ The live process-wide gate remains claimed while a native begin/send callback is
 pending after the public-read deadline. A successful session closes once after
 pending completion; no authentication retry or guessed cancellation is used.
 Software tests cover orchestration and lifetime behavior, not native delivery or
-physical identity. Unique native agreement-key lookup, required PIN/touch policy,
-protected setup, signed-product smart-card capability and hardware qualification
-remain 807 requirements. The reader has no product caller and does not make 806
+physical identity. The reader has no product caller and does not make 806
 snapshots eligible for real-vault restore.
+
+### Implemented scoped agreement adapter
+
+The [internal adapter](../Sources/KeyCore/PIVRecoveryAgreement.swift) supplies a
+scoped, one-use receiver to the existing recovery HPKE boundary. Constructing it
+does not discover tokens, look up keys or request authentication. On agreement,
+one reader operation lease spans fresh public revalidation, noninteractive key
+lookup, another public revalidation, standard P-256 ECDH and final public
+revalidation. Every public session closes before the provider operation.
+
+Lookup specifies the observed token ID and the public key's application label,
+private EC key class, 256-bit size and data-protection keychain. Exactly one
+result is required. The returned handle's token ID, exported public point, key
+class/type/size and ECDH support are checked independently. The label is a query
+constraint, not identity proof. No private key is exported, no other credential
+or algorithm is tried, and failure cannot trigger a second operation through
+that receiver. Scope exit invalidates an escaped receiver and any pending attempt.
+
+The caller waits until explicit cancellation or an absolute deadline, defaulting
+to 60 seconds for the scope. Stopped or late results are discarded. Context
+invalidation requests cancellation of authentication; it does not prove native
+termination. A pending worker retains the shared operation lease until provider
+return and cleanup, or pending public-read completion. Process termination clears
+local state but does not establish the token's authentication-cache state.
+Native provider failures expose a fixed category, not arbitrary diagnostic text.
+
+Scripted tests cover binding checks, session ordering, scope closure,
+cancellation, deadline, removal, anchor changes, and exclusion until delayed
+completion. They do not qualify native query delivery, physical identity, PIN or
+touch enforcement, prompt cancellation, or hardware session/cache behavior.
+Required PIN/touch policy, protected setup, signed-product capability and actual
+hardware qualification remain 807 requirements. Neither adapter has a product
+caller; an absent or unrecognized anchor is not permission to register or restore.
 
 ## Registration and authority lifecycle
 

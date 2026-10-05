@@ -2222,8 +2222,8 @@ was cut for this work. The latest private artifact was `0.2.0-piv-test.2 (21)`.
 Current work is `REC-807`: an isolated epoch-key capsule is implemented and
 AI-reviewed; recipient contexts/wrappers, profile codecs, and boundary transcripts
 are implemented as internal domain components, alongside bounded anchored
-selection, complete current-snapshot verification and a native public-reader
-foundation. Bound native agreement, protected registration, domain
+selection, complete current-snapshot verification, native public-reader and
+scoped agreement foundations. Protected setup, PIN/touch qualification, domain
 acceptance/review and product lifecycle integration remain. The
 [contract](piv-recovery-contract.md) and [review dispositions](piv-recovery-ai-review.md)
 record the single-approval
