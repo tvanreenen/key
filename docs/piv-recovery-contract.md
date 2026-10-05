@@ -441,6 +441,39 @@ Merged-history catch-up includes checkpoint-linked same-epoch siblings/co-parent
 below a later floor. Service/CLI integration and native/product qualification
 remain unfinished.
 
+### Implemented internal ordinary mutation service
+
+The explicitly selected [profile-3 service](../Sources/KeyCore/V3RecoveryVaultMutationService.swift)
+implements the existing ordinary add/edit/copy/move/remove/resolve interface.
+The helper must own serialization and provide the operation ID. The service
+reuses that boundary rather than creating a nested queue. Its only key source is
+the existing in-memory session, bound to the exact vault and current key ID.
+Missing, invalidated or mismatched sessions refuse; this service cannot sign,
+unwrap, prompt for native authentication or administer a token.
+
+Before planning a save it authenticates the current provider manifest against
+the exact local checkpoint, resumes only a locally pinned content intent, catches
+up through verified same-epoch history, and repeats source/checkpoint/pending
+checks. An automatic merge commits under a separate operation ID before the
+requested save is freshly planned. If that save then fails, the committed merge
+remains but the caller receives failure. Explicit resolution uses freshly
+observed conflict selectors; stale choices do not authorize publication.
+
+Interruption routing reads only the operation bound by local ownership, not
+arbitrary synchronized intents. The selected publisher independently revalidates
+that exact ownership record before resuming or abandoning an unstaged reservation.
+Changed or missing ownership cannot switch validators or clean up another
+operation. Missing recoverable evidence retains its pin and refuses.
+
+[Integration tests](../Tests/KeyCoreTests/V3RecoveryVaultMutationServiceTests.swift)
+use the real session and filesystem publishers. They cover ordinary edit chains,
+catch-up, automatic/explicit and late-branch resolution, interruption routing,
+source/session failures and authority work appearing during publication. A cold
+software recovery test opens service-saved contents after the original session
+and service leave scope. This is not native unlock or physical-token qualification.
+The conflict projection is serialized metadata inspection, not a concurrent-safe
+product read/status service. No shipping dispatch is enabled.
+
 ## Proposed data contract
 
 Keep outer vault/envelope version 3 and the understood envelope shape.
@@ -1007,8 +1040,8 @@ publication authority. No source/configuration/Keychain deletion is performed.
 No shipping composition, public command or real-vault opt-in is enabled.
 Adoption alone does not claim recovery protection; that requires separate
 registration. Reciprocal pending-state barriers in ordinary product services,
-profile-3 writes/catch-up/lifecycle support, integrated review and distribution
-qualification remain required before real-vault opt-in.
+product integration of profile-3 writes/catch-up, lifecycle support, integrated
+review and distribution qualification remain required before real-vault opt-in.
 
 The proposed public workflow is a `recovery` command group for status,
 credential review, registration, recipient listing/removal, restore review,
@@ -1058,8 +1091,8 @@ barriers. The [tracker](piv-recovery-plan.md#architecture-ownership) records
 ownership and package acceptance; do not ship archive diagnostics as product
 integration.
 
-Next is profile-3 ordinary mutation/lifecycle and restore-service integration,
-final domain acceptance and integrated review. Native token binding and scoped
+Next is reciprocal pending-state barriers, profile-3 lifecycle and restore-service
+integration, final domain acceptance and integrated review. Native token binding and scoped
 agreement are implemented but not physically qualified in their final adapters.
 Shipping profile-2 bytes remain unchanged. Review exact bytes before format
 freeze; transcript checks alone are not a complete service validator.

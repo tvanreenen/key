@@ -52,10 +52,12 @@ struct V3RecoveryMergeMutationPublisher: Sendable {
       envelope: checked.envelope)
   }
 
-  func recoverInterruptedTransaction(vaultID: String, vaultKey: Data) throws
+  func recoverInterruptedTransaction(vaultID: String, vaultKey: Data, expectedAnchor: Data? = nil)
+    throws
     -> V3ImmutableTransactionRecoveryOutcome
   {
-    try publisher.recoverInterruptedTransaction(vaultID: vaultID, vaultKey: vaultKey)
+    try publisher.recoverInterruptedTransaction(
+      vaultID: vaultID, vaultKey: vaultKey, expectedAnchor: expectedAnchor)
   }
 }
 

@@ -40,7 +40,8 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
 
     func recover(
         vaultID: String,
-        vaultKey: Data
+        vaultKey: Data,
+        expectedAnchor: Data? = nil
     ) throws -> V3ImmutableTransactionRecoveryOutcome {
         guard isValidV3UUID(vaultID) else {
             throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(
@@ -53,7 +54,16 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
                 vaultID: vaultID
             )
         else {
+            guard expectedAnchor == nil else {
+                throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: vaultID)
+            }
             return .nothingToRecover
+        }
+        // A workflow that routed by one locally pinned intent must not resume
+        // a different reservation after that routing decision, even before the
+        // prepared/no-intent cleanup path. Existing direct callers remain valid.
+        guard expectedAnchor == nil || expectedAnchor == anchorData else {
+            throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: vaultID)
         }
         guard
             let anchor = try? V3ImmutableTransactionRecoveryAnchor(

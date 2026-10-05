@@ -5,7 +5,8 @@ enum V3DeviceWrappedVaultKeySessionError: Error, Equatable {
     case unavailable
 }
 
-/// The only owner of a plaintext permanent-profile vault key after unwrap.
+/// The in-memory owner of a plaintext Mac-bound vault key after unwrap.
+/// Both permanent and recovery-capable profiles bind it to an exact vault/key ID.
 ///
 /// This store has no persistent backing. Lock, idle expiry, helper restart,
 /// runtime replacement, or process termination discards its sole key value.

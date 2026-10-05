@@ -59,9 +59,10 @@ struct V3RecoveryContentMutationPublisher: Sendable {
   }
 
   func recoverInterruptedTransaction(
-    vaultID: String, vaultKey: Data
+    vaultID: String, vaultKey: Data, expectedAnchor: Data? = nil
   ) throws -> V3ImmutableTransactionRecoveryOutcome {
-    try publisher.recoverInterruptedTransaction(vaultID: vaultID, vaultKey: vaultKey)
+    try publisher.recoverInterruptedTransaction(
+      vaultID: vaultID, vaultKey: vaultKey, expectedAnchor: expectedAnchor)
   }
 }
 
