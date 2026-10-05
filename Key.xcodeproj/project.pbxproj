@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        F91900000000000000000009 /* PIVPublicObjectCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9190000000000000000000A; };
+        F91900000000000000000005 /* PIVHPKEReceiver.swift in Sources */ = {isa = PBXBuildFile; fileRef = F91900000000000000000006; };
 		EA0906000000000000000004 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = EA0906000000000000000010 /* ArgumentParser */; };
 		0E471F29FE657B084CEAD58B /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
 		11A1C24BB4C342B4948D95FE /* libKeyCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 395A88A800D635A7EF9FE33F /* libKeyCore.a */; };
@@ -124,6 +126,7 @@
 		D52800000000000000000002 /* V3DeviceWrappedKeyRotationTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52800000000000000000001 /* V3DeviceWrappedKeyRotationTransition.swift */; };
 		D52900000000000000000002 /* V3DeviceWrappedRevocationTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52900000000000000000001 /* V3DeviceWrappedRevocationTransition.swift */; };
 		D53000000000000000000002 /* V3DeviceWrappedKeyRotationValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53000000000000000000001 /* V3DeviceWrappedKeyRotationValidation.swift */; };
+		D58000000000000000000002 /* V3EpochSigningKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = D58000000000000000000001 /* V3EpochSigningKey.swift */; };
 		D53100000000000000000002 /* V3DeviceWrappedRevocationTransitionValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */; };
 		D53200000000000000000002 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */; };
 		D53300000000000000000002 /* V3DeviceWrappedRevocationTransitionPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53300000000000000000001 /* V3DeviceWrappedRevocationTransitionPublisher.swift */; };
@@ -190,6 +193,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+        F9190000000000000000000A /* PIVPublicObjectCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PIVPublicObjectCodec.swift; sourceTree = "<group>"; };
+        F91900000000000000000006 /* PIVHPKEReceiver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PIVHPKEReceiver.swift; sourceTree = "<group>"; };
 		0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyXPCClientTransport.swift; sourceTree = "<group>"; };
 		31C5D8A7B28E4C5FA4E91D20 /* VaultLocationResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultLocationResolver.swift; sourceTree = "<group>"; };
 		395A88A800D635A7EF9FE33F /* libKeyCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libKeyCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -307,6 +312,7 @@
 		D52800000000000000000001 /* V3DeviceWrappedKeyRotationTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedKeyRotationTransition.swift; sourceTree = "<group>"; };
 		D52900000000000000000001 /* V3DeviceWrappedRevocationTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedRevocationTransition.swift; sourceTree = "<group>"; };
 		D53000000000000000000001 /* V3DeviceWrappedKeyRotationValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedKeyRotationValidation.swift; sourceTree = "<group>"; };
+		D58000000000000000000001 /* V3EpochSigningKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3EpochSigningKey.swift; sourceTree = "<group>"; };
 		D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedRevocationTransitionValidation.swift; sourceTree = "<group>"; };
 		D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedKeyRotationTransitionPublisher.swift; sourceTree = "<group>"; };
 		D53300000000000000000001 /* V3DeviceWrappedRevocationTransitionPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3DeviceWrappedRevocationTransitionPublisher.swift; sourceTree = "<group>"; };
@@ -387,6 +393,8 @@
 				9E2ADEBF64DA8CE4DCDEF252 /* KeyServiceHandler.swift */,
 				55257994DEF9CC6144A32E16 /* KeyServiceProtocol.swift */,
 				0999C71A91147E5F052667EC /* KeyXPCClientTransport.swift */,
+                F91900000000000000000006 /* PIVHPKEReceiver.swift */,
+                F9190000000000000000000A /* PIVPublicObjectCodec.swift */,
 				D52000000000000000000001 /* KeyProductIdentity.swift */,
 				F19B0116010713B57BC705BE /* RuntimeConfiguration.swift */,
 				4E30B55D83074B50959E72C6 /* SessionVaultKeyStore.swift */,
@@ -477,6 +485,7 @@
 				D52800000000000000000001 /* V3DeviceWrappedKeyRotationTransition.swift */,
 				D52900000000000000000001 /* V3DeviceWrappedRevocationTransition.swift */,
 				D53000000000000000000001 /* V3DeviceWrappedKeyRotationValidation.swift */,
+				D58000000000000000000001 /* V3EpochSigningKey.swift */,
 				D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */,
 				D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */,
 				D53300000000000000000001 /* V3DeviceWrappedRevocationTransitionPublisher.swift */,
@@ -821,6 +830,8 @@
 				851434753ACA4A4ED0733FEB /* KeyServiceHandler.swift in Sources */,
 				545DE475C8F5F883DB08A529 /* KeyServiceProtocol.swift in Sources */,
 				8B2342C883974B121AB07C37 /* KeyXPCClientTransport.swift in Sources */,
+                F91900000000000000000005 /* PIVHPKEReceiver.swift in Sources */,
+                F91900000000000000000009 /* PIVPublicObjectCodec.swift in Sources */,
 				D52000000000000000000002 /* KeyProductIdentity.swift in Sources */,
 				240E840B493F129EF5D4413B /* RuntimeConfiguration.swift in Sources */,
 				E9B24E7F8C7042A2A783D53D /* SessionVaultKeyStore.swift in Sources */,
@@ -909,6 +920,7 @@
 				D52800000000000000000002 /* V3DeviceWrappedKeyRotationTransition.swift in Sources */,
 				D52900000000000000000002 /* V3DeviceWrappedRevocationTransition.swift in Sources */,
 				D53000000000000000000002 /* V3DeviceWrappedKeyRotationValidation.swift in Sources */,
+				D58000000000000000000002 /* V3EpochSigningKey.swift in Sources */,
 				D53100000000000000000002 /* V3DeviceWrappedRevocationTransitionValidation.swift in Sources */,
 				D53200000000000000000002 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift in Sources */,
 				D53300000000000000000002 /* V3DeviceWrappedRevocationTransitionPublisher.swift in Sources */,

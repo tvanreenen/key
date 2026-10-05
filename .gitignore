@@ -1,5 +1,6 @@
 .build/
 __pycache__/
+/tmp/
 .swiftpm/
 Package.resolved
 !/Package.resolved
