@@ -7,7 +7,7 @@ import Testing
 /// Genuine manifest/entry crypto and contained filesystem storage. Only local
 /// checkpoint/ownership persistence and deliberate interruption are scripted.
 struct V3RecoveryContentMutationPublisherTests {
-  private typealias Core = V3RecoveryRegistrationTests
+  typealias Core = V3RecoveryRegistrationTests
   private static let addedID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c1"
   private static let copyID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c2"
   private static let phases: [V3ImmutableTransactionPhase] = [
@@ -449,7 +449,7 @@ struct V3RecoveryContentMutationPublisherTests {
     return (f.anchor, f.core.token, parent.digest)
   }
 
-  private enum Stop: Error { case interrupted }
+  enum Stop: Error { case interrupted }
   private struct Observer: V3ImmutableTransactionPhaseObserving {
     let action: @Sendable (V3ImmutableTransactionPhase) throws -> Void
     init(_ action: @escaping @Sendable (V3ImmutableTransactionPhase) throws -> Void) {
@@ -465,7 +465,7 @@ struct V3RecoveryContentMutationPublisherTests {
     var value: [V3ImmutableTransactionPhase] { lock.withLock { data } }
     func append(_ phase: V3ImmutableTransactionPhase) { lock.withLock { data.append(phase) } }
   }
-  private final class Checkpoints: V3ManifestCheckpointStoring, @unchecked Sendable {
+  final class Checkpoints: V3ManifestCheckpointStoring, @unchecked Sendable {
     private let lock = NSLock()
     private var data: Data?
     var rejectAdvance = false
@@ -484,7 +484,7 @@ struct V3RecoveryContentMutationPublisherTests {
       }
     }
   }
-  private final class Ownership: V3ImmutableTransactionRecoveryAnchorStoring, @unchecked Sendable {
+  final class Ownership: V3ImmutableTransactionRecoveryAnchorStoring, @unchecked Sendable {
     private let lock = NSLock()
     private var data: Data?
     var rejectClear = false
@@ -503,7 +503,7 @@ struct V3RecoveryContentMutationPublisherTests {
       }
     }
   }
-  private struct Fixture: Sendable {
+  struct Fixture: Sendable {
     let core: Core.Fixture
     let parent: V3RecoveryManifestEnvelope
     let checkpoint: V3ManifestCheckpoint

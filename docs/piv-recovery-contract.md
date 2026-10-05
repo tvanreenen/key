@@ -256,8 +256,42 @@ the pinned anchor and a software token private key. Original Mac authority and
 the session key leave scope before recovery. One agreement opens the snapshot;
 ordinary publication makes no private-device or token call. This is filesystem
 and crypto evidence, not shipping service/CLI dispatch, branch resolution,
-multi-Mac catch-up, native local-store or physical-token qualification. These
+full multi-Mac catch-up coordination, native local-store or physical-token qualification. These
 integration tasks still gate product enablement.
+
+### Implemented ordinary same-epoch catch-up step
+
+The internal ordinary observer starts at an exact local checkpoint and supplied
+unlocked session key, not a recovery-token anchor. It shares bounded published
+inventory, ancestry traversal and revision progression with catastrophe history
+selection. Authentication remains separate: every visible forward same-epoch
+manifest MAC/capsule, unchanged authority/coverage and complete entry snapshot
+must check before an ordinary head is reported. Entries have the usual byte,
+reference, UTF-8 and canonical TOTP bounds. Pre-floor snapshots are not decrypted.
+
+The serialized step service refuses pending ordinary, registration or adoption
+work. It repeats the observation and checks exact checkpoint/ownership state
+before returning an unchanged floor, reporting multiple authenticated content
+heads, or compare-and-replacing the checkpoint with the next direct child.
+It never skips to a distant head, merges implicitly, writes provider objects or
+requests a device/token operation. Cache failure after successful CAS cannot
+undo the new checkpoint's authority.
+
+This service returns one committed step, not a completed access gate or installed
+key session. The caller must rediscover after each step. A sibling delivered
+after CAS cannot undo that committed step; the next inspection refuses the
+unexplained same-vault lineage rather than claiming the selected head is current.
+Catch-up coordination and branch reconciliation still need to classify and
+resolve such histories. Changed-key descendants and multi-parent merges refuse
+this path; no fallback key, private unwrap, token retry or automatic resolution
+is available. Key-epoch refusal is not authentication of that new epoch.
+
+Software tests use independent local checkpoint/cache states and real immutable
+filesystem publication, including offline writes before file delivery. They
+cover one-step advancement, whole-forward-history availability/authentication,
+competing heads, late delivery, pending work, CAS loss and source substitution.
+They do not qualify two physical Macs, provider delivery, native session unlock,
+the local Keychain stores or a shipping workflow.
 
 ## Proposed data contract
 
