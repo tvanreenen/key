@@ -91,7 +91,7 @@ are the implementation packages, not new names for already completed probes.
 | Package | Deliverable | Depends on | Status |
 |---|---|---|---|
 | `REC-804` | Format, authority, lifecycle, and compatibility contract | Baseline | In progress; AI review disposition recorded; experimental direction authorized; graph/platform/adoption decisions remain |
-| `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; epoch capsule/context/codec implemented and AI-reviewed; full profile and recovery contexts remain |
+| `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; epoch capsule AI-reviewed; recipient roster, recovery contexts/wrappers, and exact codecs implemented; full profile/proof integration remains |
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | Planned |
 | `REC-807` | Product token binding, supported administration, and credential lifecycle | 804 | Planned |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | Planned |
@@ -392,8 +392,10 @@ single deferred integration PR.
 The current increment is `REC-805`, with remaining `REC-804` integrated decisions
 tracked explicitly. The [contract](piv-recovery-contract.md) describes the
 experimental dual-authorization direction and its reduced historical replay
-promise. The isolated capsule is implemented and AI-reviewed; full profile,
-proof projection, recipients, and recovery contexts come next.
+promise. The capsule, recipient roster, and recovery contexts/wrappers are
+implemented. Full profile and canonical proof projection come next. The new
+recipient components have software checks, not a fresh independent review or
+product/hardware qualification.
 
 ## Implementation evidence ledger
 
@@ -405,6 +407,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Authority comparison and AI review, 2026-10-04 | [Twelve design tests](../Tests/KeyCoreTests/PIVRecoveryAuthorityDesignTests.swift), [review dispositions](piv-recovery-ai-review.md) | Linear software evidence, not an integrated graph verifier. Finish 804's graph/platform/adoption decisions. |
 | First 805 domain component, 2026-10-04 | [Epoch capsule](../Sources/KeyCore/V3EpochSigningKey.swift), [13 tests](../Tests/KeyCoreTests/V3EpochSigningKeyTests.swift); focused suite, 89-test seven-suite regression, and unsigned two-architecture KeyCore build passed before cleanup | Exact local capsule only; no product caller or new-profile activation. |
 | Repository cleanup, 2026-10-04 | Removed experiment-only CLI/XPC and prototype dependencies; retained reusable crypto, framing, regression tests, and generic genesis groundwork | Raw files preserved under ignored root `tmp/`. No install, token operation, vault change, commit, or release. See the cleanup verification below. |
+| Second 805 domain component, 2026-10-04 | [Recipient roster/codec](../Sources/KeyCore/V3RecoveryRecipients.swift), [recovery HPKE](../Sources/KeyCore/V3RecoveryVaultKeyHPKE.swift), and software tests | No profile dispatch, epoch proof, token anchor, registration, source graph, service command, or real-vault activation. Verification details follow below. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -430,3 +433,35 @@ commands/results, and qualifications here to audit each accepted increment.
 
 Raw verification output stays in the ignored local archive. No signed-artifact,
 hardware, installed-product, or real-vault qualification was performed here.
+
+### Recipient and wrapper verification, 2026-10-04
+
+The cleaned baseline was preserved locally as `49d8749` (generic genesis
+groundwork) and `3f11e0c` (crypto primitives, tests, reviewed direction, and
+tracking). This increment adds internal recipient/context/wrapper types without
+changing shipping profile-2 context bytes or enabling a recovery command.
+
+- Focused Debug checks: 22 tests across three suites passed, including exact
+  records and context bytes, the maximum roster boundary, malformed inputs,
+  coverage, device/recovery separation, key-identity checks, and cancellation.
+- Focused Release regression: 87 tests across ten suites passed, covering the
+  new components, existing HPKE/PIV framing, epoch capsule, authority design,
+  genesis, initialization, and new-directory checks.
+- Unsigned `Key Preview` / `PreviewDebug` app, CLI, and helper build passed for
+  arm64 and x86_64. Product-bundle isolation, bundled CLI help, strict formatting
+  of the four new Swift files, project plist syntax, local document-link targets,
+  and `git diff --check` passed.
+- Full Debug run: 866 KeyCore tests ran with 65 issues; six JSON tests passed.
+  Failures included protected temporary-file writes in unchanged legacy storage
+  and downstream expectations. An isolated 27-test legacy storage/preflight
+  probe reproduced five issues. The Mac reported its console locked, while
+  `EntryStore` uses `.completeFileProtection` for those writes. Lock state is
+  a suspected cause, not established without an unlocked rerun. The full suite
+  is not a passing gate for this increment. No storage protections were changed.
+  The prior full Release limitation remains recorded above.
+
+Software fixtures use CryptoKit on both sides, not an independent HPKE library.
+The one-callback assertion is software evidence, not hardware PIN/touch or
+integrated recovery qualification. No fresh independent review, product caller,
+token operation, installation, push, or release was performed. Raw verification
+logs remain under ignored `tmp/piv-recovery/`.

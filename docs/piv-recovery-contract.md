@@ -219,8 +219,8 @@ recipient generation while binding wrappers to the new epoch/transition.
 Recipient records distinguish recovery authority from Mac authority. Proposed
 fields are registration UUID, recipient ID, P-256 public key, PIV slot, and
 active/revoked status. Recipient ID is a domain-separated public-key digest;
-the exact domain/encoding is locked in 805. Require unique active credentials,
-canonical ordering, and exactly one recovery wrapper per active recipient,
+the experimental domain/encoding now has exact 805 fixtures. Require unique
+active credentials, canonical ordering, and exactly one recovery wrapper per active recipient,
 with none for revoked/unknown recipients. Independent backup keys must differ.
 Public labels, if needed, cannot replace cryptographic identity.
 
@@ -246,6 +246,34 @@ integrity is essential. Yubico recommends undefined application tags over
 overloading defined objects: [GET and PUT DATA](https://docs.yubico.com/yesdk/users-manual/application-piv/get-and-put-data.html).
 The existing disposable object is occupied. This document does not authorize
 replacing it, any slot contents, or management credentials.
+
+### Implemented recipient and wrapper increment
+
+The [recipient roster](../Sources/KeyCore/V3RecoveryRecipients.swift) implements
+record version 1 with a generation UUID, ordered recipients, and ordered
+wrappers. Each recipient has a validated P-256 point, derived credential ID,
+registration UUID, slot 9d, and active/revoked status. Wrapper addresses bind both
+credential and registration. The roster requires unique credentials and
+registrations, canonical ordering, and exact active-recipient coverage. Empty or
+all-revoked rosters are structurally valid; they do not establish recovery
+readiness or authorize removing the last active recipient.
+
+The experimental codec limits the roster to 64 recipients/wrappers and 65,536
+encoded bytes. These are resource bounds, not a settled product-capacity promise.
+The containing profile must enforce its own input budget before decoding.
+
+The [recovery context](../Sources/KeyCore/V3RecoveryVaultKeyHPKE.swift) binds
+profile 3, the complete HPKE suite, vault/key/transition identity, generation,
+recipient, registration, and slot through separate recovery info/AAD domains.
+The shared CryptoKit sender preserves profile-2 inputs. Opening checks the
+address and adapter public key before agreement, then authenticates the box and
+checks the recovered key ID. Software fixtures establish one agreement callback
+and cancellation propagation without retry, not integrated hardware approval
+counts or PIN/touch policy.
+
+These bytes remain experimental until containing-profile integration and
+review. Parsing or opening alone proves neither origin, token possession,
+anchor state, nor a verified snapshot. No product caller is enabled.
 
 ## Recovery ordering and operation budget
 
@@ -394,8 +422,8 @@ barriers. The [tracker](piv-recovery-plan.md#architecture-ownership) records
 ownership and package acceptance; do not ship archive diagnostics as product
 integration.
 
-Next is the rest of `REC-805`: new profile, exact production proof projection,
-typed recipients, recovery contexts, codecs, and canonical fixtures. Shipping
+Next is the rest of `REC-805`: containing profile, dispatch, exact production
+proof projection, and integrated canonical fixtures/validators. Shipping
 profile 2 remains unchanged. Review those exact bytes before format freeze.
 Graph/platform/adoption decisions remain open in 804 and dependent packages.
 Protected administration, durable-phase reconciliation, independent backup-token
