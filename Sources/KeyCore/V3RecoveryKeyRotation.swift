@@ -140,14 +140,62 @@ struct V3RecoveryKeyRotationValidator: Sendable {
     _ candidate: V3RecoveryKeyRotationCandidate, parent: V3RecoveryManifestEnvelope,
     currentVaultKey: Data, expectedOwner: V3EnrollmentDeviceIdentity
   ) throws {
-    try V3RecoveryContentMutationValidator(limits: limits).validateParent(
-      parent, checkpoint: candidate.expectedCheckpoint, vaultKey: currentVaultKey)
     let envelope = candidate.envelope
-    guard envelope.canonicalBytes.count <= limits.maximumManifestBytes,
-      candidate.stagedEntries.count <= limits.maximumReferencedEntryObjects,
-      envelope.body.fields.devices == parent.body.fields.devices,
+    guard envelope.body.fields.devices == parent.body.fields.devices,
       envelope.body.recovery.recipients == parent.body.recovery.recipients,
-      envelope.body.recovery.generationID == parent.body.recovery.generationID,
+      envelope.body.recovery.generationID == parent.body.recovery.generationID
+    else { throw V3RecoveryKeyRotationError.invalidCandidate }
+    try V3RecoveryEpochSnapshotValidator(limits: limits).preflight(
+      envelope, checkpoint: candidate.expectedCheckpoint, parent: parent,
+      stagedEntryCount: candidate.stagedEntries.count, currentVaultKey: currentVaultKey,
+      expectedOwner: expectedOwner)
+  }
+
+  func validate(
+    _ candidate: V3RecoveryKeyRotationCandidate, parent: V3RecoveryManifestEnvelope,
+    currentEntries: [V3EntryObjectKey: V3EncryptedEntry], currentVaultKey: Data,
+    nextVaultKey: Data, expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws {
+    try preflight(
+      candidate, parent: parent, currentVaultKey: currentVaultKey,
+      expectedOwner: expectedOwner)
+    try V3RecoveryEpochSnapshotValidator(limits: limits).validateSnapshots(
+      candidate.envelope, stagedEntries: candidate.stagedEntries, parent: parent,
+      currentEntries: currentEntries, currentVaultKey: currentVaultKey, nextVaultKey: nextVaultKey)
+  }
+
+  func validateForPublication(
+    _ candidate: V3RecoveryKeyRotationCandidate, parent: V3RecoveryManifestEnvelope,
+    currentEntries: [V3EntryObjectKey: V3EncryptedEntry], currentVaultKey: Data,
+    nextVaultKey: Data, identity: any V3DeviceWrappedVaultKeyUnwrapping, reason: String
+  ) throws {
+    guard !reason.isEmpty, identity.vaultID == candidate.expectedCheckpoint.vaultID else {
+      throw V3RecoveryKeyRotationError.invalidOwner
+    }
+    try validate(
+      candidate, parent: parent, currentEntries: currentEntries,
+      currentVaultKey: currentVaultKey, nextVaultKey: nextVaultKey,
+      expectedOwner: identity.publicIdentity)
+    try V3RecoveryEpochSnapshotValidator(limits: limits).validateLocalWrapper(
+      candidate.envelope, nextVaultKey: nextVaultKey, identity: identity, reason: reason)
+  }
+}
+
+/// Shared epoch cryptography and complete reseal checks, never roster policy.
+/// Each transition validator must enforce its own authority/recipient decision.
+/// No trusted checkpoint, durable approval or publication is established here.
+struct V3RecoveryEpochSnapshotValidator: Sendable {
+  let limits: V3ManifestRepositoryLimits
+
+  func preflight(
+    _ envelope: V3RecoveryManifestEnvelope, checkpoint: V3ManifestCheckpoint,
+    parent: V3RecoveryManifestEnvelope, stagedEntryCount: Int,
+    currentVaultKey: Data, expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws {
+    try V3RecoveryContentMutationValidator(limits: limits).validateParent(
+      parent, checkpoint: checkpoint, vaultKey: currentVaultKey)
+    guard envelope.canonicalBytes.count <= limits.maximumManifestBytes,
+      stagedEntryCount <= limits.maximumReferencedEntryObjects,
       parent.body.fields.devices.contains(where: {
         $0.identity == expectedOwner && $0.status == .active
       }), envelope.authorizations.map(\.signerDeviceID) == [expectedOwner.deviceID]
@@ -163,19 +211,16 @@ struct V3RecoveryKeyRotationValidator: Sendable {
     else { throw V3RecoveryKeyRotationError.invalidCandidate }
   }
 
-  func validate(
-    _ candidate: V3RecoveryKeyRotationCandidate, parent: V3RecoveryManifestEnvelope,
-    currentEntries: [V3EntryObjectKey: V3EncryptedEntry], currentVaultKey: Data,
-    nextVaultKey: Data, expectedOwner: V3EnrollmentDeviceIdentity
+  /// Call only after transition-specific preflight, before any private unwrap.
+  func validateSnapshots(
+    _ envelope: V3RecoveryManifestEnvelope, stagedEntries: [V3EncryptedEntry],
+    parent: V3RecoveryManifestEnvelope, currentEntries: [V3EntryObjectKey: V3EncryptedEntry],
+    currentVaultKey: Data, nextVaultKey: Data
   ) throws {
-    try preflight(
-      candidate, parent: parent, currentVaultKey: currentVaultKey,
-      expectedOwner: expectedOwner)
     let snapshots = V3EntrySnapshotValidator(limits: limits)
-    let staged = try snapshots.entryMap(candidate.stagedEntries)
-    try V3RecoveryEpochBoundary().verifyCurrentAuthentication(
-      candidate.envelope, vaultKey: nextVaultKey)
-    for entry in candidate.stagedEntries {
+    let staged = try snapshots.entryMap(stagedEntries)
+    try V3RecoveryEpochBoundary().verifyCurrentAuthentication(envelope, vaultKey: nextVaultKey)
+    for entry in stagedEntries {
       guard try V3EntryCipher().parse(entry.canonicalBytes) == entry else {
         throw V3RecoveryKeyRotationError.invalidCandidate
       }
@@ -183,31 +228,23 @@ struct V3RecoveryKeyRotationValidator: Sendable {
     let before = try snapshots.plaintexts(
       fields: parent.body.fields, entries: currentEntries, vaultKey: currentVaultKey)
     let after = try snapshots.plaintexts(
-      fields: candidate.envelope.body.fields, entries: staged,
-      vaultKey: nextVaultKey)
+      fields: envelope.body.fields, entries: staged, vaultKey: nextVaultKey)
     guard before == after else { throw V3RecoveryKeyRotationError.invalidCandidate }
   }
 
-  func validateForPublication(
-    _ candidate: V3RecoveryKeyRotationCandidate, parent: V3RecoveryManifestEnvelope,
-    currentEntries: [V3EntryObjectKey: V3EncryptedEntry], currentVaultKey: Data,
-    nextVaultKey: Data, identity: any V3DeviceWrappedVaultKeyUnwrapping, reason: String
+  /// Call only after full software validation; cancellation propagates without retry.
+  func validateLocalWrapper(
+    _ envelope: V3RecoveryManifestEnvelope, nextVaultKey: Data,
+    identity: any V3DeviceWrappedVaultKeyUnwrapping, reason: String
   ) throws {
-    guard !reason.isEmpty, identity.vaultID == candidate.expectedCheckpoint.vaultID else {
-      throw V3RecoveryKeyRotationError.invalidOwner
-    }
-    try validate(
-      candidate, parent: parent, currentEntries: currentEntries,
-      currentVaultKey: currentVaultKey, nextVaultKey: nextVaultKey,
-      expectedOwner: identity.publicIdentity)
-    guard
-      let wrapped = candidate.envelope.body.fields.wrappedKeys.first(where: {
+    guard !reason.isEmpty, identity.vaultID == envelope.body.fields.vaultID,
+      let wrapped = envelope.body.fields.wrappedKeys.first(where: {
         $0.recipientDeviceID == identity.publicIdentity.deviceID
       })
     else { throw V3RecoveryKeyRotationError.localWrapperMismatch }
     let opened = try identity.unwrapDeviceWrappedVaultKey(
       wrapped.wrappedKey,
-      context: candidate.envelope.body.deviceContext(
+      context: envelope.body.deviceContext(
         recipientDeviceID: identity.publicIdentity.deviceID),
       reason: reason)
     guard opened == nextVaultKey else { throw V3RecoveryKeyRotationError.localWrapperMismatch }

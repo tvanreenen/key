@@ -97,7 +97,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
-| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; pure unchanged-roster rotation and shared unsigned epoch material implemented; lifecycle policy, durable publication/resume, key-transition catch-up and product/native acceptance remain |
+| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; pure rotation and compared-device enrollment preserve recovery coverage; revocation/recipient policy, durable publication/resume, joining adoption, key-transition catch-up and product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
@@ -432,8 +432,10 @@ registration/adoption guards now preserve exact pending work across save,
 approval, activation and local repair boundaries.
 The first lifecycle component now constructs and independently validates complete
 unchanged-roster rotations. Registration shares unsigned epoch material without
-sharing its recipient-addition policy. Durable rotation and remaining lifecycle
-transitions still require implementation.
+sharing its recipient-addition policy. Compared-device enrollment now uses that
+material and shared snapshot cryptography, with its own exact ceremony/roster
+validator. Durable lifecycle publication, revocation/recipient transitions,
+joining adoption and key-transition catch-up still require implementation.
 Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -472,6 +474,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Tenth 809 content increment, 2026-10-05 | [Internal mutation service](../Sources/KeyCore/V3RecoveryVaultMutationService.swift) and [19 service integration tests](../Tests/KeyCoreTests/V3RecoveryVaultMutationServiceTests.swift) | Existing ordinary interface, real exact-bound session, pinned interruption dispatch, catch-up, automatic merge and fresh explicit choices compose without a signer or unwrap. Cold software recovery follows actual service saves. No shipping dispatch, native unlock, concurrent-safe read/status service, reciprocal authority-service barriers or integrated/native qualification. |
 | Reciprocal 808/809 service guards, 2026-10-05 | [Registration service](../Sources/KeyCore/V3RecoveryRegistrationService.swift), [adoption service](../Sources/KeyCore/V3RecoveryAdoptionService.swift), [registration integration tests](../Tests/KeyCoreTests/V3RecoveryRegistrationServiceTests.swift) and [adoption integration tests](../Tests/KeyCoreTests/V3RecoveryAdoptionServiceTests.swift) | Thirteen new declarations cover competing work before/during approvals, late publication/CAS/session/cleanup, committed repair, unreadable ownership, and real registration/save composition. Internal exact namespaces and the shared mutation owner only; no shipping runtime/CLI dispatch, native qualification or lifecycle extension. |
 | First 810 epoch component, 2026-10-05 | [Rotation builder/validator and shared material](../Sources/KeyCore/V3RecoveryKeyRotation.swift), [registration reuse](../Sources/KeyCore/V3RecoveryRegistration.swift) and [16 software tests](../Tests/KeyCoreTests/V3RecoveryKeyRotationTests.swift) | Exact complete resealing, unchanged authority/recipient generation, fresh capsule/proofs and all-active public-key wrappers. Primary/backup software recovery crosses three materialized rotations and an actual service save after private Mac state leaves scope. Rotation materialization is test setup, not durable publication; device/recipient lifecycle, catch-up, native/product routing and integrated review remain. |
+| Second 810 enrollment component, 2026-10-05 | [Compared-device builder/validator](../Sources/KeyCore/V3RecoveryDeviceEnrollment.swift), [shared epoch checks](../Sources/KeyCore/V3RecoveryKeyRotation.swift) and [15 software tests](../Tests/KeyCoreTests/V3RecoveryDeviceEnrollmentTests.swift) | One exact signed, unexpired comparison ceremony adds only its joining Mac; transcript-derived epoch, complete resealing, exact recipient/generation preservation and all-active coverage. Primary/backup recovery follows two materialized enrollments and an actual service save without original Mac private state or superseded ciphertext. No enrollment publication/resume, ceremony consumption, joining adoption, catch-up or product/native qualification. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -1964,3 +1967,75 @@ in the existing ignored directory.
 
 No installed app, real vault/configuration or YubiKey was changed. No native
 authentication, token write, push, notarization or release was performed.
+
+### Second 810 enrollment component, 2026-10-05
+
+The internal profile-3 enrollment builder and independent validator add one Mac
+from the exact signed comparison ceremony. Both invitation and join-request
+signatures, inviter role, awaiting-comparison phase, expiration, vault, checkpoint
+and active inviting identity must match. The existing transcript-derived transition
+ID binds the new signed epoch and every wrapper to that comparison. Consumed,
+unrelated or expired ceremonies and enrolled/reused keys refuse before signing.
+
+The complete old device roster, including revoked tombstones, is preserved with
+one active addition. Recovery recipients, registration identities/statuses and
+generation remain exact. A distinct key and capsule replace the epoch, all entries
+reseal with identical identities/metadata/values, and stored public keys create
+wrappers for every active Mac and recipient. No connected token is required.
+
+Broadening the older profile-2 enrollment builder/validator was compared with
+reusing its signed ceremony and the new profile-3 material/boundary components.
+Separate profile-specific policy avoids projecting profile-3 into older trusted
+checkpoint/body types or changing shipping profile dispatch. Rotation and enrollment
+now share bounded epoch-signature, metadata, snapshot equality and addressed local
+wrapper checks. Each keeps its own independent roster validator; no generic
+unchecked callback authorizes membership. Profile-2 behavior and persisted
+ceremony, manifest and recovery formats are unchanged.
+
+Fifteen new declarations cover complete enrollment, empty/unregistered vaults,
+real software device-wrapper opening, expiration/role/phase/checkpoint mismatch,
+invalid message authentication, invalid keys/owner/reason, enrolled/reused keys,
+exact transcript/transition binding, misclassified operations, independent roster
+decisions, construction/publication budgets, incomplete snapshots, cancellation
+and revoked tombstones. Full software validation precedes one optional addressed
+local unwrap; provider cancellation does not retry. Physical prompt counts remain
+unqualified.
+
+Two successive enrollment candidates are materialized through disposable
+filesystem setup. The newly added member can authorize the next enrollment.
+An actual ordinary mutation-service save follows. Primary and backup software
+credentials each recover the final secret and TOTP with one agreement after all
+Mac private identities/sessions leave scope and superseded ciphertext is removed.
+This is not enrollment publication, joining-Mac adoption or key-transition catch-up.
+
+Revocation and recipient lifecycle policy remain next, followed by durable epoch
+publication/resume, ceremony consumption, joining adoption and authenticated
+catch-up. Restore orchestration, product/runtime/CLI integration, integrated review
+and physical acceptance remain. No implementation package is marked complete and
+no public command or real-vault opt-in is enabled.
+
+Verification:
+
+- Focused enrollment/rotation/registration regression passed: 130 tests in five
+  suites, including the older profile-2 enrollment regression.
+- The same 130 focused tests in five suites passed in optimized Release.
+- Complete serial Debug regression was attempted on the locked host: 1,239
+  KeyCore tests in 104 suites reported 65 issues across five existing suites,
+  beginning with denied writes through `EntryStore`'s unchanged complete-file-
+  protection path and cascading missing-entry assertions. The six canonical-JSON
+  tests passed. This is not a clean full-regression result; an unlocked rerun is
+  required. The separately gated large-migration qualification case was skipped.
+- Affected optimized Release regression was attempted: 622 tests in 46 suites
+  reported seven issues in the existing mutation-owner handler fixture, beginning
+  with the same protected legacy write and cascading missing-entry assertions.
+  This is not a clean broad Release result; an unlocked rerun is required.
+- Unsigned universal Preview build passed. App, CLI and helper contain arm64 and
+  x86_64 slices. Product-bundle isolation and CLI help/completion checks passed;
+  no app was installed.
+- Strict formatting, 123 local documentation targets, Xcode project syntax and
+  `git diff --check` passed.
+
+Raw logs use `tmp/piv-recovery/2026-10-05-recovery-enrollment-`; build artifacts
+remain in the existing ignored directory. No installed app, real vault/configuration
+or YubiKey was changed. No token operation, administration, push, notarization or
+release was performed.
