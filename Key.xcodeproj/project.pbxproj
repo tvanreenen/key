@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D59600000000000000000002 /* V3RecoveryRegistrationRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = D59600000000000000000001 /* V3RecoveryRegistrationRepository.swift */; };
+		D59700000000000000000002 /* V3RecoveryRegistrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D59700000000000000000001 /* V3RecoveryRegistrationService.swift */; };
 		D59300000000000000000002 /* V3RecoveryRegistrationBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D59300000000000000000001 /* V3RecoveryRegistrationBundle.swift */; };
 		D59400000000000000000002 /* V3RecoveryRegistrationJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = D59400000000000000000001 /* V3RecoveryRegistrationJournal.swift */; };
 		D59500000000000000000002 /* V3RecoveryRegistrationFilesystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D59500000000000000000001 /* V3RecoveryRegistrationFilesystem.swift */; };
@@ -208,6 +210,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		D59600000000000000000001 /* V3RecoveryRegistrationRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryRegistrationRepository.swift; sourceTree = "<group>"; };
+		D59700000000000000000001 /* V3RecoveryRegistrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryRegistrationService.swift; sourceTree = "<group>"; };
 		D59300000000000000000001 /* V3RecoveryRegistrationBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryRegistrationBundle.swift; sourceTree = "<group>"; };
 		D59400000000000000000001 /* V3RecoveryRegistrationJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryRegistrationJournal.swift; sourceTree = "<group>"; };
 		D59500000000000000000001 /* V3RecoveryRegistrationFilesystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryRegistrationFilesystem.swift; sourceTree = "<group>"; };
@@ -531,6 +535,8 @@
 				D59300000000000000000001 /* V3RecoveryRegistrationBundle.swift */,
 				D59400000000000000000001 /* V3RecoveryRegistrationJournal.swift */,
 				D59500000000000000000001 /* V3RecoveryRegistrationFilesystem.swift */,
+				D59600000000000000000001 /* V3RecoveryRegistrationRepository.swift */,
+				D59700000000000000000001 /* V3RecoveryRegistrationService.swift */,
 				D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */,
 				D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */,
 				D53300000000000000000001 /* V3DeviceWrappedRevocationTransitionPublisher.swift */,
@@ -981,6 +987,8 @@
 				D59300000000000000000002 /* V3RecoveryRegistrationBundle.swift in Sources */,
 				D59400000000000000000002 /* V3RecoveryRegistrationJournal.swift in Sources */,
 				D59500000000000000000002 /* V3RecoveryRegistrationFilesystem.swift in Sources */,
+				D59600000000000000000002 /* V3RecoveryRegistrationRepository.swift in Sources */,
+				D59700000000000000000002 /* V3RecoveryRegistrationService.swift in Sources */,
 				D53100000000000000000002 /* V3DeviceWrappedRevocationTransitionValidation.swift in Sources */,
 				D53200000000000000000002 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift in Sources */,
 				D53300000000000000000002 /* V3DeviceWrappedRevocationTransitionPublisher.swift in Sources */,

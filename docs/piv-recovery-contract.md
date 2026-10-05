@@ -583,7 +583,10 @@ Completion authenticates the same intent after owner reauthentication, checks
 the candidate's dual authorization and MAC/capsule, independently compares all
 current and resealed entry plaintexts, and verifies the local Mac wrapper before
 requesting one hardware opening of the exact candidate recovery wrapper. A
-restart requires a fresh possession check; never persist or reuse that result.
+restart before local checkpoint advancement requires a fresh possession check;
+never persist or reuse that result. An exact candidate already committed in the
+local checkpoint needs authenticated session/cleanup reconciliation, not another
+hardware approval or publication.
 
 The internal preparation journal stores one complete canonical bundle containing
 the authenticated intent, candidate envelope and encrypted resealed entries.
@@ -616,12 +619,37 @@ interrupted before the complete bundle was installed stays attention-required;
 it cannot resume from a partial file or silently start a replacement. Missing,
 changed or invalid state also retains ownership for explicit reconciliation.
 
-The preparation journal has durable-phase software tests; the full service
-ordering still needs integrated phase tests. In particular,
-successful local possession verification cannot be treated as a reusable
-hardware proof after restart. Global status should describe authenticated
-configured coverage and the scope/time of last verified registration, not
-guarantee an absent token is unchanged, available, or unblocked.
+The internal profile-3 registration service owns prepare, exact resume/export,
+finish and committed-state reconciliation under the shared mutation owner. It
+uses the native reader/agreement adapters, with scripted native calls in software
+tests. Preparation checks the current source and token before and after its
+durable handoff. Finish checks the complete old/new snapshots, opens the local
+candidate wrapper once and requests one token agreement. It publishes and checks
+entries first, rechecks source/checkpoint/token state, then publishes the manifest
+last. Exact readback and current authentication precede local checkpoint
+advancement and session installation. Only then may local ownership be cleared;
+the encrypted preparation bundle remains inert for audit.
+
+The local authenticated checkpoint is the publication floor, as in the shipping
+observer. Above it, this service accepts only its exact locally owned registration
+transition with full same-plaintext checks. Other same-vault edits, rotations or
+branches refuse; this is not a general profile-3 catch-up implementation. It does
+not use recovery's reduced historical replay checks to authorize publication.
+
+Interruption tests exercise real filesystem publication and cryptography, but
+native checkpoint storage, physical hardware policies and product routing remain
+unqualified. Before checkpoint advancement, retries require fresh possession
+even if the candidate manifest is already present. After exact checkpoint
+advancement, reconciliation reauthenticates local current contents and repairs
+only session/ownership state. If ownership cleanup completed but the reply was
+lost, only an exact local checkpoint matching the token floor and authenticated
+active recipient is recognized as already activated. No token/provider record
+can establish that local checkpoint. Successful local possession verification
+cannot be treated as a reusable hardware proof after restart.
+
+Shipping dispatch and CLI/XPC commands remain disabled. Global status should
+describe authenticated configured coverage and the scope/time of last verified
+registration, not guarantee an absent token is unchanged, available, or unblocked.
 
 Adding a backup starts its independent anchor at that token's registration
 checkpoint, not at the primary's original floor. It must recover without the

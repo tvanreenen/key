@@ -192,6 +192,26 @@ struct V3RecoveryRegistrationValidator: Sendable {
     credential: PIVRecoveryKeyMetadata, installedAnchor: V3RecoveryAnchor,
     receiver: PIVHPKEReceiver, reason: String
   ) throws {
+    try withCompletionKey(
+      preparation, checkpoint: checkpoint, parent: parent, currentEntries: currentEntries,
+      currentVaultKey: currentVaultKey, identity: identity, credential: credential,
+      installedAnchor: installedAnchor, receiver: receiver, reason: reason
+    ) { _ in () }
+  }
+
+  /// The service consumes the key only in this synchronous scope. It can
+  /// recheck source/native state after local approval and before agreement,
+  /// then publish without a second local unwrap or retaining a proof object.
+  @available(macOS 26.0, *)
+  func withCompletionKey<Result>(
+    _ preparation: V3RecoveryRegistrationPreparation, checkpoint: V3ManifestCheckpoint,
+    parent: V3RecoveryManifestEnvelope, currentEntries: [V3EntryObjectKey: V3EncryptedEntry],
+    currentVaultKey: Data, identity: any V3DeviceWrappedVaultKeyUnwrapping,
+    credential: PIVRecoveryKeyMetadata, installedAnchor: V3RecoveryAnchor,
+    receiver: PIVHPKEReceiver, reason: String,
+    validateBeforeAgreement: (Data) throws -> Void = { _ in },
+    _ consume: (Data) throws -> Result
+  ) throws -> Result {
     try preparation.intent.authenticate(currentVaultKey: currentVaultKey)
     try credential.requireRecoveryPolicy()
     guard credential.publicKey == preparation.intent.publicKey,
@@ -235,6 +255,7 @@ struct V3RecoveryRegistrationValidator: Sendable {
         $0.recipientID == recipient.recipientID && $0.registrationID == recipient.registrationID
       })
     else { throw V3RecoveryRegistrationError.invalidCandidate }
+    try validateBeforeAgreement(nextKey)
     let opened = try V3RecoveryVaultKeyHPKE().unwrap(
       wrapped, recipientPrivateKey: receiver,
       context: V3RecoveryHPKEContext(
@@ -242,9 +263,10 @@ struct V3RecoveryRegistrationValidator: Sendable {
         authorityTransitionID: candidate.body.fields.authorityTransitionID,
         recoveryGenerationID: candidate.body.recovery.generationID, recipient: recipient))
     guard opened == nextKey else { throw V3RecoveryRegistrationError.possessionMismatch }
+    return try consume(nextKey)
   }
 
-  fileprivate func validateParent(
+  func validateParent(
     _ parent: V3RecoveryManifestEnvelope, checkpoint: V3ManifestCheckpoint, vaultKey: Data
   ) throws {
     guard parent.canonicalBytes.count <= limits.maximumManifestBytes,
@@ -254,7 +276,7 @@ struct V3RecoveryRegistrationValidator: Sendable {
     try V3RecoveryEpochBoundary().verifyCurrentAuthentication(parent, vaultKey: vaultKey)
   }
 
-  fileprivate func requireOwner(
+  func requireOwner(
     _ owner: V3EnrollmentDeviceIdentity, in envelope: V3RecoveryManifestEnvelope
   ) throws {
     guard
@@ -303,7 +325,7 @@ struct V3RecoveryRegistrationValidator: Sendable {
     return result
   }
 
-  fileprivate func plaintexts(
+  func plaintexts(
     _ envelope: V3RecoveryManifestEnvelope, entries: [V3EntryObjectKey: V3EncryptedEntry],
     vaultKey: Data
   ) throws -> [String: Data] {

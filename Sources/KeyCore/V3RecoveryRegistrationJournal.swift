@@ -99,6 +99,21 @@ struct V3RecoveryRegistrationJournal: Sendable {
     return try loadBundle(anchor).preparation
   }
 
+  /// The service must first verify the durable candidate checkpoint and
+  /// published contents. Only local ownership is removed; the encrypted bundle
+  /// remains inert for audit and cannot be adopted by another device.
+  func clearCompleted(_ preparation: V3RecoveryRegistrationPreparation) throws {
+    let vaultID = preparation.intent.expectedCheckpoint.vaultID
+    guard let bytes = try ownershipStore.loadRecoveryAnchor(vaultID: vaultID) else {
+      throw V3RecoveryRegistrationJournalError.invalidOwnership
+    }
+    let anchor = try decodeOwnership(bytes, vaultID: vaultID)
+    guard anchor.phase == .recoverable,
+      try loadBundle(anchor).preparation == preparation
+    else { throw V3RecoveryRegistrationJournalError.invalidPreparation }
+    try ownershipStore.replaceRecoveryAnchor(nil, expectedAnchor: bytes, vaultID: vaultID)
+  }
+
   /// Revalidates complete old/new plaintexts and dual authorization after a
   /// restart. The caller supplies newly authenticated keys, not saved approval.
   /// No bundle is regenerated or rewritten, including when data is unavailable.

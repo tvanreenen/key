@@ -403,9 +403,10 @@ explicitly. The
 experimental dual-authorization direction and its reduced historical replay
 promise. The capsule, recipient roster, recovery contexts/wrappers, containing
 profile, canonical proof projection, anchor codec, graph selector, snapshot
-verifier, registration candidate/intent, completion checks and durable preparation
-journal are implemented as internal components. Finish domain acceptance
-and protected setup/product integration next. Native public-read binding and
+verifier, registration candidate/intent, completion checks, durable preparation
+journal and service-owned manifest-last activation are implemented as internal
+components. Finish domain acceptance, profile adoption/ordinary mutations and
+product integration next. Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
 software checks, not integrated review or product/hardware qualification.
@@ -428,6 +429,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Third 807 native foundation, 2026-10-05 | [Key metadata codec](../Sources/KeyCore/PIVRecoveryKeyMetadata.swift), [codec tests](../Tests/KeyCoreTests/PIVRecoveryKeyMetadataTests.swift), reader/agreement refusal tests and [setup boundary](piv-recovery-contract.md#owner-operated-setup-boundary) | Requires explicit PIN/touch ALWAYS and reported generated origin, not attestation or demonstrated enforcement. Vendor credential setup selected; unconditional object import does not satisfy guarded anchor writing. |
 | First 808 domain increment, 2026-10-05 | [Registration construction/completion checks](../Sources/KeyCore/V3RecoveryRegistration.swift), [authenticated pending-intent codec](../Sources/KeyCore/V3RecoveryRegistrationIntent.swift), [19 software tests](../Tests/KeyCoreTests/V3RecoveryRegistrationTests.swift), and [external workflow](piv-recovery-contract.md#planned-external-registration-experience) | All administration stays external; atomic prior-state preservation across vendor import is explicitly excluded. No durable staging/publisher, native registration service, product command, hardware call or activation. Verification details below. |
 | Second 808 storage increment, 2026-10-05 | [Complete preparation codec](../Sources/KeyCore/V3RecoveryRegistrationBundle.swift), [journal](../Sources/KeyCore/V3RecoveryRegistrationJournal.swift), [contained filesystem storage](../Sources/KeyCore/V3RecoveryRegistrationFilesystem.swift), and 22 additional tests in the [registration suite](../Tests/KeyCoreTests/V3RecoveryRegistrationTests.swift) | Durable atomic preparation and revalidated resume/export only. Device-local store behavior is scripted, not native Keychain qualification. No service-owned source/head/native-token review, reconciliation cleanup, activation, status route or hardware call. |
+| Third 808 service increment, 2026-10-05 | [Registration service](../Sources/KeyCore/V3RecoveryRegistrationService.swift), [bounded exact-transition observer](../Sources/KeyCore/V3RecoveryRegistrationRepository.swift), and [service phase tests](../Tests/KeyCoreTests/V3RecoveryRegistrationServiceTests.swift) | Internal profile-3 prepare/resume/finish and committed-state reconciliation. Real filesystem/crypto, scripted native calls and local stores. No shipping composition/CLI/XPC, profile-2 adoption, general profile-3 catch-up/content writes, physical qualification or hardware administration. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -853,3 +855,77 @@ Verification:
 No user vault/configuration, installed product, hardware credential or token
 object was changed. No notarization, push or release was performed. Native
 Keychain qualification, integrated review and product/hardware acceptance remain.
+
+### Third 808 service increment, 2026-10-05
+
+The internal registration service now owns prepare, exact resume/export and
+finish under the existing shared mutation owner. It composes the registration
+builder/validator, durable journal, contained immutable publisher, local
+checkpoint store and native reader/agreement adapters. Shipping profile-2
+dispatch is unchanged; no CLI/XPC route instantiates this service.
+
+Preparation reviews the authenticated current snapshot and fresh bound token,
+requires absent anchor occupancy and the reported generated/PIN ALWAYS/touch
+ALWAYS policy, persists one exact randomized candidate and returns only its
+public anchor. All credential generation, administration and import remain
+owner-run outside Key. Resume opens the candidate's local wrapper once and
+revalidates the retained exact bytes without signing or generating a replacement.
+
+Finish rechecks intent, owner, current source/checkpoint, exact installed anchor,
+dual boundary, MAC/capsule and complete same-plaintext comparison. It opens the
+local wrapper once and requests one agreement through the scoped native adapter.
+Successful possession is consumed within that request, never persisted. The
+existing publisher installs entries first and the manifest last, with exact
+readback, source/checkpoint/token rechecks and resource budgets before local
+checkpoint advancement. Session installation follows checkpoint advancement;
+only then is local pending ownership cleared. The encrypted preparation bundle
+is retained inert for audit, not deleted or adopted by scanning.
+
+The bounded observer uses the local authenticated checkpoint as its floor,
+matching the shipping observer's trust model. It accepts only that current
+snapshot and this exact pending transition above the floor. Competing same-vault
+state refuses instead of silently selecting, merging or rebasing it. Pre-floor
+manifests consume listing/byte budgets but are not reopened under historical
+keys. This observer does not apply recovery's reduced replay rules to authorize
+normal publication. General profile-3 catch-up remains separate work.
+
+An interruption before checkpoint advancement requires a fresh possession
+operation, including after manifest publication. After exact checkpoint
+advancement, reconciliation reauthenticates current local contents and repairs
+session/ownership state without another agreement or republication. Cleanup
+failure reports a committed result with cleanup pending. A lost reply after
+ownership cleanup is recognized only when the existing local checkpoint equals
+the token floor and its authenticated active recipient matches. Token/provider
+data cannot establish a new local checkpoint through that path.
+
+Nineteen service tests exercise real filesystem staging/publication, actual
+cryptography, the mutation owner and reader/agreement adapters. Native calls and
+device-local stores are scripted. Cases include prepare interruption, eight
+finish phase interruptions, checkpoint/session/cleanup failures, lost replies,
+single-operation cancellation, pre-expired requests, changed source/token,
+competing state before and after publication, corruption and projected limits.
+No hardware operation, credential change or administrative write was performed.
+
+Remaining work includes explicit profile-2 adoption, helper composition and
+status/CLI/XPC boundaries, pending-state barriers for other mutations, ordinary
+profile-3 content and authority lifecycle, and native checkpoint/token physical
+qualification. `REC-808` is not complete. The components have not received a
+fresh integrated independent review.
+
+Verification of final source:
+
+- Complete serial Debug regression passed 1,009 KeyCore tests in 90 suites and
+  6 canonical-JSON tests. This includes all 60 registration tests. The previously
+  recorded concurrent full-suite scheduling limitation was not reassessed.
+- Affected serial Release regression passed 319 tests in 23 suites. The initial
+  concurrent selection hit the existing one-second first-operation waits in two
+  mutation-owner tests; both failures and the serial retry are retained. Full
+  Release was not run; the prior qualification-bundle limitation is unchanged.
+- The unsigned Preview app, CLI and helper built for arm64 and x86_64. Bundle
+  isolation and bundled CLI help/completion checks passed. Nothing was installed.
+- Strict formatting of the new/expanded Swift files, project plist syntax,
+  43 unique local documentation targets and `git diff --check` passed.
+  Raw logs and build output remain under ignored `tmp/piv-recovery/`.
+
+No real vault/configuration, installed product or token was changed. No
+notarization, push or release was performed.
