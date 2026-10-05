@@ -125,7 +125,7 @@ extension V3EnrollmentDeviceIdentityManager:
     }
 }
 
-/// Converts one exact v2 snapshot into a permanent device-wrapped genesis.
+/// Publishes and verifies a permanent device-wrapped genesis before selection.
 ///
 /// Version 2 stays selected until immutable entries, the authenticated
 /// manifest, the device-local checkpoint and cache, and a read through the
@@ -140,14 +140,18 @@ struct V3DeviceWrappedGenesisInstaller {
     typealias UUIDGenerator = @Sendable () -> String
     typealias VaultKeyGenerator = @Sendable () -> Data
 
-    private let entryStore: EntryStore
-    private let preflight: V2MigrationPreflight
+    private struct MigrationSource {
+        let preflight: V2MigrationPreflight
+        let loadKey: V2VaultKeyProvider
+    }
+
+    private let destinationRootURL: URL
+    private var migrationSource: MigrationSource?
     private let objectStore: any V3ImmutableObjectPublishing
     private let checkpointStore: any V3ManifestCheckpointStoring
     private let cache: any V3CheckpointManifestCaching
     private let session: V3DeviceWrappedVaultKeySessionStore
     private let identityManager: any V3DeviceWrappedGenesisIdentityManaging
-    private let loadV2VaultKey: V2VaultKeyProvider
     private let selectVault: VaultSelector
     private let makeUUID: UUIDGenerator
     private let makeVaultKey: VaultKeyGenerator
@@ -186,17 +190,43 @@ struct V3DeviceWrappedGenesisInstaller {
                 V3NoopDeviceWrappedGenesisInstallPhaseObserver(),
         limits: V3ManifestRepositoryLimits = .standard
     ) {
-        self.entryStore = entryStore
-        preflight = V2MigrationPreflight(
-            entryStore: entryStore,
-            cipher: cipher
+        self.init(
+            destinationRootURL: entryStore.rootURL,
+            objectStore: objectStore, checkpointStore: checkpointStore,
+            cache: cache, session: session, identityManager: identityManager,
+            selectVault: selectVault, makeUUID: makeUUID, makeVaultKey: makeVaultKey,
+            phaseObserver: phaseObserver, limits: limits
         )
+        migrationSource = MigrationSource(
+            preflight: V2MigrationPreflight(entryStore: entryStore, cipher: cipher),
+            loadKey: loadV2VaultKey
+        )
+    }
+
+    /// New destinations have no legacy key or source-format dependencies.
+    init(
+        destinationRootURL: URL,
+        objectStore: any V3ImmutableObjectPublishing,
+        checkpointStore: any V3ManifestCheckpointStoring,
+        cache: any V3CheckpointManifestCaching,
+        session: V3DeviceWrappedVaultKeySessionStore,
+        identityManager: any V3DeviceWrappedGenesisIdentityManaging,
+        selectVault: @escaping VaultSelector,
+        makeUUID: @escaping UUIDGenerator = { UUID().uuidString.lowercased() },
+        makeVaultKey: @escaping VaultKeyGenerator = {
+            SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }
+        },
+        phaseObserver: any V3DeviceWrappedGenesisInstallPhaseObserving =
+            V3NoopDeviceWrappedGenesisInstallPhaseObserver(),
+        limits: V3ManifestRepositoryLimits = .standard
+    ) {
+        self.destinationRootURL = destinationRootURL
+        migrationSource = nil
         self.objectStore = objectStore
         self.checkpointStore = checkpointStore
         self.cache = cache
         self.session = session
         self.identityManager = identityManager
-        self.loadV2VaultKey = loadV2VaultKey
         self.selectVault = selectVault
         self.makeUUID = makeUUID
         self.makeVaultKey = makeVaultKey
@@ -208,8 +238,11 @@ struct V3DeviceWrappedGenesisInstaller {
         operationID: VaultTransactionOperationID,
         deviceName: String
     ) throws -> V3DeviceWrappedGenesisInstallReport {
-        let inspection = try preflight.inspectForMigration {
-            try loadV2VaultKey(
+        guard let migrationSource else {
+            throw AppError.operationRefused("This new-vault installer has no migration source.")
+        }
+        let inspection = try migrationSource.preflight.inspectForMigration {
+            try migrationSource.loadKey(
                 "Unlock the version 2 vault to create its permanent version 3 replacement.",
                 false
             )
@@ -226,7 +259,7 @@ struct V3DeviceWrappedGenesisInstaller {
         }
         if sourceEntries.isEmpty {
             do {
-                _ = try loadV2VaultKey(
+                _ = try migrationSource.loadKey(
                     "Confirm the existing key for this empty version 2 vault before creating its permanent replacement.",
                     false
                 )
@@ -240,10 +273,13 @@ struct V3DeviceWrappedGenesisInstaller {
             try requireUnchangedV2Source([])
         }
         return try installGenesis(
-            sourceEntries: sourceEntries,
+            sourceEntries: sourceEntries.map {
+                V3GenesisSourceEntry(name: $0.name, type: $0.type, plaintext: $0.plaintext)
+            },
             operationID: operationID,
             deviceName: deviceName,
-            newDirectory: nil
+            newDirectory: nil,
+            validateSource: { try requireUnchangedV2Source(sourceEntries) }
         )
     }
 
@@ -254,20 +290,22 @@ struct V3DeviceWrappedGenesisInstaller {
         operationID: VaultTransactionOperationID,
         deviceName: String
     ) throws -> V3DeviceWrappedGenesisInstallReport {
-        try directory.begin(for: entryStore.rootURL)
+        try directory.begin(for: destinationRootURL)
         return try installGenesis(
             sourceEntries: [],
             operationID: operationID,
             deviceName: deviceName,
-            newDirectory: directory
+            newDirectory: directory,
+            validateSource: {}
         )
     }
 
     private func installGenesis(
-        sourceEntries: [V2MigrationSourceEntry],
+        sourceEntries: [V3GenesisSourceEntry],
         operationID: VaultTransactionOperationID,
         deviceName: String,
-        newDirectory: V3NewVaultDirectory?
+        newDirectory: V3NewVaultDirectory?,
+        validateSource: () throws -> Void
     ) throws -> V3DeviceWrappedGenesisInstallReport {
         // Cover failures before candidate staging as well as publication.
         var selected = false
@@ -310,7 +348,7 @@ struct V3DeviceWrappedGenesisInstaller {
             vaultID: vaultID,
             authorityTransitionID: authorityTransitionID,
             entryIDs: entryIDs,
-            sourceEntries: sourceEntries,
+            snapshotEntries: sourceEntries,
             vaultKey: vaultKey,
             ownerIdentity: identity.publicIdentity
         )
@@ -432,20 +470,21 @@ struct V3DeviceWrappedGenesisInstaller {
             operationID: operationID
         )
 
-        try verifyPermanentRuntime(
-            candidate,
-            session: session
-        )
+        try verifyPermanentRuntime(candidate, session: session)
         try phaseObserver.didReach(
             .verifiedReopenCompleted,
             operationID: operationID
         )
         if let newDirectory {
             removeStagingArtifacts(candidate, operationID: operationID)
-            try newDirectory.requireInstalledGenesis(digest: candidate.genesis.manifestDigest)
-        } else {
-            try requireUnchangedV2Source(sourceEntries)
+            try newDirectory.requireInstalledSnapshot(
+                digest: candidate.genesis.manifestDigest,
+                entries: candidate.entries.map {
+                    V3EntryObjectKey(entryID: $0.manifestEntry.entryID, digest: $0.digest)
+                }
+            )
         }
+        try validateSource()
         try phaseObserver.didReach(
             .sourceRechecked,
             operationID: operationID
@@ -457,8 +496,14 @@ struct V3DeviceWrappedGenesisInstaller {
         )
 
         if let newDirectory {
-            try newDirectory.requireInstalledGenesis(digest: candidate.genesis.manifestDigest)
+            try newDirectory.requireInstalledSnapshot(
+                digest: candidate.genesis.manifestDigest,
+                entries: candidate.entries.map {
+                    V3EntryObjectKey(entryID: $0.manifestEntry.entryID, digest: $0.digest)
+                }
+            )
             _ = try exactPublishedManifest(candidate)
+            try validatePublishedEntries(candidate, vaultKey: vaultKey)
         }
 
         try selectVault(vaultID)
@@ -691,6 +736,9 @@ struct V3DeviceWrappedGenesisInstaller {
     private func requireUnchangedV2Source(
         _ entries: [V2MigrationSourceEntry]
     ) throws {
+        guard let entryStore = migrationSource?.preflight.entryStore else {
+            throw V3DeviceWrappedGenesisInstallError.sourceChanged
+        }
         let expectedNames = Set(entries.map(\.name))
         let currentNames = try entryStore.listEntries()
         guard currentNames.count == expectedNames.count,

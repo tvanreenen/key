@@ -120,6 +120,66 @@ struct V3NewVaultDirectoryTests {
         }
     }
 
+    @Test(arguments: ["extra-root", "extra-manifest", "extra-entry", "missing-entry"])
+    func installedSnapshotRequiresExactlyItsExpectedObjects(change: String) throws {
+        let parent = try temporaryParent()
+        defer { try? FileManager.default.removeItem(at: parent.rootURL) }
+        let destination = try V3NewVaultDirectory.create(in: parent, name: "New Vault")
+        let root = destination.rootHandle.rootURL
+        try destination.begin(for: root)
+        let digest = Data(repeating: 1, count: 32)
+        let entry = V3EntryObjectKey(
+            entryID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3",
+            digest: Data(repeating: 2, count: 32)
+        )
+        let manifests = root.appendingPathComponent("manifests")
+        let entryDirectory = root.appendingPathComponent("entries/\(entry.entryID)")
+        try FileManager.default.createDirectory(at: manifests, withIntermediateDirectories: false)
+        try FileManager.default.createDirectory(at: entryDirectory, withIntermediateDirectories: true)
+        let entryFile = entryDirectory.appendingPathComponent("\(v3LowercaseHex(entry.digest)).json")
+        // Directory membership only; cryptographic object readback belongs to the installer.
+        try Data().write(to: manifests.appendingPathComponent("\(v3LowercaseHex(digest)).json"))
+        try Data().write(to: entryFile)
+        try destination.requireInstalledSnapshot(digest: digest, entries: [entry])
+        switch change {
+        case "extra-root":
+            try Data().write(to: root.appendingPathComponent(".unexpected"))
+        case "extra-manifest":
+            try Data().write(to: manifests.appendingPathComponent("unexpected.json"))
+        case "extra-entry":
+            try Data().write(to: entryDirectory.appendingPathComponent("unexpected.json"))
+        default:
+            try FileManager.default.removeItem(at: entryFile)
+        }
+        #expect(throws: AppError.self) {
+            try destination.requireInstalledSnapshot(digest: digest, entries: [entry])
+        }
+    }
+
+    @Test
+    func installedSnapshotRejectsInvalidOrDuplicateObjectIdentifiers() throws {
+        let parent = try temporaryParent()
+        defer { try? FileManager.default.removeItem(at: parent.rootURL) }
+        let destination = try V3NewVaultDirectory.create(in: parent, name: "New Vault")
+        let digest = Data(repeating: 1, count: 32)
+        let entry = V3EntryObjectKey(
+            entryID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3", digest: digest
+        )
+        for entries in [
+            [entry, entry],
+            [V3EntryObjectKey(entryID: "../invalid", digest: digest)],
+            [V3EntryObjectKey(entryID: entry.entryID, digest: Data())]
+        ] {
+            #expect(throws: AppError.self) {
+                try destination.requireInstalledSnapshot(digest: digest, entries: entries)
+            }
+        }
+        #expect(throws: AppError.self) {
+            try destination.requireInstalledSnapshot(digest: Data(), entries: [])
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: destination.rootHandle.rootURL.path).isEmpty)
+    }
+
     private func temporaryParent() throws -> VaultRootDirectoryHandle {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
