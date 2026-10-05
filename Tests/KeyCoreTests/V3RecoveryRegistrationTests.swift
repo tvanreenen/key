@@ -411,6 +411,556 @@ struct V3RecoveryRegistrationTests {
     #expect(count.value == 2 && fixture.owner.unwraps == 2)
   }
 
+  @Test func completePreparationBundleRoundTripsWithoutRawKeysOrPlaintext() throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let bundle = try V3RecoveryRegistrationBundle(preparation: preparation)
+    let decoded = try V3RecoveryRegistrationBundle(canonicalBytes: bundle.canonicalBytes)
+    #expect(decoded == bundle)
+    try fixture.validate(decoded.preparation)
+    let text = String(decoding: bundle.canonicalBytes, as: UTF8.self)
+    #expect(!text.contains(Base64URL.encode(Self.oldKey)))
+    #expect(!text.contains(Base64URL.encode(Self.nextKey)))
+    #expect(!text.contains("Software fixture secret"))
+    #expect(!text.contains("JBSWY3DPEHPK3PXP"))
+  }
+
+  @Test func bundleRejectsNoncanonicalUnknownAndContradictoryObjects() throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let bytes = try V3RecoveryRegistrationBundle(preparation: preparation).canonicalBytes
+    let fields = try #require(CanonicalJSON.parse(bytes).objectValue)
+    for changed in [
+      fields + [("approval", .bool(true))],
+      fields.map { $0.0 == "version" ? ($0.0, .integer(2)) : $0 },
+      fields.map { $0.0 == "entries" ? ($0.0, .array([])) : $0 },
+    ] {
+      #expect(throws: (any Error).self) {
+        try V3RecoveryRegistrationBundle(canonicalBytes: CanonicalJSON.encode(.object(changed)))
+      }
+    }
+    #expect(throws: (any Error).self) {
+      try V3RecoveryRegistrationBundle(canonicalBytes: Data(" ".utf8) + bytes)
+    }
+    #expect(throws: (any Error).self) {
+      try V3RecoveryRegistrationBundle(
+        canonicalBytes: Data("{\"format\":0,".utf8) + bytes.dropFirst())
+    }
+    let changed = V3RecoveryRegistrationPreparation(
+      intent: preparation.intent, candidate: preparation.candidate,
+      stagedEntries: preparation.stagedEntries.reversed())
+    #expect(throws: V3RecoveryRegistrationError.invalidEntry) {
+      try V3RecoveryRegistrationBundle(preparation: changed)
+    }
+    let other = try fixture.prepare()
+    #expect(throws: V3RecoveryRegistrationError.invalidCandidate) {
+      try V3RecoveryRegistrationBundle(
+        preparation: .init(
+          intent: preparation.intent, candidate: other.candidate, stagedEntries: other.stagedEntries
+        ))
+    }
+  }
+
+  @Test func bundleEnforcesPerObjectAggregateAndPreparseLimits() throws {
+    let preparation = try Fixture().prepare()
+    let bundle = try V3RecoveryRegistrationBundle(preparation: preparation)
+    for limits in [
+      Fixture.limits(entries: 1), Fixture.limits(entryBytes: 1, totalBytes: 1),
+      Fixture.limits(manifestBytes: 2_048),
+    ] {
+      #expect(throws: (any Error).self) {
+        try V3RecoveryRegistrationBundle(preparation: preparation, limits: limits)
+      }
+      #expect(throws: (any Error).self) {
+        try V3RecoveryRegistrationBundle(canonicalBytes: bundle.canonicalBytes, limits: limits)
+      }
+    }
+    let small = Fixture.limits(entryBytes: 1, totalBytes: 1, manifestBytes: 2_048)
+    #expect(throws: V3RecoveryRegistrationError.resourceLimit) {
+      try V3RecoveryRegistrationBundle(
+        canonicalBytes: Data(
+          repeating: 0, count: V3RecoveryRegistrationBundle.maximumBytes(limits: small) + 1),
+        limits: small)
+    }
+  }
+
+  @Test func journalDurablyStagesThenReloadsTheExactCandidateWithoutPublication() throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    let export = try fixture.stage(preparation, journal: disk.journal())
+    #expect(export == preparation.exportedAnchor)
+    #expect(try disk.journal().loadPending(vaultID: Self.vaultID) == preparation)
+    #expect(try fixture.resume(journal: disk.journal()) == export)
+    #expect(fixture.owner.signatures == 1 && fixture.owner.unwraps == 0)
+    let ownership = try V3ImmutableTransactionRecoveryAnchor(
+      canonicalBytes: #require(disk.ownership.bytes))
+    #expect(ownership.phase == .recoverable)
+    #expect(ownership.intentDigest == Data(SHA256.hash(data: preparation.intent.canonicalBytes)))
+    #expect(
+      !FileManager.default.fileExists(atPath: disk.root.appendingPathComponent("manifests").path))
+    #expect(
+      !FileManager.default.fileExists(atPath: disk.root.appendingPathComponent("entries").path))
+    #expect(
+      !FileManager.default.fileExists(
+        atPath: disk.root.appendingPathComponent(".transactions").path))
+    let files = try FileManager.default.contentsOfDirectory(
+      atPath: disk.bundleURL(preparation.intent.operationID).deletingLastPathComponent().path)
+    #expect(files == ["preparation.json"])
+  }
+
+  @Test(arguments: [
+    V3RecoveryRegistrationJournalPhase.ownershipReserved, .bundlePersisted, .bundleVerified,
+    .exportReady,
+  ])
+  func journalInterruptionRetainsOwnershipAndNeverRegenerates(
+    phase: V3RecoveryRegistrationJournalPhase
+  ) throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    let observer = JournalObserver { if $0 == phase { throw FixtureError.cancelled } }
+    #expect(throws: FixtureError.cancelled) {
+      try fixture.stage(preparation, journal: disk.journal(observer: observer))
+    }
+    let ownership = try #require(disk.ownership.bytes)
+    #expect(throws: V3RecoveryRegistrationJournalError.registrationPending) {
+      try fixture.stage(preparation, journal: disk.journal())
+    }
+    if phase == .ownershipReserved {
+      #expect(throws: V3RecoveryRegistrationJournalError.preparationUnavailable) {
+        try fixture.resume(journal: disk.journal())
+      }
+      #expect(disk.ownership.bytes == ownership)
+    } else {
+      #expect(try fixture.resume(journal: disk.journal()) == preparation.exportedAnchor)
+      #expect(try disk.journal().loadPending(vaultID: Self.vaultID) == preparation)
+    }
+    #expect(fixture.owner.signatures == 1 && fixture.owner.unwraps == 0)
+  }
+
+  @Test func interruptionBeforeAtomicInstallCannotExposePartialPreparation() throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    let store = V3FilesystemTransactionArtifactStore(
+      rootHandle: try VaultRootDirectoryHandle(opening: disk.root),
+      writeObserver: InterruptedBundleWriter())
+    let journal = V3RecoveryRegistrationJournal(bundleStore: store, ownershipStore: disk.ownership)
+    #expect(throws: FixtureError.cancelled) { try fixture.stage(preparation, journal: journal) }
+    #expect(
+      !FileManager.default.fileExists(atPath: disk.bundleURL(preparation.intent.operationID).path))
+    #expect(throws: V3RecoveryRegistrationJournalError.preparationUnavailable) {
+      try fixture.resume(journal: disk.journal())
+    }
+    #expect(disk.ownership.bytes != nil)
+  }
+
+  @Test func synchronizedBundleWithoutLocalOwnershipIsNeverAdopted() throws {
+    let preparation = try Fixture().prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    try disk.store.persistRegistrationBundle(
+      V3RecoveryRegistrationBundle(preparation: preparation).canonicalBytes,
+      operationID: preparation.intent.operationID)
+    #expect(try disk.journal().loadPending(vaultID: Self.vaultID) == nil)
+    #expect(disk.ownership.bytes == nil)
+    #expect(
+      V3RecoveryOwnershipNamespace.registration.rawValue
+        != V3RecoveryOwnershipNamespace.transaction.rawValue)
+  }
+
+  @Test func pendingJournalRefusesReplacementAndPreservesExactBytes() throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let other = try fixture.prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    _ = try fixture.stage(preparation, journal: disk.journal())
+    let original = try Data(contentsOf: disk.bundleURL(preparation.intent.operationID))
+    #expect(throws: V3RecoveryRegistrationJournalError.registrationPending) {
+      try fixture.stage(other, journal: disk.journal())
+    }
+    #expect(try Data(contentsOf: disk.bundleURL(preparation.intent.operationID)) == original)
+    #expect(!FileManager.default.fileExists(atPath: disk.bundleURL(other.intent.operationID).path))
+  }
+
+  @Test func resumeRechecksCheckpointKeysOwnerAndCompleteSource() throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    _ = try fixture.stage(preparation, journal: disk.journal())
+    let ownership = disk.ownership.bytes
+    let changedCheckpoint = try V3ManifestCheckpoint(
+      vaultID: Self.vaultID, envelopeDigest: preparation.candidate.digest)
+    #expect(throws: V3RecoveryRegistrationError.invalidParent) {
+      try fixture.resume(journal: disk.journal(), checkpoint: changedCheckpoint)
+    }
+    #expect(throws: (any Error).self) {
+      try fixture.resume(journal: disk.journal(), currentKey: Self.nextKey)
+    }
+    #expect(throws: (any Error).self) {
+      try fixture.resume(journal: disk.journal(), nextKey: Self.oldKey)
+    }
+    #expect(throws: V3RecoveryRegistrationError.invalidOwner) {
+      try fixture.resume(journal: disk.journal(), owner: Owner().publicIdentity)
+    }
+    #expect(throws: V3RecoveryRegistrationError.incompleteSnapshot) {
+      try fixture.resume(journal: disk.journal(), entries: [:])
+    }
+    #expect(disk.ownership.bytes == ownership)
+    #expect(try disk.journal().loadPending(vaultID: Self.vaultID) == preparation)
+  }
+
+  @Test func invalidPreparationCannotReserveLocalOwnership() throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    let changed = V3RecoveryRegistrationPreparation(
+      intent: preparation.intent, candidate: preparation.candidate, stagedEntries: [])
+    #expect(throws: (any Error).self) { try fixture.stage(changed, journal: disk.journal()) }
+    #expect(disk.ownership.bytes == nil)
+    #expect(
+      !FileManager.default.fileExists(
+        atPath: disk.root.appendingPathComponent(".recovery-registrations").path))
+  }
+
+  @Test func ownershipChangeBeforeExportCannotReturnTheAnchor() throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    let observer = JournalObserver { phase in
+      if phase == .exportReady { disk.ownership.bytes = nil }
+    }
+    #expect(throws: V3RecoveryRegistrationJournalError.ownershipChanged) {
+      try fixture.stage(preparation, journal: disk.journal(observer: observer))
+    }
+    #expect(
+      FileManager.default.fileExists(atPath: disk.bundleURL(preparation.intent.operationID).path))
+  }
+
+  @Test func missingInvalidOversizedAndReplacedBundlesRemainPending() throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    for variant in 0..<4 {
+      let disk = try JournalFixture()
+      defer { disk.remove() }
+      _ = try fixture.stage(preparation, journal: disk.journal())
+      let ownership = disk.ownership.bytes
+      let url = disk.bundleURL(preparation.intent.operationID)
+      if variant == 0 { try FileManager.default.removeItem(at: url) }
+      if variant == 1 { try Data("invalid".utf8).write(to: url) }
+      if variant == 2 {
+        let other = try fixture.prepare()
+        try V3RecoveryRegistrationBundle(preparation: other).canonicalBytes.write(to: url)
+      }
+      if variant == 3 {
+        let limit = V3RecoveryRegistrationBundle.maximumBytes(limits: .standard)
+        let file = try FileHandle(forWritingTo: url)
+        defer { try? file.close() }
+        try file.truncate(atOffset: UInt64(limit + 1))
+      }
+      #expect(throws: (any Error).self) { try fixture.resume(journal: disk.journal()) }
+      #expect(disk.ownership.bytes == ownership)
+    }
+  }
+
+  @Test func malformedOrForeignLocalOwnershipCannotSelectAProviderBundle() throws {
+    let preparation = try Fixture().prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    try disk.store.persistRegistrationBundle(
+      V3RecoveryRegistrationBundle(preparation: preparation).canonicalBytes,
+      operationID: preparation.intent.operationID)
+    for bytes in [Data("invalid".utf8), Data(repeating: 0, count: 1_025)] {
+      disk.ownership.bytes = bytes
+      #expect(throws: V3RecoveryRegistrationJournalError.invalidOwnership) {
+        try disk.journal().loadPending(vaultID: Self.vaultID)
+      }
+      #expect(disk.ownership.bytes == bytes)
+    }
+    disk.ownership.bytes = try V3ImmutableTransactionRecoveryAnchor(
+      operationID: preparation.intent.operationID, vaultID: UUID().uuidString.lowercased(),
+      intentDigest: Data(SHA256.hash(data: preparation.intent.canonicalBytes)), phase: .recoverable
+    ).canonicalBytes
+    #expect(throws: V3RecoveryRegistrationJournalError.invalidOwnership) {
+      try disk.journal().loadPending(vaultID: Self.vaultID)
+    }
+    disk.ownership.bytes = try V3ImmutableTransactionRecoveryAnchor(
+      operationID: preparation.intent.operationID, vaultID: Self.vaultID,
+      intentDigest: Data(repeating: 0, count: 32), phase: .recoverable
+    ).canonicalBytes
+    #expect(throws: V3RecoveryRegistrationJournalError.invalidPreparation) {
+      try disk.journal().loadPending(vaultID: Self.vaultID)
+    }
+  }
+
+  @Test func filesystemBundleIsNoOverwriteAndOperationBound() throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    let bundle = try V3RecoveryRegistrationBundle(preparation: preparation)
+    let operation = preparation.intent.operationID
+    #expect(throws: V3ImmutableObjectPublicationError.invalidPath) {
+      try disk.store.persistRegistrationBundle(
+        bundle.canonicalBytes, operationID: VaultTransactionOperationID())
+    }
+    try disk.store.persistRegistrationBundle(bundle.canonicalBytes, operationID: operation)
+    try disk.store.persistRegistrationBundle(bundle.canonicalBytes, operationID: operation)
+    let changed = try fixture.changingSecret(preparation, to: "Different fixture bytes")
+    let changedBundle = try V3RecoveryRegistrationBundle(preparation: changed)
+    #expect(throws: (any Error).self) {
+      try disk.store.persistRegistrationBundle(changedBundle.canonicalBytes, operationID: operation)
+    }
+    #expect(try Data(contentsOf: disk.bundleURL(operation)) == bundle.canonicalBytes)
+  }
+
+  @Test func filesystemBundleRefusesSymlinkedParentWithoutTouchingItsTarget() throws {
+    let preparation = try Fixture().prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    let outside = disk.root.appendingPathComponent("outside", isDirectory: true)
+    try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(
+      at: disk.root.appendingPathComponent(".recovery-registrations"), withDestinationURL: outside)
+    #expect(throws: (any Error).self) {
+      try disk.store.persistRegistrationBundle(
+        V3RecoveryRegistrationBundle(preparation: preparation).canonicalBytes,
+        operationID: preparation.intent.operationID)
+    }
+    #expect(try FileManager.default.contentsOfDirectory(atPath: outside.path).isEmpty)
+  }
+
+  private struct InterruptedBundleWriter: V3AtomicStagedObjectWriteObserving {
+    func didReach(_: V3AtomicStagedObjectWritePhase) throws { throw FixtureError.cancelled }
+  }
+
+  @Test func ownershipConflictWhileArmingPreservesTheExistingBundle() throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    let replacement = Data("changed ownership fixture".utf8)
+    let observer = JournalObserver { phase in
+      if phase == .bundleVerified { disk.ownership.bytes = replacement }
+    }
+    #expect(throws: V3ImmutableTransactionRecoveryAnchorError.conflict) {
+      try fixture.stage(preparation, journal: disk.journal(observer: observer))
+    }
+    #expect(disk.ownership.bytes == replacement)
+    #expect(
+      try Data(contentsOf: disk.bundleURL(preparation.intent.operationID))
+        == V3RecoveryRegistrationBundle(preparation: preparation).canonicalBytes)
+  }
+
+  @Test func competingJournalsCannotReserveTwoCandidates() async throws {
+    let fixture = try Fixture()
+    let first = try fixture.prepare()
+    let second = try fixture.prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    let successes = await withTaskGroup(of: Bool.self) { group in
+      for preparation in [first, second] {
+        group.addTask {
+          do {
+            _ = try fixture.stage(preparation, journal: disk.journal())
+            return true
+          } catch { return false }
+        }
+      }
+      var result = 0
+      for await success in group { if success { result += 1 } }
+      return result
+    }
+    #expect(successes == 1)
+    let pending = try #require(try disk.journal().loadPending(vaultID: Self.vaultID))
+    #expect(pending == first || pending == second)
+    #expect(try fixture.resume(journal: disk.journal()) == pending.exportedAnchor)
+  }
+
+  @Test func filesystemBundleRejectsLinkedDestinationWithoutChangingOtherFiles() throws {
+    let preparation = try Fixture().prepare()
+    for symbolic in [true, false] {
+      let disk = try JournalFixture()
+      defer { disk.remove() }
+      let victim = disk.root.appendingPathComponent("victim")
+      let original = Data("unrelated fixture bytes".utf8)
+      try original.write(to: victim)
+      let destination = disk.bundleURL(preparation.intent.operationID)
+      try FileManager.default.createDirectory(
+        at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+      if symbolic {
+        try FileManager.default.createSymbolicLink(at: destination, withDestinationURL: victim)
+      } else {
+        try FileManager.default.linkItem(at: victim, to: destination)
+      }
+      #expect(throws: (any Error).self) {
+        try disk.store.persistRegistrationBundle(
+          V3RecoveryRegistrationBundle(preparation: preparation).canonicalBytes,
+          operationID: preparation.intent.operationID)
+      }
+      #expect(try Data(contentsOf: victim) == original)
+      #expect(try Data(contentsOf: destination) == original)
+    }
+  }
+
+  @Test func changedConfiguredRootCannotStageOrReadPendingPreparation() throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    _ = try fixture.stage(preparation, journal: disk.journal())
+    let moved = disk.root.appendingPathExtension("moved")
+    defer { try? FileManager.default.removeItem(at: moved) }
+    try FileManager.default.moveItem(at: disk.root, to: moved)
+    try FileManager.default.createDirectory(at: disk.root, withIntermediateDirectories: true)
+    let expected = VaultRootDirectoryHandleError.configuredRootChanged(
+      path: disk.root.path(percentEncoded: false))
+    #expect(throws: expected) { try disk.journal().loadPending(vaultID: Self.vaultID) }
+    #expect(throws: expected) {
+      try disk.store.persistRegistrationBundle(
+        V3RecoveryRegistrationBundle(preparation: preparation).canonicalBytes,
+        operationID: preparation.intent.operationID)
+    }
+    #expect(try FileManager.default.contentsOfDirectory(atPath: disk.root.path).isEmpty)
+  }
+
+  @Test func resumedExportDoesNotCacheHardwarePossessionOrActivateRecovery() throws {
+    guard #available(macOS 26.0, *) else { return }
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    _ = try fixture.stage(preparation, journal: disk.journal())
+    let pending = try #require(try disk.journal().loadPending(vaultID: Self.vaultID))
+    let count = Counter()
+    try fixture.complete(pending, receiver: fixture.receiver(count: count))
+    let bytes = try Data(contentsOf: disk.bundleURL(preparation.intent.operationID))
+    let ownership = disk.ownership.bytes
+    _ = try fixture.resume(journal: disk.journal())
+    let reloaded = try #require(try disk.journal().loadPending(vaultID: Self.vaultID))
+    try fixture.complete(reloaded, receiver: fixture.receiver(count: count))
+    #expect(count.value == 2)
+    #expect(fixture.owner.unwraps == 2)
+    #expect(try Data(contentsOf: disk.bundleURL(preparation.intent.operationID)) == bytes)
+    #expect(disk.ownership.bytes == ownership)
+    #expect(
+      !FileManager.default.fileExists(atPath: disk.root.appendingPathComponent("manifests").path))
+  }
+
+  private struct JournalObserver: V3RecoveryRegistrationJournalPhaseObserving {
+    let action: @Sendable (V3RecoveryRegistrationJournalPhase) throws -> Void
+    init(_ action: @escaping @Sendable (V3RecoveryRegistrationJournalPhase) throws -> Void) {
+      self.action = action
+    }
+    func didReach(_ phase: V3RecoveryRegistrationJournalPhase) throws { try action(phase) }
+  }
+
+  @Test func failedDurabilityConfirmationRetainsTheCompletePreparedCandidate() throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    let journal = V3RecoveryRegistrationJournal(
+      bundleStore: UnconfirmedBundleStore(store: disk.store), ownershipStore: disk.ownership)
+    #expect(throws: FixtureError.cancelled) { try fixture.stage(preparation, journal: journal) }
+    let anchor = try V3ImmutableTransactionRecoveryAnchor(
+      canonicalBytes: #require(disk.ownership.bytes))
+    #expect(anchor.phase == .prepared)
+    #expect(try disk.journal().loadPending(vaultID: Self.vaultID) == preparation)
+    #expect(try fixture.resume(journal: disk.journal()) == preparation.exportedAnchor)
+    #expect(fixture.owner.signatures == 1)
+  }
+
+  @Test func bundleDisappearingAfterReadbackCannotBeArmedOrExported() throws {
+    let fixture = try Fixture()
+    let preparation = try fixture.prepare()
+    let disk = try JournalFixture()
+    defer { disk.remove() }
+    let observer = JournalObserver { phase in
+      if phase == .bundleVerified {
+        try FileManager.default.removeItem(at: disk.bundleURL(preparation.intent.operationID))
+      }
+    }
+    #expect(throws: (any Error).self) {
+      try fixture.stage(preparation, journal: disk.journal(observer: observer))
+    }
+    let anchor = try V3ImmutableTransactionRecoveryAnchor(
+      canonicalBytes: #require(disk.ownership.bytes))
+    #expect(anchor.phase == .prepared)
+    #expect(throws: V3RecoveryRegistrationJournalError.preparationUnavailable) {
+      try fixture.resume(journal: disk.journal())
+    }
+  }
+
+  private struct UnconfirmedBundleStore: V3RecoveryRegistrationBundleStoring {
+    let store: V3FilesystemTransactionArtifactStore
+    func persistRegistrationBundle(_ data: Data, operationID: VaultTransactionOperationID) throws {
+      try store.persistRegistrationBundle(data, operationID: operationID)
+    }
+    func readRegistrationBundle(operationID: VaultTransactionOperationID, maximumBytes: Int) throws
+      -> V3RepositoryObjectRead
+    {
+      try store.readRegistrationBundle(operationID: operationID, maximumBytes: maximumBytes)
+    }
+    func confirmRegistrationBundle(_: Data, operationID _: VaultTransactionOperationID) throws {
+      throw FixtureError.cancelled
+    }
+  }
+
+  private final class JournalOwnership: V3ImmutableTransactionRecoveryAnchorStoring,
+    @unchecked Sendable
+  {
+    private let lock = NSLock()
+    private var value: Data?
+    var bytes: Data? {
+      get { lock.withLock { value } }
+      set { lock.withLock { value = newValue } }
+    }
+    func loadRecoveryAnchor(vaultID _: String) throws -> Data? { bytes }
+    func replaceRecoveryAnchor(_ anchor: Data?, expectedAnchor: Data?, vaultID _: String) throws {
+      try lock.withLock {
+        guard value == expectedAnchor else {
+          throw V3ImmutableTransactionRecoveryAnchorError.conflict
+        }
+        value = anchor
+      }
+    }
+  }
+
+  private struct JournalFixture: Sendable {
+    let root: URL
+    let store: V3FilesystemTransactionArtifactStore
+    let ownership = JournalOwnership()
+    init() throws {
+      root = FileManager.default.temporaryDirectory.appendingPathComponent(
+        UUID().uuidString, isDirectory: true)
+      try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+      store = V3FilesystemTransactionArtifactStore(
+        rootHandle: try VaultRootDirectoryHandle(opening: root))
+    }
+    func journal(observer: (any V3RecoveryRegistrationJournalPhaseObserving)? = nil)
+      -> V3RecoveryRegistrationJournal
+    {
+      if let observer {
+        return V3RecoveryRegistrationJournal(
+          bundleStore: store, ownershipStore: ownership, observer: observer)
+      }
+      return V3RecoveryRegistrationJournal(bundleStore: store, ownershipStore: ownership)
+    }
+    func bundleURL(_ operation: VaultTransactionOperationID) -> URL {
+      root.appendingPathComponent(".recovery-registrations/\(operation)/preparation.json")
+    }
+    func remove() { try? FileManager.default.removeItem(at: root) }
+  }
+
   private enum FixtureError: Error { case cancelled }
 
   private final class Counter: @unchecked Sendable {
@@ -455,7 +1005,7 @@ struct V3RecoveryRegistrationTests {
     }
   }
 
-  private struct Fixture {
+  private struct Fixture: Sendable {
     let owner: Owner
     let token = P256.KeyAgreement.PrivateKey()
     let backupToken = P256.KeyAgreement.PrivateKey()
@@ -569,6 +1119,29 @@ struct V3RecoveryRegistrationTests {
         currentVaultKey: V3RecoveryRegistrationTests.oldKey,
         nextVaultKey: V3RecoveryRegistrationTests.nextKey,
         expectedOwner: owner.publicIdentity)
+    }
+
+    func stage(
+      _ preparation: V3RecoveryRegistrationPreparation, journal: V3RecoveryRegistrationJournal
+    ) throws -> Data {
+      try journal.stageAndExport(
+        preparation, checkpoint: checkpoint, parent: parent, currentEntries: entries,
+        currentVaultKey: V3RecoveryRegistrationTests.oldKey,
+        nextVaultKey: V3RecoveryRegistrationTests.nextKey,
+        expectedOwner: owner.publicIdentity)
+    }
+
+    func resume(
+      journal: V3RecoveryRegistrationJournal, checkpoint: V3ManifestCheckpoint? = nil,
+      entries: [V3EntryObjectKey: V3EncryptedEntry]? = nil,
+      currentKey: Data = V3RecoveryRegistrationTests.oldKey,
+      nextKey: Data = V3RecoveryRegistrationTests.nextKey, owner: V3EnrollmentDeviceIdentity? = nil
+    ) throws -> Data {
+      try journal.resumeAndExport(
+        checkpoint: checkpoint ?? self.checkpoint, parent: parent,
+        currentEntries: entries ?? self.entries,
+        currentVaultKey: currentKey, nextVaultKey: nextKey,
+        expectedOwner: owner ?? self.owner.publicIdentity)
     }
 
     func changingSecret(

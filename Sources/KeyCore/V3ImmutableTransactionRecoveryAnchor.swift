@@ -136,17 +136,28 @@ protocol V3ImmutableTransactionRecoveryAnchorStoring: Sendable {
     ) throws
 }
 
-/// Persists transaction ownership beside the device-local checkpoint and
-/// explicitly outside Keychain synchronization.
+/// Registration ownership cannot collide with ordinary transaction recovery.
+enum V3RecoveryOwnershipNamespace: String, Sendable {
+    case transaction = "v3-transaction-recovery"
+    case registration = "v3-recovery-registration"
+}
+
+/// Persists ownership beside the device-local checkpoint and explicitly outside
+/// Keychain synchronization. The default preserves ordinary transaction storage.
 final class V3ImmutableTransactionRecoveryAnchorKeychainStore:
     V3ImmutableTransactionRecoveryAnchorStoring,
     Sendable
 {
     private let configuration: RuntimeConfiguration
+    private let namespace: V3RecoveryOwnershipNamespace
     private let lock = NSLock()
 
-    init(configuration: RuntimeConfiguration) {
+    init(
+        configuration: RuntimeConfiguration,
+        namespace: V3RecoveryOwnershipNamespace = .transaction
+    ) {
         self.configuration = configuration
+        self.namespace = namespace
     }
 
     func loadRecoveryAnchor(vaultID: String) throws -> Data? {
@@ -181,7 +192,9 @@ final class V3ImmutableTransactionRecoveryAnchorKeychainStore:
             if current == nil {
                 var attributes = query
                 attributes[kSecAttrLabel as String] =
-                    "key v3 transaction recovery anchor"
+                    namespace == .transaction
+                        ? "key v3 transaction recovery anchor"
+                        : "key v3 recovery registration ownership"
                 attributes[kSecAttrAccessible as String] =
                     kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
                 attributes[kSecValueData as String] = anchor
@@ -257,7 +270,7 @@ final class V3ImmutableTransactionRecoveryAnchorKeychainStore:
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String:
-                "\(configuration.vaultService).v3-transaction-recovery",
+                "\(configuration.vaultService).\(namespace.rawValue)",
             kSecAttrAccount as String: vaultID,
             kSecAttrAccessGroup as String: accessGroup,
             kSecAttrSynchronizable as String: false
