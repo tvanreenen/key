@@ -237,7 +237,10 @@ trust floor and wrapper when no later epoch exists. After key changes, the
 dual-authorized final epoch root supplies the selected wrapper; registration does not
 need a permanent snapshot capsule or separately retained artifact.
 Bound the anchor to 1,024 bytes and reuse ordinary repository limits for source
-objects. Final field names, framing, and resource budgets are 805 fixtures.
+objects. The [internal anchor codec](../Sources/KeyCore/V3RecoveryAnchor.swift)
+has exact experimental field fixtures, including `registrationManifestDigest`.
+Parsing establishes shape, not protected token provenance. Native storage
+framing and administration remain unqualified; these are not frozen release bytes.
 
 Use the already tested application-specific PIV object, with unknown occupancy
 refusal, not an overloaded standard object or certificate extension. Its
@@ -345,10 +348,69 @@ key. Conservatively refuse reachable unresolved branches/placeholders. This can
 permit denial of recovery through injected garbage; provider availability control
 does not remove the need to define and test this classification.
 
-Exact roots, proof inheritance, all-parent traversal, off-path classification,
-and count/depth/byte budgets remain `REC-806` acceptance requirements. The linear
-design helper does not implement that algorithm. PIN/touch policy and prompt
-behavior are separately qualified under `REC-807`, not assumed from caching.
+The internal verifier below implements these software checks. Final `REC-806`
+acceptance still requires integrated review, native anchor provenance and the
+restore service's input boundary. PIN/touch policy and prompt behavior are
+separately qualified under `REC-807`, not assumed from caching.
+
+### Implemented history and snapshot verification
+
+The [history selector](../Sources/KeyCore/V3RecoveryHistory.swift) uses the existing
+bounded, read-only immutable-object interface. It hashes every observed manifest
+against its exact object address and starts trust at the supplied anchor floor.
+The supplied credential's derived ID, registration, slot, and active floor
+record must match. Platform code must obtain the anchor and public credential
+from one bound token read; parsing provider JSON is not an equivalent authority.
+No product caller supplies that native provenance yet.
+
+Selection follows all visible descendants and every required parent path,
+stopping replay at the exact floor. Iterative traversal rejects missing or
+unanchored parents and enforces depth and aggregate parent-edge bounds. Every
+same-epoch edge preserves exact authority, capsule, proof, rosters, and wrappers.
+Content records retain the highest unchanged parent revision or advance it by
+one; new records start at one and deletion is permitted. Merges must share the
+same epoch root. An authority boundary has one parent, both valid signatures,
+new visible key/transition/epoch-public-key identities, retained immutable roster
+identities and revoked tombstones, an active continuing signer, and unchanged
+entry IDs/names/types/revisions. Rotation preserves revisions while resealing.
+Recipient changes require a changed generation; unchanged recipients retain it.
+Publication remains responsible for fresh randomness, ceremony-specific roster
+policy, wrapper opening and complete same-plaintext resealing.
+
+One unresolved head in each of two same-epoch branches is a content conflict.
+Competing epoch lineages are an authority conflict. An older off-path head beside
+a continuing newer epoch is a closed-epoch branch refusal. No timestamp or
+revision breaks these ties. A listed same-vault tip with an unavailable path to
+the floor also refuses selection. Known pre-floor ancestors and valid outer
+objects naming a different vault do not require body-profile interpretation or
+private replay. Unreadable, hash-invalid, malformed outer objects, or objects
+without a usable vault identity cannot be established as unrelated and refuse
+selection even outside the reachable graph. This conservative policy permits
+denial of recovery through opaque garbage; it does not claim provider freshness.
+
+The domain defaults reuse the ordinary 4,096-object, 1,024-depth,
+16,384-entry-reference, per-object and aggregate-byte limits, with an additional
+16,384 aggregate parent-edge cap. Nondigest directory names consume object
+budget, as do required objects missing from the listing. These are experimental
+resource limits, not a product capacity guarantee. All reachable manifest entry
+references count, but only selected current entry ciphertexts are read.
+
+The [snapshot verifier](../Sources/KeyCore/V3RecoverySnapshot.swift) reselects the
+public plan before one final-epoch HPKE opening. It then checks the recovered
+key ID, final root MAC and capsule correspondence, every required current-epoch
+MAC, and every selected entry's digest, context, AEAD, UTF-8 and type semantics.
+TOTP values must be valid normalized Base32 seeds. It never opens older epochs
+or falls back after failure. Only complete verification constructs the internal
+snapshot type. Cancellation preserves the callback error without retry.
+
+Source listing/manifest bytes and selected entry bytes are checked again before
+returning. Restore must repeat these checks immediately before publication and
+combine them with fresh native token/credential, directory-identity and
+destination-transaction checks. Plaintext stays in the returned in-memory
+snapshot; the raw vault key is not a snapshot field. Swift data and string
+lifetimes do not guarantee zeroization. No plaintext persistence or resume
+format is implemented. Software callback counts and disposable filesystem tests
+do not qualify hardware prompts, protected administration, or a complete restore.
 
 ## Registration and authority lifecycle
 
@@ -457,8 +519,9 @@ barriers. The [tracker](piv-recovery-plan.md#architecture-ownership) records
 ownership and package acceptance; do not ship archive diagnostics as product
 integration.
 
-Next is final `REC-805` acceptance, then `REC-806`'s anchored graph and complete
-current-snapshot verifier. Shipping profile-2 bytes remain unchanged. Review the
+Next is final domain acceptance and integrated review, followed by native token
+binding and restore-service integration. Shipping profile-2 bytes remain
+unchanged. Review the
 new exact bytes before format freeze; do not enable publication/recovery by
 treating transcript checks as a complete service validator.
 Graph/platform/adoption decisions remain open in 804 and dependent packages.
