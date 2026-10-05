@@ -19,7 +19,18 @@ extension V3FilesystemTransactionArtifactStore: V3RecoveryRegistrationBundleStor
   }
 
   func confirmRegistrationBundle(_ data: Data, operationID: VaultTransactionOperationID) throws {
-    let path = registrationBundlePath(operationID)
+    try confirmDurableRecoveryObject(
+      data, at: registrationBundlePath(operationID),
+      directories: [
+        ".recovery-registrations/\(operationID)", ".recovery-registrations",
+      ])
+  }
+}
+
+extension V3FilesystemTransactionArtifactStore {
+  /// Shared exact-file and directory synchronization for complete encrypted
+  /// preparations. Callers supply fixed, contained namespaces, never user paths.
+  func confirmDurableRecoveryObject(_ data: Data, at path: String, directories: [String]) throws {
     try rootHandle.withResolvedDescriptor(at: path, expecting: .regularFile) { descriptor in
       guard
         case .available(let bytes) = readObjectData(
@@ -36,7 +47,7 @@ extension V3FilesystemTransactionArtifactStore: V3RecoveryRegistrationBundleStor
     }
     // Confirm the directory links as well as the file. Never infer durability
     // from a prior attempt that may have failed after installation.
-    for directory in [".recovery-registrations/\(operationID)", ".recovery-registrations"] {
+    for directory in directories {
       try rootHandle.withResolvedDescriptor(at: directory, expecting: .directory) { descriptor in
         try synchronizeDirectory(descriptor.rawValue, path: directory)
       }

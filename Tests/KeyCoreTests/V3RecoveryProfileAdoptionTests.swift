@@ -8,7 +8,7 @@ import Testing
 /// Production migration construction/validation on software authority and
 /// disposable storage. No real vault, native authentication or token is used.
 struct V3RecoveryProfileAdoptionTests {
-  private typealias Core = V3RecoveryRegistrationTests
+  typealias Core = V3RecoveryRegistrationTests
 
   @Test func adoptionPreservesTheCompleteSnapshotAndDeviceRoster() throws {
     let f = try Fixture()
@@ -282,7 +282,7 @@ struct V3RecoveryProfileAdoptionTests {
     #expect(f.owner.unwraps == 2)
   }
 
-  private struct Fixture {
+  struct Fixture {
     let owner: Core.Owner
     let member: Core.Owner
     let revoked: Core.Owner

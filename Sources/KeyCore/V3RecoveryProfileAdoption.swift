@@ -124,6 +124,26 @@ struct V3RecoveryProfileAdoptionValidator: Sendable {
     currentEntries: [V3EntryObjectKey: V3EncryptedEntry], currentVaultKey: Data,
     nextVaultKey: Data, expectedOwner: V3EnrollmentDeviceIdentity
   ) throws {
+    try preflight(
+      candidate, parent: parent, currentVaultKey: currentVaultKey, expectedOwner: expectedOwner)
+    try V3RecoveryEpochBoundary().verifyCurrentAuthentication(
+      candidate.envelope, vaultKey: nextVaultKey)
+    let snapshot = V3EntrySnapshotValidator(limits: limits)
+    let before = try snapshot.plaintexts(
+      fields: parent.envelope.body.fields, entries: currentEntries, vaultKey: currentVaultKey)
+    let after = try snapshot.plaintexts(
+      fields: candidate.envelope.body.fields,
+      entries: snapshot.entryMap(candidate.stagedEntries), vaultKey: nextVaultKey)
+    guard before == after else { throw V3RecoveryProfileAdoptionError.invalidCandidate }
+  }
+
+  /// Exact local-parent and old-owner signature checks before a resumed service
+  /// attempts one addressed new wrapper. Full MAC/capsule/plaintext validation
+  /// remains mandatory after opening; preflight cannot advance a checkpoint.
+  func preflight(
+    _ candidate: V3RecoveryProfileAdoptionCandidate, parent: V3DeviceWrappedTrustedCheckpoint,
+    currentVaultKey: Data, expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws {
     try validateParent(parent, currentVaultKey: currentVaultKey)
     let envelope = candidate.envelope
     let old = parent.envelope.body.fields
@@ -143,19 +163,12 @@ struct V3RecoveryProfileAdoptionValidator: Sendable {
           manifestData: envelope.canonicalBytes, manifestDigest: envelope.digest, parent: parent,
           currentVaultKey: currentVaultKey)
     else { throw V3RecoveryProfileAdoptionError.invalidCandidate }
-    try V3RecoveryEpochBoundary().verifyCurrentAuthentication(envelope, vaultKey: nextVaultKey)
     guard old.entries.count == new.entries.count,
       zip(old.entries, new.entries).allSatisfy({
         $0.entryID == $1.entryID && $0.name == $1.name && $0.type == $1.type
           && $0.revision == $1.revision && $0.ciphertextDigest != $1.ciphertextDigest
       })
     else { throw V3RecoveryProfileAdoptionError.invalidCandidate }
-    let snapshot = V3EntrySnapshotValidator(limits: limits)
-    let before = try snapshot.plaintexts(
-      fields: old, entries: currentEntries, vaultKey: currentVaultKey)
-    let after = try snapshot.plaintexts(
-      fields: new, entries: snapshot.entryMap(candidate.stagedEntries), vaultKey: nextVaultKey)
-    guard before == after else { throw V3RecoveryProfileAdoptionError.invalidCandidate }
   }
 
   /// Full software checks precede one local wrapper opening. Cancellation or

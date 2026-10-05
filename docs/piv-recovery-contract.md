@@ -730,13 +730,44 @@ requested. The discovery and owner-signature guard source is unchanged from
 the coordinator's difference is prompt copy. This is source-level compatibility
 evidence, not an execution of the released binary or multi-Mac qualification.
 
-No adoption service, durable migration intent, interruption reconciliation,
-checkpoint advancement or public command is enabled by this component. A
-publication service must still review/guard current heads and local ownership,
-project resource usage and publish the exact candidate manifest last. Adoption
-does not claim recovery protection; that requires the separate registration
-workflow. Real-vault opt-in remains gated on ordinary-write/lifecycle support,
-integrated review and distribution qualification.
+The internal adoption service now owns durable preparation, exact resume and
+manifest-last publication. It shares the contained immutable writer, bounded
+source reader, mutation owner and checkpoint compare-and-swap with existing
+publication mechanisms. It refuses competing same-vault changes and pending
+ordinary transactions or registrations instead of rebasing the conversion.
+Before publication it checks the complete old/new snapshot, both MACs, the
+capsule, old active Mac signature and one addressed new local wrapper opening.
+
+The complete canonical preparation contains encrypted entries and the signed
+candidate, not plaintext or raw keys. Its full SHA-256 digest is pinned in a
+dedicated non-sync local ownership namespace. That local record, not a file
+provided by the storage provider, identifies the approved exact preparation.
+Ownership is reserved as unarmed before atomic installation. Exact readback
+and file/directory synchronization must succeed before ownership becomes
+recoverable and any current object can be published. Resume repeats those
+checks without generating keys or signing a replacement candidate.
+
+Entries are published and checked first, the manifest last. Exact source,
+ownership and checkpoint checks precede checkpoint advancement. The session
+receives the verified new key only after that advancement; ownership is cleared
+after session installation. A failure after checkpoint advancement reconciles
+the already committed current snapshot with one local wrapper opening, without
+reopening old entries, re-signing or repeating publication. A lost reply after
+ownership cleanup can reconcile only a preparation matching the exact existing
+local checkpoint. Provider files cannot establish a checkpoint or new local
+ownership, and do not prove attribution to an operation after cleanup.
+
+A reserved operation missing its preparation requires attention. Only an
+explicit exact-operation abandonment can clear an unarmed reservation; the
+service never automatically abandons it or abandons recoverable ownership.
+Encrypted preparation files remain inert for inspection, not discovery-based
+publication authority. No source/configuration/Keychain deletion is performed.
+
+No shipping composition, public command or real-vault opt-in is enabled.
+Adoption alone does not claim recovery protection; that requires separate
+registration. Reciprocal pending-state barriers in ordinary product services,
+profile-3 writes/catch-up/lifecycle support, integrated review and distribution
+qualification remain required before real-vault opt-in.
 
 The proposed public workflow is a `recovery` command group for status,
 credential review, registration, recipient listing/removal, restore review,
@@ -786,13 +817,13 @@ barriers. The [tracker](piv-recovery-plan.md#architecture-ownership) records
 ownership and package acceptance; do not ship archive diagnostics as product
 integration.
 
-Next is final domain acceptance and integrated review, followed by native token
-binding and restore-service integration. Shipping profile-2 bytes remain
-unchanged. Review the
-new exact bytes before format freeze; do not enable publication/recovery by
-treating transcript checks as a complete service validator.
-Graph/platform/adoption decisions remain open in 804 and dependent packages.
-Protected administration, durable-phase reconciliation, independent backup-token
-and OS qualification, a fresh integrated AI review, and explicit opt-in adoption
-remain gates. No whole-protocol approval or real-vault safety is implied.
+Next is profile-3 ordinary mutation/lifecycle and restore-service integration,
+final domain acceptance and integrated review. Native token binding and scoped
+agreement are implemented but not physically qualified in their final adapters.
+Shipping profile-2 bytes remain unchanged. Review exact bytes before format
+freeze; transcript checks alone are not a complete service validator.
+Remaining gates include integrated graph/platform decisions, owner-operated
+protected setup instructions, product interruption reconciliation, independent
+backup-token and OS qualification, a fresh integrated AI review, and explicit
+opt-in rollout. No whole-protocol approval or real-vault safety is implied.
 Versioning permits improvements but cannot undo disclosure or replace lost files.

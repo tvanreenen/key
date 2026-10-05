@@ -70,6 +70,7 @@ enum VaultTransactionMutationKind: String, Codable, Sendable {
     case enrollDevice
     case revokeDevice
     case registerRecoveryRecipient
+    case adoptRecoveryProfile
     case catchUpVault
     case recoverInterruptedTransaction
 }

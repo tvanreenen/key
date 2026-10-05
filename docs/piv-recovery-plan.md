@@ -91,11 +91,11 @@ are the implementation packages, not new names for already completed probes.
 
 | Package | Deliverable | Depends on | Status |
 |---|---|---|---|
-| `REC-804` | Format, authority, lifecycle, and compatibility contract | Baseline | In progress; AI review disposition recorded; experimental direction authorized; graph/platform/adoption decisions remain |
+| `REC-804` | Format, authority, lifecycle, and compatibility contract | Baseline | In progress; experimental direction and AI review disposition recorded; internal exact adoption publication/resume implemented; integrated graph/platform and rollout acceptance remain |
 | `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; profile-3 domain codecs, contexts, proof construction/checks, and fixtures implemented; final acceptance and integrated review remain |
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
-| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; candidate/intent, completion crypto checks and durable preparation journal implemented; native binding, service phase reconciliation, activation and status remain |
+| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; candidate/intent, durable journal, native binding and internal prepare/resume/finish with manifest-last activation implemented; product composition/status, reciprocal pending barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | Planned |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | Planned |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
@@ -396,7 +396,8 @@ single deferred integration PR.
 - **Real-vault ready:** 813/814 pass and explicit adoption in 815 is qualified.
 - **Full completion:** 815's Stable artifact is released and verified.
 
-The current increment is `REC-808`, with remaining `REC-807` integration,
+The latest increment is internal durable adoption under `REC-804`, following
+the `REC-808` registration service, with remaining `REC-807` integration,
 final `REC-805`/`REC-806` acceptance and `REC-804` integrated decisions tracked
 explicitly. The
 [contract](piv-recovery-contract.md) describes the
@@ -405,9 +406,9 @@ promise. The capsule, recipient roster, recovery contexts/wrappers, containing
 profile, canonical proof projection, anchor codec, graph selector, snapshot
 verifier, registration candidate/intent, completion checks, durable preparation
 journal and service-owned manifest-last activation are implemented as internal
-components. Explicit profile-adoption construction/validation and a source-level
-old-client refusal check are implemented; durable adoption publication is not.
-Finish domain acceptance, profile adoption/ordinary mutations and
+components. Explicit profile-adoption construction/validation, durable exact
+publication/resume and a source-level old-client refusal check are implemented.
+Finish profile-3 ordinary mutations/catch-up/lifecycle, domain acceptance and
 product integration next. Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -433,6 +434,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Second 808 storage increment, 2026-10-05 | [Complete preparation codec](../Sources/KeyCore/V3RecoveryRegistrationBundle.swift), [journal](../Sources/KeyCore/V3RecoveryRegistrationJournal.swift), [contained filesystem storage](../Sources/KeyCore/V3RecoveryRegistrationFilesystem.swift), and 22 additional tests in the [registration suite](../Tests/KeyCoreTests/V3RecoveryRegistrationTests.swift) | Durable atomic preparation and revalidated resume/export only. Device-local store behavior is scripted, not native Keychain qualification. No service-owned source/head/native-token review, reconciliation cleanup, activation, status route or hardware call. |
 | Third 808 service increment, 2026-10-05 | [Registration service](../Sources/KeyCore/V3RecoveryRegistrationService.swift), [bounded exact-transition observer](../Sources/KeyCore/V3RecoveryRegistrationRepository.swift), and [service phase tests](../Tests/KeyCoreTests/V3RecoveryRegistrationServiceTests.swift) | Internal profile-3 prepare/resume/finish and committed-state reconciliation. Real filesystem/crypto, scripted native calls and local stores. No shipping composition/CLI/XPC, profile-2 adoption, general profile-3 catch-up/content writes, physical qualification or hardware administration. |
 | First 804 adoption implementation, 2026-10-05 | [Adoption builder/validator](../Sources/KeyCore/V3RecoveryProfileAdoption.swift), [shared snapshot validator](../Sources/KeyCore/V3EntrySnapshotValidator.swift), [11 adoption tests](../Tests/KeyCoreTests/V3RecoveryProfileAdoptionTests.swift), and `v0.2.0` source comparison | Exact signed profile-2 to profile-3 candidate only. Tested existing discovery/access-gate refusal, not the released binary. No durable adoption service, checkpoint advancement, ordinary profile-3 writes or product route. |
+| Second 804 adoption implementation, 2026-10-05 | [Adoption service](../Sources/KeyCore/V3RecoveryAdoptionService.swift), [encrypted preparation](../Sources/KeyCore/V3RecoveryAdoptionPreparation.swift), [contained preparation store](../Sources/KeyCore/V3RecoveryAdoptionFilesystem.swift), [shared exact-source reader](../Sources/KeyCore/V3ExactTransitionRepository.swift), and [20 service/storage tests](../Tests/KeyCoreTests/V3RecoveryAdoptionServiceTests.swift) | Internal exact publication/resume, manifest-last checkpoint/session advancement and committed reconciliation. Real filesystem/crypto with scripted local stores and confirmation failures. No product routing, reciprocal runtime barriers, ordinary profile-3 writes/lifecycle or native qualification. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -995,3 +997,67 @@ Verification:
 
 No installed product, real vault/configuration or token was changed. No native
 authentication, hardware write, notarization, push or release was performed.
+
+### Second 804 adoption implementation, 2026-10-05
+
+The internal service now publishes and resumes the exact adoption candidate.
+It reuses the contained immutable writer, shared mutation owner, local ownership
+and checkpoint compare-and-swap. Registration and adoption share bounded exact
+source inventory and preparation durability checks; each retains its domain
+authentication and full snapshot validation. No new dependency or crypto
+primitive was introduced, and shipping profile-2 dispatch stays unchanged.
+
+One complete canonical encrypted preparation is stored under
+`.recovery-adoptions/<operationID>/preparation.json`. A dedicated non-sync local
+record pins the whole preparation digest. Unarmed ownership is reserved before
+atomic installation, then promoted to recoverable only after exact readback,
+one addressed local wrapper opening, complete old/new crypto validation and
+file/directory synchronization. Resume repeats those checks on the same bytes;
+it cannot regenerate keys or a signature. An ambiguous confirmation failure
+must be reconfirmed, not inferred successful from readability.
+
+Bounded inventory refuses competing same-vault manifests and projected budget
+overflow. Other pending transaction/registration records, the source, local
+ownership and checkpoint are checked before signing/publication and around
+approval. Entries publish first and are read back before the manifest publishes.
+The checkpoint advances after exact manifest/entry readback and source checks;
+the verified new key then installs in the local session before ownership clears.
+
+Committed reconciliation opens the current local wrapper once, authenticates
+the capsule/MAC and complete current snapshot, and repairs session/ownership.
+It does not decrypt old entries, publish again or re-sign. After ownership
+cleanup, an explicitly selected provider preparation can reconcile only the
+already committed exact local checkpoint; it cannot establish ownership,
+advance trust or prove operation attribution. Encrypted files remain inert for
+inspection. An incomplete unarmed reservation requires attention or explicit
+exact-operation abandonment; recoverable ownership cannot use that escape.
+
+Twenty service/storage tests exercise real crypto and filesystem publication,
+13 interruption phases, lost replies, missing preparation, failed durability
+confirmation, checkpoint and cleanup failures, session repair without old
+entries, provider-only preparations, changed bindings/source/checkpoint,
+competing manifests, pending barriers, cancellation without retry, projected
+limits, canonical/aggregate bounds, no-overwrite and symlink containment.
+Dedicated registration/adoption kinds are refused by ordinary recovery intents.
+Local persistence and confirmation failures are scripted, not physical Keychain
+or power-loss qualification.
+
+Verification:
+
+- Complete serial Debug regression passed 1,040 KeyCore tests in 92 suites and
+  six canonical-JSON tests, including all final service and race cases.
+- Affected serial Release regression passed 350 tests in 25 suites. This is not
+  a full Release result or a reassessment of the previously recorded concurrent
+  full-suite scheduling and qualification-bundle limitations.
+- The unsigned arm64/x86_64 Preview app, CLI and helper built. Product-bundle
+  isolation and bundled CLI help/completion checks passed.
+- Strict formatting of the new/expanded Swift files, project plist syntax,
+  51 local documentation targets and `git diff --check` passed. Raw logs/builds
+  remain under ignored `tmp/piv-recovery/`.
+
+No package is complete. Next is profile-3 ordinary mutation/catch-up and
+lifecycle support, preserving recovery coverage without a connected token.
+Product composition/status, reciprocal pending-state barriers, restore,
+integrated review and physical/distribution qualification remain before
+real-vault opt-in. No installed app, real vault/configuration or YubiKey was
+changed, and no native authentication, push, notarization or release occurred.
