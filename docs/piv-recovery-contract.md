@@ -200,7 +200,7 @@ snapshot. The public proof state must not become an ordinary MAC-verified
 checkpoint. Graph selection, recipient policy, source rechecks, and durable
 resume remain implementation tasks; the small proof helper tests none of them.
 
-### Implemented ordinary edit construction and validation
+### Implemented ordinary edits and durable publication
 
 The internal profile-3 builder now constructs add, edit, copy, move and remove
 candidates from an exact MAC/capsule-authenticated checkpoint and complete
@@ -224,15 +224,40 @@ and aggregate bounds apply to the complete snapshots. Changed authority,
 capsule/proof, recipient status or wrappers are not ordinary edits, even if the
 replacement fixture has a valid current-key MAC.
 
-Software tests materialize a register/add/edit/copy/move/remove chain through
-the contained immutable writer, then recover the selected current contents
-from only encrypted files, the pinned anchor and a software token private key.
-The original Mac authority and current vault key are not passed to recovery.
-One agreement opens the current snapshot. This is construction/crypto evidence,
-not a production content service, durable save/resume, branch resolution,
-multi-Mac catch-up or physical-token qualification. Shipping mutation and
-profile-2 refusal routes remain unchanged; these integration tasks still gate
-product enablement.
+The internal publisher now uses the existing immutable transaction ordering
+through explicit profile-specific validators. It pins the exact content intent
+locally before staging, publishes entries before the manifest, reopens exact
+published bytes and compare-and-replaces only the expected local checkpoint.
+The wire intent and staging layout are unchanged. Shipping profile-2 callers
+retain their own parser/authenticator and cannot interpret profile-3 recovery.
+
+Profile-3 publication/resume requires separately supplied registration and
+adoption ownership stores. Either pending state blocks content work. Exact
+ownership/checkpoint and bounded source inventory are rechecked before
+publication and activation. The visible locally trusted floor is required;
+a cache alone does not authorize selecting an alternative provider head.
+Same-vault branches or changed inventory refuse this single-parent publisher.
+The exact candidate's own addition is allowed; provider files alone cannot
+authorize interrupted-save recovery without the local intent pin.
+
+Resume validates and publishes the original pinned candidate, never regenerating
+an edit. An incomplete unpublished preparation can be abandoned at the old
+checkpoint; a published manifest with missing/corrupt references retains the
+pin and refuses. After checkpoint commitment, reconciliation authenticates the
+current MAC/capsule, complete current snapshot and exact published bytes before
+cleanup. It does not require removed entry versions or decrypt old snapshots.
+The source inventory still refuses unconnected same-vault objects; missing
+intermediate history can leave an older object unclassifiable rather than
+granting permission to ignore it. Cache replacement follows successful cleanup.
+
+Software tests publish add/edit/copy/move/remove through this production library
+path, then recover the selected current contents using only encrypted files,
+the pinned anchor and a software token private key. Original Mac authority and
+the session key leave scope before recovery. One agreement opens the snapshot;
+ordinary publication makes no private-device or token call. This is filesystem
+and crypto evidence, not shipping service/CLI dispatch, branch resolution,
+multi-Mac catch-up, native local-store or physical-token qualification. These
+integration tasks still gate product enablement.
 
 ## Proposed data contract
 
