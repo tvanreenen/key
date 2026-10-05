@@ -1,27 +1,25 @@
 import CryptoKit
 import Foundation
 
-private struct V3DeviceWrappedRecoveryEntries {
+private struct V3ContentRecoveryEntries {
     let stagedData: [V3EntryObjectKey: Data]
     let availableEntries: [V3EncryptedEntry]
     let entriesToPublish: [V3EntryObjectKey: V3EncryptedEntry]
 }
 
-/// Reconstructs one locally anchored permanent-profile publication.
+/// Reconstructs one locally anchored content publication with an explicit profile validator.
 ///
 /// Synchronized transaction files never authorize recovery. The device-local
 /// anchor selects one exact intent; the candidate HMAC, unchanged authority,
 /// entry objects, current checkpoint, and vault key are revalidated before any
 /// publication or checkpoint replacement resumes.
-struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
+struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>: Sendable {
     private let objectStore: any V3TransactionArtifactStore
     private let checkpointStore: any V3ManifestCheckpointStoring
-    private let recoveryAnchorStore:
-        any V3ImmutableTransactionRecoveryAnchorStoring
+    private let recoveryAnchorStore: any V3ImmutableTransactionRecoveryAnchorStoring
     private let cache: any V3CheckpointManifestCaching
     private let limits: V3ManifestRepositoryLimits
-    private let validator: V3DeviceWrappedTransactionValidator
-    private let envelopeCodec = V3DeviceWrappedManifestEnvelopeCodec()
+    private let validator: Validator
 
     init(
         objectStore: any V3TransactionArtifactStore,
@@ -29,18 +27,15 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
         recoveryAnchorStore:
             any V3ImmutableTransactionRecoveryAnchorStoring,
         cache: any V3CheckpointManifestCaching,
-        limits: V3ManifestRepositoryLimits
+        limits: V3ManifestRepositoryLimits,
+        validator: Validator
     ) {
         self.objectStore = objectStore
         self.checkpointStore = checkpointStore
         self.recoveryAnchorStore = recoveryAnchorStore
         self.cache = cache
         self.limits = limits
-        validator = V3DeviceWrappedTransactionValidator(
-            objectStore: objectStore,
-            cache: cache,
-            limits: limits
-        )
+        self.validator = validator
     }
 
     func recover(
@@ -52,14 +47,19 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
                 vaultID: vaultID
             )
         }
-        guard let anchorData = try recoveryAnchorStore.loadRecoveryAnchor(
-            vaultID: vaultID
-        ) else {
+        try validator.requireAvailable(vaultID: vaultID)
+        guard
+            let anchorData = try recoveryAnchorStore.loadRecoveryAnchor(
+                vaultID: vaultID
+            )
+        else {
             return .nothingToRecover
         }
-        guard let anchor = try? V3ImmutableTransactionRecoveryAnchor(
-            canonicalBytes: anchorData
-        ), anchor.vaultID == vaultID else {
+        guard
+            let anchor = try? V3ImmutableTransactionRecoveryAnchor(
+                canonicalBytes: anchorData
+            ), anchor.vaultID == vaultID
+        else {
             throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(
                 vaultID: vaultID
             )
@@ -81,14 +81,14 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
             )
             return .abandoned(operationID: anchor.operationID)
         }
-        guard case let .available(intentData) = intentRead,
-              Data(SHA256.hash(data: intentData)) == anchor.intentDigest,
-              let intent = try? V3ImmutableTransactionRecoveryIntent(
-                  canonicalBytes: intentData
-              ),
-              intent.operationID == anchor.operationID,
-              intent.vaultID == vaultID,
-              intent.expectedHeads
+        guard case .available(let intentData) = intentRead,
+            Data(SHA256.hash(data: intentData)) == anchor.intentDigest,
+            let intent = try? V3ImmutableTransactionRecoveryIntent(
+                canonicalBytes: intentData
+            ),
+            intent.operationID == anchor.operationID,
+            intent.vaultID == vaultID,
+            intent.expectedHeads
                 == [intent.expectedCheckpoint.envelopeDigest]
         else {
             throw V3ImmutableTransactionRecoveryError.invalidIntent(
@@ -109,11 +109,14 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
         anchorData: Data,
         vaultKey: Data
     ) throws -> V3ImmutableTransactionRecoveryOutcome {
-        guard let checkpointData = try checkpointStore.loadCheckpoint(
-            vaultID: intent.vaultID
-        ), let currentCheckpoint = try? V3ManifestCheckpoint(
-            canonicalBytes: checkpointData
-        ), currentCheckpoint.vaultID == intent.vaultID else {
+        guard
+            let checkpointData = try checkpointStore.loadCheckpoint(
+                vaultID: intent.vaultID
+            ),
+            let currentCheckpoint = try? V3ManifestCheckpoint(
+                canonicalBytes: checkpointData
+            ), currentCheckpoint.vaultID == intent.vaultID
+        else {
             throw V3ImmutableTransactionRecoveryError.checkpointUnavailable(
                 vaultID: intent.vaultID
             )
@@ -122,7 +125,8 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
             vaultID: intent.vaultID,
             envelopeDigest: intent.candidateManifestDigest
         )
-        guard currentCheckpoint == intent.expectedCheckpoint
+        guard
+            currentCheckpoint == intent.expectedCheckpoint
                 || currentCheckpoint == candidateCheckpoint
         else {
             try cleanup(
@@ -142,7 +146,7 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
                 checkpointAlreadyAdvanced: currentCheckpoint
                     == candidateCheckpoint
             )
-        } catch is V3DeviceWrappedMissingStagedManifest {
+        } catch is V3ContentMissingStagedManifest {
             try cleanup(
                 intent,
                 intentData: intentData,
@@ -173,29 +177,30 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
 
         let candidateKeyID: V3VaultKeyID
         do {
-            candidateKeyID = try envelopeCodec.parse(manifest.data).body.keyID
+            candidateKeyID = try validator.keyID(manifestData: manifest.data)
         } catch {
             throw invalidRecoveryState(intent)
         }
-        guard (try? V3VaultKeyID.derive(
-            vaultKey: vaultKey,
-            vaultID: intent.vaultID
-        )) == candidateKeyID else {
+        guard
+            (try? V3VaultKeyID.derive(
+                vaultKey: vaultKey,
+                vaultID: intent.vaultID
+            )) == candidateKeyID
+        else {
             throw V3ImmutableTransactionRecoveryError.vaultKeyUnavailable(
                 keyID: candidateKeyID.rawValue
             )
         }
 
-        let validated: V3DeviceWrappedValidatedContentMutation
+        let input = V3ContentTransactionInput(
+            kind: intent.kind, expectedCheckpoint: intent.expectedCheckpoint,
+            manifestData: manifest.data, manifestDigest: intent.candidateManifestDigest,
+            stagedEntries: entries.availableEntries)
+        let validated: Validator.Validated
         do {
             validated = try validator.validate(
-                manifestData: manifest.data,
-                manifestDigest: intent.candidateManifestDigest,
-                expectedCheckpoint: intent.expectedCheckpoint,
-                kind: intent.kind,
-                stagedEntries: entries.availableEntries,
-                vaultKey: vaultKey
-            )
+                input, vaultKey: vaultKey,
+                alreadyCommitted: currentCheckpoint == candidateCheckpoint)
         } catch let error as V3ImmutableTransactionError {
             throw recoveryError(for: error, intent: intent)
         } catch {
@@ -203,12 +208,16 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
         }
 
         if currentCheckpoint == candidateCheckpoint {
+            try requireState(checkpoint: candidateCheckpoint, anchorData: anchorData)
+            try validator.recheck(
+                input, validated: validated, vaultKey: vaultKey, alreadyCommitted: true)
             do {
-                try validator.validatePublishedEntries(validated.envelope)
+                try validator.validatePublishedEntries(validated)
                 try validator.validatePublishedManifest(validated)
             } catch let error as V3ImmutableTransactionError {
                 throw recoveryError(for: error, intent: intent)
             }
+            try requireState(checkpoint: candidateCheckpoint, anchorData: anchorData)
             try cleanup(
                 intent,
                 intentData: intentData,
@@ -220,7 +229,8 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
             return .alreadyCompleted(operationID: intent.operationID)
         }
 
-        guard try checkpointStore.loadCheckpoint(vaultID: intent.vaultID)
+        guard
+            try checkpointStore.loadCheckpoint(vaultID: intent.vaultID)
                 == intent.expectedCheckpoint.canonicalBytes
         else {
             throw V3ImmutableTransactionError.expectedHeadsChanged
@@ -233,6 +243,10 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
                     "A recoverable staged entry must retain its bytes."
                 )
             }
+            try requireState(checkpoint: intent.expectedCheckpoint, anchorData: anchorData)
+            try validator.recheck(
+                input, validated: validated, vaultKey: vaultKey, alreadyCommitted: false)
+            try requireState(checkpoint: intent.expectedCheckpoint, anchorData: anchorData)
             try objectStore.publishStagedEntry(
                 entry.canonicalBytes,
                 entryID: key.entryID,
@@ -241,11 +255,16 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
             )
         }
         do {
-            try validator.validatePublishedEntries(validated.envelope)
+            try validator.validatePublishedEntries(validated)
         } catch let error as V3ImmutableTransactionError {
             throw recoveryError(for: error, intent: intent)
         }
         if !manifest.published {
+            try requireState(checkpoint: intent.expectedCheckpoint, anchorData: anchorData)
+            try validator.recheck(
+                input, validated: validated, vaultKey: vaultKey, alreadyCommitted: false)
+            try requireState(checkpoint: intent.expectedCheckpoint, anchorData: anchorData)
+            try validator.validatePublishedEntries(validated)
             try objectStore.publishStagedManifest(
                 manifest.data,
                 digest: intent.candidateManifestDigest,
@@ -257,6 +276,10 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
         } catch let error as V3ImmutableTransactionError {
             throw recoveryError(for: error, intent: intent)
         }
+        try requireState(checkpoint: intent.expectedCheckpoint, anchorData: anchorData)
+        try validator.recheck(
+            input, validated: validated, vaultKey: vaultKey, alreadyCommitted: false)
+        try requireState(checkpoint: intent.expectedCheckpoint, anchorData: anchorData)
         try checkpointStore.replaceCheckpoint(
             candidateCheckpoint.canonicalBytes,
             expectedCheckpoint: intent.expectedCheckpoint.canonicalBytes,
@@ -281,8 +304,9 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
             digest: intent.candidateManifestDigest,
             maximumBytes: limits.maximumManifestBytes
         ) {
-        case let .available(data):
-            guard Data(SHA256.hash(data: data))
+        case .available(let data):
+            guard
+                Data(SHA256.hash(data: data))
                     == intent.candidateManifestDigest
             else {
                 throw invalidRecoveryState(intent)
@@ -300,7 +324,7 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
                     .transactionDirectoryUnavailable
             }
             guard let staged = try availableStagedManifest(intent) else {
-                throw V3DeviceWrappedMissingStagedManifest()
+                throw V3ContentMissingStagedManifest()
             }
             return (staged, false, staged)
         }
@@ -309,7 +333,7 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
     private func recoveryEntries(
         _ intent: V3ImmutableTransactionRecoveryIntent,
         manifestAlreadyPublished: Bool
-    ) throws -> V3DeviceWrappedRecoveryEntries? {
+    ) throws -> V3ContentRecoveryEntries? {
         var stagedData: [V3EntryObjectKey: Data] = [:]
         var available: [V3EncryptedEntry] = []
         var toPublish: [V3EntryObjectKey: V3EncryptedEntry] = [:]
@@ -331,7 +355,7 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
                 digest: key.digest,
                 maximumBytes: limits.maximumEntryBytes
             ) {
-            case let .available(data):
+            case .available(let data):
                 guard Data(SHA256.hash(data: data)) == key.digest else {
                     throw invalidRecoveryState(intent)
                 }
@@ -344,7 +368,7 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
             guard let data = published ?? staged else {
                 return nil
             }
-            guard let encrypted = try? validator.parseEncryptedEntry(data)
+            guard let encrypted = try? V3EntryCipher().parse(data)
             else {
                 throw invalidRecoveryState(intent)
             }
@@ -363,7 +387,7 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
             throw V3ImmutableTransactionRecoveryError
                 .transactionDirectoryUnavailable
         }
-        return V3DeviceWrappedRecoveryEntries(
+        return V3ContentRecoveryEntries(
             stagedData: stagedData,
             availableEntries: available,
             entriesToPublish: toPublish
@@ -399,9 +423,10 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
             operationID: operationID,
             maximumBytes: limits.maximumEntryBytes
         ) {
-        case let .available(data):
+        case .available(let data):
             guard Data(SHA256.hash(data: data)) == key.digest else {
-                throw V3ImmutableTransactionRecoveryError
+                throw
+                    V3ImmutableTransactionRecoveryError
                     .invalidRecoveryState(operationID: operationID.rawValue)
             }
             return data
@@ -422,8 +447,9 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
             operationID: intent.operationID,
             maximumBytes: limits.maximumManifestBytes
         ) {
-        case let .available(data):
-            guard Data(SHA256.hash(data: data))
+        case .available(let data):
+            guard
+                Data(SHA256.hash(data: data))
                     == intent.candidateManifestDigest
             else {
                 throw invalidRecoveryState(intent)
@@ -443,6 +469,11 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
         stagedEntries: [V3EntryObjectKey: Data],
         stagedManifest: Data?
     ) throws {
+        try validator.requireAvailable(vaultID: intent.vaultID)
+        guard try recoveryAnchorStore.loadRecoveryAnchor(vaultID: intent.vaultID) == anchorData
+        else {
+            throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: intent.vaultID)
+        }
         for key in stagedEntries.keys.sorted(by: entryObjectKeyPrecedes) {
             guard let data = stagedEntries[key] else {
                 preconditionFailure("Available staging must retain its bytes.")
@@ -461,6 +492,7 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
                 operationID: intent.operationID
             )
         }
+        try validator.requireAvailable(vaultID: intent.vaultID)
         try recoveryAnchorStore.replaceRecoveryAnchor(
             nil,
             expectedAnchor: anchorData,
@@ -474,6 +506,16 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
             operationID: intent.operationID,
             entryIDs: intent.stagedEntries.map(\.entryID)
         )
+    }
+
+    private func requireState(checkpoint: V3ManifestCheckpoint, anchorData: Data) throws {
+        guard
+            try checkpointStore.loadCheckpoint(vaultID: checkpoint.vaultID)
+                == checkpoint.canonicalBytes,
+            try recoveryAnchorStore.loadRecoveryAnchor(vaultID: checkpoint.vaultID) == anchorData
+        else {
+            throw V3ImmutableTransactionError.expectedHeadsChanged
+        }
     }
 
     private func recoveryError(
@@ -501,4 +543,4 @@ struct V3DeviceWrappedInterruptedTransactionRecoverer: Sendable {
 
 /// Internal control flow for a recoverable intent whose candidate manifest was
 /// never staged. No immutable manifest could have been published in this case.
-private struct V3DeviceWrappedMissingStagedManifest: Error {}
+private struct V3ContentMissingStagedManifest: Error {}

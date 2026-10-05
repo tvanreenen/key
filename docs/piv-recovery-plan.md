@@ -96,7 +96,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; candidate/intent, durable journal, native binding and internal prepare/resume/finish with manifest-last activation implemented; product composition/status, reciprocal pending barriers and physical qualification remain |
-| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; shared entry planning/policy and profile-3 same-epoch candidate/complete validation implemented; production save/resume, catch-up, branches/resolution and service/CLI acceptance remain |
+| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; profile-3 same-epoch construction, complete validation and internal durable publication/resume implemented; catch-up, branches/resolution and service/CLI acceptance remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | Planned |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
@@ -396,7 +396,7 @@ single deferred integration PR.
 - **Real-vault ready:** 813/814 pass and explicit adoption in 815 is qualified.
 - **Full completion:** 815's Stable artifact is released and verified.
 
-The latest increment is ordinary edit construction/validation under `REC-809`,
+The latest increment is internal durable ordinary edit publication/resume under `REC-809`,
 following internal durable adoption under `REC-804` and the `REC-808`
 registration service, with remaining `REC-807` integration,
 final `REC-805`/`REC-806` acceptance and `REC-804` integrated decisions tracked
@@ -409,7 +409,9 @@ verifier, registration candidate/intent, completion checks, durable preparation
 journal and service-owned manifest-last activation are implemented as internal
 components. Explicit profile-adoption construction/validation, durable exact
 publication/resume and a source-level old-client refusal check are implemented.
-Finish profile-3 ordinary mutations/catch-up/lifecycle, domain acceptance and
+Profile-3 content publication now shares the immutable transaction state machine
+with an explicitly selected validator, preserving shipping profile-2 parsing.
+Finish multi-Mac catch-up, branches/resolution, lifecycle, domain acceptance and
 product integration next. Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -437,6 +439,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | First 804 adoption implementation, 2026-10-05 | [Adoption builder/validator](../Sources/KeyCore/V3RecoveryProfileAdoption.swift), [shared snapshot validator](../Sources/KeyCore/V3EntrySnapshotValidator.swift), [11 adoption tests](../Tests/KeyCoreTests/V3RecoveryProfileAdoptionTests.swift), and `v0.2.0` source comparison | Exact signed profile-2 to profile-3 candidate only. Tested existing discovery/access-gate refusal, not the released binary. No durable adoption service, checkpoint advancement, ordinary profile-3 writes or product route. |
 | Second 804 adoption implementation, 2026-10-05 | [Adoption service](../Sources/KeyCore/V3RecoveryAdoptionService.swift), [encrypted preparation](../Sources/KeyCore/V3RecoveryAdoptionPreparation.swift), [contained preparation store](../Sources/KeyCore/V3RecoveryAdoptionFilesystem.swift), [shared exact-source reader](../Sources/KeyCore/V3ExactTransitionRepository.swift), and [20 service/storage tests](../Tests/KeyCoreTests/V3RecoveryAdoptionServiceTests.swift) | Internal exact publication/resume, manifest-last checkpoint/session advancement and committed reconciliation. Real filesystem/crypto with scripted local stores and confirmation failures. No product routing, reciprocal runtime barriers, ordinary profile-3 writes/lifecycle or native qualification. |
 | First 809 content increment, 2026-10-05 | [Shared entry planner/policy](../Sources/KeyCore/V3EntryMutationPlanner.swift), [profile-3 content builder/validator](../Sources/KeyCore/V3RecoveryContentMutation.swift), and [content/recovery tests](../Tests/KeyCoreTests/V3RecoveryContentMutationTests.swift) | Pure add/edit/copy/move/remove with complete snapshot checks and exact authority/coverage preservation. Cold software recovery of a filesystem edit chain; materialization is test setup, not a production save route. Publication/resume, catch-up, branches, resolution and physical qualification remain. |
+| Second 809 content increment, 2026-10-05 | [Profile-3 publisher/validator](../Sources/KeyCore/V3RecoveryContentMutationPublisher.swift), [shared immutable publisher](../Sources/KeyCore/V3ContentTransactionPublisher.swift), [shared interrupted-save recovery](../Sources/KeyCore/V3ContentTransactionRecoverer.swift), and [16 filesystem/crypto tests](../Tests/KeyCoreTests/V3RecoveryContentMutationPublisherTests.swift) | Actual internal durable same-epoch saves/resume, pinned ownership and manifest-last checkpoint activation. Cold recovery now follows production publication of five edits. Local stores/software token are scripted; no shipping service/CLI dispatch, catch-up, branches/resolution, native qualification or hardware administration. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -1122,10 +1125,85 @@ Verification:
   formatting was retained. Raw logs/builds remain under ignored
   `tmp/piv-recovery/`.
 
-`REC-809` is in progress, not complete. Next is profile-3 content publication and
+At the end of this increment, `REC-809` remained in progress. Next was profile-3 content publication and
 interrupted-save reconciliation with explicit profile dispatch, reciprocal
 pending ownership barriers and exact source/checkpoint guards. Same-epoch
 multi-Mac catch-up, independent writes, branches/merges/resolution, lifecycle,
 product services/CLI and qualification remain. No installed app, real
 vault/configuration or YubiKey was changed. No native authentication, hardware
 administration, push, notarization or release was performed.
+
+### Second 809 content increment, 2026-10-05
+
+Profile-3 same-epoch content candidates now have a durable library publication
+and interrupted-save path. The existing permanent-profile publisher/recoverer
+was extracted into a shared immutable transaction state machine. Separate
+typed entry points select concrete validators; the kernel does not detect
+profiles or reinterpret profile 3 through a profile-2 body. Existing intent
+version, encrypted object layout, local pin phases and publication phase order
+are retained. This shares the interruption logic rather than duplicating it.
+
+The profile-3 validator independently authenticates the locally trusted parent,
+complete before/after snapshots, exact changed-entry staging and unchanged
+authority/coverage. It inventories bounded source manifests and projects the
+floor/candidate storage budget before creating local intent. Ownership and
+checkpoint checks surround source rechecks before immutable publication and
+checkpoint CAS. Exact published entries are checked again immediately before
+manifest publication. Same-vault competitors, substituted objects or changed
+inventory cannot advance this single-parent transaction. The exact candidate's
+own publication is the only permitted inventory addition during an operation.
+
+Registration and adoption ownership dependencies are mandatory and separate
+from the ordinary transaction pin. Pending authority work blocks new content
+publication and resume; it is rechecked during the save. This complements the
+existing registration/adoption refusal of an ordinary pin. Native namespace
+composition and reciprocal shipping runtime barriers still require integration.
+There is no token, private-device signer/unwrap or administration dependency in
+the content publisher. The current session key is scoped to validation calls;
+intent, staging and cache contain only encrypted/public bytes.
+
+Recovery requires the exact locally pinned intent and current checkpoint. It
+finishes the saved candidate without new randomness or repeating the original
+request. An incomplete unpublished preparation can be abandoned at the old
+checkpoint. Once a manifest is published, missing/corrupt references refuse
+recovery and retain the pin. A committed checkpoint uses complete current
+snapshot validation before cleanup, not old removed entry versions or old
+manifest cache. Exact source inventory policy still applies; unexplained
+same-vault objects are not ignored simply because intermediate history is
+missing. Cache replacement occurs only after local cleanup succeeds.
+
+Sixteen tests use real contained filesystem publication and real crypto, with
+scripted local stores and failure injection. Cases cover every one of the 12
+save phases, checkpoint/ownership changes, competing branches, pending authority
+work, failed checkpoint CAS, cleanup with obsolete files removed, partial
+preparation, missing published entries, corrupted objects/intent, wrong session
+key, inconsistent typed envelopes, absent provider floor, projected bounds and
+strict old-profile refusal. Provider intent without a local pin does nothing.
+
+The cold-recovery case now publishes five content changes through the actual
+library publisher, rather than fixture writer calls. Original Mac authority and
+session key leave scope before recovery receives encrypted files, the pinned
+anchor and software token key. One agreement recovers the final secret/TOTP
+contents; ordinary saves cause no additional private-device or token operation.
+This is not a measured real-hardware budget or native local-store qualification.
+
+Verification:
+
+- Final complete serial Debug regression passed 1,071 KeyCore tests in 94 suites
+  and six canonical-JSON tests.
+- Affected serial Release regression passed 394 tests in 29 suites, including
+  recovery, capsule/native-boundary software tests, permanent-profile builders,
+  publication, mutation services, enrollment/revocation and mutation ownership.
+  This is not a full Release result; the previously recorded full Release
+  qualification-bundle and concurrent scheduling limits remain.
+- Final unsigned arm64/x86_64 Preview app, CLI and helper built. Bundle isolation
+  and bundled CLI help/completion checks passed; each executable is universal.
+- Strict Swift formatting, project plist syntax, 85 local documentation targets
+  and `git diff --check` passed. Raw logs and builds remain under ignored
+  `tmp/piv-recovery/2026-10-05-content-publication-*` and the existing product
+  build directory.
+
+`REC-809` remains incomplete. Next is same-epoch multi-Mac catch-up and branch
+reconciliation, then resolution/lifecycle and service/CLI integration. No
+installed app, real vault/configuration or YubiKey was changed. No native
+authentication, token write, push, notarization or release was performed.
