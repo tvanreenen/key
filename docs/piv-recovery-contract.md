@@ -412,6 +412,33 @@ lifetimes do not guarantee zeroization. No plaintext persistence or resume
 format is implemented. Software callback counts and disposable filesystem tests
 do not qualify hardware prompts, protected administration, or a complete restore.
 
+### Implemented native public reader
+
+The [internal reader](../Sources/KeyCore/PIVRecoveryTokenReader.swift) replaces the
+prototype's fixed reader name and certificate-file input with bounded token
+inventory, explicit candidate selection and token-to-slot metadata. A retained
+native card instance and removal invalidation prevent a same-named reinsertion
+from silently replacing the reviewed connection. Slot 9d's public certificate
+and the application object are read in one exclusive session; the validated
+P-256 point must match a recognized anchor's recipient ID. The certificate is a
+public-key container, not issuer, expiry or attestation authority.
+
+Discovery requests no card commands. Reading has only three expressible commands:
+select PIV, GET DATA for the 9d certificate, and GET DATA for object `0x5F4B59`.
+There is no raw APDU, PIN, management authentication, write, reset or private
+operation interface. Absent, recognized and unrecognized occupancy are distinct;
+unknown bytes are withheld, with an internal digest for exact revalidation.
+A recognized anchor does not establish protected administration or possession.
+
+The live process-wide gate remains claimed while a native begin/send callback is
+pending after the public-read deadline. A successful session closes once after
+pending completion; no authentication retry or guessed cancellation is used.
+Software tests cover orchestration and lifetime behavior, not native delivery or
+physical identity. Unique native agreement-key lookup, required PIN/touch policy,
+protected setup, signed-product smart-card capability and hardware qualification
+remain 807 requirements. The reader has no product caller and does not make 806
+snapshots eligible for real-vault restore.
+
 ## Registration and authority lifecycle
 
 Only an authenticated active Mac can authorize registration or recipient
