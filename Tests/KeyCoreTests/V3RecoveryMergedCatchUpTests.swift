@@ -281,19 +281,284 @@ struct V3RecoveryMergedCatchUpTests {
     #expect(reader.value == merged.checkpoint.canonicalBytes)
   }
 
-  @Test func coParentBelowSuppliedFloorStillRefusesRatherThanInventingOlderTrust() throws {
+  @Test(arguments: [false, true])
+  func coParentBelowSuppliedCheckpointAuthenticatesWithoutRewinding(coordinated: Bool) throws {
     let f = try Fixture()
     defer { f.remove() }
     let (a, _) = try deliverBranches(f, automatic: true, from: floor(f))
-    _ = try publishCandidate(
+    let merged = try publishCandidate(
       f,
       candidate: V3RecoveryMergeMutationBuilder().buildAutomatic(
         from: observation(f), vaultKey: Core.nextKey))
+    let reader = Publication.Checkpoints(a.checkpoint.canonicalBytes)
+    let writes = Checkpoints(reader)
+    if coordinated {
+      guard
+        case .current(let current, let count) = try service(f, checkpoints: writes).catchUp(
+          from: a, vaultKey: Core.nextKey)
+      else { throw Publication.Stop.interrupted }
+      #expect(current.envelope == merged.envelope && count == 1)
+    } else {
+      guard
+        case .advancedOneStep(let current) = try service(f, checkpoints: writes).advanceOneStep(
+          from: a, vaultKey: Core.nextKey)
+      else { throw Publication.Stop.interrupted }
+      #expect(current.envelope == merged.envelope)
+    }
+    #expect(writes.values == [merged.checkpoint.canonicalBytes])
+    #expect(reader.value == merged.checkpoint.canonicalBytes)
+    #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
+  }
+
+  @Test(arguments: [false, true])
+  func lateSiblingCanBeReconciledAndDurablyMergedFromAdvancedCheckpoint(automatic: Bool) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let (a, b) = try deliverBranches(f, automatic: automatic, from: floor(f))
+    let reader = Publication.Checkpoints(a.checkpoint.canonicalBytes)
+    let writes = Checkpoints(reader)
+    guard
+      case .contentConflict(let current, let heads, let count) = try service(
+        f, checkpoints: writes
+      ).catchUp(from: a, vaultKey: Core.nextKey)
+    else { throw Publication.Stop.interrupted }
+    #expect(
+      current.envelope == a.envelope && count == 0
+        && Set(heads) == [a.envelope.digest, b.envelope.digest])
+    #expect(writes.values.isEmpty && reader.value == a.checkpoint.canonicalBytes)
+    let observed = try V3RecoverySameEpochRepositoryObserver(source: f.store).observe(
+      from: a, vaultKey: Core.nextKey)
+    #expect(observed.checkpoint == a.checkpoint && observed.graphFloor == f.parent.digest)
+    #expect(observed.committedAncestorDigests == [f.parent.digest, a.envelope.digest])
+    #expect(!observed.envelopes.keys.contains(f.core.parent.digest))
+    let candidate =
+      try automatic
+      ? V3RecoveryMergeMutationBuilder().buildAutomatic(from: observed, vaultKey: Core.nextKey)
+      : resolution(f, head: a.envelope.digest, from: a)
+    #expect(candidate.expectedCheckpoint == a.checkpoint)
+    let merged = try publishCandidate(f, candidate: candidate)
+    guard
+      case .current(let accepted, let advanced) = try service(f, checkpoints: writes).catchUp(
+        from: a, vaultKey: Core.nextKey)
+    else { throw Publication.Stop.interrupted }
+    #expect(
+      accepted.envelope == merged.envelope && advanced == 1
+        && writes.values == [merged.checkpoint.canonicalBytes])
+    #expect(merged.envelope.body.recovery == a.envelope.body.recovery)
+    #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
+  }
+
+  @Test func committedAncestorCiphertextIsNotReopenedToExplainALateBranch() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let common = try branches.publishBranch(
+      f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "common")])
+    let (a, _) = try deliverBranches(f, automatic: false, from: common)
+    let merged = try publishCandidate(
+      f, candidate: resolution(f, head: a.envelope.digest))
+    let old = try branches.entryMap(f, envelope: f.parent).values.first {
+      $0.context.name == "fixture/secret"
+    }
+    let intermediate = try branches.entryMap(f, envelope: common.envelope).values.first {
+      $0.context.name == "fixture/secret"
+    }
+    try FileManager.default.removeItem(at: f.entryURL(try #require(old)))
+    try FileManager.default.removeItem(at: f.entryURL(try #require(intermediate)))
+    let reader = Publication.Checkpoints(a.checkpoint.canonicalBytes)
+    let observed = try V3RecoverySameEpochRepositoryObserver(source: f.store).observe(
+      from: a, vaultKey: Core.nextKey)
+    #expect(
+      observed.committedAncestorDigests == [
+        f.parent.digest, common.envelope.digest, a.envelope.digest,
+      ])
+    guard
+      case .current(let accepted, let count) = try service(f, checkpoints: reader).catchUp(
+        from: a, vaultKey: Core.nextKey)
+    else { throw Publication.Stop.interrupted }
+    #expect(
+      accepted.envelope == merged.envelope && count == 1
+        && reader.value == merged.checkpoint.canonicalBytes)
+  }
+
+  @Test(arguments: 0..<4)
+  func requiredBelowCheckpointManifestsAndNewBranchSnapshotsFailClosed(variant: Int) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let (a, b) = try deliverBranches(f, automatic: false, from: floor(f))
+    _ = try publishCandidate(f, candidate: resolution(f, head: a.envelope.digest))
+    switch variant {
+    case 0: try FileManager.default.removeItem(at: f.manifestURL(f.parent.digest))
+    case 1: try Data("changed ancestor fixture".utf8).write(to: f.manifestURL(f.parent.digest))
+    default:
+      let entry = try #require(
+        try branches.entryMap(f, envelope: b.envelope).values.first {
+          $0.context.name == "fixture/secret"
+        })
+      if variant == 2 {
+        try FileManager.default.removeItem(at: f.entryURL(entry))
+      } else {
+        try Data("changed uncommitted branch fixture".utf8).write(to: f.entryURL(entry))
+      }
+    }
+    let reader = Publication.Checkpoints(a.checkpoint.canonicalBytes)
+    #expect(throws: (any Error).self) {
+      try service(f, checkpoints: reader).catchUp(from: a, vaultKey: Core.nextKey)
+    }
+    #expect(reader.value == a.checkpoint.canonicalBytes)
+  }
+
+  @Test func disconnectedSameEpochFixtureDoesNotAcquireCheckpointAncestry() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let (a, _) = try deliverBranches(f, automatic: true, from: floor(f))
+    let disconnected = try V3RecoveryEpochBoundary().encode(
+      body: f.parent.body, parents: [], vaultKey: Core.nextKey, authorizations: [])
+    try f.seed(disconnected, entries: [])
     let reader = Publication.Checkpoints(a.checkpoint.canonicalBytes)
     #expect(throws: V3RecoveryValidationError.unanchoredParent) {
       try service(f, checkpoints: reader).catchUp(from: a, vaultKey: Core.nextKey)
     }
     #expect(reader.value == a.checkpoint.canonicalBytes)
+  }
+
+  @Test func expandedAncestryAndForwardBranchShareTheExistingDepthBudget() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let (a, _) = try deliverBranches(f, automatic: true, from: floor(f))
+    let merged = try publishCandidate(
+      f,
+      candidate: V3RecoveryMergeMutationBuilder().buildAutomatic(
+        from: observation(f), vaultKey: Core.nextKey))
+    let reader = Publication.Checkpoints(a.checkpoint.canonicalBytes)
+    #expect(throws: V3RecoveryValidationError.resourceLimit) {
+      try service(
+        f, checkpoints: reader, limits: .init(maximumManifestObjects: 100, maximumHistoryDepth: 1)
+      ).catchUp(
+        from: a, vaultKey: Core.nextKey)
+    }
+    #expect(reader.value == a.checkpoint.canonicalBytes)
+    guard
+      case .current(let current, _) = try service(
+        f, checkpoints: reader, limits: .init(maximumManifestObjects: 100, maximumHistoryDepth: 2)
+      ).catchUp(from: a, vaultKey: Core.nextKey)
+    else { throw Publication.Stop.interrupted }
+    #expect(current.envelope == merged.envelope)
+  }
+
+  @Test func checkpointAncestryStopsAtItsCommittedEpochBoundary() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let (a, b) = try deliverBranches(f, automatic: true, from: floor(f))
+    // The old epoch is outside this local-checkpoint authentication contract.
+    try FileManager.default.removeItem(at: f.manifestURL(f.core.parent.digest))
+    let reader = Publication.Checkpoints(a.checkpoint.canonicalBytes)
+    guard
+      case .contentConflict(let current, let heads, let count) = try service(
+        f, checkpoints: reader
+      ).catchUp(from: a, vaultKey: Core.nextKey)
+    else { throw Publication.Stop.interrupted }
+    #expect(current.envelope == a.envelope && count == 0)
+    #expect(Set(heads) == [a.envelope.digest, b.envelope.digest])
+    #expect(reader.value == a.checkpoint.canonicalBytes)
+    #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
+  }
+
+  @Test func lateBranchBeforeAnAlreadyCommittedJoinCanBeMergedWithoutChoosingAnOldSide() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let first = try publishMerge(f, automatic: true)
+    _ = try branches.publishBranch(
+      f,
+      requests: [
+        .add(entryID: Self.addedID, name: "late/account", type: .secret, plaintext: "late")
+      ])
+    let observed = try V3RecoverySameEpochRepositoryObserver(source: f.store).observe(
+      from: first, vaultKey: Core.nextKey)
+    #expect(observed.graphFloor == f.parent.digest && observed.committedAncestorDigests.count == 4)
+    let candidate = try V3RecoveryMergeMutationBuilder().buildAutomatic(
+      from: observed, vaultKey: Core.nextKey)
+    let merged = try publishCandidate(f, candidate: candidate)
+    let reader = Publication.Checkpoints(first.checkpoint.canonicalBytes)
+    let writes = Checkpoints(reader)
+    guard
+      case .current(let accepted, let count) = try service(f, checkpoints: writes).catchUp(
+        from: first, vaultKey: Core.nextKey)
+    else { throw Publication.Stop.interrupted }
+    #expect(accepted.envelope == merged.envelope && count == 1)
+    #expect(writes.values == [merged.checkpoint.canonicalBytes])
+  }
+
+  @Test(arguments: 0..<5)
+  func expandedObservationRetainsSourcePendingAndCheckpointGuards(variant: Int) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let (a, b) = try deliverBranches(f, automatic: true, from: floor(f))
+    _ = try publishCandidate(
+      f,
+      candidate: V3RecoveryMergeMutationBuilder().buildAutomatic(
+        from: observation(f), vaultKey: Core.nextKey))
+    let reader = Publication.Checkpoints(a.checkpoint.canonicalBytes)
+    let winner = try V3ManifestCheckpoint(
+      vaultID: Core.vaultID, envelopeDigest: Data(repeating: 0x66, count: 32))
+    let stores = [f.ownership, f.registration, f.adoption]
+    let source = Source(f.store) { count in
+      if count == 2 {
+        switch variant {
+        case 0: try FileManager.default.removeItem(at: f.manifestURL(b.envelope.digest))
+        case 1...3: stores[variant - 1].value = Data([1])
+        default: reader.value = winner.canonicalBytes
+        }
+      }
+    }
+    #expect(throws: (any Error).self) {
+      try service(f, checkpoints: reader, source: source).catchUp(from: a, vaultKey: Core.nextKey)
+    }
+    #expect(reader.value == (variant == 4 ? winner.canonicalBytes : a.checkpoint.canonicalBytes))
+  }
+
+  @Test(arguments: [false, true], 0..<3)
+  func lateBranchMergeResumesWithTheExactAdvancedCheckpointAndCandidate(automatic: Bool, phase: Int)
+    throws
+  {
+    let f = try Fixture()
+    defer { f.remove() }
+    let (a, _) = try deliverBranches(f, automatic: automatic, from: floor(f))
+    let observed = try V3RecoverySameEpochRepositoryObserver(source: f.store).observe(
+      from: a, vaultKey: Core.nextKey)
+    let candidate =
+      try automatic
+      ? V3RecoveryMergeMutationBuilder().buildAutomatic(from: observed, vaultKey: Core.nextKey)
+      : resolution(f, head: a.envelope.digest, from: a)
+    let reader = Publication.Checkpoints(a.checkpoint.canonicalBytes)
+    let ownership = Publication.Ownership()
+    let phases: [V3ImmutableTransactionPhase] = [
+      .manifestStaged, .manifestPublished, .checkpointAdvanced,
+    ]
+    func publisher(_ interrupt: Bool) -> V3RecoveryMergeMutationPublisher {
+      .init(
+        mutationOwner: VaultTransactionMutationOwner(), objectStore: f.store,
+        checkpointStore: reader,
+        recoveryAnchorStore: ownership, registrationAnchorStore: f.registration,
+        adoptionAnchorStore: f.adoption, cache: f.cache,
+        phaseObserver: Interrupt(phase: interrupt ? phases[phase] : nil))
+    }
+    #expect(throws: Publication.Stop.interrupted) {
+      try publisher(true).publish(candidate, vaultKey: Core.nextKey)
+    }
+    #expect(ownership.value != nil)
+    let outcome = try publisher(false).recoverInterruptedTransaction(
+      vaultID: Core.vaultID, vaultKey: Core.nextKey)
+    switch outcome {
+    case .completed where phase < 2, .alreadyCompleted where phase == 2: break
+    default: throw Publication.Stop.interrupted
+    }
+    let checkpoint = try V3ManifestCheckpoint(
+      vaultID: Core.vaultID, envelopeDigest: candidate.envelope.digest)
+    #expect(reader.value == checkpoint.canonicalBytes && ownership.value == nil)
+    #expect(
+      try Data(contentsOf: f.manifestURL(candidate.envelope.digest))
+        == candidate.envelope.canonicalBytes)
+    #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
   }
 
   @Test func crissCrossMergeBasesAreReportedWithoutSelectingOrPublishingOne() throws {
@@ -397,14 +662,18 @@ struct V3RecoveryMergedCatchUpTests {
       : resolution(f, head: a.envelope.digest)
     return try publishCandidate(f, candidate: candidate)
   }
-  private func resolution(_ f: Fixture, head: Data) throws -> V3RecoveryMergeMutationCandidate {
-    let observed = try observation(f)
+  private func resolution(_ f: Fixture, head: Data, from current: V3RecoveryContentCommit? = nil)
+    throws -> V3RecoveryMergeMutationCandidate
+  {
+    let current = current ?? floor(f)
+    let observed = try V3RecoverySameEpochRepositoryObserver(source: f.store).observe(
+      from: current, vaultKey: Core.nextKey)
     guard case .contentConflict(let report) = try V3RecoveryManifestReconciler().reconcile(observed)
     else { throw Publication.Stop.interrupted }
     let snapshot = V3ConflictObservationBuilder().build(
-      report, entries: .lastTrusted(f.parent.body.fields.entries.count),
-      trustedVersionID: nil, trustedHeadDigest: f.checkpoint.envelopeDigest,
-      trustedEntries: Set(f.parent.body.fields.entries))
+      report, entries: .lastTrusted(current.envelope.body.fields.entries.count),
+      trustedVersionID: nil, trustedHeadDigest: current.checkpoint.envelopeDigest,
+      trustedEntries: Set(current.envelope.body.fields.entries))
     let choices = try snapshot.conflicts.map { detail in
       VaultConflictResolution(
         conflictID: detail.summary.id,
@@ -515,5 +784,13 @@ struct V3RecoveryMergedCatchUpTests {
   private struct FailingCache: V3CheckpointManifestCaching {
     func load(for _: V3ManifestCheckpoint) throws -> V3CheckpointManifestCacheLookup { .missing }
     func store(_: Data, for _: V3ManifestCheckpoint) throws { throw Publication.Stop.interrupted }
+  }
+  private struct Interrupt: V3ImmutableTransactionPhaseObserving {
+    let phase: V3ImmutableTransactionPhase?
+    func didReach(_ phase: V3ImmutableTransactionPhase, operationID _: VaultTransactionOperationID)
+      throws
+    {
+      if self.phase == phase { throw Publication.Stop.interrupted }
+    }
   }
 }

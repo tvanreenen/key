@@ -17,7 +17,8 @@ enum V3RecoveryManifestReconciliationResult: Equatable, Sendable {
 
 /// Pure reconciliation of an observer-authenticated, closed same-epoch DAG.
 /// The observation's constructor is confined to the production observer, which
-/// checks every manifest/snapshot and exact authority/coverage from a local floor.
+/// checks current/new branch snapshots and exact authority/coverage; older
+/// comparison records are linked transitively to the durable local checkpoint.
 /// No profile projection, decryption, publication or private operation occurs.
 struct V3RecoveryManifestReconciler: Sendable {
   func reconcile(_ observed: V3RecoverySameEpochObservation) throws
