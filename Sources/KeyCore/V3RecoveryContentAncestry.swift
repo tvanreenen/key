@@ -29,7 +29,7 @@ struct V3RecoveryContentAncestry: Sendable {
 
   init(_ observed: V3RecoverySameEpochObservation) throws {
     try self.init(
-      floor: observed.checkpoint.envelopeDigest, order: observed.order,
+      floor: observed.graphFloor, order: observed.order,
       parents: observed.envelopes.mapValues(\.parents))
   }
 
