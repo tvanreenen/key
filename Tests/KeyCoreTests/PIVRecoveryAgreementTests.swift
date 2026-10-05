@@ -6,7 +6,7 @@ import Testing
 
 struct PIVRecoveryAgreementTests {
   // Expired public software certificate, not the owner's hardware credential.
-  private static let certificate = Data(
+  static let certificate = Data(
     base64Encoded:
       "MIIBiTCCATCgAwIBAgIUMw8ODdlTgTIgtSKw44Ql3zmMG4MwCgYIKoZIzj0EAwIwKzEpMCcGA1UEAwwgRGlzcG9zYWJsZS1QdWJsaWMtUmVhZGVyLUZpeHR1cmUwHhcNMjYxMDAyMjI1NzUwWhcNMjYxMDAzMjI1NzUwWjArMSkwJwYDVQQDDCBEaXNwb3NhYmxlLVB1YmxpYy1SZWFkZXItRml4dHVyZTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABP6BbLGMaCO43s4BegokVD3FbytbyMSCeayyDxGJm+N+XEAO+9DcDAJf27UcWZKd0TdckqDLOu3+1ScQTREFi+6jMjAwMB0GA1UdDgQWBBTexRlA2He6kVY2UL3NTJi6MrvRTzAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0cAMEQCIB0VsnglpNS75gEdXOCCUlUC7wlzxUBBjeAbBQWWRC96AiAs0cUQFMuh68hj7v/MQWjH3JcgD4QDmUUId7Dt2Xwb3Q=="
   )!

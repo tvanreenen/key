@@ -8,13 +8,13 @@ import Testing
 /// Software construction and completion checks, not product registration or
 /// physical administration qualification. No YubiKey or user vault is accessed.
 struct V3RecoveryRegistrationTests {
-  private static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
+  static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
   private static let transitionID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b4"
   private static let generationID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b5"
   private static let entryID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b6"
   private static let totpID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b7"
-  private static let oldKey = Data(0..<32)
-  private static let nextKey = Data(32..<64)
+  static let oldKey = Data(0..<32)
+  static let nextKey = Data(32..<64)
 
   @Test func preparesAnExactEncryptedRecipientAdditionAndPublicExport() throws {
     let fixture = try Fixture()
@@ -961,16 +961,16 @@ struct V3RecoveryRegistrationTests {
     func remove() { try? FileManager.default.removeItem(at: root) }
   }
 
-  private enum FixtureError: Error { case cancelled }
+  enum FixtureError: Error { case cancelled }
 
-  private final class Counter: @unchecked Sendable {
+  final class Counter: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
     var value: Int { lock.withLock { count } }
     func increment() { lock.withLock { count += 1 } }
   }
 
-  private final class Owner: V3EnrollmentMessageSigning, V3DeviceWrappedVaultKeyUnwrapping,
+  final class Owner: V3EnrollmentMessageSigning, V3DeviceWrappedVaultKeyUnwrapping,
     @unchecked Sendable
   {
     let vaultID = V3RecoveryRegistrationTests.vaultID
@@ -982,6 +982,7 @@ struct V3RecoveryRegistrationTests {
     private var unwrapped = 0
     var cancelSigning = false
     var cancelUnwrap = false
+    var onUnwrap: @Sendable () throws -> Void = {}
     var signatures: Int { lock.withLock { signed } }
     var unwraps: Int { lock.withLock { unwrapped } }
     init() throws {
@@ -999,13 +1000,14 @@ struct V3RecoveryRegistrationTests {
       _ wrappedKey: V3HPKEWrappedVaultKey, context: V3VaultKeyHPKEContext, reason _: String
     ) throws -> Data {
       lock.withLock { unwrapped += 1 }
+      try onUnwrap()
       if cancelUnwrap { throw FixtureError.cancelled }
       return try V3VaultKeyHPKE().unwrap(
         wrappedKey, recipientPrivateKey: wrappingKey, context: context)
     }
   }
 
-  private struct Fixture: Sendable {
+  struct Fixture: Sendable {
     let owner: Owner
     let token = P256.KeyAgreement.PrivateKey()
     let backupToken = P256.KeyAgreement.PrivateKey()
