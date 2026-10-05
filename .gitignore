@@ -1,4 +1,5 @@
 .build/
+/tmp/
 .swiftpm/
 Package.resolved
 !/Package.resolved
