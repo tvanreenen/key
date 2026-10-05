@@ -713,6 +713,31 @@ an in-place downgrade that keeps new-format edits or undoes remote adoption.
 Never delete ordinary config or Keychain material during upgrade. New-profile
 genesis, no-recipient mode, and recovery registration are separate operations.
 
+The internal adoption builder and independent validator now construct this
+transition from an exact authenticated profile-2 checkpoint. They preserve the
+complete Mac roster and entry identities, names, types and revisions, rotate the
+vault key, reseal all current contents and create profile-3 device wrappers and
+a fresh epoch capsule. The initial recovery roster is empty and the epoch proof
+is null because profile 2 has no prior epoch signing authority. The existing
+active Mac signs the complete new content and exact old parent digest. Both
+manifest MACs, the new capsule and full same-plaintext comparison are required;
+publication validation also opens the local new wrapper once.
+
+Software tests feed the exact candidate through the existing profile-2 discovery
+and access gate, which refuse it as upgrade-required even with stale reads
+requested. The discovery and owner-signature guard source is unchanged from
+`v0.2.0`; the outer parser differs only in shared visibility and comments, and
+the coordinator's difference is prompt copy. This is source-level compatibility
+evidence, not an execution of the released binary or multi-Mac qualification.
+
+No adoption service, durable migration intent, interruption reconciliation,
+checkpoint advancement or public command is enabled by this component. A
+publication service must still review/guard current heads and local ownership,
+project resource usage and publish the exact candidate manifest last. Adoption
+does not claim recovery protection; that requires the separate registration
+workflow. Real-vault opt-in remains gated on ordinary-write/lifecycle support,
+integrated review and distribution qualification.
+
 The proposed public workflow is a `recovery` command group for status,
 credential review, registration, recipient listing/removal, restore review,
 restore, and explicit resume. Names/options are reviewed with service fixtures

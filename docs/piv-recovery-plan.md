@@ -405,7 +405,9 @@ promise. The capsule, recipient roster, recovery contexts/wrappers, containing
 profile, canonical proof projection, anchor codec, graph selector, snapshot
 verifier, registration candidate/intent, completion checks, durable preparation
 journal and service-owned manifest-last activation are implemented as internal
-components. Finish domain acceptance, profile adoption/ordinary mutations and
+components. Explicit profile-adoption construction/validation and a source-level
+old-client refusal check are implemented; durable adoption publication is not.
+Finish domain acceptance, profile adoption/ordinary mutations and
 product integration next. Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -430,6 +432,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | First 808 domain increment, 2026-10-05 | [Registration construction/completion checks](../Sources/KeyCore/V3RecoveryRegistration.swift), [authenticated pending-intent codec](../Sources/KeyCore/V3RecoveryRegistrationIntent.swift), [19 software tests](../Tests/KeyCoreTests/V3RecoveryRegistrationTests.swift), and [external workflow](piv-recovery-contract.md#planned-external-registration-experience) | All administration stays external; atomic prior-state preservation across vendor import is explicitly excluded. No durable staging/publisher, native registration service, product command, hardware call or activation. Verification details below. |
 | Second 808 storage increment, 2026-10-05 | [Complete preparation codec](../Sources/KeyCore/V3RecoveryRegistrationBundle.swift), [journal](../Sources/KeyCore/V3RecoveryRegistrationJournal.swift), [contained filesystem storage](../Sources/KeyCore/V3RecoveryRegistrationFilesystem.swift), and 22 additional tests in the [registration suite](../Tests/KeyCoreTests/V3RecoveryRegistrationTests.swift) | Durable atomic preparation and revalidated resume/export only. Device-local store behavior is scripted, not native Keychain qualification. No service-owned source/head/native-token review, reconciliation cleanup, activation, status route or hardware call. |
 | Third 808 service increment, 2026-10-05 | [Registration service](../Sources/KeyCore/V3RecoveryRegistrationService.swift), [bounded exact-transition observer](../Sources/KeyCore/V3RecoveryRegistrationRepository.swift), and [service phase tests](../Tests/KeyCoreTests/V3RecoveryRegistrationServiceTests.swift) | Internal profile-3 prepare/resume/finish and committed-state reconciliation. Real filesystem/crypto, scripted native calls and local stores. No shipping composition/CLI/XPC, profile-2 adoption, general profile-3 catch-up/content writes, physical qualification or hardware administration. |
+| First 804 adoption implementation, 2026-10-05 | [Adoption builder/validator](../Sources/KeyCore/V3RecoveryProfileAdoption.swift), [shared snapshot validator](../Sources/KeyCore/V3EntrySnapshotValidator.swift), [11 adoption tests](../Tests/KeyCoreTests/V3RecoveryProfileAdoptionTests.swift), and `v0.2.0` source comparison | Exact signed profile-2 to profile-3 candidate only. Tested existing discovery/access-gate refusal, not the released binary. No durable adoption service, checkpoint advancement, ordinary profile-3 writes or product route. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -929,3 +932,66 @@ Verification of final source:
 
 No real vault/configuration, installed product or token was changed. No
 notarization, push or release was performed.
+
+### First 804 adoption implementation, 2026-10-05
+
+The adoption builder creates an explicit profile-2 to profile-3 child of the
+exact locally authenticated checkpoint. It is not a new vault, a registration
+or a profile discriminator change applied to old ciphertext. It retains the
+whole device roster, creates profile-3 wrappers for active Macs only, rotates
+the vault key and authority-transition ID, reseals every current entry and
+creates a fresh epoch capsule. Entry identity, name, type and revision stay
+unchanged. The initial recovery roster is empty, with no recovery wrapper or
+protection claim.
+
+The old active Mac signs the entire canonical child and exact parent digest.
+The epoch proof is null because profile 2 supplies no prior epoch signer. The
+independent validator checks strict parsing, old/new MACs and key identities,
+the active parent's signature, exact roster and metadata, the new capsule and
+all old/new plaintexts. Publication validation additionally opens the addressed
+local new wrapper once and compares its key. Errors/cancellation return without
+an automatic private-operation retry. No saved approval is returned.
+
+Registration and adoption now share the bounded complete-entry snapshot checker.
+Registration retains its existing error contract; its 60 tests are included in
+regression. No new cryptographic primitive or dependency was introduced.
+
+Eleven adoption tests cover secret/TOTP and Unicode metadata, a retained
+revision-7 entry, multiple active Macs and a revoked Mac, empty vaults, opening
+both active wrappers, wrong profile domains, independent validation, malformed
+preparation before signing, snapshot/manifest limits, missing/duplicate objects,
+changed roster/content/capsule/proof, wrong authorizer and local wrapper failure
+or cancellation. A separate integration case uses the real contained filesystem
+to present the exact signed adoption candidate to existing profile-2 discovery
+and the access gate. Both ordinary and stale-read requests receive
+upgrade-required before a wrapper operation. A follow-on software registration
+uses the adopted snapshot as its parent and establishes its separate token floor.
+
+The `v0.2.0` discovery and owner-signature guard files are unchanged from the
+tested code. Related outer-parser differences are shared visibility/comments;
+the coordinator difference is prompt copy. This supports the intended refusal
+without claiming execution of the published binary or complete multi-Mac upgrade
+qualification. A provider withholding the adoption file remains outside global
+freshness guarantees.
+
+This increment implements migration construction/validation only. Durable
+adoption intent, exact resume, source/head and pending-state barriers,
+manifest-last publication, checkpoint/session advancement and product routing
+remain. Ordinary profile-3 mutation/lifecycle and integrated review/qualification
+must pass before real-vault opt-in. No implementation package is marked complete.
+
+Verification:
+
+- Complete serial Debug regression passed 1,020 KeyCore tests in 91 suites and
+  6 canonical-JSON tests. Focused adoption/registration regression passed all
+  71 tests in three suites.
+- Affected serial Release regression passed 330 tests in 24 suites. Full Release
+  and concurrent full-suite scheduling were not reassessed; prior limitations
+  remain recorded above.
+- The unsigned arm64/x86_64 Preview app, CLI and helper built. Product-bundle
+  isolation and bundled CLI help/completion checks passed.
+- Strict formatting of the new/expanded Swift files, project plist syntax and
+  `git diff --check` passed. Raw output remains under ignored `tmp/piv-recovery/`.
+
+No installed product, real vault/configuration or token was changed. No native
+authentication, hardware write, notarization, push or release was performed.

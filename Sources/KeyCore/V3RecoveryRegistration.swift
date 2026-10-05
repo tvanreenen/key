@@ -306,61 +306,28 @@ struct V3RecoveryRegistrationValidator: Sendable {
   private func entryMap(_ entries: [V3EncryptedEntry]) throws -> [V3EntryObjectKey:
     V3EncryptedEntry]
   {
-    guard entries.count <= limits.maximumReferencedEntryObjects else {
-      throw V3RecoveryRegistrationError.resourceLimit
+    try withSnapshotErrors {
+      try V3EntrySnapshotValidator(limits: limits).entryMap(entries)
     }
-    var result: [V3EntryObjectKey: V3EncryptedEntry] = [:]
-    var total = 0
-    for entry in entries {
-      guard entry.canonicalBytes.count <= limits.maximumEntryBytes,
-        entry.canonicalBytes.count <= limits.maximumTotalEntryBytes - total
-      else { throw V3RecoveryRegistrationError.resourceLimit }
-      total += entry.canonicalBytes.count
-      let key = V3EntryObjectKey(
-        entryID: entry.context.entryID, digest: Data(SHA256.hash(data: entry.canonicalBytes)))
-      guard result.updateValue(entry, forKey: key) == nil else {
-        throw V3RecoveryRegistrationError.incompleteSnapshot
-      }
-    }
-    return result
   }
 
   func plaintexts(
     _ envelope: V3RecoveryManifestEnvelope, entries: [V3EntryObjectKey: V3EncryptedEntry],
     vaultKey: Data
   ) throws -> [String: Data] {
-    let records = envelope.body.fields.entries
-    guard records.count <= limits.maximumReferencedEntryObjects,
-      entries.count <= limits.maximumReferencedEntryObjects
-    else { throw V3RecoveryRegistrationError.resourceLimit }
-    let expected = try records.map { record in
-      guard let digest = Base64URL.decodeCanonical(record.ciphertextDigest), digest.count == 32
-      else {
-        throw V3RecoveryRegistrationError.invalidEntry
+    try withSnapshotErrors {
+      try V3EntrySnapshotValidator(limits: limits).plaintexts(
+        fields: envelope.body.fields, entries: entries, vaultKey: vaultKey)
+    }
+  }
+
+  private func withSnapshotErrors<T>(_ operation: () throws -> T) throws -> T {
+    do { return try operation() } catch let error as V3EntrySnapshotValidationError {
+      switch error {
+      case .resourceLimit: throw V3RecoveryRegistrationError.resourceLimit
+      case .incompleteSnapshot: throw V3RecoveryRegistrationError.incompleteSnapshot
+      case .invalidEntry: throw V3RecoveryRegistrationError.invalidEntry
       }
-      return V3EntryObjectKey(entryID: record.entryID, digest: digest)
     }
-    guard Set(entries.keys) == Set(expected) else {
-      throw V3RecoveryRegistrationError.incompleteSnapshot
-    }
-    var total = 0
-    var result: [String: Data] = [:]
-    for (record, address) in zip(records, expected) {
-      guard let entry = entries[address] else {
-        throw V3RecoveryRegistrationError.incompleteSnapshot
-      }
-      let bytes = entry.canonicalBytes
-      guard bytes.count <= limits.maximumEntryBytes,
-        bytes.count <= limits.maximumTotalEntryBytes - total
-      else { throw V3RecoveryRegistrationError.resourceLimit }
-      total += bytes.count
-      let plaintext = try V3EntryCipher().openPlaintextDataTrusted(
-        bytes, vaultID: envelope.body.fields.vaultID, manifestEntry: record, vaultKey: vaultKey)
-      guard let text = String(data: plaintext, encoding: .utf8),
-        record.type != .totp || (try? TOTPGenerator.normalizeBase32Seed(text)) == text
-      else { throw V3RecoveryRegistrationError.invalidEntry }
-      result[record.entryID] = plaintext
-    }
-    return result
   }
 }
