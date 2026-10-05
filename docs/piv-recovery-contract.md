@@ -502,6 +502,42 @@ integration. Adoption's explicit exact-operation abandonment of an unarmed
 reservation remains local-only: it can release its own pin without advancing
 trust, publishing or clearing competing work.
 
+### Implemented unchanged-roster rotation foundation
+
+The [rotation builder/validator](../Sources/KeyCore/V3RecoveryKeyRotation.swift)
+implements an internal, unpublished profile-3 key epoch. It preserves exact
+device and recipient identities/statuses, the recovery generation and all entry
+IDs, names, types, revisions and plaintext values. A fresh vault key, transition
+ID and epoch signing capsule replace the old epoch. Every active device and
+recovery recipient gets exactly one new wrapper; revoked records remain without
+wrappers. Stored public keys suffice. No token discovery, agreement, administration
+or private recipient key is a construction dependency.
+
+Registration and rotation now share unsigned epoch material construction while
+retaining separate independent policy validators. That component consumes a
+caller-authenticated exact plaintext identity map, bounds work, reseals entries,
+creates wrappers/capsule, and strictly parses bounded output before Mac signing.
+It cannot authorize a roster change, publish or establish a checkpoint.
+The older shipping profile-2 rotation builder and persisted formats are unchanged.
+
+The independent normal-publication validator checks the exact current checkpoint,
+parent MAC/capsule, both boundary authorizations, unchanged rosters/generation,
+new current MAC/capsule, exact complete staged objects and old/new plaintext
+equality. Optional local-wrapper verification follows those checks and makes
+one addressed unwrap; cancellation and mismatches do not retry. This is not a
+physical prompt-budget qualification. Recovery still follows authenticated public
+history and verifies the selected current snapshot without decrypting all old
+epochs or reopening superseded ciphertext.
+
+[Software tests](../Tests/KeyCoreTests/V3RecoveryKeyRotationTests.swift) include
+primary and backup recovery after three rotations and a production ordinary
+service edit. Old snapshot ciphertext is removed and the original session/Mac
+identity leaves scope before one software agreement opens the final state for
+each credential. Rotation candidates are seeded and checkpointed by test setup;
+there is no production rotation publisher, service, resume or key-transition
+catch-up yet. Device enrollment/revocation and recipient removal policy remain
+separate work. No public command or real-vault opt-in is enabled.
+
 ## Proposed data contract
 
 Keep outer vault/envelope version 3 and the understood envelope shape.
