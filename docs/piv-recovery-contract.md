@@ -259,7 +259,7 @@ and crypto evidence, not shipping service/CLI dispatch, branch resolution,
 full multi-Mac catch-up coordination, native local-store or physical-token qualification. These
 integration tasks still gate product enablement.
 
-### Implemented ordinary same-epoch catch-up step
+### Implemented ordinary same-epoch catch-up
 
 The internal ordinary observer starts at an exact local checkpoint and supplied
 unlocked session key, not a recovery-token anchor. It shares bounded published
@@ -277,19 +277,31 @@ It never skips to a distant head, merges implicitly, writes provider objects or
 requests a device/token operation. Cache failure after successful CAS cannot
 undo the new checkpoint's authority.
 
-This service returns one committed step, not a completed access gate or installed
-key session. The caller must rediscover after each step. A sibling delivered
-after CAS cannot undo that committed step; the next inspection refuses the
-unexplained same-vault lineage rather than claiming the selected head is current.
-Catch-up coordination and branch reconciliation still need to classify and
-resolve such histories. Changed-key descendants and multi-parent merges refuse
-this path; no fallback key, private unwrap, token retry or automatic resolution
-is available. Key-epoch refusal is not authentication of that new epoch.
+The one-step API returns one committed step, not a completed access gate or
+installed key session. Its caller must rediscover after each step. The internal
+coordinated API instead owns one mutation boundary for the entire same-epoch
+walk and retains the original authenticated floor. It repeats complete source
+authentication and equality checks before every direct-child CAS and terminal
+return. A sibling delivered after CAS is authenticated from that retained floor
+and reported with all visible heads, retaining committed progress without
+choosing a winner. The currently committed manifest must remain present with
+exact bytes. A step budget can stop the walk without undoing accepted checkpoints
+or claiming current status; reaching a terminal result at the exact bound is allowed.
+
+The retained floor is operation-local, not new durable ancestry authority. A
+later invocation starting at an already-advanced checkpoint still refuses an
+unexplained sibling below that floor. Branch reconciliation and explicit
+merge/resolution publication remain separate work. Changed-key descendants and
+multi-parent merges refuse this path; no fallback key, private unwrap, token
+retry or automatic resolution is available. Key-epoch refusal is not
+authentication of that new epoch. Neither API installs a native session or
+provides a shipping read/write access gate.
 
 Software tests use independent local checkpoint/cache states and real immutable
 filesystem publication, including offline writes before file delivery. They
-cover one-step advancement, whole-forward-history availability/authentication,
-competing heads, late delivery, pending work, CAS loss and source substitution.
+cover one-step and coordinated advancement, whole-forward-history
+availability/authentication, competing heads, late delivery, pending work,
+CAS loss, bounded partial progress and source substitution.
 They do not qualify two physical Macs, provider delivery, native session unlock,
 the local Keychain stores or a shipping workflow.
 

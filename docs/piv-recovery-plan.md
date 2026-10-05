@@ -96,7 +96,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; candidate/intent, durable journal, native binding and internal prepare/resume/finish with manifest-last activation implemented; product composition/status, reciprocal pending barriers and physical qualification remain |
-| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; same-epoch construction, complete validation, durable publication/resume and guarded one-step catch-up implemented internally; catch-up coordination, branches/resolution and service/CLI acceptance remain |
+| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; same-epoch construction, complete validation, durable publication/resume and guarded one-step/coordinated catch-up implemented internally; branch reconciliation/resolution and service/CLI acceptance remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | Planned |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
@@ -396,7 +396,7 @@ single deferred integration PR.
 - **Real-vault ready:** 813/814 pass and explicit adoption in 815 is qualified.
 - **Full completion:** 815's Stable artifact is released and verified.
 
-The latest increment is internal guarded same-epoch catch-up under `REC-809`,
+The latest increment is internal coordinated same-epoch catch-up under `REC-809`,
 following internal durable adoption under `REC-804` and the `REC-808`
 registration service, with remaining `REC-807` integration,
 final `REC-805`/`REC-806` acceptance and `REC-804` integrated decisions tracked
@@ -412,9 +412,10 @@ publication/resume and a source-level old-client refusal check are implemented.
 Profile-3 content publication now shares the immutable transaction state machine
 with an explicitly selected validator, preserving shipping profile-2 parsing.
 The ordinary catch-up step reuses recovery's bounded graph traversal but has
-separate local-checkpoint/session-key authentication. It reports competing heads
-without changing trust and refuses key transitions or merged history.
-Finish catch-up coordination, branches/resolution, lifecycle, domain acceptance and
+separate local-checkpoint/session-key authentication. The coordinator retains its
+starting floor through a serialized walk, reports initial or newly delivered
+branches without choosing a winner, and refuses key transitions or merged history.
+Finish branch reconciliation/resolution, lifecycle, domain acceptance and
 product integration next. Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -444,6 +445,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | First 809 content increment, 2026-10-05 | [Shared entry planner/policy](../Sources/KeyCore/V3EntryMutationPlanner.swift), [profile-3 content builder/validator](../Sources/KeyCore/V3RecoveryContentMutation.swift), and [content/recovery tests](../Tests/KeyCoreTests/V3RecoveryContentMutationTests.swift) | Pure add/edit/copy/move/remove with complete snapshot checks and exact authority/coverage preservation. Cold software recovery of a filesystem edit chain; materialization is test setup, not a production save route. Publication/resume, catch-up, branches, resolution and physical qualification remain. |
 | Second 809 content increment, 2026-10-05 | [Profile-3 publisher/validator](../Sources/KeyCore/V3RecoveryContentMutationPublisher.swift), [shared immutable publisher](../Sources/KeyCore/V3ContentTransactionPublisher.swift), [shared interrupted-save recovery](../Sources/KeyCore/V3ContentTransactionRecoverer.swift), and [16 filesystem/crypto tests](../Tests/KeyCoreTests/V3RecoveryContentMutationPublisherTests.swift) | Actual internal durable same-epoch saves/resume, pinned ownership and manifest-last checkpoint activation. Cold recovery now follows production publication of five edits. Local stores/software token are scripted; no shipping service/CLI dispatch, catch-up, branches/resolution, native qualification or hardware administration. |
 | Third 809 content increment, 2026-10-05 | [Ordinary same-epoch observer/step service](../Sources/KeyCore/V3RecoverySameEpochCatchUpService.swift), [shared bounded graph/progression checks](../Sources/KeyCore/V3RecoveryManifestGraph.swift), and [19 filesystem/crypto tests](../Tests/KeyCoreTests/V3RecoverySameEpochCatchUpTests.swift) | Two independent software checkpoint/cache states catch up and publish in turn. Whole-forward-graph authentication, pending-work refusal and fresh source/CAS guards; competing content heads remain unresolved. Not a full catch-up coordinator, merge/resolution path, epoch lifecycle, native unlock/local-store qualification or enabled product route. |
+| Fourth 809 content increment, 2026-10-05 | [Coordinated same-epoch walk](../Sources/KeyCore/V3RecoverySameEpochCatchUpService.swift) and [29 combined step/coordination tests](../Tests/KeyCoreTests/V3RecoverySameEpochCatchUpTests.swift) | One mutation boundary retains the original floor, advances direct children, and authenticates late siblings without selecting a winner. Complete repeated source checks, pending barriers, bounded partial progress and committed-child visibility guards. Operation-local classification only; durable branch reconciliation, merge/resolution, epoch lifecycle and native/product composition remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -1278,3 +1280,72 @@ Verification:
 reconciliation, followed by merge/resolution publication and lifecycle/product
 integration. No installed app, real vault/configuration or YubiKey was changed.
 No native authentication, token write, push, notarization or release was performed.
+
+### Fourth 809 content increment, 2026-10-05
+
+The internal ordinary catch-up service now offers a coordinated same-epoch walk
+as well as its guarded one-step API. One `.catchUpVault` mutation boundary covers
+the entire walk, without nested queue ownership. Every step and terminal result
+reuses the production observer's complete graph/snapshot authentication, repeated
+exact-source equality checks, all three pending-work barriers and exact local
+checkpoint checks. Direct-child CAS and best-effort cache storage are shared
+with the one-step API. There is no additional signer, private Mac unwrap, token
+operation, provider write or native session installation.
+
+Two coordination choices were considered: move the observation floor forward
+and recheck passed parents separately, or retain the original floor throughout
+the operation. The latter preserves one closed authenticated forward graph and
+lets the existing observer authenticate a late sibling after a successful CAS.
+The coordinated result reports all visible heads and the accepted checkpoint
+and step count without choosing a winner. Initially competing heads leave trust
+unchanged; a later conflict retains already committed progress.
+
+The currently committed manifest must remain present with exact bytes in each
+new observation. Hiding a committed child cannot return an older floor as current.
+A bounded step count refuses further advancement without undoing accepted CAS
+operations; a terminal result at the exact bound is allowed. Source changes,
+missing snapshots, checkpoint races or newly pending work refuse a terminal
+current result. Complete observation is repeated for each step; no large-history
+performance or native authentication budget has been measured.
+
+Ten new test declarations extend the existing suite to 29, using genuine
+filesystem objects, production publication and crypto. They cover a complete
+two-step chain under one real mutation owner, unchanged state, initial branches,
+late sibling delivery after CAS, exact and exceeded step budgets, every pending
+namespace, lost checkpoint/provider state, changed terminal observations, hidden
+committed manifests, incomplete snapshots and cache failure. Local checkpoint
+and pending stores remain software fixtures; this is not native Keychain or
+physical two-Mac qualification.
+
+The retained floor is operation-local, not a new durable ancestry capability.
+Starting a later invocation at an already-advanced checkpoint still refuses
+unexplained siblings below that floor. Explicit branch reconciliation and
+merge/resolution publication are the next increment. Changed-key and multi-parent
+histories remain refused; native session composition and the shipping read/write
+access gate are not enabled. `REC-809` remains incomplete.
+
+Verification:
+
+- The final combined step/coordination suite passed all 29 tests. A preceding
+  focused recovery and existing catch-up run passed 229 tests in 14 suites before
+  the final hidden-child test was added.
+- Affected serial Release regression passed 463 tests in 34 suites, including
+  the final coordinator source and all 29 step/coordination tests. This is not
+  a full Release result. The locked-host run excluded the legacy mutation-owner
+  suite whose handler test writes file-protected version-2 fixtures.
+- The complete serial Debug attempt ran 1,099 KeyCore tests in 95 suites and
+  reported 65 issues in existing file-protected storage/handler tests. The Mac
+  reported `CGSSessionScreenIsLocked=Yes`; an unchanged focused storage test
+  reproduced the permission failure at `.completeFileProtection` writes while
+  the final 29-test catch-up suite passed. Six canonical-JSON tests also passed.
+  The complete Debug suite still needs an unlocked-host rerun; no protection
+  policy was changed to bypass this boundary.
+- The unsigned arm64/x86_64 Preview app, CLI and helper built. Bundle isolation
+  and bundled CLI help/completion checks passed; all three executables are universal.
+- Strict Swift formatting, project plist syntax, local documentation targets
+  and `git diff --check` passed. Raw logs remain under ignored
+  `tmp/piv-recovery/2026-10-05-content-coordination-*`; product artifacts stay in
+  the existing ignored build directory.
+
+No installed app, real vault/configuration or YubiKey was changed. No native
+authentication, token write, push, notarization or release was performed.
