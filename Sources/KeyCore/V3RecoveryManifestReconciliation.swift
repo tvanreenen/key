@@ -12,9 +12,10 @@ enum V3RecoveryManifestReconciliationResult: Equatable, Sendable {
   case noMergeRequired(head: V3VaultHead)
   case automaticMerge(V3RecoveryAutomaticMergePlan)
   case contentConflict(V3ContentConflictReport)
+  case historyConflict(V3HistoryConflict)
 }
 
-/// Pure reconciliation of an observer-authenticated, closed same-epoch tree.
+/// Pure reconciliation of an observer-authenticated, closed same-epoch DAG.
 /// The observation's constructor is confined to the production observer, which
 /// checks every manifest/snapshot and exact authority/coverage from a local floor.
 /// No profile projection, decryption, publication or private operation occurs.
@@ -29,14 +30,17 @@ struct V3RecoveryManifestReconciler: Sendable {
       throw V3ManifestReconciliationError.invalidAncestryProof
     }
     guard heads.count > 1 else { return .noMergeRequired(head: first) }
-    let firstPath = try path(first.envelopeDigest, in: observed)
-    var common = Set(firstPath)
-    for head in heads.dropFirst() {
-      common.formIntersection(try path(head.envelopeDigest, in: observed))
+    let common = try V3RecoveryContentAncestry(observed).nearestCommonAncestors(of: observed.heads)
+    guard !common.isEmpty else { throw V3ManifestReconciliationError.invalidAncestryProof }
+    guard common.count == 1 else {
+      return .historyConflict(
+        V3HistoryConflict(
+          heads: heads,
+          commonAncestors: try common.map {
+            try V3VaultHead(vaultID: observed.checkpoint.vaultID, envelopeDigest: $0)
+          }))
     }
-    // Single-parent forward history has one nearest common ancestor. Stop at
-    // the authenticated floor; its older parents do not extend this authority.
-    guard let ancestorDigest = firstPath.first(where: common.contains),
+    guard let ancestorDigest = common.first,
       let ancestor = observed.envelopes[ancestorDigest]
     else { throw V3ManifestReconciliationError.invalidAncestryProof }
     let ancestorHead = try V3VaultHead(
@@ -61,20 +65,4 @@ struct V3RecoveryManifestReconciler: Sendable {
         commonAncestor: ancestorHead, parentHeads: heads, entries: compared.entries))
   }
 
-  private func path(_ head: Data, in observed: V3RecoverySameEpochObservation) throws -> [Data] {
-    var path: [Data] = []
-    var seen = Set<Data>()
-    var next = head
-    while true {
-      guard seen.insert(next).inserted, let envelope = observed.envelopes[next] else {
-        throw V3ManifestReconciliationError.invalidAncestryProof
-      }
-      path.append(next)
-      if next == observed.checkpoint.envelopeDigest { return path }
-      guard envelope.parents.count == 1, let parent = envelope.parents.first else {
-        throw V3ManifestReconciliationError.invalidAncestryProof
-      }
-      next = parent
-    }
-  }
 }

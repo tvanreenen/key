@@ -258,8 +258,9 @@ struct V3RecoveryMergeMutationValidator: Sendable {
   private func depths(_ observed: V3RecoverySameEpochObservation) throws -> [Data: Int] {
     var result: [Data: Int] = [observed.checkpoint.envelopeDigest: 0]
     for digest in observed.order where digest != observed.checkpoint.envelopeDigest {
-      guard let envelope = observed.envelopes[digest], envelope.parents.count == 1,
-        let parent = envelope.parents.first, let depth = result[parent]
+      guard let envelope = observed.envelopes[digest], !envelope.parents.isEmpty,
+        envelope.parents.allSatisfy({ result[$0] != nil }),
+        let depth = envelope.parents.compactMap({ result[$0] }).max()
       else { throw V3RecoveryMergeMutationError.invalidCandidate }
       guard depth < limits.maximumHistoryDepth else {
         throw V3RecoveryMergeMutationError.resourceLimit
