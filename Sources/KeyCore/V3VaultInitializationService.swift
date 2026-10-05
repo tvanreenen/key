@@ -45,8 +45,7 @@ struct V3VaultInitializationService {
             let session = V3DeviceWrappedVaultKeySessionStore()
             defer { session.invalidate() }
             let installer = V3DeviceWrappedGenesisInstaller(
-                entryStore: EntryStore(rootURL: directory.rootHandle.rootURL),
-                cipher: VaultCipher(),
+                destinationRootURL: directory.rootHandle.rootURL,
                 objectStore: V3FilesystemTransactionArtifactStore(rootHandle: directory.rootHandle),
                 checkpointStore: V3ManifestCheckpointKeychainStore(configuration: runtimeConfiguration),
                 cache: try KeyServiceHandler.makeV3CheckpointManifestCache(keyConfiguration: configuration),
@@ -55,9 +54,6 @@ struct V3VaultInitializationService {
                     recordStore: V3EnrollmentDeviceKeyRecordKeychainStore(configuration: runtimeConfiguration),
                     keyOperations: V3SecureEnclaveEnrollmentDeviceKeyOperations()
                 ),
-                loadV2VaultKey: { _, _ in
-                    throw AppError.operationRefused("Initialization must not access a legacy vault key.")
-                },
                 selectVault: select
             )
             return try installer.installNewVault(
