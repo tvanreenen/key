@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D60700000000000000000002 /* V3RecoverySameEpochCatchUpService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60700000000000000000001 /* V3RecoverySameEpochCatchUpService.swift */; };
+		D60600000000000000000002 /* V3RecoveryManifestGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60600000000000000000001 /* V3RecoveryManifestGraph.swift */; };
 		D60500000000000000000082 /* V3RecoveryContentMutationPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60500000000000000000081 /* V3RecoveryContentMutationPublisher.swift */; };
 		D60500000000000000000072 /* V3ContentTransactionPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60500000000000000000071 /* V3ContentTransactionPublisher.swift */; };
 		D60500000000000000000062 /* V3ContentTransactionValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60500000000000000000061 /* V3ContentTransactionValidation.swift */; };
@@ -221,6 +223,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		D60700000000000000000001 /* V3RecoverySameEpochCatchUpService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoverySameEpochCatchUpService.swift; sourceTree = "<group>"; };
+		D60600000000000000000001 /* V3RecoveryManifestGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryManifestGraph.swift; sourceTree = "<group>"; };
 		D60500000000000000000081 /* V3RecoveryContentMutationPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryContentMutationPublisher.swift; sourceTree = "<group>"; };
 		D60500000000000000000071 /* V3ContentTransactionPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ContentTransactionPublisher.swift; sourceTree = "<group>"; };
 		D60500000000000000000061 /* V3ContentTransactionValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ContentTransactionValidation.swift; sourceTree = "<group>"; };
@@ -569,6 +573,8 @@
 				D60500000000000000000061 /* V3ContentTransactionValidation.swift */,
 				D60500000000000000000071 /* V3ContentTransactionPublisher.swift */,
 				D60500000000000000000081 /* V3RecoveryContentMutationPublisher.swift */,
+				D60600000000000000000001 /* V3RecoveryManifestGraph.swift */,
+				D60700000000000000000001 /* V3RecoverySameEpochCatchUpService.swift */,
 				D60500000000000000000001 /* V3RecoveryContentMutation.swift */,
 				D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */,
 				D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */,
@@ -1032,6 +1038,8 @@
 				D60500000000000000000062 /* V3ContentTransactionValidation.swift in Sources */,
 				D60500000000000000000072 /* V3ContentTransactionPublisher.swift in Sources */,
 				D60500000000000000000082 /* V3RecoveryContentMutationPublisher.swift in Sources */,
+				D60600000000000000000002 /* V3RecoveryManifestGraph.swift in Sources */,
+				D60700000000000000000002 /* V3RecoverySameEpochCatchUpService.swift in Sources */,
 				D60500000000000000000002 /* V3RecoveryContentMutation.swift in Sources */,
 				D53100000000000000000002 /* V3DeviceWrappedRevocationTransitionValidation.swift in Sources */,
 				D53200000000000000000002 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift in Sources */,
