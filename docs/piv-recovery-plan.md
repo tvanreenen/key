@@ -95,8 +95,8 @@ are the implementation packages, not new names for already completed probes.
 | `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; profile-3 domain codecs, contexts, proof construction/checks, and fixtures implemented; final acceptance and integrated review remain |
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
-| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; candidate/intent, durable journal, native binding and internal prepare/resume/finish with manifest-last activation implemented; product composition/status, reciprocal pending barriers and physical qualification remain |
-| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service composes exact sessions, publication/resume, catch-up and branch resolution; reciprocal runtime barriers, product/CLI acceptance and integrated/native qualification remain |
+| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
+| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | Planned |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
@@ -427,7 +427,9 @@ Late branches below a later checkpoint now use its exact committed same-epoch
 ancestry, without a separate trusted journal or checkpoint rollback. The internal
 ordinary mutation service now composes these components behind the existing save
 interface with an exact in-memory session. Finish reciprocal runtime barriers,
-lifecycle, domain acceptance and product integration next.
+shipping composition, lifecycle and domain acceptance next. Reciprocal internal
+registration/adoption guards now preserve exact pending work across save,
+approval, activation and local repair boundaries.
 Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -464,6 +466,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Eighth 809 content increment, 2026-10-05 | [Authenticated merge observation and catch-up](../Sources/KeyCore/V3RecoverySameEpochCatchUpService.swift), [bounded DAG policy](../Sources/KeyCore/V3RecoveryContentAncestry.swift), [14 publication-to-reader tests](../Tests/KeyCoreTests/V3RecoveryMergedCatchUpTests.swift) and [three graph/reference tests](../Tests/KeyCoreTests/V3RecoveryContentAncestryTests.swift) | Complete all-parent snapshots authenticate before the first unambiguous forward join can become the local checkpoint. Repeated joins and saves work; criss-cross bases report history conflict. Existing pending/CAS/source guards remain. Co-parents below a supplied later floor still refuse; durable ancestry and product/native acceptance remain. |
 | Ninth 809 content increment, 2026-10-05 | [Checkpoint-linked ancestry](../Sources/KeyCore/V3RecoveryCheckpointAncestry.swift), [observation/catch-up](../Sources/KeyCore/V3RecoverySameEpochCatchUpService.swift) and [late-branch integration cases](../Tests/KeyCoreTests/V3RecoveryMergedCatchUpTests.swift) | Exact committed same-epoch links explain older siblings/co-parents without rollback or another trusted journal. Current/new branch snapshots fully check; committed older ciphertext and pre-boundary state are not reopened. Reconciliation and manifest-last publication retain the advanced checkpoint. Service composition, lifecycle and integrated/native acceptance remain. |
 | Tenth 809 content increment, 2026-10-05 | [Internal mutation service](../Sources/KeyCore/V3RecoveryVaultMutationService.swift) and [19 service integration tests](../Tests/KeyCoreTests/V3RecoveryVaultMutationServiceTests.swift) | Existing ordinary interface, real exact-bound session, pinned interruption dispatch, catch-up, automatic merge and fresh explicit choices compose without a signer or unwrap. Cold software recovery follows actual service saves. No shipping dispatch, native unlock, concurrent-safe read/status service, reciprocal authority-service barriers or integrated/native qualification. |
+| Reciprocal 808/809 service guards, 2026-10-05 | [Registration service](../Sources/KeyCore/V3RecoveryRegistrationService.swift), [adoption service](../Sources/KeyCore/V3RecoveryAdoptionService.swift), [registration integration tests](../Tests/KeyCoreTests/V3RecoveryRegistrationServiceTests.swift) and [adoption integration tests](../Tests/KeyCoreTests/V3RecoveryAdoptionServiceTests.swift) | Thirteen new declarations cover competing work before/during approvals, late publication/CAS/session/cleanup, committed repair, unreadable ownership, and real registration/save composition. Internal exact namespaces and the shared mutation owner only; no shipping runtime/CLI dispatch, native qualification or lifecycle extension. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -1810,6 +1813,76 @@ Verification:
   their existing formatting; formatter configuration and raw logs are ignored.
 - Raw logs use `tmp/piv-recovery/2026-10-05-service-composition-`; product artifacts
   remain in the existing ignored build directory.
+
+No installed app, real vault/configuration or YubiKey was changed. No native
+authentication, token write, push, notarization or release was performed.
+
+### Reciprocal 808/809 service guards, 2026-10-05
+
+Registration now requires ordinary-transaction and adoption ownership stores,
+matching the existing adoption dependency pattern. Mandatory exact stores were
+chosen over a generic optional callback or a new cross-service coordinator.
+Callers must supply both competing namespaces, no new lock or format
+is introduced, and the existing mutation owner remains serialization authority.
+All services must be composed with that same owner and device-local namespaces.
+This does not implement an atomic cross-process protocol.
+
+Existing competing work blocks prepare, export resume, finish and committed/lost
+reply repair before private operations. Any present record blocks, including
+malformed bytes; storage read failures propagate. Registration and adoption
+recheck competing namespaces around exact checkpoint reads at effect boundaries.
+Registration also rechecks after public token validation, before publication/CAS,
+and before session repair or ownership cleanup. Work arriving during approval
+stops the remaining effects without clearing its marker or the exact preparation.
+Already advanced checkpoints stay committed. Explicit retry before commitment
+requires new possession; committed reconciliation needs no hardware agreement,
+new signature or repeated publication. Platform operations already in flight are
+not guaranteed cancellable. No automatic retry was added.
+
+Adoption's existing exact unarmed-reservation abandonment stays local-only. It
+can release its own prepared pin without publishing, advancing trust or clearing
+another service's work. Ordinary mutation already has the reverse guards; no
+shipping profile dispatch or product-runtime routing is enabled by this increment.
+
+Thirteen new declarations test the services with real crypto/filesystem
+publication and scripted local/native boundaries. Registration checks competing
+ordinary/adoption work before signing, resume and finish, during preparation,
+local unwrap, agreement, staging, manifest verification, checkpoint activation,
+session update and committed repair. Its unreadable-store case fails closed.
+Adoption checks prepared resume, late durable boundaries and committed repair
+before/after ownership cleanup. Assertions distinguish committed state from
+unpublished work, preserve exact pins and reject repeated private operations.
+
+Two real composition cases share the same stores and mutation owner. A real
+pinned ordinary save blocks registration until its publisher resumes; registration
+then binds its preparation to that resulting checkpoint. A pending registration
+blocks ordinary edits; activation installs its exact new session key, a following
+ordinary edit succeeds, and the public recovery verifier opens that edited state
+through a software receiver. These are not native or physical-token tests.
+
+Internal reciprocal guards are implemented. `REC-808` and `REC-809` still need
+shipping runtime/product acceptance, final integrated domain review and native
+qualification. Next domain work is recovery coverage across key/device/recipient
+changes (`REC-810`), followed by restore orchestration and product integration.
+No implementation package is marked complete and no real-vault opt-in is enabled.
+
+Verification:
+
+- Focused service regression passed: 71 tests in three suites, including 13 new
+  declarations and their parameterized interruption/resume cases.
+- Complete serial Debug regression passed: 1,208 KeyCore tests in 102 suites and
+  six canonical-JSON tests on the unlocked macOS 27.0 (`26A428`) host. No suites
+  were excluded; macOS 26+ software receiver cases ran on this supported host.
+- Affected optimized Release regression passed: 591 tests in 44 suites, covering
+  recovery/PIV software policy, epoch signing, reconciliation, device transitions,
+  immutable publication/resume, ordinary mutations/catch-up and ownership/UX.
+  This was not a full Release run; earlier qualification-bundle limitations remain.
+- Unsigned universal Preview build passed. App, CLI and helper contain arm64 and
+  x86_64 slices. Product-bundle isolation and CLI help/completion checks passed;
+  no app was installed.
+- Strict formatting, 113 local documentation targets and `git diff --check`
+  passed. Raw logs use `tmp/piv-recovery/2026-10-05-pending-barriers-`; build
+  artifacts remain in the existing ignored directory.
 
 No installed app, real vault/configuration or YubiKey was changed. No native
 authentication, token write, push, notarization or release was performed.
