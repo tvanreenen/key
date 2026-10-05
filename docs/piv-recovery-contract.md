@@ -485,8 +485,11 @@ caller; an absent or unrecognized anchor is not permission to register or restor
 
 ### Owner operated setup boundary
 
-Use Yubico's supported tools for credential administration initially, not a new
-Key PIN/PUK/management-key collector. The installed `ykman` 5.9.2 implementation
+Use Yubico's supported tools for all device administration initially, including
+credential preparation and registration-anchor installation. Key must not
+collect an administrative PIN, PUK or management key, invoke an importer, or
+provide a management writer. Ordinary possession/recovery agreement remains
+through the macOS hardware provider. The installed `ykman` 5.9.2 implementation
 was inspected without running it against a token. Key's public checks and scoped
 agreement remain separate from administration. This decision does not authorize
 changing the owner's test credential, default management key or occupied object.
@@ -522,17 +525,29 @@ consume attempts, reset PIV or use key regeneration as a forgotten-PIN remedy.
 Randomness, secret custody and protected storage cannot be proven by the public
 key metadata implemented here. Do not label that metadata registration readiness.
 
-The vendor object importer accepts an ID and bytes but does not compare prior
-occupancy. It cannot by itself implement Key's unknown-object refusal and
-reviewed-state write contract. Owner-operated credential setup is selected;
-guarded registration-anchor writing remains an explicit unresolved integration
-decision. No importer subprocess, shell command generator or management writer
-has been added. A future choice must account for credential custody, exclusive
-session ordering, exact prior-state checks and interruption reconciliation.
-Key's process-wide gate does not serialize other applications or an external
-vendor command. After a vendor step, discard old observations and freshly select
-and review the token. Exact anchor readback, authenticated candidate verification,
-possession and publication are still required before verified registration.
+The external-write decision explicitly excludes an atomic reviewed-state write
+guarantee. The vendor object importer accepts an ID and bytes but does not
+compare prior occupancy. Key refuses occupied application objects before
+preparing a first registration and verifies exact installed bytes afterward;
+it cannot prevent the owner or another administrator from changing or
+overwriting that object during the external step. Closing competing clients and
+selecting the device explicitly reduce mistakes, not eliminate this gap. Do not
+describe successful vendor import as verified registration or protection against
+an unexpected overwrite. Key's process-wide gate does not serialize the vendor
+tool or other applications.
+
+Initial preparation accepts only an absent application object and an existing
+compatible slot-9d credential. Even recognized occupied records require a
+separate replacement/reconciliation operation; they are not permission for a
+new registration. An immutable public export and an authenticated pending intent
+bind one exact candidate, recipient and expected parent. The product can display
+the exact owner-run vendor command after review, but must not execute it, accept
+arbitrary command hooks, or include secrets in it. A serial is a selection aid,
+not cryptographic authority. After any external step, discard prior native
+observations and freshly select/review the credential and installed anchor.
+Exact readback, authenticated candidate verification, possession and publication
+are required before verified registration. Preparation files and pending intents
+are not inputs required on a replacement Mac during ordinary recovery.
 
 ## Registration and authority lifecycle
 
@@ -546,8 +561,10 @@ all resulting active device and recovery wrappers before publication.
 Registration prepares one exact candidate from a complete reviewed checkpoint.
 Persist an authenticated local intent and stage/verify immutable encrypted
 candidate objects without selecting them as ordinary current state. Review the
-token/object, prior occupancy and protected administration before any approved
-anchor write. Read back exact anchor bytes and verify possession against that
+token/object and absent prior occupancy, and explain the externally prepared
+administration prerequisite and unconditional-import limitation. Export only the
+exact public anchor for an owner-run vendor write. Read back exact anchor bytes
+from a fresh bound token observation and verify possession against that
 candidate; revalidate the base and publish the activation manifest last, then
 advance local checkpoint and report verified registration.
 
@@ -558,6 +575,15 @@ change, transport failure, or ambiguous administrative write retains the exact
 attempt and prior-anchor backup for explicit reconciliation. Never silently
 repin, rebase, replace a candidate, or restore old token bytes. Resume must
 reauthenticate and review any dependent hardware operation.
+
+The pending intent must authenticate the exact parent checkpoint, approving Mac,
+candidate envelope, recipient, anchor and staged-entry addresses. It contains no
+raw vault/epoch key, PIN, PUK, management key or saved possession approval.
+Completion authenticates the same intent after owner reauthentication, checks
+the candidate's dual authorization and MAC/capsule, independently compares all
+current and resealed entry plaintexts, and verifies the local Mac wrapper before
+requesting one hardware opening of the exact candidate recovery wrapper. A
+restart requires a fresh possession check; never persist or reuse that result.
 
 This ordering is proposed for 808 and needs durable-phase tests. In particular,
 successful local possession verification cannot be treated as a reusable
@@ -573,6 +599,40 @@ Required recovery history begins at that token's pinned floor, not before it.
 Missing objects below the floor cannot become a dependency on the primary
 token's older registration. Competing or incomplete reachable descendants
 above the floor remain refusal cases.
+
+### Planned external registration experience
+
+This is a product workflow description, not a runnable command reference or
+permission to modify the current disposable credential. Preparation through
+Yubico tools is documented separately from Key's registration. Existing
+compatible credentials skip generation; occupied incompatible slot-9d
+credentials are not overwritten. PIN/PUK backup and administrative settings
+remain owner responsibilities.
+
+1. Connect and explicitly select the prepared device. Key reviews the
+   authenticated vault, credential fingerprint, fixed slot/policies and absent
+   application object. Cancel if anything differs from the intended target.
+2. After local owner authorization, Key durably retains and checks one encrypted
+   candidate and authenticated pending intent. It exports only that candidate's
+   public anchor and explains the owner-run vendor import, including explicit
+   target selection and its overwrite limitation. No administrative secret is
+   entered in Key. Report pending, not enabled, at this point.
+3. Run the reviewed vendor import independently. Enter administrative credentials
+   only in the vendor tool, never in a command argument or saved script. Vendor
+   success reports only that a write completed. Do not automatically repeat an
+   uncertain or interrupted write.
+4. Return to Key for finish. Reselect/review the token from fresh native reads
+   and authenticate the pending candidate and unchanged parent. Key verifies
+   the exact installed anchor, all resealed contents and the local wrapper,
+   then requests one candidate recovery opening through the macOS provider.
+   Enter the PIN in its system dialog and physically touch when requested.
+5. Recheck source/token bindings, publish the activation manifest last and
+   advance the local checkpoint. Only then report verified registration. Any
+   incomplete step stays pending or attention-required for explicit review.
+
+Repeat with an independently prepared backup device. Normal use does not need
+either token connected; replacement-Mac recovery must not require this export,
+pending intent, original configuration or administrative credential.
 
 Removing a recipient rotates the key and omits its future wrapper on the
 continuing lineage. Removing
