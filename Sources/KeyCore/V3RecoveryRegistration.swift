@@ -57,48 +57,21 @@ struct V3RecoveryRegistrationBuilder: Sendable {
     // Authenticate the entire old snapshot before signing or exporting anything.
     let plaintexts = try validator.plaintexts(
       parent, entries: currentEntries, vaultKey: currentVaultKey)
-    let staged = try parent.body.fields.entries.map { entry in
-      guard let plaintext = plaintexts[entry.entryID] else {
-        throw V3RecoveryRegistrationError.incompleteSnapshot
+    let material: V3RecoveryEpochMaterialBuilder.Material
+    do {
+      material = try validator.withSnapshotErrors {
+        try V3RecoveryEpochMaterialBuilder(limits: validator.limits).build(
+          fields: parent.body.fields, plaintexts: plaintexts, nextVaultKey: nextVaultKey,
+          authorityTransitionID: authorityTransitionID, devices: parent.body.fields.devices,
+          generationID: generationID, recipients: recipients)
       }
-      return try V3EntryCipher().seal(
-        plaintext,
-        context: V3EntryAuthenticationContext(
-          vaultID: checkpoint.vaultID, entryID: entry.entryID, name: entry.name,
-          type: entry.type, keyID: keyID, revision: entry.revision),
-        vaultKey: nextVaultKey, nonce: AES.GCM.Nonce())
+    } catch V3RecoveryKeyRotationError.resourceLimit {
+      throw V3RecoveryRegistrationError.resourceLimit
+    } catch V3RecoveryKeyRotationError.invalidCandidate {
+      throw V3RecoveryRegistrationError.invalidCandidate
     }
-    let wrappers = try parent.body.fields.devices.compactMap { device in
-      guard device.status == .active else { return nil as V3DeviceWrappedManifestKey? }
-      let context = try V3VaultKeyHPKEContext(
-        vaultID: checkpoint.vaultID, keyID: keyID, authorityTransitionID: authorityTransitionID,
-        recipientDeviceID: device.identity.deviceID, wrappingProfile: .recovery)
-      return try V3DeviceWrappedManifestKey(
-        recipientDeviceID: device.identity.deviceID,
-        wrappedKey: V3VaultKeyHPKE().wrap(
-          vaultKey: nextVaultKey, recipientPublicKey: device.identity.wrappingPublicKey,
-          context: context))
-    }
-    let recoveryWrappers = try recipients.compactMap { recipient in
-      guard recipient.status == .active else { return nil as V3RecoveryWrappedKey? }
-      return try V3RecoveryVaultKeyHPKE().wrap(
-        vaultKey: nextVaultKey,
-        context: V3RecoveryHPKEContext(
-          vaultID: checkpoint.vaultID, keyID: keyID, authorityTransitionID: authorityTransitionID,
-          recoveryGenerationID: generationID, recipient: recipient))
-    }
-    let fields = try V3DeviceWrappedManifestFields(
-      vaultID: checkpoint.vaultID, keyID: keyID, authorityTransitionID: authorityTransitionID,
-      devices: parent.body.fields.devices, wrappedKeys: wrappers,
-      entries: staged.map { V3ResealedEntry(encryptedEntry: $0).manifestEntry })
-    let body = try V3RecoveryManifestBody(
-      fields: fields,
-      epochSigningKey: V3EpochSigningKeyCipher().prepare(
-        context: V3EpochSigningKeyContext(
-          vaultID: checkpoint.vaultID, keyID: keyID, authorityTransitionID: authorityTransitionID),
-        vaultKey: nextVaultKey), transitionProof: nil,
-      recovery: V3RecoveryRoster(
-        generationID: generationID, recipients: recipients, wrappedKeys: recoveryWrappers))
+    let body = material.body
+    let staged = material.stagedEntries
     // Bounds and round-trip parsing must pass before the Mac signer is invoked.
     try validator.requireBodyBounds(body)
     let candidate = try V3RecoveryEpochBoundary().authorize(
@@ -126,7 +99,7 @@ struct V3RecoveryRegistrationBuilder: Sendable {
 /// An ordinary product service must supply a freshly authenticated checkpoint,
 /// source objects and native token observation, and guard publication afterward.
 struct V3RecoveryRegistrationValidator: Sendable {
-  private let limits: V3ManifestRepositoryLimits
+  fileprivate let limits: V3ManifestRepositoryLimits
 
   init(limits: V3ManifestRepositoryLimits = .standard) { self.limits = limits }
 
@@ -321,7 +294,7 @@ struct V3RecoveryRegistrationValidator: Sendable {
     }
   }
 
-  private func withSnapshotErrors<T>(_ operation: () throws -> T) throws -> T {
+  fileprivate func withSnapshotErrors<T>(_ operation: () throws -> T) throws -> T {
     do { return try operation() } catch let error as V3EntrySnapshotValidationError {
       switch error {
       case .resourceLimit: throw V3RecoveryRegistrationError.resourceLimit
