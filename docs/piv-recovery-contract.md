@@ -200,6 +200,40 @@ snapshot. The public proof state must not become an ordinary MAC-verified
 checkpoint. Graph selection, recipient policy, source rechecks, and durable
 resume remain implementation tasks; the small proof helper tests none of them.
 
+### Implemented ordinary edit construction and validation
+
+The internal profile-3 builder now constructs add, edit, copy, move and remove
+candidates from an exact MAC/capsule-authenticated checkpoint and complete
+current snapshot. It shares the existing permanent-profile entry planner and
+content-delta policy. Profile-specific envelope authentication/serialization
+remain separate; profile 3 is never projected into an artificial profile-2
+manifest to perform an edit.
+
+Each candidate retains the vault-key epoch, Mac roster/wrappers, epoch capsule,
+inherited proof, recovery generation/recipient roster and recovery wrappers
+exactly. It names the exact old checkpoint as its only parent and has no fresh
+device or epoch authorization. There is no token dependency or private device
+operation. Empty/unregistered vaults retain their existing protection state;
+edits cannot establish or remove registration.
+
+The independent validator authenticates both manifests and complete before/after
+snapshots, checks permitted revisions and content deltas, and requires exact
+changed-entry staging. Copy must match a retained unchanged source of the same
+type; move preserves its source payload. UTF-8 and canonical TOTP checks, entry
+and aggregate bounds apply to the complete snapshots. Changed authority,
+capsule/proof, recipient status or wrappers are not ordinary edits, even if the
+replacement fixture has a valid current-key MAC.
+
+Software tests materialize a register/add/edit/copy/move/remove chain through
+the contained immutable writer, then recover the selected current contents
+from only encrypted files, the pinned anchor and a software token private key.
+The original Mac authority and current vault key are not passed to recovery.
+One agreement opens the current snapshot. This is construction/crypto evidence,
+not a production content service, durable save/resume, branch resolution,
+multi-Mac catch-up or physical-token qualification. Shipping mutation and
+profile-2 refusal routes remain unchanged; these integration tasks still gate
+product enablement.
+
 ## Proposed data contract
 
 Keep outer vault/envelope version 3 and the understood envelope shape.
