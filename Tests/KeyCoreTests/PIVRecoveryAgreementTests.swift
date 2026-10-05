@@ -135,6 +135,35 @@ struct PIVRecoveryAgreementTests {
     }
   }
 
+  @Test func weakerOrImportedCredentialRefusesBeforeProviderLookup() throws {
+    guard #available(macOS 26.0, *) else { return }
+    for (pin, touch, origin): (UInt8, UInt8, UInt8) in [
+      (0, 2, 1), (1, 2, 1), (2, 2, 1), (4, 2, 1), (5, 2, 1),
+      (3, 0, 1), (3, 1, 1), (3, 3, 1), (3, 2, 2),
+    ] {
+      let f = try Fixture()
+      f.connection.setPolicy(pin: pin, touch: touch, origin: origin)
+      let observation = try f.reader.read(f.observation.candidate)
+      #expect(throws: PIVRecoveryKeyPolicyError.unsupportedPolicy) {
+        try f.adapter.withReceiver(observation: observation) { try $0.agree(Self.peer) }
+      }
+      #expect(f.session.lookups == 0 && f.session.requests == 0)
+    }
+  }
+
+  @Test func policyChangeDuringLookupOrAgreementRejectsWithoutRetry() throws {
+    guard #available(macOS 26.0, *) else { return }
+    for before in [true, false] {
+      let f = try Fixture()
+      let change: @Sendable () -> Void = { f.connection.setPolicy(pin: 2, touch: 2, origin: 1) }
+      if before { f.session.onLookup = change } else { f.session.onAgree = change }
+      #expect(throws: PIVRecoveryTokenError.tokenChanged) {
+        try f.adapter.withReceiver(observation: f.observation) { try $0.agree(Self.peer) }
+      }
+      #expect(f.session.requests == (before ? 0 : 1))
+    }
+  }
+
   @Test func foreignObservationCannotReachTheProvider() throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -310,11 +339,15 @@ struct PIVRecoveryAgreementTests {
     private var count = 0
     private var active = false
     private var changed = false
+    private var policy: [UInt8] = [3, 2, 1]
     var isValid: Bool { lock.withLock { valid } }
     var sessions: Int { lock.withLock { count } }
     var inSession: Bool { lock.withLock { active } }
     func remove() { lock.withLock { valid = false } }
     func changeAnchor() { lock.withLock { changed = true } }
+    func setPolicy(pin: UInt8, touch: UInt8, origin: UInt8) {
+      lock.withLock { policy = [pin, touch, origin] }
+    }
     func withPublicReadSession<T>(
       lease: PIVTokenOperationLease,
       _ consume: ((PIVPublicReadCommand) throws -> PIVPublicReadReply) throws -> T
@@ -333,6 +366,14 @@ struct PIVRecoveryAgreementTests {
         case .keyManagementCertificate:
           return PIVPublicReadReply(
             data: Self.tlv(0x53, Self.tlv(0x70, certificate) + Self.tlv(0x71, Data([0]))),
+            status: 0x9000)
+        case .keyManagementMetadata:
+          let policies = self.lock.withLock { self.policy }
+          let point = try PIVRecoveryTokenReader.certificatePublicKey(certificate)
+          return PIVPublicReadReply(
+            data:
+              Self.tlv(1, Data([0x11])) + Self.tlv(2, Data(policies.prefix(2)))
+              + Self.tlv(3, Data([policies[2]])) + Self.tlv(4, Self.tlv(0x86, point)),
             status: 0x9000)
         case .recoveryAnchor:
           return self.lock.withLock {

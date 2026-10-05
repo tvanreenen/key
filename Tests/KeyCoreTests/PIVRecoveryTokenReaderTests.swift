@@ -35,7 +35,13 @@ struct PIVRecoveryTokenReaderTests {
     #expect(observation.anchor == .recognized(anchor))
     #expect(try observation.publicKey == Self.publicKey())
     #expect(observation.recipientID == anchor.recipientID)
-    #expect(b.commands == [.selectApplication, .keyManagementCertificate, .recoveryAnchor])
+    #expect(
+      b.commands == [
+        .selectApplication, .keyManagementCertificate, .keyManagementMetadata, .recoveryAnchor,
+      ])
+    #expect(observation.keyMetadata.pinPolicy == .always)
+    #expect(observation.keyMetadata.touchPolicy == .always)
+    #expect(observation.keyMetadata.origin == .generated)
     #expect(b.sessionCount == 1 && b.closeCount == 1)
     #expect(a.commands.isEmpty)
     try reader.revalidate(observation)
@@ -65,7 +71,7 @@ struct PIVRecoveryTokenReaderTests {
     #expect(throws: PIVRecoveryTokenError.anchorCredentialMismatch) {
       try reader.read(try #require(reader.candidates().first))
     }
-    #expect(connection.commands.count == 3)
+    #expect(connection.commands.count == 4)
     #expect(connection.closeCount == 1)
   }
 
@@ -228,7 +234,7 @@ struct PIVRecoveryTokenReaderTests {
 
   @Test
   func closedCommandSurfaceHasOnlyTheApprovedPublicReads() {
-    #expect(PIVPublicReadCommand.allCases.count == 3)
+    #expect(PIVPublicReadCommand.allCases.count == 4)
     #expect(PIVPublicReadCommand.selectApplication.instruction == 0xa4)
     #expect(PIVPublicReadCommand.selectApplication.p1 == 4)
     for command in [PIVPublicReadCommand.keyManagementCertificate, .recoveryAnchor] {
@@ -237,6 +243,54 @@ struct PIVRecoveryTokenReaderTests {
     #expect(
       PIVPublicReadCommand.keyManagementCertificate.data == Data([0x5c, 3, 0x5f, 0xc1, 0x0b]))
     #expect(PIVPublicReadCommand.recoveryAnchor.data == Data([0x5c, 3, 0x5f, 0x4b, 0x59]))
+    let metadata = PIVPublicReadCommand.keyManagementMetadata
+    #expect(metadata.instruction == 0xf7 && metadata.p1 == 0 && metadata.p2 == 0x9d)
+    #expect(metadata.data.isEmpty)
+  }
+
+  @Test func metadataPublicKeyMustMatchTheCertificate() throws {
+    let connection = try Self.connection(anchor: .absent)
+    connection.setReply(
+      .keyManagementMetadata,
+      value: PIVPublicReadReply(
+        data: Self.metadata(publicKey: P256.KeyAgreement.PrivateKey().publicKey.x963Representation),
+        status: 0x9000))
+    let reader = makeReader([connection])
+    #expect(throws: PIVRecoveryKeyPolicyError.publicKeyMismatch) {
+      try reader.read(try #require(reader.candidates().first))
+    }
+    #expect(connection.commands.last == .keyManagementMetadata)
+  }
+
+  @Test func unsupportedUnavailableAndMalformedMetadataNeverFallsBack() throws {
+    for reply in [
+      PIVPublicReadReply(data: nil, status: 0x6d00),
+      PIVPublicReadReply(data: nil, status: 0x6a82),
+      PIVPublicReadReply(data: nil, status: 0x9000),
+      PIVPublicReadReply(data: Data([1]), status: 0x9000),
+    ] {
+      let connection = try Self.connection(anchor: .absent)
+      connection.setReply(.keyManagementMetadata, value: reply)
+      let reader = makeReader([connection])
+      #expect(throws: (any Error).self) { try reader.read(try #require(reader.candidates().first)) }
+      #expect(connection.commands.last == .keyManagementMetadata)
+      #expect(connection.closeCount == 1)
+    }
+  }
+
+  @Test func policyAndOriginChangesInvalidateTheObservedCredential() throws {
+    for bytes in [Data([2, 2]), Data([3, 3]), Data([3, 2])] {
+      let connection = try Self.connection(anchor: .absent)
+      let reader = makeReader([connection])
+      let observation = try reader.read(try #require(reader.candidates().first))
+      connection.setReply(
+        .keyManagementMetadata,
+        value: PIVPublicReadReply(
+          data: Self.metadata(
+            publicKey: observation.publicKey, policies: bytes,
+            origin: bytes == Data([3, 2]) ? 2 : 1), status: 0x9000))
+      #expect(throws: PIVRecoveryTokenError.tokenChanged) { try reader.revalidate(observation) }
+    }
   }
 
   @Test
@@ -341,6 +395,10 @@ struct PIVRecoveryTokenReaderTests {
       .keyManagementCertificate,
       value: PIVPublicReadReply(
         data: tlv(0x53, tlv(0x70, certificate) + tlv(0x71, Data([0]))), status: 0x9000))
+    value.setReply(
+      .keyManagementMetadata,
+      value: PIVPublicReadReply(
+        data: metadata(publicKey: try publicKey()), status: 0x9000))
     switch anchor {
     case .absent:
       value.setReply(.recoveryAnchor, value: PIVPublicReadReply(data: nil, status: 0x6a82))
@@ -358,6 +416,12 @@ struct PIVRecoveryTokenReaderTests {
       : count <= 255
         ? [0x81, UInt8(count)] : [0x82, UInt8(count >> 8), UInt8(count & 0xff)]
     return Data([tag] + length) + bytes
+  }
+  private static func metadata(
+    publicKey: Data, policies: Data = Data([3, 2]), origin: UInt8 = 1
+  ) -> Data {
+    tlv(1, Data([0x11])) + tlv(2, policies) + tlv(3, Data([origin]))
+      + tlv(4, tlv(0x86, publicKey))
   }
   private final class FakeInventory: PIVRecoveryTokenInventoryProviding, @unchecked Sendable {
     private let lock = NSLock()

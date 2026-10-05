@@ -94,7 +94,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-804` | Format, authority, lifecycle, and compatibility contract | Baseline | In progress; AI review disposition recorded; experimental direction authorized; graph/platform/adoption decisions remain |
 | `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; profile-3 domain codecs, contexts, proof construction/checks, and fixtures implemented; final acceptance and integrated review remain |
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
-| `REC-807` | Product token binding, supported administration, and credential lifecycle | 804 | In progress; native reader and scoped agreement foundations implemented; protected administration, capabilities, PIN/touch policy and physical qualification remain |
+| `REC-807` | Product token binding, supported administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; owner-operated credential setup selected; guarded anchor writes, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | Planned |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | Planned |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | Planned |
@@ -417,6 +417,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | First 806 domain increment, 2026-10-04 | [Anchor](../Sources/KeyCore/V3RecoveryAnchor.swift), [bounded history selector](../Sources/KeyCore/V3RecoveryHistory.swift), [snapshot verifier](../Sources/KeyCore/V3RecoverySnapshot.swift), and [graph/source tests](../Tests/KeyCoreTests/V3RecoveryHistoryTests.swift) | One software agreement across multiple epochs; complete selected current entries; no native token provenance, protected administration, restore service, or product activation. |
 | First 807 native foundation, 2026-10-04 | [Public token reader](../Sources/KeyCore/PIVRecoveryTokenReader.swift), [17 software tests](../Tests/KeyCoreTests/PIVRecoveryTokenReaderTests.swift), native SDK and two-architecture compilation | No external certificate file or fixed reader name. Scripted read/session tests are not physical-token qualification, private-key binding, possession, protected administration or registration readiness. |
 | Second 807 native foundation, 2026-10-05 | [Scoped agreement adapter](../Sources/KeyCore/PIVRecoveryAgreement.swift), [software boundary tests](../Tests/KeyCoreTests/PIVRecoveryAgreementTests.swift), shared reader lease and native compilation | Unique token/public-key handle binding, one-use scope and pending-worker exclusion. Native query/prompt delivery, required PIN/touch policy, protected setup and hardware behavior remain unqualified. No product caller or hardware operation was enabled. |
+| Third 807 native foundation, 2026-10-05 | [Key metadata codec](../Sources/KeyCore/PIVRecoveryKeyMetadata.swift), [codec tests](../Tests/KeyCoreTests/PIVRecoveryKeyMetadataTests.swift), reader/agreement refusal tests and [setup boundary](piv-recovery-contract.md#owner-operated-setup-boundary) | Requires explicit PIN/touch ALWAYS and reported generated origin, not attestation or demonstrated enforcement. Vendor credential setup selected; unconditional object import does not satisfy guarded anchor writing. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -495,7 +496,7 @@ The shared foundation is preserved locally as `9331268`.
   plist syntax, 53 local documentation targets, schema JSON syntax/shape, 60 local
   schema references, and `git diff --check` passed. Schema shape checks are not
   an independent JSON Schema validation engine.
-- Full Debug verification of this increment awaits an unlocked console. The Mac
+- At this increment, full Debug verification awaited an unlocked console. The Mac
   locked again after the previous increment's passing full run. No protected
   storage behavior, system lock setting, or token configuration was changed.
 
@@ -547,7 +548,7 @@ symlink refusal. No private hardware callback is exercised by these tests.
   the verified snapshot's fileprivate initializer. Raw probe code/output remains
   under ignored `tmp/piv-recovery/`, not in the product or committed tests.
 
-Full Debug verification still awaits an unlocked console; the unchanged full
+At this increment, full Debug verification awaited an unlocked console; the unchanged full
 Release compatibility limitation is recorded above. No system lock setting or
 protected-file behavior was changed. Raw logs remain under ignored
 `tmp/piv-recovery/`; no install, token operation, push, or release was performed.
@@ -598,7 +599,7 @@ one approved operation, cancellation/deadline/exclusion integration, protected
 owner-operated setup and product/hardware qualification. The occupied disposable
 object and factory-default management credentials were not altered. No native
 token discovery, read or private operation was run in this increment. Full Debug
-verification still awaits an unlocked console; the known full Release limitation
+verification then awaited an unlocked console; the known full Release limitation
 remains. Raw logs stay under ignored `tmp/piv-recovery/`.
 
 ### Scoped agreement verification, 2026-10-05
@@ -644,5 +645,56 @@ capabilities remain next, followed by explicit-scope native qualification on
 disposable data. Public observation and successful ECDH alone are not registration
 readiness or a real-vault restore. No entitlement, CLI/XPC route, installed build,
 YubiKey credential/object or vault was changed. Raw logs remain under ignored
-`tmp/piv-recovery/`; full Debug still awaits an unlocked console and the known
+`tmp/piv-recovery/`; full Debug then awaited an unlocked console and the known
 full Release limitation remains.
+
+### Configured policy and setup verification, 2026-10-05
+
+The third 807 increment adds only GET METADATA for slot 9d to the closed public
+command surface. It checks the metadata P-256 point against the certificate,
+retains reported origin/PIN/touch policy in the observation, and compares them
+on every revalidation. Agreement refuses all but generated origin and explicit
+PIN/touch ALWAYS before provider lookup. Missing metadata cannot fall back to
+certificate-only identity. There is no PIN verification or administrative APDU.
+
+The codec reuses strict bounded TLV framing: exact fields, supported values and
+curve encoding, with a 256-byte response limit. Ten additional software tests
+cover recognized versus accepted policies, malformed and substituted metadata,
+removal during the new read, weaker/imported credentials, and policy changes
+before or after agreement. Fixtures are software-only; no current token metadata
+was fetched and no hardware retry counter was consumed.
+
+Primary evidence: Yubico's
+[GET METADATA extension](https://developers.yubico.com/PIV/Introduction/Yubico_extensions.html),
+[policy guide](https://docs.yubico.com/yesdk/users-manual/application-piv/pin-touch-policies.html),
+and [PIV CLI guide](https://docs.yubico.com/software/yubikey/tools/ykman/PIV_Commands.html),
+plus the installed `ykman` 5.9.2 `yubikit/piv.py` and `ykman/_cli/piv.py`.
+The source establishes flat metadata TLVs, policy/origin constants, nested
+public-point encoding, management authentication for PUT DATA, hidden credential
+prompts and unconditional object import. It was read, not executed on hardware.
+
+Owner-operated vendor credential setup is the initial choice. Key will not
+collect management credentials for it. Guarded anchor writing remains unresolved:
+the vendor importer has no reviewed-prior-state comparison, and Key's gate is
+not cross-process exclusion. The contract records the random nondefault AES
+management-key direction, PIN-protected versus separate custody tradeoff, and
+the approval/readback requirements. These are not hardware instructions or proof
+of current protected administration. The existing disposable object and default
+management key were not changed.
+
+Verification:
+
+- Complete Debug suite with the console unlocked: 949 KeyCore tests across
+  88 suites and 6 canonical-JSON tests passed. This covers the previously deferred
+  profile, history, reader and agreement increments together with the policy
+  changes. Their earlier unlocked-console verification gap is closed.
+- Focused Release regression: 171 tests across 16 suites passed. This does not
+  supersede the unchanged full Release qualification-bundle limitation.
+- Unsigned arm64/x86_64 Preview app, CLI and helper build, product-bundle
+  isolation and bundled CLI help passed. No recovery command was enabled.
+- Strict formatting, project plist syntax, 71 local documentation targets and
+  `git diff --check` passed. Logs remain under ignored `tmp/piv-recovery/`.
+
+Configured-policy checks do not qualify actual prompts, native metadata delivery
+or protected anchor administration. No install, hardware call, write, credential
+change, push or release was performed.
