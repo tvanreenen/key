@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D60000000000000000000002 /* V3ExactTransitionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000001 /* V3ExactTransitionRepository.swift */; };
+		D60100000000000000000002 /* V3RecoveryAdoptionPreparation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60100000000000000000001 /* V3RecoveryAdoptionPreparation.swift */; };
+		D60200000000000000000002 /* V3RecoveryAdoptionFilesystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60200000000000000000001 /* V3RecoveryAdoptionFilesystem.swift */; };
+		D60300000000000000000002 /* V3RecoveryAdoptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60300000000000000000001 /* V3RecoveryAdoptionService.swift */; };
 		D59800000000000000000002 /* V3EntrySnapshotValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D59800000000000000000001 /* V3EntrySnapshotValidator.swift */; };
 		D59900000000000000000002 /* V3RecoveryProfileAdoption.swift in Sources */ = {isa = PBXBuildFile; fileRef = D59900000000000000000001 /* V3RecoveryProfileAdoption.swift */; };
 		D59600000000000000000002 /* V3RecoveryRegistrationRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = D59600000000000000000001 /* V3RecoveryRegistrationRepository.swift */; };
@@ -212,6 +216,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		D60000000000000000000001 /* V3ExactTransitionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ExactTransitionRepository.swift; sourceTree = "<group>"; };
+		D60100000000000000000001 /* V3RecoveryAdoptionPreparation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryAdoptionPreparation.swift; sourceTree = "<group>"; };
+		D60200000000000000000001 /* V3RecoveryAdoptionFilesystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryAdoptionFilesystem.swift; sourceTree = "<group>"; };
+		D60300000000000000000001 /* V3RecoveryAdoptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryAdoptionService.swift; sourceTree = "<group>"; };
 		D59800000000000000000001 /* V3EntrySnapshotValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3EntrySnapshotValidator.swift; sourceTree = "<group>"; };
 		D59900000000000000000001 /* V3RecoveryProfileAdoption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryProfileAdoption.swift; sourceTree = "<group>"; };
 		D59600000000000000000001 /* V3RecoveryRegistrationRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryRegistrationRepository.swift; sourceTree = "<group>"; };
@@ -543,6 +551,10 @@
 				D59700000000000000000001 /* V3RecoveryRegistrationService.swift */,
 				D59800000000000000000001 /* V3EntrySnapshotValidator.swift */,
 				D59900000000000000000001 /* V3RecoveryProfileAdoption.swift */,
+				D60000000000000000000001 /* V3ExactTransitionRepository.swift */,
+				D60100000000000000000001 /* V3RecoveryAdoptionPreparation.swift */,
+				D60200000000000000000001 /* V3RecoveryAdoptionFilesystem.swift */,
+				D60300000000000000000001 /* V3RecoveryAdoptionService.swift */,
 				D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */,
 				D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */,
 				D53300000000000000000001 /* V3DeviceWrappedRevocationTransitionPublisher.swift */,
@@ -997,6 +1009,10 @@
 				D59700000000000000000002 /* V3RecoveryRegistrationService.swift in Sources */,
 				D59800000000000000000002 /* V3EntrySnapshotValidator.swift in Sources */,
 				D59900000000000000000002 /* V3RecoveryProfileAdoption.swift in Sources */,
+				D60000000000000000000002 /* V3ExactTransitionRepository.swift in Sources */,
+				D60100000000000000000002 /* V3RecoveryAdoptionPreparation.swift in Sources */,
+				D60200000000000000000002 /* V3RecoveryAdoptionFilesystem.swift in Sources */,
+				D60300000000000000000002 /* V3RecoveryAdoptionService.swift in Sources */,
 				D53100000000000000000002 /* V3DeviceWrappedRevocationTransitionValidation.swift in Sources */,
 				D53200000000000000000002 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift in Sources */,
 				D53300000000000000000002 /* V3DeviceWrappedRevocationTransitionPublisher.swift in Sources */,

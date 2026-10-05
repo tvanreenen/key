@@ -140,6 +140,15 @@ protocol V3ImmutableTransactionRecoveryAnchorStoring: Sendable {
 enum V3RecoveryOwnershipNamespace: String, Sendable {
     case transaction = "v3-transaction-recovery"
     case registration = "v3-recovery-registration"
+    case adoption = "v3-recovery-profile-adoption"
+
+    var label: String {
+        switch self {
+        case .transaction: "key v3 transaction recovery anchor"
+        case .registration: "key v3 recovery registration ownership"
+        case .adoption: "key v3 recovery profile adoption ownership"
+        }
+    }
 }
 
 /// Persists ownership beside the device-local checkpoint and explicitly outside
@@ -192,9 +201,7 @@ final class V3ImmutableTransactionRecoveryAnchorKeychainStore:
             if current == nil {
                 var attributes = query
                 attributes[kSecAttrLabel as String] =
-                    namespace == .transaction
-                        ? "key v3 transaction recovery anchor"
-                        : "key v3 recovery registration ownership"
+                    namespace.label
                 attributes[kSecAttrAccessible as String] =
                     kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
                 attributes[kSecValueData as String] = anchor
