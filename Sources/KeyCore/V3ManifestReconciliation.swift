@@ -107,9 +107,11 @@ public struct V3ManifestReconciler: Sendable {
 
         let headReferences = try heads.map(V3VaultHead.init(verifiedManifest:))
         let firstBody = heads[0].envelope.content.manifest
-        guard heads.dropFirst().allSatisfy({
-            hasSameV3ManifestAuthority(firstBody, $0.envelope.content.manifest)
-        }) else {
+        guard
+            heads.dropFirst().allSatisfy({
+                hasSameV3ManifestAuthority(firstBody, $0.envelope.content.manifest)
+            })
+        else {
             return .securityConflict(heads: headReferences)
         }
 
@@ -118,12 +120,13 @@ public struct V3ManifestReconciler: Sendable {
             throw V3ManifestReconciliationError.invalidAncestryProof
         }
         guard commonAncestors.count == 1, let commonAncestor = commonAncestors.first else {
-            return .historyConflict(V3HistoryConflict(
-                heads: headReferences,
-                commonAncestors: try commonAncestors.map(
-                    V3VaultHead.init(verifiedManifest:)
-                )
-            ))
+            return .historyConflict(
+                V3HistoryConflict(
+                    heads: headReferences,
+                    commonAncestors: try commonAncestors.map(
+                        V3VaultHead.init(verifiedManifest:)
+                    )
+                ))
         }
 
         return try reconcileContent(
@@ -138,82 +141,26 @@ public struct V3ManifestReconciler: Sendable {
         heads: [V3VerifiedManifest],
         headReferences: [V3VaultHead]
     ) throws -> V3ManifestReconciliationResult {
-        let ancestorEntries = try entriesByID(
-            commonAncestor.envelope.content.manifest.entries
+        let reconciled = try V3EntryReconciler().reconcile(
+            ancestorEntries: commonAncestor.envelope.content.manifest.entries,
+            versions: zip(headReferences, heads).map {
+                ($0.0, $0.1.envelope.content.manifest.entries)
+            }
         )
-        let headEntries = try heads.map {
-            try entriesByID($0.envelope.content.manifest.entries)
-        }
-        var entryIDs = Set(ancestorEntries.keys)
-        for entries in headEntries {
-            entryIDs.formUnion(entries.keys)
-        }
-
-        var mergedEntries: [V3ManifestEntry] = []
-        var entryConflicts: [V3EntryConflict] = []
-        for entryID in entryIDs.sorted(by: utf8PrecedesForReconciliation) {
-            let ancestorEntry = ancestorEntries[entryID]
-            let versions = headEntries.enumerated().map { index, entries in
-                V3EntryConflictVersion(
-                    head: headReferences[index],
-                    entry: entries[entryID]
-                )
-            }
-            let changedVersions = versions.filter {
-                $0.entry != ancestorEntry
-            }
-            let distinctChanges = distinctEntryValues(
-                changedVersions.map(\.entry)
-            )
-
-            if let revisionConflict = revisionConflictKind(
-                ancestor: ancestorEntry,
-                changes: distinctChanges
-            ) {
-                entryConflicts.append(V3EntryConflict(
-                    entryID: entryID,
-                    kind: revisionConflict,
-                    commonAncestorEntry: ancestorEntry,
-                    versions: changedVersions
-                ))
-            } else if distinctChanges.isEmpty {
-                if let ancestorEntry {
-                    mergedEntries.append(ancestorEntry)
-                }
-            } else if distinctChanges.count == 1 {
-                if let selected = distinctChanges[0] {
-                    mergedEntries.append(selected)
-                }
-            } else {
-                entryConflicts.append(V3EntryConflict(
-                    entryID: entryID,
-                    kind: conflictKind(
-                        ancestor: ancestorEntry,
-                        changes: distinctChanges
-                    ),
-                    commonAncestorEntry: ancestorEntry,
-                    versions: changedVersions
-                ))
-            }
-        }
-
-        let destinationConflicts = destinationConflicts(in: mergedEntries)
         let ancestorHead = try V3VaultHead(
             verifiedManifest: commonAncestor
         )
-        if !entryConflicts.isEmpty || !destinationConflicts.isEmpty {
-            return .contentConflict(V3ContentConflictReport(
-                commonAncestor: ancestorHead,
-                heads: headReferences,
-                entriesReconciledByID: mergedEntries.sorted(
-                    by: manifestEntryPrecedesForReconciliation
-                ),
-                entryConflicts: entryConflicts,
-                destinationConflicts: destinationConflicts
-            ))
+        if !reconciled.entryConflicts.isEmpty || !reconciled.destinationConflicts.isEmpty {
+            return .contentConflict(
+                V3ContentConflictReport(
+                    commonAncestor: ancestorHead,
+                    heads: headReferences,
+                    entriesReconciledByID: reconciled.entries,
+                    entryConflicts: reconciled.entryConflicts,
+                    destinationConflicts: reconciled.destinationConflicts
+                ))
         }
 
-        mergedEntries.sort(by: manifestEntryPrecedesForReconciliation)
         let authority = heads[0].envelope.content.manifest
         let mergedBody = V3ManifestBody(
             vaultID: authority.vaultID,
@@ -221,7 +168,7 @@ public struct V3ManifestReconciler: Sendable {
             keyID: authority.keyID,
             devices: authority.devices,
             wrappedKeys: authority.wrappedKeys,
-            entries: mergedEntries
+            entries: reconciled.entries
         )
         let content = V3ManifestContent(
             parents: headReferences.map {
@@ -229,11 +176,76 @@ public struct V3ManifestReconciler: Sendable {
             },
             manifest: mergedBody
         )
-        return .automaticMerge(V3AutomaticMergePlan(
-            commonAncestor: ancestorHead,
-            parentHeads: headReferences,
-            content: content
-        ))
+        return .automaticMerge(
+            V3AutomaticMergePlan(
+                commonAncestor: ancestorHead,
+                parentHeads: headReferences,
+                content: content
+            ))
+    }
+}
+
+/// Content comparison only. Each profile establishes authenticated ancestry and
+/// matching authority before supplying entries and exact head identities here.
+/// This shared policy neither parses a profile nor grants publication authority.
+struct V3EntryReconciler: Sendable {
+    struct Result: Equatable, Sendable {
+        let entries: [V3ManifestEntry]
+        let entryConflicts: [V3EntryConflict]
+        let destinationConflicts: [V3DestinationConflict]
+    }
+
+    func reconcile(
+        ancestorEntries: [V3ManifestEntry],
+        versions: [(head: V3VaultHead, entries: [V3ManifestEntry])]
+    ) throws -> Result {
+        guard versions.count > 1, Set(versions.map(\.head)).count == versions.count,
+            let vaultID = versions.first?.head.vaultID,
+            versions.allSatisfy({ $0.head.vaultID == vaultID })
+        else { throw V3ManifestReconciliationError.invalidAncestryProof }
+        let versions = versions.sorted {
+            $0.head.envelopeDigest.lexicographicallyPrecedes($1.head.envelopeDigest)
+        }
+        let ancestorEntries = try entriesByID(ancestorEntries)
+        let headEntries = try versions.map { try entriesByID($0.entries) }
+        var entryIDs = Set(ancestorEntries.keys)
+        for entries in headEntries { entryIDs.formUnion(entries.keys) }
+
+        var mergedEntries: [V3ManifestEntry] = []
+        var entryConflicts: [V3EntryConflict] = []
+        for entryID in entryIDs.sorted(by: utf8PrecedesForReconciliation) {
+            let ancestorEntry = ancestorEntries[entryID]
+            let values = headEntries.enumerated().map { index, entries in
+                V3EntryConflictVersion(head: versions[index].head, entry: entries[entryID])
+            }
+            let changedVersions = values.filter { $0.entry != ancestorEntry }
+            let distinctChanges = distinctEntryValues(changedVersions.map(\.entry))
+            if let revisionConflict = revisionConflictKind(
+                ancestor: ancestorEntry, changes: distinctChanges
+            ) {
+                entryConflicts.append(
+                    V3EntryConflict(
+                        entryID: entryID, kind: revisionConflict,
+                        commonAncestorEntry: ancestorEntry, versions: changedVersions
+                    ))
+            } else if distinctChanges.isEmpty {
+                if let ancestorEntry { mergedEntries.append(ancestorEntry) }
+            } else if distinctChanges.count == 1 {
+                if let selected = distinctChanges[0] { mergedEntries.append(selected) }
+            } else {
+                entryConflicts.append(
+                    V3EntryConflict(
+                        entryID: entryID,
+                        kind: conflictKind(ancestor: ancestorEntry, changes: distinctChanges),
+                        commonAncestorEntry: ancestorEntry, versions: changedVersions
+                    ))
+            }
+        }
+        return Result(
+            entries: mergedEntries.sorted(by: manifestEntryPrecedesForReconciliation),
+            entryConflicts: entryConflicts,
+            destinationConflicts: destinationConflicts(in: mergedEntries)
+        )
     }
 }
 
@@ -251,7 +263,7 @@ private struct ReconciliationGraph {
         var manifestsByDigest: [Data: V3VerifiedManifest] = [:]
         for manifest in proof.manifests {
             guard manifest.envelopeDigest.count == 32,
-                  manifestsByDigest[manifest.envelopeDigest] == nil
+                manifestsByDigest[manifest.envelopeDigest] == nil
             else {
                 throw V3ManifestReconciliationError.invalidAncestryProof
             }
@@ -261,7 +273,7 @@ private struct ReconciliationGraph {
         var seenHeads: Set<Data> = []
         for head in proof.heads {
             guard manifestsByDigest[head.envelopeDigest] == head,
-                  seenHeads.insert(head.envelopeDigest).inserted
+                seenHeads.insert(head.envelopeDigest).inserted
             else {
                 throw V3ManifestReconciliationError.invalidAncestryProof
             }
@@ -278,9 +290,11 @@ private struct ReconciliationGraph {
         }
         for firstIndex in heads.indices {
             for secondIndex in heads.indices where firstIndex != secondIndex {
-                guard !headAncestorSets[secondIndex].contains(
-                    heads[firstIndex].envelopeDigest
-                ) else {
+                guard
+                    !headAncestorSets[secondIndex].contains(
+                        heads[firstIndex].envelopeDigest
+                    )
+                else {
                     throw V3ManifestReconciliationError.invalidAncestryProof
                 }
             }
@@ -320,7 +334,7 @@ private struct ReconciliationGraph {
             return cached
         }
         guard let manifest = manifestsByDigest[digest],
-              visiting.insert(digest).inserted
+            visiting.insert(digest).inserted
         else {
             throw V3ManifestReconciliationError.invalidAncestryProof
         }
@@ -329,7 +343,7 @@ private struct ReconciliationGraph {
         var result: Set<Data> = [digest]
         for encodedParent in manifest.envelope.content.parents {
             guard let parentDigest = reconciliationDigest(encodedParent),
-                  manifestsByDigest[parentDigest] != nil
+                manifestsByDigest[parentDigest] != nil
             else {
                 throw V3ManifestReconciliationError.invalidAncestryProof
             }
@@ -437,7 +451,7 @@ private func utf8PrecedesForReconciliation(
 
 private func reconciliationDigest(_ encoded: String) -> Data? {
     guard let digest = Base64URL.decodeCanonical(encoded),
-          digest.count == 32
+        digest.count == 32
     else {
         return nil
     }
