@@ -420,9 +420,11 @@ struct V3RecoverySameEpochCatchUpTests {
     let step = try advanced(
       service(f, checkpoints: store).advanceOneStep(from: floor(f), vaultKey: Core.nextKey))
     #expect(step.envelope == child.envelope)
-    #expect(throws: V3RecoveryValidationError.unanchoredParent) {
-      try service(f).advanceOneStep(from: step, vaultKey: Core.nextKey)
-    }
+    guard
+      case .contentConflict(let heads) = try service(f).advanceOneStep(
+        from: step, vaultKey: Core.nextKey)
+    else { throw Publication.Stop.interrupted }
+    #expect(Set(heads) == [child.envelope.digest, branch.envelope.digest])
     #expect(f.checkpoints.value == step.checkpoint.canonicalBytes)
   }
 

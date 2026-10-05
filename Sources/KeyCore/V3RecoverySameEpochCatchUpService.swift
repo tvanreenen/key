@@ -24,6 +24,8 @@ enum V3RecoverySameEpochCoordinatedOutcome: Sendable {
 /// proof of provider-global freshness. Construction is confined to the observer.
 struct V3RecoverySameEpochObservation: Equatable, Sendable {
   let checkpoint: V3ManifestCheckpoint
+  let graphFloor: Data
+  let committedAncestorDigests: Set<Data>
   let envelopes: [Data: V3RecoveryManifestEnvelope]
   let order: [Data]
   let heads: [Data]
@@ -33,11 +35,14 @@ struct V3RecoverySameEpochObservation: Equatable, Sendable {
   let listedObjectCount: Int
 
   fileprivate init(
-    checkpoint: V3ManifestCheckpoint, envelopes: [Data: V3RecoveryManifestEnvelope],
+    checkpoint: V3ManifestCheckpoint, graphFloor: Data, committedAncestorDigests: Set<Data>,
+    envelopes: [Data: V3RecoveryManifestEnvelope],
     order: [Data], heads: [Data], entryObjects: [V3EntryObjectKey: V3EncryptedEntry],
     observedManifestBytes: [Data: Data], listedDigests: [Data], listedObjectCount: Int
   ) {
     self.checkpoint = checkpoint
+    self.graphFloor = graphFloor
+    self.committedAncestorDigests = committedAncestorDigests
     self.envelopes = envelopes
     self.order = order
     self.heads = heads
@@ -104,8 +109,21 @@ struct V3RecoverySameEpochRepositoryObserver: Sendable {
     else {
       throw V3RecoveryValidationError.sourceChanged
     }
-    let order = try graph.anchoredOrder(
-      floor: floor.checkpoint.envelopeDigest, vaultID: floor.checkpoint.vaultID)
+    let order: [Data]
+    let graphFloor: Data
+    let committedDigests: Set<Data>
+    do {
+      order = try graph.anchoredOrder(
+        floor: floor.checkpoint.envelopeDigest, vaultID: floor.checkpoint.vaultID)
+      graphFloor = floor.checkpoint.envelopeDigest
+      committedDigests = [floor.checkpoint.envelopeDigest]
+    } catch V3RecoveryValidationError.unanchoredParent {
+      let ancestry = try V3RecoveryCheckpointAncestry(
+        graph: &graph, checkpoint: floor, vaultKey: vaultKey)
+      order = try graph.anchoredOrder(floor: ancestry.root, vaultID: floor.checkpoint.vaultID)
+      graphFloor = ancestry.root
+      committedDigests = ancestry.committedDigests
+    }
     let boundary = V3RecoveryEpochBoundary()
     let snapshots = V3EntrySnapshotValidator(limits: limits)
     var envelopes: [Data: V3RecoveryManifestEnvelope] = [:]
@@ -122,13 +140,20 @@ struct V3RecoverySameEpochRepositoryObserver: Sendable {
         throw V3RecoveryContentCatchUpError.epochTransitionRequired
       }
       try boundary.verifyCurrentAuthentication(envelope, vaultKey: vaultKey)
-      if digest != floor.checkpoint.envelopeDigest {
+      if digest != graphFloor {
         let parents = envelope.parents.compactMap { envelopes[$0] }
         guard !parents.isEmpty, parents.count == envelope.parents.count,
           parents.count > 1 || envelope.body.fields.entries != parents[0].body.fields.entries
         else { throw V3RecoveryValidationError.invalidTransition }
         try boundary.verifySameEpochMetadata(envelope, parents: parents)
         try V3RecoveryContentProgressValidator().validate(envelope, parents: parents)
+      }
+      envelopes[digest] = envelope
+      // Exact hash-linked ancestors explain a late branch; they are not a new
+      // snapshot replay obligation. Current and every uncommitted branch still
+      // require complete content validation, including unselected parents.
+      if committedDigests.contains(digest), digest != floor.checkpoint.envelopeDigest {
+        continue
       }
       var current: [V3EntryObjectKey: V3EncryptedEntry] = [:]
       for record in envelope.body.fields.entries {
@@ -161,7 +186,6 @@ struct V3RecoverySameEpochRepositoryObserver: Sendable {
       }
       _ = try snapshots.plaintexts(
         fields: envelope.body.fields, entries: current, vaultKey: vaultKey)
-      envelopes[digest] = envelope
     }
     let referencedParents = Set(envelopes.values.flatMap { $0.parents })
     let heads = envelopes.keys.filter { !referencedParents.contains($0) }.sorted {
@@ -171,7 +195,8 @@ struct V3RecoverySameEpochRepositoryObserver: Sendable {
     var observedBytes = graph.objects.mapValues(\.bytes)
     if let candidate, let excluded { observedBytes[candidate.digest] = excluded.bytes }
     return V3RecoverySameEpochObservation(
-      checkpoint: floor.checkpoint, envelopes: envelopes, order: order, heads: heads,
+      checkpoint: floor.checkpoint, graphFloor: graphFloor,
+      committedAncestorDigests: committedDigests, envelopes: envelopes, order: order, heads: heads,
       entryObjects: objects, observedManifestBytes: observedBytes,
       listedDigests: inventory.digests, listedObjectCount: inventory.objectCount)
   }
@@ -230,7 +255,7 @@ struct V3RecoverySameEpochCatchUpService: Sendable {
     try mutationOwner.perform(.catchUpVault) { _ in
       let observed = try stableObservation(from: floor, current: floor, vaultKey: vaultKey)
       if observed.heads.count > 1 { return .contentConflict(observed.heads) }
-      guard observed.order.count > 1 else { return .upToDate(floor) }
+      guard observed.heads != [floor.checkpoint.envelopeDigest] else { return .upToDate(floor) }
       guard let head = observed.heads.first,
         let digest = try V3RecoveryContentAncestry(observed).nextAdvance(
           after: floor.checkpoint.envelopeDigest, to: head),

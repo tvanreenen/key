@@ -267,7 +267,8 @@ inventory, ancestry traversal and revision progression with catastrophe history
 selection. Authentication remains separate: every visible forward same-epoch
 manifest MAC/capsule, unchanged authority/coverage and complete entry snapshot
 must check before an ordinary head is reported. Entries have the usual byte,
-reference, UTF-8 and canonical TOTP bounds. Pre-floor snapshots are not decrypted.
+reference, UTF-8 and canonical TOTP bounds. Snapshots already committed as ancestors
+of the supplied checkpoint are not decrypted merely to explain a late branch.
 
 The serialized step service refuses pending ordinary, registration or adoption
 work. It repeats the observation and checks exact checkpoint/ownership state
@@ -275,10 +276,10 @@ before returning an unchanged floor, reporting multiple authenticated content
 heads, or compare-and-replacing the checkpoint with the next authenticated
 advance point. A linear path advances its direct child. A resolved fork advances
 to the first join lying on every path to the sole visible head, without first
-checkpointing either side. All exact parents and complete snapshots authenticate
-before this join can be accepted. The service never constructs an implicit merge,
-writes provider objects or requests a device/token operation. Cache failure after
-successful CAS cannot undo the new checkpoint's authority.
+checkpointing either side. All exact parents and required complete snapshots
+authenticate before this join can be accepted. The service never constructs an
+implicit merge, writes provider objects or requests a device/token operation.
+Cache failure after successful CAS cannot undo the new checkpoint's authority.
 
 The one-step API returns one committed step, not a completed access gate or
 installed key session. Its caller must rediscover after each step. The internal
@@ -291,13 +292,24 @@ choosing a winner. The currently committed manifest must remain present with
 exact bytes. A step budget can stop the walk without undoing accepted checkpoints
 or claiming current status; reaching a terminal result at the exact bound is allowed.
 
-The retained floor is operation-local, not new durable ancestry authority. A
-later invocation starting at an already-advanced checkpoint still refuses an
-unexplained sibling or merge co-parent below that floor. It does not invent an
-older trust floor to explain that branch. Durable below-floor ancestry handling
-remains separate work. Merged-history observation and explicit merge/resolution
-publication are implemented internally. Changed-key descendants refuse
-this path; no fallback key, private unwrap, token
+The retained floor is operation-local. A later invocation can explain a sibling
+or merge co-parent below its advanced checkpoint by reconstructing exact
+hash-linked same-epoch ancestry committed by that checkpoint. This path runs only
+when the ordinary forward cut cannot explain the visible graph. It checks every
+required ancestor's MAC/capsule, unchanged metadata, revision progress, graph
+closure and existing resource bounds. The unique origin or checkpoint-linked
+authorized epoch boundary is the graph cut; its older parent is not reopened or
+authenticated with the current key. Unrelated branches and missing required
+ancestral manifests still refuse.
+
+The older graph cut never replaces the durable checkpoint. Current and newly
+encountered branch snapshots, including unselected co-parents, fully authenticate;
+already committed ancestor records can supply a comparison base without reopening
+their ciphertext. No second trusted journal, cache authority, persisted schema or
+new private-key operation is introduced. Fresh observation equality and exact
+checkpoint CAS still gate every forward advancement. Merged-history observation
+and explicit merge/resolution publication are implemented internally. Changed-key
+descendants refuse this path; no fallback key, private unwrap, token
 retry or automatic resolution is available. Key-epoch refusal is not
 authentication of that new epoch. Neither API installs a native session or
 provides a shipping read/write access gate.
@@ -309,8 +321,11 @@ availability/authentication, competing heads, late delivery, pending work,
 CAS loss, bounded partial progress and source substitution. Published automatic
 and explicit-choice merges, repeated joins, post-merge saves and late sibling
 delivery use the same complete source/pending/checkpoint checks. Missing ciphertext
-in an unselected parent still blocks advancement. A pure bounded DAG policy chooses
-advance points with linear retained state; independent set-based reference tests
+in an uncommitted unselected parent still blocks advancement. Late siblings can be
+reported, reconciled and durably merged from an advanced checkpoint without
+rewinding. Missing older committed ciphertext does not block link reconstruction;
+missing required manifests or current/new branch contents do. A pure bounded DAG
+policy chooses advance points with linear retained state; independent set-based reference tests
 cover all 9,765 rooted topologically ordered six-node DAGs.
 They do not qualify two physical Macs, provider delivery, native session unlock,
 the local Keychain stores or a shipping workflow.
@@ -321,11 +336,12 @@ The internal profile-3 reconciler consumes the ordinary observer's authenticated
 forward DAG, not raw manifests or a profile-2 projection. Every visible branch
 has already passed current MAC/capsule, exact unchanged authority/coverage,
 revision and complete snapshot checks. The reconciler finds the nearest common
-ancestors within that graph, stopping at the exact local floor. A unique nearest
-base feeds entry comparison. Multiple nearest bases produce the existing
+ancestors within that graph, stopping at the checkpoint-linked graph cut. A unique
+nearest base feeds entry comparison. Multiple nearest bases produce the existing
 history-conflict type; no base is chosen arbitrarily and the merge builder refuses
 automatic or explicit-entry resolution of that history shape. The reconciler does
-not extend authority into older ancestry or grant a new checkpoint.
+not grant an older or new checkpoint. An older comparison base is usable only
+after exact ancestry links have authenticated from the existing local checkpoint.
 
 The shared entry comparison policy keeps independent changes to different stable
 entry IDs, including additions and deletions. Competing edits, edit-versus-delete,
@@ -345,9 +361,9 @@ transaction must independently authenticate all exact parents and complete snaps
 preserve coverage/authority, recheck provider and local pending state, and publish
 manifest last. The existing one-parent persisted content intent was not widened.
 
-The observer accepts closed same-epoch merged history but still refuses changed-key
-histories. Durable ancestry handling for siblings/co-parents below a newly selected
-floor and service/CLI integration remain unfinished. Explicit choices have
+The observer accepts closed same-epoch merged history and checkpoint-linked late
+siblings/co-parents but still refuses changed-key histories. Service/CLI integration
+remains unfinished. Explicit choices have
 internal construction and durable publication, as described below.
 The new tests use real crypto and separate filesystem providers for independent
 ordinary publications before immutable file delivery. They are not native session,
@@ -421,9 +437,9 @@ pending authority work, strict intent parsing and cross-publisher refusal. Both
 durably published merge kinds open through the public history/snapshot verifier
 with one software agreement. Ordinary saves from an accepted merge retain coverage.
 These are not native-token operations or measured physical approval budgets.
-Merged-history catch-up is implemented for a closed forward graph from the supplied
-floor. Durable sibling/co-parent handling below a later floor, service/CLI integration
-and native/product qualification remain unfinished.
+Merged-history catch-up includes checkpoint-linked same-epoch siblings/co-parents
+below a later floor. Service/CLI integration and native/product qualification
+remain unfinished.
 
 ## Proposed data contract
 

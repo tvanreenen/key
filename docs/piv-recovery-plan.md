@@ -96,7 +96,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; candidate/intent, durable journal, native binding and internal prepare/resume/finish with manifest-last activation implemented; product composition/status, reciprocal pending barriers and physical qualification remain |
-| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; ordinary and all-parent publication/resume, authenticated merged-history catch-up and DAG reconciliation implemented internally; durable below-floor siblings/co-parents and service/CLI acceptance remain |
+| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; ordinary and all-parent publication/resume, authenticated merged-history catch-up, checkpoint-linked late branches and DAG reconciliation implemented internally; service/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | Planned |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
@@ -396,8 +396,8 @@ single deferred integration PR.
 - **Real-vault ready:** 813/814 pass and explicit adoption in 815 is qualified.
 - **Full completion:** 815's Stable artifact is released and verified.
 
-The latest increment is authenticated merged-history catch-up and forward-DAG
-reconciliation under `REC-809`,
+The latest increment is checkpoint-linked ancestry for late same-epoch siblings
+and merge co-parents under `REC-809`,
 following internal durable adoption under `REC-804` and the `REC-808`
 registration service, with remaining `REC-807` integration,
 final `REC-805`/`REC-806` acceptance and `REC-804` integrated decisions tracked
@@ -423,9 +423,10 @@ authority to a plan. All-parent construction now encodes and independently valid
 complete candidates, preserving exact coverage and the selected values. The merge
 publisher now reuses manifest-last durability with strict head/selector-bound
 intents and fresh parent validation, leaving ordinary single-parent contracts intact.
-Finish durable handling of siblings/co-parents below a later floor,
-lifecycle, domain acceptance and
-product integration next. Native public-read binding and
+Late branches below a later checkpoint now use its exact committed same-epoch
+ancestry, without a separate trusted journal or checkpoint rollback. Finish
+service composition, lifecycle, domain acceptance and product integration next.
+Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
 software checks, not integrated review or product/hardware qualification.
@@ -459,6 +460,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Sixth 809 content increment, 2026-10-05 | [All-parent construction and independent validation](../Sources/KeyCore/V3RecoveryMergeMutation.swift) and [16 software domain tests](../Tests/KeyCoreTests/V3RecoveryMergeMutationTests.swift) | Automatic merges reuse exact ciphertext; complete head-bound choices preserve selected values through bounded-revision resealing or explicit deletion. Full candidate snapshots and projected limits check; recovery coverage remains exact. Unpublished candidates only; one-parent intent/publisher are unchanged, and all-parent durability/native/product acceptance remain. |
 | Seventh 809 content increment, 2026-10-05 | [All-parent publication and source validation](../Sources/KeyCore/V3RecoveryMergeMutationPublisher.swift), [durable interruption tests](../Tests/KeyCoreTests/V3RecoveryMergeMutationPublisherTests.swift) and [strict intent tests](../Tests/KeyCoreTests/V3RecoveryMergeIntentTests.swift) | Explicit merge validator reuses manifest-last ordering; exact pinned heads/selectors and staged ciphertext resume without new choices or private operations. Current-only committed cleanup and ordinary saves after merge pass. Earlier-floor merged-history catch-up, durable below-floor siblings, product composition and hardware acceptance remain. |
 | Eighth 809 content increment, 2026-10-05 | [Authenticated merge observation and catch-up](../Sources/KeyCore/V3RecoverySameEpochCatchUpService.swift), [bounded DAG policy](../Sources/KeyCore/V3RecoveryContentAncestry.swift), [14 publication-to-reader tests](../Tests/KeyCoreTests/V3RecoveryMergedCatchUpTests.swift) and [three graph/reference tests](../Tests/KeyCoreTests/V3RecoveryContentAncestryTests.swift) | Complete all-parent snapshots authenticate before the first unambiguous forward join can become the local checkpoint. Repeated joins and saves work; criss-cross bases report history conflict. Existing pending/CAS/source guards remain. Co-parents below a supplied later floor still refuse; durable ancestry and product/native acceptance remain. |
+| Ninth 809 content increment, 2026-10-05 | [Checkpoint-linked ancestry](../Sources/KeyCore/V3RecoveryCheckpointAncestry.swift), [observation/catch-up](../Sources/KeyCore/V3RecoverySameEpochCatchUpService.swift) and [late-branch integration cases](../Tests/KeyCoreTests/V3RecoveryMergedCatchUpTests.swift) | Exact committed same-epoch links explain older siblings/co-parents without rollback or another trusted journal. Current/new branch snapshots fully check; committed older ciphertext and pre-boundary state are not reopened. Reconciliation and manifest-last publication retain the advanced checkpoint. Service composition, lifecycle and integrated/native acceptance remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -1654,6 +1656,86 @@ Verification:
 - Raw logs use the ignored prefix
   `tmp/piv-recovery/2026-10-05-merged-catch-up-`; product artifacts remain in the
   existing ignored build directory.
+
+No installed app, real vault/configuration or YubiKey was changed. No native
+authentication, token write, push, notarization or release was performed.
+
+### Ninth 809 content increment, 2026-10-05
+
+Late same-epoch siblings and merge co-parents below an advanced checkpoint now
+use exact ancestry committed transitively by that checkpoint. A separate stored
+older floor/journal and reconstruction from immutable parent hashes were compared.
+Reconstruction reuses the existing rollback anchor and avoids another trusted
+store, two-record commit ordering, migration and recovery protocol. Provider bytes
+remain untrusted input; each required address must match its hash before parsing.
+This is not selection of an older checkpoint or trust in a provider-supplied root.
+
+The ordinary observer first attempts its existing forward cut. Only an
+unanchored-parent result permits bounded checkpoint ancestry reconstruction. Every
+required same-epoch ancestor checks current MAC/capsule and exact inherited
+authority, roster, wrapper, proof and recovery metadata. Ordinary/all-parent entry
+progress checks, unique-root closure, acyclicity and the existing graph budgets
+remain. Reconstruction stops at the exact committed origin or authorized epoch
+boundary whose single parent matches the inherited transition proof. It does not
+reopen that boundary's parent, authenticate an old epoch with the current key or
+unwrap a historical key. Missing required same-epoch manifests still refuse.
+
+The reconstructed graph cut and committed-ancestor set are observer-owned fields,
+not caller-issued trust capabilities. The current checkpoint remains the sole
+expected CAS value. Current and every newly encountered branch snapshot fully
+authenticate, including unselected merge parents. Older committed snapshots are
+not reopened merely to explain links or compare records. An older shared base's
+entry records are usable because their exact bytes are linked to the checkpoint;
+that does not establish current availability of its old ciphertext. Fresh
+observation equality and publication rechecks include the reconstructed scope.
+
+Both catch-up APIs can report a late conflict and accept its published join
+without rewinding or checkpointing an old side. Branch comparison and automatic
+or explicit-choice merge construction keep the advanced checkpoint while using
+the older shared base. The existing manifest-last publisher and interruption
+recovery reuse that same scope; ordinary single-parent intent and shipping profile
+parsing are unchanged.
+
+Nine additional integration declarations cover late-branch reporting,
+reconciliation and real publication from an advanced checkpoint; missing older
+committed ciphertext; missing/substituted required ancestors and new branch
+ciphertext; disconnected same-epoch fixtures; exact depth bounds; unavailable
+pre-boundary state; late branches predating an already committed join; source,
+all three pending namespaces and concurrent checkpoint changes; and interrupted
+automatic/explicit publication before/after manifest publication and after CAS.
+The two earlier below-floor refusal cases now assert authenticated conflict/join
+behavior instead. No signing-attack reproduction or token operation is involved.
+
+`REC-809` remains incomplete. Next is internal service composition, with integrated
+domain acceptance and reciprocal mutation barriers before CLI/native enablement.
+Epoch/device/recipient lifecycle remains `REC-810`; restore orchestration, product
+integration, integrated review and physical acceptance are still separate work.
+No persisted schema or shipping profile dispatch was changed.
+
+Verification:
+
+- Final serial Debug run excluding five locked-host-dependent legacy suites:
+  1,108 KeyCore tests in 96 suites and six canonical-JSON tests passed, including
+  all 23 merged-history test declarations and automatic/explicit interruption
+  cases. The five excluded suites contain 68 declarations and still need an
+  unlocked-host rerun.
+- An earlier full Debug attempt reported 65 issues in unchanged file-protected
+  storage/handler tests. Read-only host inspection confirmed `IOConsoleLocked`
+  and `CGSSessionScreenIsLocked` were true. No protection policy was changed;
+  the user was asked to unlock the host.
+- Affected optimized Release regression: 552 tests in 42 suites passed, covering
+  recovery/PIV software policy, epoch signing, graph reconciliation, device
+  transitions, immutable durability and content mutation/catch-up. The
+  locked-host legacy mutation-owner suite was excluded. This was not a full
+  Release result; earlier qualification-bundle limitations remain.
+- Unsigned universal Preview build passed after correcting the new source's
+  Xcode build-phase reference. App, CLI and helper contain arm64 and x86_64
+  slices. Product bundle and CLI help/completion checks passed.
+- Strict Swift formatting, Xcode plist validation, 105 local documentation link
+  targets and `git diff --check` passed.
+- Raw logs use the ignored prefix
+  `tmp/piv-recovery/2026-10-05-checkpoint-ancestry-`; product artifacts remain in
+  the existing ignored build directory.
 
 No installed app, real vault/configuration or YubiKey was changed. No native
 authentication, token write, push, notarization or release was performed.

@@ -207,7 +207,9 @@ struct V3RecoveryMergeTransactionValidator: V3ContentTransactionValidating {
       let newPublished = newBytes.removeValue(forKey: input.manifestDigest) != nil
       let oldListing = before.listedDigests.filter { $0 != input.manifestDigest }
       let newListing = after.listedDigests.filter { $0 != input.manifestDigest }
-      guard before.checkpoint == after.checkpoint, before.envelopes == after.envelopes,
+      guard before.checkpoint == after.checkpoint, before.graphFloor == after.graphFloor,
+        before.committedAncestorDigests == after.committedAncestorDigests,
+        before.envelopes == after.envelopes,
         before.order == after.order, before.heads == after.heads,
         before.entryObjects == after.entryObjects, oldBytes == newBytes, oldListing == newListing,
         before.listedObjectCount - (before.listedDigests.contains(input.manifestDigest) ? 1 : 0)
