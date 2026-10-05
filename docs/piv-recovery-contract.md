@@ -340,6 +340,44 @@ The new tests use real crypto and separate filesystem providers for independent
 ordinary publications before immutable file delivery. They are not native session,
 Keychain, physical-token or multi-Mac qualification.
 
+### Implemented all-parent content construction
+
+Internal builders now encode automatic merges and complete explicit conflict
+choices from an ordinary authenticated forward-tree observation. Automatic merges
+reuse exact independently reconciled ciphertext records without staging or resealing.
+Resolution uses the existing head-bound conflict/version IDs and complete-choice
+planner. A chosen conflicted entry retains its stable identity, selected name/type
+and plaintext, but is resealed at one revision above every parent version of that
+identity. Counter overflow refuses resealing; an explicitly chosen deletion stays
+absent without incrementing or staging an entry. A destination-name choice removes
+only the other identities in that reported collision and retains the chosen
+ciphertext exactly. New name collisions created by otherwise complete choices
+refuse construction instead of silently deleting another selection.
+
+Every candidate carries all exact sorted parent heads and preserves key identity,
+authority transition, Mac roster/wrappers, capsule, inherited proof and complete
+recovery roster/generation/wrappers exactly. Fresh boundary authorizations remain
+empty. Independent validation rechecks the supplied floor/session key and every
+parent's complete snapshot, recomputes the merge or resolution policy, and checks
+candidate MAC/capsule, metadata/progression, exact retained records and exact staged
+objects. The complete candidate snapshot passes context, AEAD, UTF-8 and TOTP checks;
+resealed values must match the selected source plaintexts. Projected object/reference,
+byte and history-depth limits include the new manifest and new ciphertext objects.
+
+These are unpublished domain candidates. Choices remain in-memory inputs, not a
+saved approval, publication permit or new authority record. There is no provider
+writer, checkpoint store, token operation or native session capability in the builder
+or validator. Source observation can age; durable publication must independently
+recheck provider state, exact heads, checkpoint and all pending namespaces. The
+existing single-parent publisher and persisted intent remain unchanged and refuse
+an all-parent candidate before creating intent. All-parent publication/resume and
+merged-history catch-up remain unfinished.
+
+Software tests cover the construction/validation boundary and use the public
+recovery selector/snapshot verifier to open a fixture-delivered automatic-merge
+candidate with one software agreement. That delivery is not a production merge
+publication, native-token operation or measured physical approval budget.
+
 ## Proposed data contract
 
 Keep outer vault/envelope version 3 and the understood envelope shape.

@@ -96,7 +96,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; candidate/intent, durable journal, native binding and internal prepare/resume/finish with manifest-last activation implemented; product composition/status, reciprocal pending barriers and physical qualification remain |
-| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; same-epoch construction, complete validation, durable publication/resume, guarded catch-up and read-only branch reconciliation implemented internally; merge/resolution publication, merged-history catch-up and service/CLI acceptance remain |
+| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; same-epoch edit publication/resume, guarded catch-up, branch reconciliation and all-parent merge/resolution construction/validation implemented internally; all-parent publication/resume, merged-history catch-up and service/CLI acceptance remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | Planned |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
@@ -396,7 +396,7 @@ single deferred integration PR.
 - **Real-vault ready:** 813/814 pass and explicit adoption in 815 is qualified.
 - **Full completion:** 815's Stable artifact is released and verified.
 
-The latest increment is internal read-only branch reconciliation under `REC-809`,
+The latest increment is internal all-parent merge/resolution construction under `REC-809`,
 following internal durable adoption under `REC-804` and the `REC-808`
 registration service, with remaining `REC-807` integration,
 final `REC-805`/`REC-806` acceptance and `REC-804` integrated decisions tracked
@@ -417,7 +417,9 @@ starting floor through a serialized walk, reports initial or newly delivered
 branches without choosing a winner, and refuses key transitions or merged history.
 The new reconciler shares entry comparison policy with the existing profile,
 without converting profile-3 authority into older manifests or granting publication
-authority to a plan. Finish merge/resolution publication, merged-history catch-up,
+authority to a plan. All-parent construction now encodes and independently validates
+complete candidates, preserving exact coverage and the selected values. Finish
+all-parent publication/resume, merged-history catch-up,
 lifecycle, domain acceptance and
 product integration next. Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
@@ -450,6 +452,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Third 809 content increment, 2026-10-05 | [Ordinary same-epoch observer/step service](../Sources/KeyCore/V3RecoverySameEpochCatchUpService.swift), [shared bounded graph/progression checks](../Sources/KeyCore/V3RecoveryManifestGraph.swift), and [19 filesystem/crypto tests](../Tests/KeyCoreTests/V3RecoverySameEpochCatchUpTests.swift) | Two independent software checkpoint/cache states catch up and publish in turn. Whole-forward-graph authentication, pending-work refusal and fresh source/CAS guards; competing content heads remain unresolved. Not a full catch-up coordinator, merge/resolution path, epoch lifecycle, native unlock/local-store qualification or enabled product route. |
 | Fourth 809 content increment, 2026-10-05 | [Coordinated same-epoch walk](../Sources/KeyCore/V3RecoverySameEpochCatchUpService.swift) and [29 combined step/coordination tests](../Tests/KeyCoreTests/V3RecoverySameEpochCatchUpTests.swift) | One mutation boundary retains the original floor, advances direct children, and authenticates late siblings without selecting a winner. Complete repeated source checks, pending barriers, bounded partial progress and committed-child visibility guards. Operation-local classification only; durable branch reconciliation, merge/resolution, epoch lifecycle and native/product composition remain. |
 | Fifth 809 content increment, 2026-10-05 | [Profile-3 branch comparison](../Sources/KeyCore/V3RecoveryManifestReconciliation.swift), [shared entry comparison](../Sources/KeyCore/V3ManifestReconciliation.swift), and [11 filesystem/crypto tests](../Tests/KeyCoreTests/V3RecoveryManifestReconciliationTests.swift) | Authenticated forward-tree comparison returns exact independent-change merge entries or explicit conflicts, using the nearest shared forward ancestor. No encoded merge, provider write, checkpoint advancement or private operation. All-parent publication, merged-history observation and product/native integration remain. |
+| Sixth 809 content increment, 2026-10-05 | [All-parent construction and independent validation](../Sources/KeyCore/V3RecoveryMergeMutation.swift) and [16 software domain tests](../Tests/KeyCoreTests/V3RecoveryMergeMutationTests.swift) | Automatic merges reuse exact ciphertext; complete head-bound choices preserve selected values through bounded-revision resealing or explicit deletion. Full candidate snapshots and projected limits check; recovery coverage remains exact. Unpublished candidates only; one-parent intent/publisher are unchanged, and all-parent durability/native/product acceptance remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -1415,6 +1418,76 @@ Verification:
   and `git diff --check` passed. Raw logs remain under ignored
   `tmp/piv-recovery/2026-10-05-branch-reconciliation-*`; product artifacts stay in
   the existing ignored build directory.
+
+No installed app, real vault/configuration or YubiKey was changed. No native
+authentication, token write, push, notarization or release was performed.
+
+### Sixth 809 content increment, 2026-10-05
+
+All-parent automatic merge and explicit conflict-resolution candidates now have
+internal construction and independent validation. They consume an ordinary
+authenticated forward-tree observation, not raw manifests or an older-profile
+projection. Automatic merges reuse exact independent-change ciphertext records
+and stage nothing. Complete explicit choices use the existing head-bound conflict
+IDs, version IDs and resolution planner. Selected conflicted values are resealed
+above every parent revision of their stable identity, retaining the selected
+name/type/plaintext. Explicit deletions remain absent. Destination choices remove
+only the other identities in that reported collision, retaining selected
+ciphertext. Choices that introduce another name collision refuse construction.
+
+Direct new selectors and reuse of the established CLI-safe selector/planner were
+compared. Reuse keeps conflict IDs and complete-choice rules consistent without
+enabling a new CLI route. The domain candidate remains separate from ordinary
+single-parent content publication: merging all heads requires its own source,
+pending-state and durable-intent/resume integration. Widening the existing
+single-parent recovery guard as part of construction would mix those contracts.
+
+Every candidate preserves the complete authority transition, Mac roster/wrappers,
+key identity, capsule, inherited proof and recovery roster/generation/wrappers
+exactly, with empty fresh boundary authorizations. The independent validator checks
+the supplied floor/key and every exact parent snapshot, recomputes policy from
+head-bound choices, verifies candidate MAC/capsule and all-parent metadata/revision
+progression, and checks exact retained records, exact staged objects and the full
+candidate AEAD/UTF-8/TOTP snapshot. Resealed plaintext must equal the selected source
+value. Projected object/reference counts, aggregate bytes and depth include the new
+manifest and new ciphertext objects. Counter overflow refuses resealing while
+still permitting an explicit deletion.
+
+Sixteen test declarations extend genuine offline-publication fixtures with these
+domain checks. They cover deterministic automatic construction, coverage/ciphertext
+preservation, selecting an older version above all parent revisions, deletion,
+rename, destination choice, incomplete/duplicate/unknown/stale choices, new name
+collisions, exact head/checkpoint/kind/metadata guards, changed selected values,
+missing/extra staging, wrong session keys, projected limits and revision overflow.
+A fixture-delivered automatic-merge candidate also opens through the real recovery
+selector/snapshot verifier with one software agreement. That fixture delivery is
+not production merge publication or physical-token qualification. The existing
+single-parent publisher refuses an all-parent candidate before creating intent.
+
+Choices are in-memory inputs only, not persisted approval or authority. Builder and
+validator have no provider writer, checkpoint store, native session or token
+capability. No durable intent or shipping profile dispatch was changed. All-parent
+publication/resume, merged-history observation/catch-up, durable handling of siblings
+below a later local floor and product/native qualification remain unfinished.
+`REC-809` remains incomplete. The next increment is all-parent durable publication
+and exact interruption reconciliation.
+
+Verification:
+
+- Complete serial Debug regression passed 1,127 KeyCore tests in 97 suites and
+  six canonical-JSON tests, including all 16 new construction/validation tests
+  and the final single-parent-publication refusal test.
+- Affected serial Release regression passed 510 tests in 39 suites. This includes
+  recovery, capsule, ordinary publication, catch-up, old/new reconciliation and
+  construction, existing conflict-choice/mutation services and mutation ownership.
+  This is not a full Release result; the previously recorded qualification-bundle
+  limits remain.
+- The unsigned arm64/x86_64 Preview app, CLI and helper built. Bundle isolation
+  and bundled CLI help/completion checks passed; all three executables are universal.
+- Strict Swift formatting, project plist syntax, 95 local documentation targets
+  and `git diff --check` passed. Raw logs remain under ignored
+  `tmp/piv-recovery/2026-10-05-merge-construction-*`; product artifacts stay in the
+  existing ignored build directory.
 
 No installed app, real vault/configuration or YubiKey was changed. No native
 authentication, token write, push, notarization or release was performed.
