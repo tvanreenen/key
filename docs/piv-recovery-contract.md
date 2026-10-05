@@ -272,17 +272,20 @@ reference, UTF-8 and canonical TOTP bounds. Pre-floor snapshots are not decrypte
 The serialized step service refuses pending ordinary, registration or adoption
 work. It repeats the observation and checks exact checkpoint/ownership state
 before returning an unchanged floor, reporting multiple authenticated content
-heads, or compare-and-replacing the checkpoint with the next direct child.
-It never skips to a distant head, merges implicitly, writes provider objects or
-requests a device/token operation. Cache failure after successful CAS cannot
-undo the new checkpoint's authority.
+heads, or compare-and-replacing the checkpoint with the next authenticated
+advance point. A linear path advances its direct child. A resolved fork advances
+to the first join lying on every path to the sole visible head, without first
+checkpointing either side. All exact parents and complete snapshots authenticate
+before this join can be accepted. The service never constructs an implicit merge,
+writes provider objects or requests a device/token operation. Cache failure after
+successful CAS cannot undo the new checkpoint's authority.
 
 The one-step API returns one committed step, not a completed access gate or
 installed key session. Its caller must rediscover after each step. The internal
 coordinated API instead owns one mutation boundary for the entire same-epoch
 walk and retains the original authenticated floor. It repeats complete source
-authentication and equality checks before every direct-child CAS and terminal
-return. A sibling delivered after CAS is authenticated from that retained floor
+authentication and equality checks before every forward checkpoint CAS and
+terminal return. A sibling delivered after CAS is authenticated from that retained floor
 and reported with all visible heads, retaining committed progress without
 choosing a winner. The currently committed manifest must remain present with
 exact bytes. A step budget can stop the walk without undoing accepted checkpoints
@@ -290,9 +293,10 @@ or claiming current status; reaching a terminal result at the exact bound is all
 
 The retained floor is operation-local, not new durable ancestry authority. A
 later invocation starting at an already-advanced checkpoint still refuses an
-unexplained sibling below that floor. Durable branch ancestry handling and explicit
-merge/resolution publication remain separate work. Read-only branch comparison
-is implemented below. Changed-key descendants and multi-parent merges refuse
+unexplained sibling or merge co-parent below that floor. It does not invent an
+older trust floor to explain that branch. Durable below-floor ancestry handling
+remains separate work. Merged-history observation and explicit merge/resolution
+publication are implemented internally. Changed-key descendants refuse
 this path; no fallback key, private unwrap, token
 retry or automatic resolution is available. Key-epoch refusal is not
 authentication of that new epoch. Neither API installs a native session or
@@ -302,18 +306,26 @@ Software tests use independent local checkpoint/cache states and real immutable
 filesystem publication, including offline writes before file delivery. They
 cover one-step and coordinated advancement, whole-forward-history
 availability/authentication, competing heads, late delivery, pending work,
-CAS loss, bounded partial progress and source substitution.
+CAS loss, bounded partial progress and source substitution. Published automatic
+and explicit-choice merges, repeated joins, post-merge saves and late sibling
+delivery use the same complete source/pending/checkpoint checks. Missing ciphertext
+in an unselected parent still blocks advancement. A pure bounded DAG policy chooses
+advance points with linear retained state; independent set-based reference tests
+cover all 9,765 rooted topologically ordered six-node DAGs.
 They do not qualify two physical Macs, provider delivery, native session unlock,
 the local Keychain stores or a shipping workflow.
 
 ### Implemented same-epoch branch comparison
 
 The internal profile-3 reconciler consumes the ordinary observer's authenticated
-forward tree, not raw manifests or a profile-2 projection. Every visible branch
+forward DAG, not raw manifests or a profile-2 projection. Every visible branch
 has already passed current MAC/capsule, exact unchanged authority/coverage,
 revision and complete snapshot checks. The reconciler finds the nearest common
-ancestor within that tree, stopping at the exact local floor. It does not extend
-authority into older ancestry or grant a new checkpoint.
+ancestors within that graph, stopping at the exact local floor. A unique nearest
+base feeds entry comparison. Multiple nearest bases produce the existing
+history-conflict type; no base is chosen arbitrarily and the merge builder refuses
+automatic or explicit-entry resolution of that history shape. The reconciler does
+not extend authority into older ancestry or grant a new checkpoint.
 
 The shared entry comparison policy keeps independent changes to different stable
 entry IDs, including additions and deletions. Competing edits, edit-versus-delete,
@@ -333,9 +345,9 @@ transaction must independently authenticate all exact parents and complete snaps
 preserve coverage/authority, recheck provider and local pending state, and publish
 manifest last. The existing one-parent persisted content intent was not widened.
 
-The observer still refuses already-merged multi-parent and changed-key histories.
-Durable ancestry handling for siblings below a newly selected floor, merged-history
-catch-up and service/CLI integration remain unfinished. Explicit choices now have
+The observer accepts closed same-epoch merged history but still refuses changed-key
+histories. Durable ancestry handling for siblings/co-parents below a newly selected
+floor and service/CLI integration remain unfinished. Explicit choices have
 internal construction and durable publication, as described below.
 The new tests use real crypto and separate filesystem providers for independent
 ordinary publications before immutable file delivery. They are not native session,
@@ -344,7 +356,7 @@ Keychain, physical-token or multi-Mac qualification.
 ### Implemented all-parent content construction
 
 Internal builders now encode automatic merges and complete explicit conflict
-choices from an ordinary authenticated forward-tree observation. Automatic merges
+choices from an ordinary authenticated forward-DAG observation. Automatic merges
 reuse exact independently reconciled ciphertext records without staging or resealing.
 Resolution uses the existing head-bound conflict/version IDs and complete-choice
 planner. A chosen conflicted entry retains its stable identity, selected name/type
@@ -409,8 +421,9 @@ pending authority work, strict intent parsing and cross-publisher refusal. Both
 durably published merge kinds open through the public history/snapshot verifier
 with one software agreement. Ordinary saves from an accepted merge retain coverage.
 These are not native-token operations or measured physical approval budgets.
-Merged-history catch-up from an earlier floor, durable sibling handling below a
-later floor, service/CLI integration and native/product qualification remain unfinished.
+Merged-history catch-up is implemented for a closed forward graph from the supplied
+floor. Durable sibling/co-parent handling below a later floor, service/CLI integration
+and native/product qualification remain unfinished.
 
 ## Proposed data contract
 

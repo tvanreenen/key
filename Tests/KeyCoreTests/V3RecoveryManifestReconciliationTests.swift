@@ -325,6 +325,21 @@ struct V3RecoveryManifestReconciliationTests {
     try seed(f.parent, entries: Array(f.entries.values), into: store)
     if current.checkpoint != f.checkpoint {
       try seed(current.envelope, entries: Array(entries.values), into: store)
+      // A merged floor has several ancestry paths. Copy only its exact known
+      // ancestors, not another writer's later branch. Old ciphertext snapshots
+      // are not needed by ordinary publication from this trusted floor.
+      var pending = current.envelope.parents
+      var seen: Set<Data> = [f.parent.digest, f.core.parent.digest]
+      while let digest = pending.popLast() {
+        guard seen.insert(digest).inserted else { continue }
+        guard
+          case .available(let bytes) = try f.store.readManifest(
+            digest: digest, maximumBytes: V3ManifestRepositoryLimits.standard.maximumManifestBytes)
+        else { throw Publication.Stop.interrupted }
+        let ancestor = try V3RecoveryManifestCodec().parseEnvelope(bytes)
+        try seed(ancestor, entries: [], into: store)
+        pending.append(contentsOf: ancestor.parents)
+      }
     }
     let checkpoint = Publication.Checkpoints(current.checkpoint.canonicalBytes)
     let publisher = V3RecoveryContentMutationPublisher(

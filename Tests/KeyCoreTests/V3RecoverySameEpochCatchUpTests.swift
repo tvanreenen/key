@@ -588,24 +588,6 @@ struct V3RecoverySameEpochCatchUpTests {
     #expect(f.checkpoints.value == f.checkpoint.canonicalBytes)
   }
 
-  @Test func allParentMergeRequiresTheSeparateReconciliationPath() throws {
-    let f = try Fixture()
-    defer { f.remove() }
-    let a = try f.build(.edit(name: "fixture/secret", type: .secret, plaintext: "first writer"))
-    let b = try f.build(.remove(name: "fixture/totp"))
-    try f.seed(a.envelope, entries: a.stagedEntries)
-    try f.seed(b.envelope, entries: b.stagedEntries)
-    let merge = try V3RecoveryEpochBoundary().encode(
-      body: a.envelope.body,
-      parents: [a.envelope.digest, b.envelope.digest].sorted { $0.lexicographicallyPrecedes($1) },
-      vaultKey: Core.nextKey, authorizations: [])
-    try f.seed(merge, entries: [])
-    #expect(throws: V3RecoveryValidationError.invalidTransition) {
-      try service(f).advanceOneStep(from: floor(f), vaultKey: Core.nextKey)
-    }
-    #expect(f.checkpoints.value == f.checkpoint.canonicalBytes)
-  }
-
   @Test func limitsApplyToTheWholeForwardGraphAndDeduplicatedSnapshots() throws {
     let f = try Fixture()
     defer { f.remove() }
