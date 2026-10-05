@@ -94,7 +94,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-804` | Format, authority, lifecycle, and compatibility contract | Baseline | In progress; AI review disposition recorded; experimental direction authorized; graph/platform/adoption decisions remain |
 | `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; profile-3 domain codecs, contexts, proof construction/checks, and fixtures implemented; final acceptance and integrated review remain |
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
-| `REC-807` | Product token binding, supported administration, and credential lifecycle | 804 | Planned |
+| `REC-807` | Product token binding, supported administration, and credential lifecycle | 804 | In progress; native public-reader foundation and software lifetime checks implemented; bound agreement, protected administration, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | Planned |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | Planned |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | Planned |
@@ -390,14 +390,15 @@ single deferred integration PR.
 - **Real-vault ready:** 813/814 pass and explicit adoption in 815 is qualified.
 - **Full completion:** 815's Stable artifact is released and verified.
 
-The current increment is `REC-806`, with final `REC-805` acceptance and remaining
-`REC-804` integrated decisions tracked explicitly. The [contract](piv-recovery-contract.md) describes the
+The current increment is `REC-807`, with final `REC-805`/`REC-806` acceptance and
+remaining `REC-804` integrated decisions tracked explicitly. The [contract](piv-recovery-contract.md) describes the
 experimental dual-authorization direction and its reduced historical replay
 promise. The capsule, recipient roster, recovery contexts/wrappers, containing
 profile, canonical proof projection, anchor codec, graph selector, and snapshot
 verifier are implemented as internal domain components. Finish domain acceptance
-and integrate native token provenance next. Only the isolated capsule has a fresh
-independent AI review; the new components have software checks, not integrated
+and integrate bound agreement and protected registration next. Native public-read
+binding is implemented but has not been physically qualified. Only the isolated
+capsule has a fresh independent AI review; the new components have software checks, not integrated
 review or product/hardware qualification.
 
 ## Implementation evidence ledger
@@ -413,6 +414,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Second 805 domain component, 2026-10-04 | [Recipient roster/codec](../Sources/KeyCore/V3RecoveryRecipients.swift), [recovery HPKE](../Sources/KeyCore/V3RecoveryVaultKeyHPKE.swift), and software tests | No profile dispatch, epoch proof, token anchor, registration, source graph, service command, or real-vault activation. Verification details follow below. |
 | Third 805 domain component, 2026-10-04 | [Profile/codec](../Sources/KeyCore/V3RecoveryManifest.swift), [boundary transcripts](../Sources/KeyCore/V3RecoveryEpochBoundary.swift), [14 software tests](../Tests/KeyCoreTests/V3RecoveryManifestTests.swift), and [experimental schema](schemas/v3-recovery-manifest-body.schema.json) | Parsed/publicly checked state is not an anchored graph, a publication-approved candidate, or a restorable snapshot. No shipping profile-3 caller is enabled. |
 | First 806 domain increment, 2026-10-04 | [Anchor](../Sources/KeyCore/V3RecoveryAnchor.swift), [bounded history selector](../Sources/KeyCore/V3RecoveryHistory.swift), [snapshot verifier](../Sources/KeyCore/V3RecoverySnapshot.swift), and [graph/source tests](../Tests/KeyCoreTests/V3RecoveryHistoryTests.swift) | One software agreement across multiple epochs; complete selected current entries; no native token provenance, protected administration, restore service, or product activation. |
+| First 807 native foundation, 2026-10-04 | [Public token reader](../Sources/KeyCore/PIVRecoveryTokenReader.swift), [17 software tests](../Tests/KeyCoreTests/PIVRecoveryTokenReaderTests.swift), native SDK and two-architecture compilation | No external certificate file or fixed reader name. Scripted read/session tests are not physical-token qualification, private-key binding, possession, protected administration or registration readiness. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -547,3 +549,52 @@ Full Debug verification still awaits an unlocked console; the unchanged full
 Release compatibility limitation is recorded above. No system lock setting or
 protected-file behavior was changed. Raw logs remain under ignored
 `tmp/piv-recovery/`; no install, token operation, push, or release was performed.
+
+### Native public-reader verification, 2026-10-04
+
+The first 807 increment uses token-to-slot metadata and a retained native card
+instance rather than the archived probe's one fixed reader name and separately
+supplied certificate. It requires explicit selection, reads slot 9d's public
+certificate and the application anchor in one exclusive session, validates the
+P-256 point and anchor credential ID, and rechecks the retained binding. Candidate
+handles belong to one reader instance; removal cannot revive a reviewed handle
+through a same-named replacement. Certificate issuer/expiry is not authority.
+
+The command surface contains only PIV application selection and the two public
+GET DATA reads. It cannot express PIN verification, administration, private-key
+operations, writes or reset. Occupied unrecognized bytes are not returned; a
+private digest detects changes during revalidation. An absent object is distinct
+from an occupied empty object or an invalid response. A recognized anchor is
+not proof of protected administration or registration readiness.
+
+Live access shares a process-wide operation gate. Late begin/send callbacks
+retain its lease after the 25-second public-read deadline until native completion
+and session closure. Timeout does not claim cancellation or allow overlapping
+operations. The software tests exercise these lifetime rules without sleeping,
+calling native token methods or consuming hardware retry counters.
+
+Native implementation was compiled against the installed macOS 27 SDK with
+deployment target 14; the SDK's token-info and card-lifetime contracts informed
+the binding. [Apple's token information](https://developer.apple.com/documentation/cryptotokenkit/tktokenwatcher/tokeninfo?language=objc)
+exposes token ID and optional reader-slot metadata. This is not hardware
+attestation. The SDK documents `com.apple.security.smartcard` for access to
+`TKSmartCardSlotManager.default`. Neither helper currently grants it; no
+entitlement, installed-product capability or CLI/XPC route changed here.
+
+Verification:
+
+- Focused Debug and Release regressions each passed 146 tests across 14 suites,
+  including 17 new public-reader and session-lifetime tests. Neither result is a
+  full-suite pass.
+- Unsigned arm64/x86_64 Preview app, CLI and helper build, product-bundle
+  isolation and bundled CLI help passed. No recovery command was enabled.
+- Strict formatting, project plist syntax, 64 local documentation link targets
+  and `git diff --check` passed.
+
+Remaining 807 work is unique native agreement-key binding to this observation,
+one approved operation, cancellation/deadline/exclusion integration, protected
+owner-operated setup and product/hardware qualification. The occupied disposable
+object and factory-default management credentials were not altered. No native
+token discovery, read or private operation was run in this increment. Full Debug
+verification still awaits an unlocked console; the known full Release limitation
+remains. Raw logs stay under ignored `tmp/piv-recovery/`.
