@@ -7,9 +7,9 @@ import Testing
 /// Independent offline publications use actual immutable stores and crypto.
 /// Reconciliation receives only complete production-observer authentication.
 struct V3RecoveryManifestReconciliationTests {
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
-  private typealias Fixture = Publication.Fixture
-  private typealias Core = V3RecoveryRegistrationTests
+  typealias Publication = V3RecoveryContentMutationPublisherTests
+  typealias Fixture = Publication.Fixture
+  typealias Core = V3RecoveryRegistrationTests
   private static let addedID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c1"
   private static let otherID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c2"
 
@@ -290,7 +290,7 @@ struct V3RecoveryManifestReconciliationTests {
       b.body.fields.entries.first { $0.name == "fixture/totp" },
     ].compactMap { $0 }.sorted(by: v3ManifestEntryPrecedes)
   }
-  private func entryMap(_ f: Fixture, envelope: V3RecoveryManifestEnvelope) throws
+  func entryMap(_ f: Fixture, envelope: V3RecoveryManifestEnvelope) throws
     -> [V3EntryObjectKey: V3EncryptedEntry]
   {
     var result: [V3EntryObjectKey: V3EncryptedEntry] = [:]
@@ -310,7 +310,7 @@ struct V3RecoveryManifestReconciliationTests {
 
   /// Complete each branch in its own provider directory before delivery, so
   /// later branches cannot silently observe the earlier branch's files.
-  private func publishBranch(
+  func publishBranch(
     _ f: Fixture, requests: [V3EntryMutationRequest], from start: V3RecoveryContentCommit? = nil,
     entries startEntries: [V3EntryObjectKey: V3EncryptedEntry]? = nil
   ) throws -> V3RecoveryContentCommit {
