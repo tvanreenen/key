@@ -12,6 +12,197 @@ struct V3RecoverySameEpochCatchUpTests {
   private typealias Fixture = Publication.Fixture
   private typealias Core = V3RecoveryRegistrationTests
 
+  @Test func coordinatedCatchUpWalksTheCompleteChainUnderOneMutationBoundary() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let (first, last) = try publishChain(f)
+    let local = Publication.Checkpoints(f.checkpoint.canonicalBytes)
+    let owner = CountingOwner()
+    guard
+      case .current(let current, let count) = try service(
+        f, checkpoints: local, cache: FailingCache(), owner: owner
+      ).catchUp(from: floor(f), vaultKey: Core.nextKey)
+    else {
+      Issue.record("Expected the complete visible chain to be current")
+      return
+    }
+    #expect(current.checkpoint == last.checkpoint && current.checkpoint != first.checkpoint)
+    #expect(count == 2 && owner.calls.value == 1)
+    #expect(local.value == last.checkpoint.canonicalBytes && f.ownership.value == nil)
+    #expect(current.envelope.body.recovery == f.parent.body.recovery)
+    #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
+  }
+
+  @Test func coordinatedUnchangedFloorReturnsWithoutCheckpointReplacement() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let cp = CheckpointRace(f.checkpoints) { throw Publication.Stop.interrupted }
+    guard
+      case .current(let current, let count) = try service(f, checkpoints: cp).catchUp(
+        from: floor(f), vaultKey: Core.nextKey)
+    else {
+      Issue.record("Expected the initial floor to be current")
+      return
+    }
+    #expect(current.checkpoint == f.checkpoint && count == 0 && cp.calls.value == 0)
+  }
+
+  @Test func coordinatedLateSiblingAfterCASReportsBothHeadsAndPreservesProgress() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let (first, last) = try publishChain(f)
+    let branch = try f.build(.edit(name: "fixture/secret", type: .secret, plaintext: "late"))
+    let local = Publication.Checkpoints(f.checkpoint.canonicalBytes)
+    let cp = CheckpointRace(local) { try f.seed(branch.envelope, entries: branch.stagedEntries) }
+    guard
+      case .contentConflict(let current, let heads, let count) = try service(
+        f, checkpoints: cp
+      ).catchUp(from: floor(f), vaultKey: Core.nextKey)
+    else {
+      Issue.record("Expected both authenticated branches, not a current result")
+      return
+    }
+    #expect(
+      current.checkpoint == first.checkpoint && local.value == first.checkpoint.canonicalBytes)
+    #expect(count == 1 && cp.calls.value == 1)
+    #expect(
+      heads
+        == [last.envelope.digest, branch.envelope.digest].sorted {
+          $0.lexicographicallyPrecedes($1)
+        })
+  }
+
+  @Test func coordinatedInitialBranchesDoNotChooseOrAdvanceEitherHead() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let a = try f.build(.remove(name: "fixture/totp"))
+    let b = try f.build(.edit(name: "fixture/secret", type: .secret, plaintext: "offline"))
+    try f.seed(a.envelope, entries: a.stagedEntries)
+    try f.seed(b.envelope, entries: b.stagedEntries)
+    guard
+      case .contentConflict(let current, let heads, let count) = try service(f).catchUp(
+        from: floor(f), vaultKey: Core.nextKey)
+    else {
+      Issue.record("Expected competing initial branches")
+      return
+    }
+    #expect(current.checkpoint == f.checkpoint && count == 0 && heads.count == 2)
+    #expect(f.checkpoints.value == f.checkpoint.canonicalBytes && f.ownership.value == nil)
+  }
+
+  @Test func coordinatedStepBudgetPreservesCommittedProgressWithoutClaimingCurrent() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let (first, last) = try publishChain(f)
+    let local = Publication.Checkpoints(f.checkpoint.canonicalBytes)
+    #expect(throws: V3RecoveryContentCatchUpError.stepLimitExceeded) {
+      try service(f, checkpoints: local).catchUp(
+        from: floor(f), vaultKey: Core.nextKey, maximumStepCount: 1)
+    }
+    #expect(local.value == first.checkpoint.canonicalBytes)
+    // An exact bound is permitted when the next fresh observation is terminal.
+    guard
+      case .current(let current, let count) = try service(f, checkpoints: local).catchUp(
+        from: first, vaultKey: Core.nextKey, maximumStepCount: 1)
+    else {
+      Issue.record("Expected a terminal result at the exact budget")
+      return
+    }
+    #expect(current.checkpoint == last.checkpoint && count == 1)
+  }
+
+  @Test(arguments: 0..<3)
+  func coordinatedPendingWorkAfterFirstCASBlocksEveryNamespace(namespace: Int) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let (first, _) = try publishChain(f)
+    let local = Publication.Checkpoints(f.checkpoint.canonicalBytes)
+    let stores = [f.ownership, f.registration, f.adoption]
+    let cp = CheckpointRace(local) { stores[namespace].value = Data([1]) }
+    #expect(throws: V3RecoveryContentCatchUpError.localMutationPending) {
+      try service(f, checkpoints: cp).catchUp(from: floor(f), vaultKey: Core.nextKey)
+    }
+    #expect(local.value == first.checkpoint.canonicalBytes && cp.calls.value == 1)
+    #expect(stores[namespace].value == Data([1]))
+  }
+
+  @Test(arguments: [false, true])
+  func coordinatedLostCheckpointOrSourceAfterCASCannotReportCurrent(checkpoint: Bool) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let (first, _) = try publishChain(f)
+    let local = Publication.Checkpoints(f.checkpoint.canonicalBytes)
+    let winner = try V3ManifestCheckpoint(
+      vaultID: Core.vaultID, envelopeDigest: Data(repeating: 0x55, count: 32))
+    let source = Source(f.store) { count in
+      if count == 3 {
+        if checkpoint {
+          local.value = winner.canonicalBytes
+        } else {
+          try FileManager.default.removeItem(at: f.manifestURL(first.envelope.digest))
+        }
+      }
+    }
+    #expect(throws: (any Error).self) {
+      try service(f, checkpoints: local, source: source).catchUp(
+        from: floor(f), vaultKey: Core.nextKey)
+    }
+    #expect(local.value == (checkpoint ? winner.canonicalBytes : first.checkpoint.canonicalBytes))
+  }
+
+  @Test func coordinatedTerminalSourceRecheckMustAgreeBeforeReturningCurrent() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let child = try f.build(.remove(name: "fixture/totp"))
+    try f.seed(child.envelope, entries: child.stagedEntries)
+    let branch = try f.build(.edit(name: "fixture/secret", type: .secret, plaintext: "late"))
+    let source = Source(f.store) { count in
+      if count == 4 { try f.seed(branch.envelope, entries: branch.stagedEntries) }
+    }
+    #expect(throws: V3RecoveryValidationError.sourceChanged) {
+      try service(f, source: source).catchUp(from: floor(f), vaultKey: Core.nextKey)
+    }
+    #expect(f.checkpoints.value != f.checkpoint.canonicalBytes)
+  }
+
+  @Test func coordinatedListingCannotHideAnAlreadyCommittedChildAndReturnTheOldFloor() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let (first, _) = try publishChain(f)
+    let local = Publication.Checkpoints(f.checkpoint.canonicalBytes)
+    let source = Source(f.store)
+    let cp = CheckpointRace(local) {
+      source.overrideListing = .available(
+        digests: [f.parent.digest, f.core.parent.digest], objectCount: 2)
+    }
+    #expect(throws: V3RecoveryValidationError.sourceChanged) {
+      try service(f, checkpoints: cp, source: source).catchUp(
+        from: floor(f), vaultKey: Core.nextKey)
+    }
+    #expect(local.value == first.checkpoint.canonicalBytes && cp.calls.value == 1)
+  }
+
+  @Test func coordinatedIncompleteFinalSnapshotBlocksTheEntireWalk() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let (_, last) = try publishChain(f)
+    let local = Publication.Checkpoints(f.checkpoint.canonicalBytes)
+    let record = try #require(last.envelope.body.fields.entries.first)
+    let entry = try #require(Base64URL.decodeCanonical(record.ciphertextDigest))
+    guard
+      case .available(let bytes) = try f.store.readEntry(
+        entryID: record.entryID, digest: entry, maximumBytes: 1_000_000)
+    else {
+      Issue.record("Expected the published entry fixture")
+      return
+    }
+    try FileManager.default.removeItem(at: f.entryURL(try V3EntryCipher().parse(bytes)))
+    #expect(throws: V3RecoveryValidationError.entryUnavailable) {
+      try service(f, checkpoints: local).catchUp(from: floor(f), vaultKey: Core.nextKey)
+    }
+    #expect(local.value == f.checkpoint.canonicalBytes)
+  }
+
   @Test func twoLocalCheckpointsCatchUpAndThenPublishWithoutTokenOrSignerCalls() throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -484,14 +675,40 @@ struct V3RecoverySameEpochCatchUpTests {
   private func service(
     _ f: Fixture, checkpoints: (any V3ManifestCheckpointStoring)? = nil,
     source: (any V3ImmutableObjectReading)? = nil, cache: (any V3CheckpointManifestCaching)? = nil,
-    limits: V3ManifestRepositoryLimits = .standard, maximumParentEdges: Int = 16_384
+    limits: V3ManifestRepositoryLimits = .standard, maximumParentEdges: Int = 16_384,
+    owner: (any VaultTransactionMutationOwning)? = nil
   ) -> V3RecoverySameEpochCatchUpService {
     V3RecoverySameEpochCatchUpService(
-      mutationOwner: VaultTransactionMutationOwner(), source: source ?? f.store,
+      mutationOwner: owner ?? VaultTransactionMutationOwner(), source: source ?? f.store,
       checkpointStore: checkpoints ?? f.checkpoints, recoveryAnchorStore: f.ownership,
       registrationAnchorStore: f.registration, adoptionAnchorStore: f.adoption,
       cache: cache ?? f.cache,
       limits: limits, maximumParentEdges: maximumParentEdges)
+  }
+  private func publishChain(_ f: Fixture) throws
+    -> (V3RecoveryContentCommit, V3RecoveryContentCommit)
+  {
+    let child = try f.build(.edit(name: "fixture/secret", type: .secret, plaintext: "first"))
+    let complete = try V3RecoveryContentMutationValidator().validate(
+      child, parent: f.parent, currentEntries: f.entries, vaultKey: Core.nextKey)
+    let first = try f.publisher().publish(child, vaultKey: Core.nextKey)
+    let candidate = try V3RecoveryContentMutationBuilder().build(
+      .remove(name: "fixture/totp"), checkpoint: first.checkpoint, parent: first.envelope,
+      currentEntries: complete, vaultKey: Core.nextKey)
+    let last = try f.publisher(owner: VaultTransactionMutationOwner()).publish(
+      candidate, vaultKey: Core.nextKey)
+    return (first, last)
+  }
+  private final class CountingOwner: VaultTransactionMutationOwning, Sendable {
+    let base = VaultTransactionMutationOwner()
+    let calls = Core.Counter()
+    func perform<Result>(
+      _ kind: VaultTransactionMutationKind,
+      _ mutation: (VaultTransactionMutationContext) throws -> Result
+    ) throws -> Result {
+      calls.increment()
+      return try base.perform(kind, mutation)
+    }
   }
   private func secondCache(_ f: Fixture) throws -> V3CheckpointManifestFilesystemCache {
     let root = f.root.appendingPathComponent("second-local-cache")
