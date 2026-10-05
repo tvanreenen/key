@@ -100,7 +100,7 @@ struct V3RecoveryContentTransactionValidator: V3ContentTransactionValidating {
     _ input: V3ContentTransactionInput, vaultKey: Data, alreadyCommitted: Bool
   ) throws -> V3RecoveryValidatedContentTransaction {
     try requireAvailable(vaultID: input.expectedCheckpoint.vaultID)
-    guard input.manifestData.count <= limits.maximumManifestBytes,
+    guard input.recoveryMerge == nil, input.manifestData.count <= limits.maximumManifestBytes,
       input.manifestDigest.count == 32,
       Data(SHA256.hash(data: input.manifestData)) == input.manifestDigest,
       input.stagedEntries.count <= limits.maximumReferencedEntryObjects

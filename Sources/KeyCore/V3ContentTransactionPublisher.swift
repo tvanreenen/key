@@ -93,13 +93,8 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
         let orderedKeys = validated.stagedEntries.keys.sorted(
             by: entryObjectKeyPrecedes
         )
-        let intent = try V3ImmutableTransactionRecoveryIntent(
-            operationID: operationID,
-            kind: candidate.kind,
-            vaultID: vaultID,
-            expectedCheckpoint: candidate.expectedCheckpoint,
-            expectedHeads: [candidate.expectedCheckpoint.envelopeDigest],
-            candidateManifestDigest: candidate.manifestDigest,
+        let intent = try validator.recoveryIntent(
+            for: candidate, operationID: operationID,
             stagedEntries: orderedKeys.map {
                 V3ImmutableTransactionRecoveryEntry(
                     entryID: $0.entryID,

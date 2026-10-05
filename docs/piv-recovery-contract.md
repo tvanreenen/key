@@ -335,7 +335,8 @@ manifest last. The existing one-parent persisted content intent was not widened.
 
 The observer still refuses already-merged multi-parent and changed-key histories.
 Durable ancestry handling for siblings below a newly selected floor, merged-history
-catch-up, explicit conflict choices and service/CLI integration remain unfinished.
+catch-up and service/CLI integration remain unfinished. Explicit choices now have
+internal construction and durable publication, as described below.
 The new tests use real crypto and separate filesystem providers for independent
 ordinary publications before immutable file delivery. They are not native session,
 Keychain, physical-token or multi-Mac qualification.
@@ -364,19 +365,52 @@ objects. The complete candidate snapshot passes context, AEAD, UTF-8 and TOTP ch
 resealed values must match the selected source plaintexts. Projected object/reference,
 byte and history-depth limits include the new manifest and new ciphertext objects.
 
-These are unpublished domain candidates. Choices remain in-memory inputs, not a
-saved approval, publication permit or new authority record. There is no provider
-writer, checkpoint store, token operation or native session capability in the builder
-or validator. Source observation can age; durable publication must independently
-recheck provider state, exact heads, checkpoint and all pending namespaces. The
-existing single-parent publisher and persisted intent remain unchanged and refuse
-an all-parent candidate before creating intent. All-parent publication/resume and
-merged-history catch-up remain unfinished.
+The builder and domain validator still have no provider writer, checkpoint store,
+token operation or native session capability. Their observations can age. Durable
+publication must independently recheck source, exact heads, local checkpoint and
+all pending namespaces; a constructed candidate alone grants no write permission.
 
-Software tests cover the construction/validation boundary and use the public
-recovery selector/snapshot verifier to open a fixture-delivered automatic-merge
-candidate with one software agreement. That delivery is not a production merge
-publication, native-token operation or measured physical approval budget.
+### Implemented all-parent content publication
+
+An explicitly selected internal merge publisher now reuses the ordinary
+manifest-last transaction kernel with a separate merge validator. Before intent,
+it freshly authenticates the local floor, complete forward parent history and
+snapshots, recomputes the exact head-bound merge or choices, and checks the candidate
+and projected limits. It writes a local intent pin before staging, publishes all
+required ciphertext before the manifest, reads back exact published bytes and
+rechecks provider/checkpoint/pending state before local checkpoint CAS. New branches,
+changed objects or competing local authority work prevent activation.
+
+Merge intents use a strict canonical version 3 shape containing the exact sorted
+heads and bounded sorted conflict/version selectors, with no plaintext or key
+material. Empty selectors identify an automatic merge. Selectors are saved evidence,
+not saved approval or authority. The device-local pin binds the exact intent digest;
+synchronized intents without that pin cannot resume. Existing version 1 content
+and version 2 enrollment schemas keep their shapes. Ordinary profile-2/profile-3
+content publishers and the older generic recoverer refuse this merge-intent shape;
+the merge publisher refuses their ordinary intents. There is no profile auto-detection.
+
+Interrupted publication resumes the exact staged encrypted bytes and candidate;
+it does not generate replacement ciphertext or silently choose another version.
+Before commitment, all parents, selectors and snapshots are freshly revalidated.
+If the exact merge is already published, only its exact bytes are excluded from
+parent-head discovery, while remaining in inventory budgets. Other delivered
+branches or children are not hidden. A missing unpublished preparation can be
+abandoned at the old checkpoint. A published candidate missing required ciphertext
+retains its pin and refuses. After local commitment, cleanup authenticates the
+current complete snapshot and pinned immutable bytes without reopening superseded
+entries or requiring old manifest/cache files. Competing checkpoint/pin values are
+never overwritten.
+
+Software tests use real crypto and contained filesystem publication, including
+automatic and explicit-choice interruptions at every applicable durable phase,
+exact resource budgets, checkpoint/ownership races, changed ciphertext, late branches,
+pending authority work, strict intent parsing and cross-publisher refusal. Both
+durably published merge kinds open through the public history/snapshot verifier
+with one software agreement. Ordinary saves from an accepted merge retain coverage.
+These are not native-token operations or measured physical approval budgets.
+Merged-history catch-up from an earlier floor, durable sibling handling below a
+later floor, service/CLI integration and native/product qualification remain unfinished.
 
 ## Proposed data contract
 
