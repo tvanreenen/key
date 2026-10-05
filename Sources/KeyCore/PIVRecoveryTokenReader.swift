@@ -19,15 +19,35 @@ enum PIVRecoveryTokenError: Error, Equatable {
 enum PIVPublicReadCommand: CaseIterable, Sendable {
   case selectApplication
   case keyManagementCertificate
+  case keyManagementMetadata
   case recoveryAnchor
 
-  var instruction: UInt8 { self == .selectApplication ? 0xa4 : 0xcb }
-  var p1: UInt8 { self == .selectApplication ? 4 : 0x3f }
-  var p2: UInt8 { self == .selectApplication ? 0 : 0xff }
+  var instruction: UInt8 {
+    switch self {
+    case .selectApplication: 0xa4
+    case .keyManagementMetadata: 0xf7
+    default: 0xcb
+    }
+  }
+  var p1: UInt8 {
+    switch self {
+    case .selectApplication: 4
+    case .keyManagementMetadata: 0
+    default: 0x3f
+    }
+  }
+  var p2: UInt8 {
+    switch self {
+    case .selectApplication: 0
+    case .keyManagementMetadata: 0x9d
+    default: 0xff
+    }
+  }
   var data: Data {
     switch self {
     case .selectApplication: Data([0xa0, 0, 0, 3, 8, 0, 0, 0x10, 0, 1, 0])
     case .keyManagementCertificate: Data([0x5c, 3, 0x5f, 0xc1, 0x0b])
+    case .keyManagementMetadata: Data()
     case .recoveryAnchor: Data([0x5c, 3, 0x5f, 0x4b, 0x59])
     }
   }
@@ -96,6 +116,7 @@ enum PIVRecoveryAnchorOccupancy: Equatable, Sendable {
 struct PIVRecoveryTokenObservation: Sendable {
   let candidate: PIVRecoveryTokenCandidate
   let publicKey: Data
+  let keyMetadata: PIVRecoveryKeyMetadata
   let recipientID: V3RecoveryRecipientID
   let anchor: PIVRecoveryAnchorOccupancy
   fileprivate let owner: UUID
@@ -168,6 +189,14 @@ final class PIVRecoveryTokenReader: Sendable {
       }
       let publicKey = try Self.certificatePublicKey(
         PIVPublicObjectCodec.certificate(certificateData))
+      let metadataReply = try send(.keyManagementMetadata)
+      guard metadataReply.status == 0x9000, let metadataData = metadataReply.data else {
+        throw PIVPublicObjectError.unexpectedStatus
+      }
+      let keyMetadata = try PIVRecoveryKeyMetadataCodec.parse(metadataData)
+      guard keyMetadata.publicKey == publicKey else {
+        throw PIVRecoveryKeyPolicyError.publicKeyMismatch
+      }
       let recipientID = try V3RecoveryRecipientID.derive(publicKey: publicKey)
       let reply = try send(.recoveryAnchor)
       let occupancy: PIVRecoveryAnchorOccupancy
@@ -196,7 +225,8 @@ final class PIVRecoveryTokenReader: Sendable {
       }
       guard connection.isValid else { throw PIVRecoveryTokenError.tokenChanged }
       return PIVRecoveryTokenObservation(
-        candidate: candidate, publicKey: publicKey, recipientID: recipientID, anchor: occupancy,
+        candidate: candidate, publicKey: publicKey, keyMetadata: keyMetadata,
+        recipientID: recipientID, anchor: occupancy,
         owner: owner, objectDigest: objectDigest)
     }
     guard connection.isValid else { throw PIVRecoveryTokenError.tokenChanged }
@@ -233,7 +263,9 @@ final class PIVRecoveryTokenReader: Sendable {
   private func requireEquivalent(
     _ current: PIVRecoveryTokenObservation, _ observation: PIVRecoveryTokenObservation
   ) throws {
-    guard current.publicKey == observation.publicKey, current.anchor == observation.anchor,
+    guard current.publicKey == observation.publicKey,
+      current.keyMetadata == observation.keyMetadata,
+      current.anchor == observation.anchor,
       current.objectDigest == observation.objectDigest
     else {
       throw PIVRecoveryTokenError.tokenChanged

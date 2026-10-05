@@ -279,7 +279,8 @@ Current work is `REC-807`: the isolated epoch capsule is implemented and
 AI-reviewed; recipient contexts/wrappers, profile codecs, and boundary transcripts
 are implemented as internal domain components, alongside bounded anchored
 selection, complete current-snapshot verification, native public-reader and
-scoped agreement foundations. Protected setup, PIN/touch qualification, domain
+scoped agreement foundations with configured-policy checks. Owner-operated
+credential setup is selected; guarded anchor writes, hardware qualification, domain
 acceptance/review and product integration remain. Remaining `REC-804`
 platform/adoption decisions stay explicit. Implementation integrates registration, ordinary edits, key rotation,
 history verification, and restore into product services.

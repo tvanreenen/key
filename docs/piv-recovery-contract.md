@@ -28,7 +28,8 @@ or add a guessable secret to achieve it. A restarted or explicitly resumed
 attempt may require a new approval. The integrated operation count is unqualified.
 
 Initial proposed scope: macOS 26+ recovery, existing on-token P-256 credentials
-in explicitly selected slot 9d, one registration per token, and independent
+in explicitly selected slot 9d with readable Yubico metadata (firmware 5.3+),
+reported generated origin and explicit PIN/touch `ALWAYS`, one registration per token, and independent
 primary/backup tokens. YubiKey 5C NFC is the tested model; the supported OS/token
 matrix is not frozen. Ordinary profile-2 support retains its platform policy.
 Automatic provisioning, other slots/algorithms, multi-vault allocation,
@@ -418,17 +419,24 @@ The [internal reader](../Sources/KeyCore/PIVRecoveryTokenReader.swift) replaces 
 prototype's fixed reader name and certificate-file input with bounded token
 inventory, explicit candidate selection and token-to-slot metadata. A retained
 native card instance and removal invalidation prevent a same-named reinsertion
-from silently replacing the reviewed connection. Slot 9d's public certificate
-and the application object are read in one exclusive session; the validated
-P-256 point must match a recognized anchor's recipient ID. The certificate is a
+from silently replacing the reviewed connection. Slot 9d's public certificate,
+key metadata and the application object are read in one exclusive session. The
+metadata point must equal the certificate point, and that validated P-256 point
+must match a recognized anchor's recipient ID. The certificate is a
 public-key container, not issuer, expiry or attestation authority.
 
-Discovery requests no card commands. Reading has only three expressible commands:
-select PIV, GET DATA for the 9d certificate, and GET DATA for object `0x5F4B59`.
+Discovery requests no card commands. Reading has only four expressible commands:
+select PIV, GET DATA for the 9d certificate, GET METADATA for slot 9d, and GET DATA
+for object `0x5F4B59`.
 There is no raw APDU, PIN, management authentication, write, reset or private
 operation interface. Absent, recognized and unrecognized occupancy are distinct;
 unknown bytes are withheld, with an internal digest for exact revalidation.
 A recognized anchor does not establish protected administration or possession.
+The [metadata codec](../Sources/KeyCore/PIVRecoveryKeyMetadata.swift) bounds
+responses to 256 bytes with exact fields, lengths and supported
+P-256 encoding. Missing, malformed or unsupported metadata fails without a
+certificate-only fallback. Revalidation compares origin and policies as well as
+the public key and anchor.
 
 The live process-wide gate remains claimed while a native begin/send callback is
 pending after the public-read deadline. A successful session closes once after
@@ -453,6 +461,10 @@ class/type/size and ECDH support are checked independently. The label is a query
 constraint, not identity proof. No private key is exported, no other credential
 or algorithm is tried, and failure cannot trigger a second operation through
 that receiver. Scope exit invalidates an escaped receiver and any pending attempt.
+Before lookup, the receiver requires reported generated origin and explicit PIN
+`ALWAYS` and touch `ALWAYS`. `DEFAULT`, `ONCE`, `NEVER`, biometric alternatives,
+cached touch and imported origin are not accepted by the initial adapter. This
+is a Key support policy, not a claim that every excluded vendor option is unsafe.
 
 The caller waits until explicit cancellation or an absolute deadline, defaulting
 to 60 seconds for the scope. Stopped or late results are discarded. Context
@@ -466,9 +478,61 @@ Scripted tests cover binding checks, session ordering, scope closure,
 cancellation, deadline, removal, anchor changes, and exclusion until delayed
 completion. They do not qualify native query delivery, physical identity, PIN or
 touch enforcement, prompt cancellation, or hardware session/cache behavior.
-Required PIN/touch policy, protected setup, signed-product capability and actual
+Configured-policy checks are implemented; actual PIN/touch enforcement,
+protected setup, signed-product capability and actual
 hardware qualification remain 807 requirements. Neither adapter has a product
 caller; an absent or unrecognized anchor is not permission to register or restore.
+
+### Owner operated setup boundary
+
+Use Yubico's supported tools for credential administration initially, not a new
+Key PIN/PUK/management-key collector. The installed `ykman` 5.9.2 implementation
+was inspected without running it against a token. Key's public checks and scoped
+agreement remain separate from administration. This decision does not authorize
+changing the owner's test credential, default management key or occupied object.
+
+Credential requirements are an on-device P-256 key in reviewed slot 9d with PIN
+and touch `ALWAYS`, plus a matching certificate. An incompatible occupied slot
+is refused, not repaired. Policy changes require generation/import of another
+key, so do not suggest an in-place policy toggle or silently regenerate a
+registered key. Yubico documents these limits in its
+[policy guide](https://docs.yubico.com/yesdk/users-manual/application-piv/pin-touch-policies.html).
+Reported generated origin is not verified attestation or independent assurance
+that a private key was never copied. Actual driver policy enforcement remains
+a separate hardware qualification.
+
+Before real registration, management authentication must use a vendor-generated
+random, nondefault AES key with management touch required. Prefer Yubico's
+PIN-protected storage for the initial owner-operated setup: it avoids placing a
+separate management secret in Key. It also means device plus PIN can authorize
+administration; the management key is not an independent human factor. Separate
+offline management-key custody is an alternative with another backup obligation.
+Neither management-key custody choice changes ordinary recovery inputs.
+Yubico's [PIV CLI guide](https://docs.yubico.com/software/yubikey/tools/ykman/PIV_Commands.html)
+documents both random generation and PIN-protected storage. Management changes
+affect the PIV application's administration, not just slot 9d. Obtain exact-scope
+owner approval and preserve recovery access before changing it.
+
+Keep secret values out of arguments, environment variables, Key/XPC, repository
+files and captured terminal output. The inspected vendor command can prompt for
+credentials; generation without protected storage can print the generated key.
+Do not capture such output as project evidence. Owner PIN/PUK backup and vendor
+PIN-unblock guidance remain outside Key. Never change retry limits, deliberately
+consume attempts, reset PIV or use key regeneration as a forgotten-PIN remedy.
+Randomness, secret custody and protected storage cannot be proven by the public
+key metadata implemented here. Do not label that metadata registration readiness.
+
+The vendor object importer accepts an ID and bytes but does not compare prior
+occupancy. It cannot by itself implement Key's unknown-object refusal and
+reviewed-state write contract. Owner-operated credential setup is selected;
+guarded registration-anchor writing remains an explicit unresolved integration
+decision. No importer subprocess, shell command generator or management writer
+has been added. A future choice must account for credential custody, exclusive
+session ordering, exact prior-state checks and interruption reconciliation.
+Key's process-wide gate does not serialize other applications or an external
+vendor command. After a vendor step, discard old observations and freshly select
+and review the token. Exact anchor readback, authenticated candidate verification,
+possession and publication are still required before verified registration.
 
 ## Registration and authority lifecycle
 

@@ -98,6 +98,7 @@ final class PIVRecoveryAgreement: Sendable {
     let receiver = try PIVHPKEReceiver(publicBytes: observation.publicKey) { [self] peer in
       let attempt = Attempt(deadline: deadline)
       try scope.claim(attempt)
+      try observation.keyMetadata.requireRecoveryPolicy()
       do { _ = try P256.KeyAgreement.PublicKey(x963Representation: peer) } catch {
         throw PIVRecoveryAgreementError.invalidPeer
       }
