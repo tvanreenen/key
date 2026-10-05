@@ -6,9 +6,8 @@ enum V3RecoveryMergeMutationError: Error, Equatable {
   case resourceLimit
 }
 
-/// Unpublished all-parent content only. Choices are scoped in-memory inputs,
-/// not a saved approval or CLI dispatch. The ordinary publisher does not accept
-/// this type; durable merge publication must independently recheck source/state.
+/// All-parent content only, not a saved approval or CLI dispatch. The ordinary
+/// publisher does not accept this type; the merge publisher rechecks source/state.
 struct V3RecoveryMergeMutationCandidate: Equatable, Sendable {
   let kind: VaultTransactionMutationKind
   let expectedCheckpoint: V3ManifestCheckpoint
@@ -218,15 +217,24 @@ struct V3RecoveryMergeMutationValidator: Sendable {
   ) throws {
     let listed = Set(observed.listedDigests)
     let required = observed.observedManifestBytes.keys.filter { !listed.contains($0) }.count
-    guard observed.listedObjectCount + required < limits.maximumManifestObjects else {
+    let addsManifest = observed.observedManifestBytes[candidate.envelope.digest] == nil
+    guard
+      observed.listedObjectCount + required
+        <= limits.maximumManifestObjects - (addsManifest ? 1 : 0)
+    else {
       throw V3RecoveryMergeMutationError.resourceLimit
     }
-    var total = candidate.envelope.canonicalBytes.count
+    var total = addsManifest ? candidate.envelope.canonicalBytes.count : 0
+    var edges = addsManifest ? candidate.envelope.parents.count : 0
     for bytes in observed.observedManifestBytes.values {
       guard bytes.count <= limits.maximumTotalManifestBytes - total else {
         throw V3RecoveryMergeMutationError.resourceLimit
       }
       total += bytes.count
+      let count = try V3DeviceWrappedManifestEnvelopeCodec().parseContainer(bytes).metadata.parents
+        .count
+      guard count <= 16_384 - edges else { throw V3RecoveryMergeMutationError.resourceLimit }
+      edges += count
     }
     var entries = observed.entryObjects
     for (address, entry) in staged { entries[address] = entry }

@@ -87,14 +87,13 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
                 canonicalBytes: intentData
             ),
             intent.operationID == anchor.operationID,
-            intent.vaultID == vaultID,
-            intent.expectedHeads
-                == [intent.expectedCheckpoint.envelopeDigest]
+            intent.vaultID == vaultID
         else {
             throw V3ImmutableTransactionRecoveryError.invalidIntent(
                 operationID: anchor.operationID.rawValue
             )
         }
+        try validator.validateRecoveryIntent(intent)
         return try recover(
             intent,
             intentData: intentData,
@@ -192,10 +191,8 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
             )
         }
 
-        let input = V3ContentTransactionInput(
-            kind: intent.kind, expectedCheckpoint: intent.expectedCheckpoint,
-            manifestData: manifest.data, manifestDigest: intent.candidateManifestDigest,
-            stagedEntries: entries.availableEntries)
+        let input = try validator.recoveryInput(
+            intent: intent, manifestData: manifest.data, stagedEntries: entries.availableEntries)
         let validated: Validator.Validated
         do {
             validated = try validator.validate(
