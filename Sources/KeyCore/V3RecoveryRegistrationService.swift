@@ -7,6 +7,7 @@ enum V3RecoveryRegistrationServiceError: Error, Equatable {
   case noPendingRegistration
   case pendingCandidateChanged
   case invalidPublishedObject
+  case otherMutationPending
 }
 
 struct V3RecoveryRegistrationExport: Equatable, Sendable {
@@ -54,6 +55,7 @@ struct V3RecoveryRegistrationService: Sendable {
   private let owner: any VaultTransactionMutationOwning
   private let objectStore: any V3ImmutableObjectPublishing & V3RecoveryRegistrationBundleStoring
   private let checkpointStore: any V3ManifestCheckpointStoring
+  private let otherOwnership: [any V3ImmutableTransactionRecoveryAnchorStoring]
   private let journal: V3RecoveryRegistrationJournal
   private let repository: V3RecoveryRegistrationRepository
   private let reader: PIVRecoveryTokenReader
@@ -69,6 +71,8 @@ struct V3RecoveryRegistrationService: Sendable {
     objectStore: any V3ImmutableObjectPublishing & V3RecoveryRegistrationBundleStoring,
     checkpointStore: any V3ManifestCheckpointStoring,
     registrationOwnershipStore: any V3ImmutableTransactionRecoveryAnchorStoring,
+    transactionOwnershipStore: any V3ImmutableTransactionRecoveryAnchorStoring,
+    adoptionOwnershipStore: any V3ImmutableTransactionRecoveryAnchorStoring,
     reader: PIVRecoveryTokenReader, agreement: PIVRecoveryAgreement,
     limits: V3ManifestRepositoryLimits = .standard,
     observer: any V3RecoveryRegistrationServicePhaseObserving = V3NoopRegistrationServiceObserver()
@@ -78,6 +82,7 @@ struct V3RecoveryRegistrationService: Sendable {
     owner = mutationOwner
     self.objectStore = objectStore
     self.checkpointStore = checkpointStore
+    otherOwnership = [transactionOwnershipStore, adoptionOwnershipStore]
     journal = V3RecoveryRegistrationJournal(
       bundleStore: objectStore, ownershipStore: registrationOwnershipStore, limits: limits)
     repository = V3RecoveryRegistrationRepository(source: objectStore, limits: limits)
@@ -92,6 +97,7 @@ struct V3RecoveryRegistrationService: Sendable {
     observation: PIVRecoveryTokenObservation, currentVaultKey: Data
   ) throws -> V3RecoveryRegistrationExport {
     try owner.perform(.registerRecoveryRecipient) { context in
+      try requireNoOtherPending()
       guard try journal.loadPending(vaultID: vaultID) == nil else {
         throw V3RecoveryRegistrationJournalError.registrationPending
       }
@@ -101,6 +107,7 @@ struct V3RecoveryRegistrationService: Sendable {
       let checkpoint = try loadCheckpoint()
       let initial = try repository.observe(checkpoint: checkpoint, currentVaultKey: currentVaultKey)
       try validator.requireOwner(identity.publicIdentity, in: initial.base)
+      try requireCheckpoint(checkpoint)
       let nextKey = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }
       let preparation = try V3RecoveryRegistrationBuilder(limits: limits).prepare(
         checkpoint: checkpoint, parent: initial.base, currentEntries: initial.entries,
@@ -111,6 +118,7 @@ struct V3RecoveryRegistrationService: Sendable {
       try observer.didReach(.candidatePrepared)
       try requireState(initial, checkpoint: checkpoint, currentKey: currentVaultKey)
       try reader.revalidate(observation)
+      try requireCheckpoint(checkpoint)
       let bytes = try journal.stageAndExport(
         preparation, checkpoint: checkpoint, parent: initial.base, currentEntries: initial.entries,
         currentVaultKey: currentVaultKey, nextVaultKey: nextKey,
@@ -118,6 +126,7 @@ struct V3RecoveryRegistrationService: Sendable {
       try observer.didReach(.exportPrepared)
       try requireState(initial, checkpoint: checkpoint, currentKey: currentVaultKey)
       try reader.revalidate(observation)
+      try requireCheckpoint(checkpoint)
       return V3RecoveryRegistrationExport(
         operationID: preparation.intent.operationID, anchor: bytes,
         recipientID: preparation.intent.anchor.recipientID)
@@ -130,6 +139,7 @@ struct V3RecoveryRegistrationService: Sendable {
     observation: PIVRecoveryTokenObservation, currentVaultKey: Data
   ) throws -> V3RecoveryRegistrationExport {
     try owner.perform(.registerRecoveryRecipient) { _ in
+      try requireNoOtherPending()
       let preparation = try pending()
       try requireCredential(observation, preparation: preparation, requireInstalled: false)
       let checkpoint = try loadCheckpoint()
@@ -140,6 +150,7 @@ struct V3RecoveryRegistrationService: Sendable {
         checkpoint: checkpoint, currentVaultKey: currentVaultKey, candidate: preparation)
       let nextKey = try openLocalCandidate(
         preparation, parent: initial.base, currentKey: currentVaultKey)
+      try requireCheckpoint(checkpoint)
       let bytes = try journal.resumeAndExport(
         checkpoint: checkpoint, parent: initial.base, currentEntries: initial.entries,
         currentVaultKey: currentVaultKey, nextVaultKey: nextKey,
@@ -149,6 +160,7 @@ struct V3RecoveryRegistrationService: Sendable {
         preparation: preparation, nextKey: nextKey)
       try requirePending(preparation)
       try reader.revalidate(observation)
+      try requireCheckpoint(checkpoint)
       return V3RecoveryRegistrationExport(
         operationID: preparation.intent.operationID, anchor: bytes,
         recipientID: preparation.intent.anchor.recipientID)
@@ -163,6 +175,7 @@ struct V3RecoveryRegistrationService: Sendable {
     afterCheckpointAdvance: (V3ManifestCheckpoint, Data) throws -> Void = { _, _ in }
   ) throws -> V3RecoveryRegistrationCommit {
     try owner.perform(.registerRecoveryRecipient) { _ in
+      try requireNoOtherPending()
       try checkCancellation(cancellation)
       guard DispatchTime.now() < deadline else { throw PIVRecoveryAgreementError.deadlineExceeded }
       guard let preparation = try journal.loadPending(vaultID: vaultID) else {
@@ -261,6 +274,7 @@ struct V3RecoveryRegistrationService: Sendable {
     }
     try requireState(state, checkpoint: checkpoint, currentKey: key)
     try reader.revalidate(observation)
+    try requireCheckpoint(checkpoint)
     try afterCheckpointAdvance(checkpoint, key)
     return V3RecoveryRegistrationCommit(
       checkpoint: checkpoint, alreadyActivated: true, cleanupPending: false)
@@ -311,6 +325,7 @@ struct V3RecoveryRegistrationService: Sendable {
     try revalidateToken()
     try checkCancellation(cancellation)
     try requirePublishedEntries(preparation)
+    try requireCheckpoint(checkpoint)
     try objectStore.publishStagedManifest(
       preparation.candidate.canonicalBytes, digest: preparation.candidate.digest,
       operationID: operation)
@@ -332,11 +347,13 @@ struct V3RecoveryRegistrationService: Sendable {
       throw V3RecoveryValidationError.sourceChanged
     }
     try readerCheck(revalidateToken, cancellation: cancellation)
+    try requireCheckpoint(checkpoint)
     let next = try V3ManifestCheckpoint(
       vaultID: vaultID, envelopeDigest: preparation.candidate.digest)
     try checkpointStore.replaceCheckpoint(
       next.canonicalBytes, expectedCheckpoint: checkpoint.canonicalBytes, vaultID: vaultID)
     try observer.didReach(.checkpointAdvanced)
+    try requireCheckpoint(next)
     try afterCheckpointAdvance(next, nextKey)
     try observer.didReach(.localSessionUpdated)
     let cleanupPending = try completeOwnership(preparation, checkpoint: next)
@@ -359,6 +376,7 @@ struct V3RecoveryRegistrationService: Sendable {
         $0.recipientDeviceID == identity.publicIdentity.deviceID
       })
     else { throw V3RecoveryRegistrationError.invalidOwner }
+    try requireCheckpoint(checkpoint)
     let nextKey = try identity.unwrapDeviceWrappedVaultKey(
       wrapped.wrappedKey,
       context: preparation.candidate.body.deviceContext(
@@ -373,6 +391,7 @@ struct V3RecoveryRegistrationService: Sendable {
     try requirePending(preparation)
     try requireState(state, checkpoint: checkpoint, currentKey: nextKey)
     try reader.revalidate(observation)
+    try requireCheckpoint(checkpoint)
     try afterCheckpointAdvance(checkpoint, nextKey)
     try observer.didReach(.localSessionUpdated)
     let cleanupPending = try completeOwnership(preparation, checkpoint: checkpoint)
@@ -415,6 +434,7 @@ struct V3RecoveryRegistrationService: Sendable {
       })
     else { throw V3RecoveryRegistrationError.invalidOwner }
     try V3RecoveryEpochBoundary().verifyBoundary(preparation.candidate, parent: parent)
+    try requireNoOtherPending()
     return try identity.unwrapDeviceWrappedVaultKey(
       wrapped.wrappedKey,
       context: preparation.candidate.body.deviceContext(
@@ -442,9 +462,19 @@ struct V3RecoveryRegistrationService: Sendable {
     return checkpoint
   }
 
+  // Durable pending-state guards complement, not replace, the shared mutation
+  // owner. Check both namespaces around the exact checkpoint read at effects.
   private func requireCheckpoint(_ checkpoint: V3ManifestCheckpoint) throws {
+    try requireNoOtherPending()
     guard try loadCheckpoint() == checkpoint else {
       throw V3RecoveryRegistrationServiceError.checkpointChanged
+    }
+    try requireNoOtherPending()
+  }
+
+  private func requireNoOtherPending() throws {
+    for store in otherOwnership where try store.loadRecoveryAnchor(vaultID: vaultID) != nil {
+      throw V3RecoveryRegistrationServiceError.otherMutationPending
     }
   }
 
@@ -489,5 +519,6 @@ struct V3RecoveryRegistrationService: Sendable {
   {
     try checkCancellation(cancellation)
     try revalidate()
+    try requireNoOtherPending()
   }
 }

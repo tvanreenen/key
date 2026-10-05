@@ -357,6 +357,247 @@ struct V3RecoveryRegistrationServiceTests {
     #expect(try f.pending()?.intent.operationID == fixed)
   }
 
+  @Test(arguments: [false, true])
+  func competingPendingWorkBlocksPrepareBeforeSigning(adoption: Bool) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let barrier = adoption ? f.adoption : f.transactions
+    try barrier.replaceRecoveryAnchor(Data([1]), expectedAnchor: nil, vaultID: Core.vaultID)
+    #expect(throws: V3RecoveryRegistrationServiceError.otherMutationPending) { try f.prepare() }
+    #expect(f.core.owner.signatures == 0 && f.core.owner.unwraps == 0 && f.provider.requests == 0)
+    #expect(f.ownership.value == nil && barrier.value == Data([1]))
+    #expect(f.checkpoints.value == f.core.checkpoint.canonicalBytes)
+  }
+
+  @Test(arguments: [false, true])
+  func competingWorkBlocksExportResumeAndFinishWithoutChangingPreparation(adoption: Bool) throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    let export = try f.prepare()
+    let preparation = try #require(try f.pending())
+    let pin = f.ownership.value
+    let barrier = adoption ? f.adoption : f.transactions
+    try barrier.replaceRecoveryAnchor(Data([1]), expectedAnchor: nil, vaultID: Core.vaultID)
+    #expect(throws: V3RecoveryRegistrationServiceError.otherMutationPending) {
+      try f.service().resumeExport(observation: f.observation(), currentVaultKey: Core.oldKey)
+    }
+    f.card.anchor = export.anchor
+    #expect(throws: V3RecoveryRegistrationServiceError.otherMutationPending) { try f.finish() }
+    #expect(try f.pending() == preparation && f.ownership.value == pin)
+    #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0 && f.provider.requests == 0)
+    #expect(f.checkpoints.value == f.core.checkpoint.canonicalBytes)
+    try barrier.replaceRecoveryAnchor(nil, expectedAnchor: Data([1]), vaultID: Core.vaultID)
+    #expect(try f.finish().checkpoint.envelopeDigest == preparation.candidate.digest)
+    #expect(f.provider.requests == 1 && f.ownership.value == nil)
+  }
+
+  @Test(arguments: [V3RecoveryRegistrationServicePhase.candidatePrepared, .exportPrepared])
+  func competingWorkDuringPreparationCannotReturnAnExport(phase: V3RecoveryRegistrationServicePhase)
+    throws
+  {
+    let f = try Fixture()
+    defer { f.remove() }
+    #expect(throws: V3RecoveryRegistrationServiceError.otherMutationPending) {
+      try f.prepare(
+        observer: Observer {
+          if $0 == phase {
+            try f.transactions.replaceRecoveryAnchor(
+              Data([1]), expectedAnchor: nil, vaultID: Core.vaultID)
+          }
+        })
+    }
+    #expect(f.checkpoints.value == f.core.checkpoint.canonicalBytes && f.provider.requests == 0)
+    #expect((f.ownership.value != nil) == (phase == .exportPrepared))
+  }
+
+  @Test(arguments: [false, true])
+  func competingWorkDuringLocalApprovalStopsBeforeAgreement(adoption: Bool) throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    f.card.anchor = try f.prepare().anchor
+    let barrier = adoption ? f.adoption : f.transactions
+    f.core.owner.onUnwrap = {
+      try barrier.replaceRecoveryAnchor(Data([1]), expectedAnchor: nil, vaultID: Core.vaultID)
+    }
+    #expect(throws: V3RecoveryRegistrationServiceError.otherMutationPending) { try f.finish() }
+    #expect(f.core.owner.unwraps == 1 && f.provider.requests == 0)
+    #expect(f.ownership.value != nil && f.checkpoints.value == f.core.checkpoint.canonicalBytes)
+  }
+
+  @Test func competingWorkDuringAgreementDiscardsResultAndRequiresExplicitFreshPossession() throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    f.card.anchor = try f.prepare().anchor
+    let preparation = try #require(try f.pending())
+    f.provider.onAgree = {
+      try f.transactions.replaceRecoveryAnchor(
+        Data([1]), expectedAnchor: nil, vaultID: Core.vaultID)
+    }
+    #expect(throws: V3RecoveryRegistrationServiceError.otherMutationPending) { try f.finish() }
+    #expect(f.provider.requests == 1 && f.ownership.value != nil)
+    #expect(
+      !FileManager.default.fileExists(atPath: f.manifestURL(preparation.candidate.digest).path))
+    #expect(f.checkpoints.value == f.core.checkpoint.canonicalBytes)
+    try f.transactions.replaceRecoveryAnchor(nil, expectedAnchor: Data([1]), vaultID: Core.vaultID)
+    f.provider.onAgree = {}
+    #expect(try !f.finish().alreadyActivated)
+    #expect(f.provider.requests == 2 && f.core.owner.signatures == 1)
+  }
+
+  @Test(arguments: [
+    V3RecoveryRegistrationServicePhase.artifactsStaged, .entriesVerified, .manifestVerified,
+    .checkpointAdvanced, .localSessionUpdated,
+  ])
+  func lateCompetingWorkRetainsExactRegistrationAndStopsRemainingEffects(
+    phase: V3RecoveryRegistrationServicePhase
+  ) throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    f.card.anchor = try f.prepare().anchor
+    let preparation = try #require(try f.pending())
+    let installed = Keys()
+    #expect(throws: V3RecoveryRegistrationServiceError.otherMutationPending) {
+      try f.finish(
+        observer: Observer {
+          if $0 == phase {
+            try f.adoption.replaceRecoveryAnchor(
+              Data([1]), expectedAnchor: nil, vaultID: Core.vaultID)
+          }
+        }
+      ) { _, key in installed.append(key) }
+    }
+    let committed = phase == .checkpointAdvanced || phase == .localSessionUpdated
+    #expect((f.checkpoints.value != f.core.checkpoint.canonicalBytes) == committed)
+    #expect(installed.count == (phase == .localSessionUpdated ? 1 : 0))
+    #expect(try f.pending() == preparation && f.ownership.value != nil)
+    try f.adoption.replaceRecoveryAnchor(nil, expectedAnchor: Data([1]), vaultID: Core.vaultID)
+    #expect(try f.finish().alreadyActivated == committed)
+    #expect(f.provider.requests == (committed ? 1 : 2))
+    #expect(f.ownership.value == nil && f.core.owner.signatures == 1)
+  }
+
+  @Test(arguments: [false, true])
+  func competingWorkBlocksCommittedRepairAndLostReplyRecognition(cleaned: Bool) throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    f.card.anchor = try f.prepare().anchor
+    if cleaned {
+      _ = try f.finish()
+    } else {
+      #expect(throws: Core.FixtureError.cancelled) {
+        try f.finish(
+          observer: Observer { if $0 == .checkpointAdvanced { throw Core.FixtureError.cancelled } })
+      }
+    }
+    let checkpoint = f.checkpoints.value
+    let pin = f.ownership.value
+    let unwraps = f.core.owner.unwraps
+    try f.transactions.replaceRecoveryAnchor(Data([1]), expectedAnchor: nil, vaultID: Core.vaultID)
+    #expect(throws: V3RecoveryRegistrationServiceError.otherMutationPending) { try f.finish() }
+    #expect(f.provider.requests == 1 && f.core.owner.unwraps == unwraps)
+    #expect(f.checkpoints.value == checkpoint && f.ownership.value == pin)
+  }
+
+  @Test(arguments: [false, true])
+  func unreadableCompetingOwnershipDoesNotMeanNoPendingWork(adoption: Bool) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    (adoption ? f.adoption : f.transactions).rejectRead = true
+    #expect(throws: Core.FixtureError.cancelled) { try f.prepare() }
+    #expect(f.core.owner.signatures == 0 && f.core.owner.unwraps == 0 && f.provider.requests == 0)
+    #expect(f.ownership.value == nil && f.checkpoints.value == f.core.checkpoint.canonicalBytes)
+  }
+
+  @Test func registrationAndOrdinarySavesShareTheSamePendingNamespacesAndSession() throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    let cache = V3CheckpointManifestFilesystemCache(
+      rootHandle: try VaultRootDirectoryHandle(opening: f.root))
+    let session = V3DeviceWrappedVaultKeySessionStore()
+    try session.install(Core.oldKey, vaultID: Core.vaultID, keyID: f.core.parent.body.fields.keyID)
+    let ordinary = V3RecoveryVaultMutationService(
+      vaultID: Core.vaultID, session: session, objectStore: f.store,
+      checkpointStore: f.checkpoints, recoveryAnchorStore: f.transactions,
+      registrationAnchorStore: f.ownership, adoptionAnchorStore: f.adoption, cache: cache)
+    f.card.anchor = try f.prepare().anchor
+    #expect(throws: VaultUXServiceError.vaultIncomplete) {
+      try f.mutationOwner.perform(.editEntry) { context in
+        try ordinary.edit(
+          name: "fixture/secret", secret: "not saved", type: .secret,
+          operationID: context.operationID)
+      }
+    }
+    let commit = try f.finish { checkpoint, key in
+      let envelope = try V3RecoveryManifestCodec().parseEnvelope(
+        Data(contentsOf: f.manifestURL(checkpoint.envelopeDigest)))
+      try session.install(key, vaultID: Core.vaultID, keyID: envelope.body.fields.keyID)
+    }
+    try f.mutationOwner.perform(.editEntry) { context in
+      try ordinary.edit(
+        name: "fixture/secret", secret: "saved after registration", type: .secret,
+        operationID: context.operationID)
+    }
+    #expect(try f.pending() == nil)
+    let anchorBytes = try #require(f.card.anchor)
+    let anchor = try V3RecoveryAnchorCodec().parseCanonical(anchorBytes)
+    let selected = try V3RecoveryHistorySelector(source: f.store).select(
+      anchor: anchor, credentialPublicKey: f.core.token.publicKey.x963Representation)
+    let receiver = try PIVHPKEReceiver(publicBytes: f.core.token.publicKey.x963Representation) {
+      peer in
+      try f.core.token.sharedSecretFromKeyAgreement(
+        with: P256.KeyAgreement.PublicKey(x963Representation: peer)
+      )
+      .withUnsafeBytes { Data($0) }
+    }
+    let opened = try V3RecoverySnapshotVerifier(source: f.store).open(
+      selected, boundAnchor: anchor, receiver: receiver)
+    #expect(selected.head.parents == [commit.checkpoint.envelopeDigest])
+    #expect(
+      opened.entries.first { $0.name == "fixture/secret" }?.plaintext == "saved after registration")
+    #expect(f.provider.requests == 1 && f.core.owner.signatures == 1 && f.transactions.value == nil)
+  }
+
+  @Test func aRealPinnedOrdinarySaveBlocksRegistrationUntilItsOwnerResumes() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let candidate = try V3RecoveryContentMutationBuilder().build(
+      .edit(name: "fixture/secret", type: .secret, plaintext: "ordinary pending"),
+      checkpoint: f.core.checkpoint, parent: f.core.parent, currentEntries: f.core.entries,
+      vaultKey: Core.oldKey)
+    let publisher = V3RecoveryContentMutationPublisher(
+      mutationOwner: f.mutationOwner, objectStore: f.store, checkpointStore: f.checkpoints,
+      recoveryAnchorStore: f.transactions, registrationAnchorStore: f.ownership,
+      adoptionAnchorStore: f.adoption,
+      cache: V3CheckpointManifestFilesystemCache(
+        rootHandle: try VaultRootDirectoryHandle(opening: f.root)),
+      phaseObserver: ContentInterrupt())
+    #expect(throws: Core.FixtureError.cancelled) {
+      try publisher.publish(candidate, vaultKey: Core.oldKey)
+    }
+    let pin = f.transactions.value
+    #expect(throws: V3RecoveryRegistrationServiceError.otherMutationPending) { try f.prepare() }
+    #expect(f.transactions.value == pin && f.ownership.value == nil && f.core.owner.signatures == 0)
+    _ = try publisher.recoverInterruptedTransaction(vaultID: Core.vaultID, vaultKey: Core.oldKey)
+    #expect(f.transactions.value == nil)
+    _ = try f.prepare()
+    #expect(try f.pending()?.intent.expectedCheckpoint.envelopeDigest == candidate.envelope.digest)
+    #expect(f.core.owner.signatures == 1 && f.provider.requests == 0)
+  }
+
+  private struct ContentInterrupt: V3ImmutableTransactionPhaseObserving {
+    func didReach(_ phase: V3ImmutableTransactionPhase, operationID _: VaultTransactionOperationID)
+      throws
+    {
+      if phase == .manifestStaged { throw Core.FixtureError.cancelled }
+    }
+  }
+
   private struct Observer: V3RecoveryRegistrationServicePhaseObserving {
     let action: @Sendable (V3RecoveryRegistrationServicePhase) throws -> Void
     init(_ action: @escaping @Sendable (V3RecoveryRegistrationServicePhase) throws -> Void) {
@@ -396,8 +637,12 @@ struct V3RecoveryRegistrationServiceTests {
     private let lock = NSLock()
     private var data: Data?
     var rejectClear = false
+    var rejectRead = false
     var value: Data? { lock.withLock { data } }
-    func loadRecoveryAnchor(vaultID _: String) throws -> Data? { value }
+    func loadRecoveryAnchor(vaultID _: String) throws -> Data? {
+      if rejectRead { throw Core.FixtureError.cancelled }
+      return value
+    }
     func replaceRecoveryAnchor(_ anchor: Data?, expectedAnchor: Data?, vaultID _: String) throws {
       try lock.withLock {
         if rejectClear && anchor == nil { throw Core.FixtureError.cancelled }
@@ -415,6 +660,8 @@ struct V3RecoveryRegistrationServiceTests {
     let store: V3FilesystemTransactionArtifactStore
     let checkpoints: Checkpoints
     let ownership = Ownership()
+    let transactions = Ownership()
+    let adoption = Ownership()
     let mutationOwner = VaultTransactionMutationOwner()
     let card: Card
     let reader: PIVRecoveryTokenReader
@@ -455,6 +702,7 @@ struct V3RecoveryRegistrationServiceTests {
         vaultID: Core.vaultID, identity: core.owner,
         mutationOwner: mutationOwner ?? self.mutationOwner,
         objectStore: store, checkpointStore: checkpoints, registrationOwnershipStore: ownership,
+        transactionOwnershipStore: transactions, adoptionOwnershipStore: adoption,
         reader: reader, agreement: agreement, limits: limits, observer: observer)
     }
     func observation() throws -> PIVRecoveryTokenObservation {
