@@ -147,6 +147,16 @@ struct V3RecoveryRecipientRemovalValidator: Sendable {
     currentVaultKey: Data, expectedOwner: V3EnrollmentDeviceIdentity,
     protectionLossAcknowledgement: V3RecoveryProtectionLossAcknowledgement? = nil
   ) throws {
+    try preflightTransition(
+      candidate, parent: parent, currentVaultKey: currentVaultKey, expectedOwner: expectedOwner)
+    try V3RecoveryProtectionLossAcknowledgement.validate(
+      protectionLossAcknowledgement, for: candidate.plan)
+  }
+
+  private func preflightTransition(
+    _ candidate: V3RecoveryRecipientRemovalCandidate, parent: V3RecoveryManifestEnvelope,
+    currentVaultKey: Data, expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws {
     let plan = candidate.plan
     let reviewed = try V3RecoveryRecipientRemovalPlanner(limits: limits).plan(
       checkpoint: plan.expectedCheckpoint, parent: parent, currentVaultKey: currentVaultKey,
@@ -155,7 +165,6 @@ struct V3RecoveryRecipientRemovalValidator: Sendable {
     guard reviewed == plan, expectedOwner == plan.authorizingDevice.identity else {
       throw V3RecoveryRecipientRemovalError.invalidPlan
     }
-    try V3RecoveryProtectionLossAcknowledgement.validate(protectionLossAcknowledgement, for: plan)
     let body = candidate.envelope.body
     guard body.fields.devices == parent.body.fields.devices,
       body.recovery.recipients == plan.resultingRecipients,
@@ -165,6 +174,22 @@ struct V3RecoveryRecipientRemovalValidator: Sendable {
       candidate.envelope, checkpoint: plan.expectedCheckpoint, parent: parent,
       stagedEntryCount: candidate.stagedEntries.count, currentVaultKey: currentVaultKey,
       expectedOwner: expectedOwner)
+  }
+
+  /// Transition authentication only, not approval or ownership. The durable
+  /// kernel must establish exact local ownership before using this for restart.
+  /// Fresh publication still requires the separately reviewed plan and explicit
+  /// protection-loss acknowledgment through validate/preflight.
+  func validatePinnedTransition(
+    _ candidate: V3RecoveryRecipientRemovalCandidate, parent: V3RecoveryManifestEnvelope,
+    currentEntries: [V3EntryObjectKey: V3EncryptedEntry], currentVaultKey: Data,
+    nextVaultKey: Data, expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws {
+    try preflightTransition(
+      candidate, parent: parent, currentVaultKey: currentVaultKey, expectedOwner: expectedOwner)
+    try V3RecoveryEpochSnapshotValidator(limits: limits).validateSnapshots(
+      candidate.envelope, stagedEntries: candidate.stagedEntries, parent: parent,
+      currentEntries: currentEntries, currentVaultKey: currentVaultKey, nextVaultKey: nextVaultKey)
   }
 
   func validate(
