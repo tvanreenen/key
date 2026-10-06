@@ -63,48 +63,9 @@ struct V3DeviceWrappedRevocationPlanner: Sendable {
         revoking revokedDeviceID: String
     ) throws -> V3DeviceWrappedRevocationPlan {
         let envelope = try validate(base)
-        guard let authorizingDevice = envelope.body.devices.first(where: {
-            $0.identity.deviceID == authorizingDeviceID
-                && $0.status == .active
-        }) else {
-            throw V3DeviceWrappedRevocationPlanningError
-                .invalidAuthorizingDevice
-        }
-        guard let revokedDevice = envelope.body.devices.first(where: {
-            $0.identity.deviceID == revokedDeviceID
-        }) else {
-            throw V3DeviceWrappedRevocationPlanningError.deviceNotFound
-        }
-        guard revokedDevice.status == .active else {
-            throw V3DeviceWrappedRevocationPlanningError
-                .deviceAlreadyRevoked
-        }
-
-        let resultingDevices = envelope.body.devices.map { device in
-            guard device.identity.deviceID == revokedDeviceID else {
-                return device
-            }
-            return V3DeviceWrappedManifestDevice(
-                identity: device.identity,
-                status: .revoked
-            )
-        }
-        guard resultingDevices.contains(where: { $0.status == .active }) else {
-            throw V3DeviceWrappedRevocationPlanningError.lastActiveDevice
-        }
-        guard authorizingDeviceID != revokedDeviceID else {
-            // The publishing Mac must remain able to validate and recover the
-            // new epoch. A future explicit leave/handoff flow can safely own
-            // the different local cleanup semantics of self-removal.
-            throw V3DeviceWrappedRevocationPlanningError
-                .cannotRevokeAuthorizingDevice
-        }
-
-        return V3DeviceWrappedRevocationPlan(
-            expectedCheckpoint: base.checkpoint,
-            authorizingDevice: authorizingDevice,
-            revokedDevice: revokedDevice,
-            resultingDevices: resultingDevices
+        return try V3DeviceRevocationRosterPolicy().plan(
+            checkpoint: base.checkpoint, devices: envelope.body.devices,
+            authorizingDeviceID: authorizingDeviceID, revoking: revokedDeviceID
         )
     }
 
