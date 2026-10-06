@@ -43,7 +43,8 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
         precondition(inactivityTimeout > .zero)
         self.inactivityTimeout = inactivityTimeout
         let components = inactivityTimeout.components
-        inactivityTimeoutSeconds = TimeInterval(components.seconds)
+        inactivityTimeoutSeconds =
+            TimeInterval(components.seconds)
             + TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000
         self.now = now
     }
@@ -58,7 +59,7 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
         keyID: V3VaultKeyID
     ) throws {
         guard key.count == 32,
-              (try? V3VaultKeyID.derive(vaultKey: key, vaultID: vaultID))
+            (try? V3VaultKeyID.derive(vaultKey: key, vaultID: vaultID))
                 == keyID
         else {
             throw V3DeviceWrappedVaultKeySessionError.invalidKey
@@ -98,12 +99,13 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
 
     /// Install a newly authenticated key without undoing a lock during the UI.
     /// The caller must authenticate exact committed authority before invoking it.
+    @discardableResult
     func install(
         _ key: Data, vaultID: String, keyID: V3VaultKeyID,
         authenticationTicket: AuthenticationTicket
-    ) throws {
+    ) throws -> AuthenticationTicket {
         guard key.count == 32,
-              (try? V3VaultKeyID.derive(vaultKey: key, vaultID: vaultID)) == keyID
+            (try? V3VaultKeyID.derive(vaultKey: key, vaultID: vaultID)) == keyID
         else { throw V3DeviceWrappedVaultKeySessionError.invalidKey }
         lock.lock()
         defer { lock.unlock() }
@@ -111,6 +113,7 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
         authenticationGeneration += 1
         state = State(vaultID: vaultID, keyID: keyID, key: key, deadline: nil, expiresAt: nil)
         scheduleExpirationLocked(from: clock.now, wallTime: now())
+        return AuthenticationTicket(storeID: storeID, generation: authenticationGeneration)
     }
 
     private func requireTicketLocked(_ ticket: AuthenticationTicket) throws {
@@ -129,7 +132,7 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
         expectedKeyID: V3VaultKeyID
     ) throws {
         guard key.count == 32,
-              (try? V3VaultKeyID.derive(vaultKey: key, vaultID: vaultID))
+            (try? V3VaultKeyID.derive(vaultKey: key, vaultID: vaultID))
                 == keyID
         else {
             throw V3DeviceWrappedVaultKeySessionError.invalidKey
@@ -142,8 +145,8 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
             throw V3DeviceWrappedVaultKeySessionError.unavailable
         }
         guard state.vaultID == vaultID,
-              state.keyID == expectedKeyID,
-              state.key != nil
+            state.keyID == expectedKeyID,
+            state.key != nil
         else {
             throw V3DeviceWrappedVaultKeySessionError.unavailable
         }
@@ -158,10 +161,10 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
         defer { lock.unlock() }
         let current = clock.now
         guard let deadline = state.deadline,
-              current < deadline,
-              state.vaultID == vaultID,
-              state.keyID == keyID,
-              let key = state.key
+            current < deadline,
+            state.vaultID == vaultID,
+            state.keyID == keyID,
+            let key = state.key
         else {
             clearLocked()
             throw V3DeviceWrappedVaultKeySessionError.unavailable
@@ -185,10 +188,10 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
         defer { lock.unlock() }
         let observedDate = date ?? now()
         guard let deadline = state.deadline,
-              clock.now < deadline,
-              let expiresAt = state.expiresAt,
-              observedDate < expiresAt,
-              state.key != nil
+            clock.now < deadline,
+            let expiresAt = state.expiresAt,
+            observedDate < expiresAt,
+            state.key != nil
         else {
             clearLocked()
             return .locked(
@@ -243,8 +246,8 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard expirationGeneration == generation,
-              state.deadline == deadline,
-              clock.now >= deadline
+            state.deadline == deadline,
+            clock.now >= deadline
         else {
             return
         }

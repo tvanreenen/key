@@ -85,6 +85,23 @@ struct V3DeviceWrappedVaultKeySessionTests {
   }
 
   @Test(arguments: [false, true])
+  func installationReceiptContinuesOnlyItsExactGeneration(reinstall: Bool) throws {
+    let s = try session()
+    let before = s.beginAuthentication()
+    let receipt = try s.install(
+      Self.nextKey, vaultID: Self.vaultID, keyID: nextID, authenticationTicket: before)
+    try s.requireCurrent(receipt)
+    #expect(throws: V3DeviceWrappedVaultKeySessionError.unavailable) {
+      try s.requireCurrent(before)
+    }
+    s.invalidate()
+    if reinstall { try s.install(Self.nextKey, vaultID: Self.vaultID, keyID: nextID) }
+    #expect(throws: V3DeviceWrappedVaultKeySessionError.unavailable) {
+      try s.requireCurrent(receipt)
+    }
+  }
+
+  @Test(arguments: [false, true])
   func explicitLockCancelsAuthenticationEvenWhenSessionWasAlreadyEmpty(installed: Bool) throws {
     let s = installed ? try session() : V3DeviceWrappedVaultKeySessionStore()
     let ticket = s.beginAuthentication()
