@@ -97,7 +97,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
-| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; durable publication/resume, owner sessions, exact comparison completion and joining first trust are implemented; reviewed revocation/removal retain exact initial review and last-recipient acknowledgment; remaining-Mac one-epoch catch-up retains full reseal checks; mixed content/epoch coordination, user confirmation and shipping product/native acceptance remain |
+| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; durable publication/resume, owner sessions, exact comparison completion and joining first trust are implemented; reviewed revocation/removal retain exact initial review and last-recipient acknowledgment; remaining-Mac one-epoch catch-up retains full reseal checks; mixed coordination now composes guarded steps against a fixed source; integrated review, user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
@@ -491,8 +491,10 @@ restart methods now reconcile exact locally owned work through bounded public
 preflight and cold/warm Mac-wrapper authentication without renewed consent or
 signing. A guarded remaining-Mac key-transition step now validates exact public
 history and fully authenticates the selected epoch and resealed snapshots before
-local trust advances. Shipping cold-unlock/runtime/config activation, user
-confirmation and mixed content/key-epoch coordination still require implementation.
+local trust advances. Mixed content/key-epoch coordination now composes those
+steps under one mutation owner, retaining the original observed history and exact
+session generation through a terminal result. Shipping cold-unlock/runtime/config
+activation, user confirmation and lifecycle integration review remain.
 Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -545,6 +547,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Thirteenth 810 initial authority service, 2026-10-06 | [Explicit revocation/removal methods](../Sources/KeyCore/V3RecoveryAuthorityChangeService.swift) and [15 software declarations](../Tests/KeyCoreTests/V3RecoveryAuthorityChangeServiceTests.swift) | One shared source/session flow retains independent decision policies and exact initial review/acknowledgment. Random-key publication installs only authenticated committed state, with generation guards against lock or same-key reauthentication during UI. All durable boundaries and ordinary-save/software-recovery composition pass. Full Debug/Release and unsigned universal Preview checks pass; session-aware restart, catch-up and native/product qualification remain. |
 | Fourteenth 810 authority restart component, 2026-10-06 | [Explicit restart/session methods](../Sources/KeyCore/V3RecoveryAuthorityChangeService.swift) and [18 software declarations](../Tests/KeyCoreTests/V3RecoveryAuthorityChangeRecoveryTests.swift) | Exact owned revocation/removal intent and optional routed anchor precede public preflight and addressed Mac-wrapper opening. Cold/warm reconciliation generates no new epoch or consent; current-only committed cleanup preserves trust without obsolete files. All initial durable boundaries, session/source/pending races and ordinary-save/software-recovery composition pass. Full Debug/Release and unsigned universal Preview checks pass; key-transition catch-up and native/product acceptance remain. |
 | Fifteenth 810 remaining-Mac key-transition step, 2026-10-06 | [Bounded observation and guarded step](../Sources/KeyCore/V3RecoveryKeyTransitionCatchUpService.swift) and [24 software declarations](../Tests/KeyCoreTests/V3RecoveryKeyTransitionCatchUpTests.swift) | One continuing-Mac wrapper authenticates the selected new epoch and full old/new reseal before checkpoint CAS. Independent checkpoints, edits around several epochs, late joins, visible conflicts and source/session/pending races are exercised. Software recovery follows another Mac's save without Mac private state. Verification below; mixed coordination and integrated/native/product review remain. |
+| Sixteenth 810 mixed catch-up coordination, 2026-10-06 | [Concrete coordinator](../Sources/KeyCore/V3RecoveryCatchUpCoordinator.swift), [14 software declarations](../Tests/KeyCoreTests/V3RecoveryCatchUpCoordinatorTests.swift) and [atomic session receipts](../Sources/KeyCore/V3DeviceWrappedVaultKeySession.swift) | One mutation owner composes content/epoch steps from an exact unlocked floor. Original-source checks prevent a late old-floor sibling from disappearing; atomic installation receipts reject unrelated reauthentication between epochs. Committed prefixes survive failures without a current claim or automatic retry. Verification below; lifecycle integration review and shipping/native composition remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -3116,3 +3119,72 @@ within PR 72. Restore orchestration and shipping runtime/CLI composition remain
 later stack layers. No package is complete. This increment changes no real vault,
 configuration, installed app or token, and performs no hardware administration,
 push, notarization or release.
+
+### Sixteenth 810 mixed catch-up coordination, 2026-10-06
+
+The [coordinator](../Sources/KeyCore/V3RecoveryCatchUpCoordinator.swift) compares
+moving discovery forward after each successful step with retaining an exact
+original-source observation for the entire operation. Moving-only discovery can
+hide a sibling delivered below an already committed epoch. The fixed-source
+approach fits existing same-epoch coordination and reuses bounded observers,
+without retaining every historical key or introducing another graph algorithm.
+The original-floor key stays in memory only for this bounded call's checks.
+New source arrivals stop the call and require explicit rediscovery; no provider
+transaction, global freshness guarantee or automatic private retry is invented.
+
+One actual mutation owner surrounds concrete content and key-epoch services.
+Their direct owners reuse the operation ID rather than nesting the same queue.
+Epoch steps still fully compare old/new plaintexts and authenticate the selected
+epoch. Content steps use its installed session key. The progress counters measure
+actual checkpoint replacements, not every inspected snapshot in an epoch jump.
+Initial same-epoch content ambiguity returns both authenticated heads. Mixed
+authority/closed-epoch competition refuses. Only the exact unchanged observed
+head can produce a current result, including at the exact step budget.
+
+Guarded session installation now returns its next-generation receipt atomically.
+The coordinator passes its exact ticket into the epoch step and continues only
+with the returned receipt. It does not take a new generation snapshot after
+installation, which could accidentally adopt an unrelated lock/unlock. Existing
+callers can discard the return value and retain their prior behavior. Errors lock
+without rolling back committed checkpoints or modifying pending ownership.
+
+Fourteen coordinator declarations reuse the existing two-Mac filesystem fixture
+and actual steps. They cover every lifecycle kind, complete mixed histories,
+content-only and unchanged sources, conflicts, late siblings after CAS, budgets,
+second-epoch cancellation, lock/same-key replacement between epochs, all pending
+namespaces, checkpoint/session races, cold/wrong state, future ciphertext/bounds,
+cache failure and genuine concurrent stale callers. A session declaration checks
+that the install receipt accepts only its own generation and rejects later lock
+or same-key reinstall. No step is mocked and no native or token operation is used.
+
+Initial test compilation corrected the existing encrypted-entry URL helper call
+and the visibility of reused test aliases/fixtures. These were fixture-only
+changes; no production validation was relaxed. Strict formatting also normalizes
+existing guard continuation indentation in the touched session store.
+
+Verification before the local commit:
+
+- Focused Debug passed 24 tests in two suites: all 14 coordinator declarations
+  and ten session declarations, including the new installation-receipt test.
+- Optimized regression passed 167 tests in nine suites. It includes the
+  coordinator, epoch/content/merged catch-up, session store, authority-change
+  service, key-rotation service, enrollment-owner service and joining adoption.
+  These exercise the concrete catch-up steps and guarded-install consumers.
+- Debug production compilation and unsigned universal Preview passed. App, CLI
+  and helper each contain arm64/x86_64 slices. Product-bundle isolation and real
+  bundled CLI help/usage/version/completion checks passed.
+- Strict formatting of all touched Swift files, project syntax, Git whitespace
+  checks and all 205 local documentation targets passed. The session store uses
+  its existing four-space indentation; other touched files use two spaces.
+- The console was observed locked during this increment. No fresh whole-suite
+  Debug/Release or protected-storage qualification is claimed. The preceding
+  increment's full Release result remains evidence for that revision only.
+  A fresh unlocked whole-suite run remains part of lifecycle integration checks;
+  no protection or screen-lock setting was changed.
+
+Raw output uses `tmp/piv-recovery/2026-10-06-coordinator-` and remains ignored.
+
+Next: lifecycle integration checks and review within PR 72. Restore orchestration
+and shipping runtime/CLI composition remain later stack layers. No package is
+complete. This increment changes no real vault, configuration, installed app or
+token, and performs no hardware administration, push, notarization or release.

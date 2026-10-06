@@ -333,6 +333,29 @@ struct V3RecoveryKeyTransitionCatchUpService: Sendable {
   func advanceOneEpoch(from floor: V3RecoveryContentCommit) throws
     -> V3RecoveryKeyTransitionCatchUpOutcome
   {
+    try advanceOneEpoch(from: floor, expectedTicket: nil).outcome
+  }
+
+  /// Continue only the caller's exact authentication generation. The returned
+  /// ticket comes from the atomic install, never a new observation of a session
+  /// that another unlock may have replaced between coordinated steps.
+  func advanceOneEpoch(
+    from floor: V3RecoveryContentCommit,
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  ) throws -> (
+    outcome: V3RecoveryKeyTransitionCatchUpOutcome,
+    ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  ) {
+    try advanceOneEpoch(from: floor, expectedTicket: ticket)
+  }
+
+  private func advanceOneEpoch(
+    from floor: V3RecoveryContentCommit,
+    expectedTicket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket?
+  ) throws -> (
+    outcome: V3RecoveryKeyTransitionCatchUpOutcome,
+    ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  ) {
     try mutationOwner.perform(.catchUpVault) { _ in
       do {
         try requireState(floor.checkpoint)
@@ -340,7 +363,8 @@ struct V3RecoveryKeyTransitionCatchUpService: Sendable {
           floor.envelope.body.fields.devices.contains(
             .init(identity: identity.publicIdentity, status: .active))
         else { throw V3RecoveryKeyTransitionCatchUpError.invalidDevice }
-        let ticket = session.beginAuthentication()
+        let ticket = expectedTicket ?? session.beginAuthentication()
+        try session.requireCurrent(ticket)
         let oldKey = try session.load(
           vaultID: floor.checkpoint.vaultID, keyID: floor.envelope.body.fields.keyID)
         let observed = try observer.observe(from: floor, vaultKey: oldKey)
@@ -350,7 +374,7 @@ struct V3RecoveryKeyTransitionCatchUpService: Sendable {
           observed.head.body.fields.devices.contains(
             .init(identity: identity.publicIdentity, status: .active))
         else { throw V3RecoveryKeyTransitionCatchUpError.deviceRevoked }
-        guard let candidate = observed.transition else { return .noKeyTransition }
+        guard let candidate = observed.transition else { return (.noKeyTransition, ticket) }
         guard
           candidate.body.fields.devices.contains(
             .init(identity: identity.publicIdentity, status: .active))
@@ -397,10 +421,10 @@ struct V3RecoveryKeyTransitionCatchUpService: Sendable {
         // after CAS still refuse session installation, never checkpoint rollback.
         try? cache.store(candidate.canonicalBytes, for: checkpoint)
         try requireStable(observed, from: floor, key: oldKey, checkpoint: checkpoint)
-        try session.install(
+        let installed = try session.install(
           nextKey, vaultID: checkpoint.vaultID, keyID: candidate.body.fields.keyID,
           authenticationTicket: ticket)
-        return .advancedOneEpoch(.init(checkpoint: checkpoint, envelope: candidate))
+        return (.advancedOneEpoch(.init(checkpoint: checkpoint, envelope: candidate)), installed)
       } catch {
         session.invalidate()
         throw error

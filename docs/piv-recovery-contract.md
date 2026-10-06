@@ -1158,6 +1158,45 @@ Rotation/enrollment/revocation/removal use actual publishers; recipient-addition
 bytes use the domain builder and fixture materialization, not another registration
 possession ceremony. No native prompt or physical-token qualification is claimed.
 
+### Implemented mixed content/key-epoch coordination
+
+The [ordinary catch-up coordinator](../Sources/KeyCore/V3RecoveryCatchUpCoordinator.swift)
+composes the existing content and epoch steps from an exact unlocked Mac floor.
+One mutation owner surrounds the full walk. Direct component owners reuse its
+operation ID without nesting the serialization queue. Cold unlock, shipping
+dispatch and UI remain separate responsibilities.
+
+The coordinator retains the initial bounded observation and its original-floor
+key only for this operation. It rechecks that exact source across steps and at
+return, including old-floor branches and ciphertext. A changed source stops the
+walk; it does not silently choose a newly arrived head or retry a private opening.
+An initial authenticated same-epoch content conflict returns both heads without
+choosing either. Mixed-history authority or closed-epoch competition refuses.
+Each selected epoch retains complete old/new plaintext equality and current
+authentication; the final content steps use the already installed epoch key.
+
+Session generation continues through a receipt returned atomically by guarded
+key installation. The coordinator cannot adopt a fresh generation observed after
+an unrelated lock or unlock, even if the same key was reinstalled. Pending work,
+checkpoint changes, source changes, cancellation and step-budget exhaustion lock
+the session without reversing committed trust. Restart requires an explicit
+authenticated session at that exact prefix. Cache failure does not undo trust.
+
+`current` means the fully authenticated unique head of the unchanged observed
+source, not provider-global freshness. Progress counts actual content-checkpoint
+replacements and key-epoch replacements. Content prefixes fully checked within
+an epoch jump are not counted as separate replacements. A terminal head at the
+exact step budget succeeds; another required advancement refuses before opening.
+No token operation, new persisted format or source publication is introduced.
+
+[Fourteen coordinator declarations](../Tests/KeyCoreTests/V3RecoveryCatchUpCoordinatorTests.swift)
+reuse the two-Mac filesystem fixture and concrete step services. They cover all
+supported lifecycle kinds, edits before/between/after epochs, initial conflicts,
+late siblings, budgets, cancellation after a committed epoch, session replacement,
+pending/checkpoint races, cold or wrong state, missing future ciphertext, cache
+failure and concurrent stale callers. A separate session test checks installation
+receipts. These are software checks, not native-prompt or hardware qualification.
+
 ## Proposed data contract
 
 Keep outer vault/envelope version 3 and the understood envelope shape.
