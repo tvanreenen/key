@@ -1069,9 +1069,44 @@ publication boundaries, independent review and acknowledgment, cancellation,
 incorrect provider output, lock/reauthentication races, source/pending/CAS changes,
 missing snapshots and bounds. Ordinary saving continues from the installed new
 session; only continuing software recipients can recover that saved state.
-Session-aware interrupted-change reconciliation, remaining-Mac catch-up, shipping
-confirmation/runtime/CLI and native/physical qualification remain separate work.
+Session-aware interrupted-change reconciliation is described below. Remaining-Mac
+catch-up, shipping confirmation/runtime/CLI and native/physical qualification
+remain separate work.
 No persisted format or shipping route changes in this increment.
+
+### Implemented interrupted authority-change session reconciliation
+
+The [authority-change service](../Sources/KeyCore/V3RecoveryAuthorityChangeService.swift)
+has explicit, separate interrupted-revocation and interrupted-removal entry points.
+The established kernel selects only exact locally owned intent; wrong kinds refuse
+before checkpoint-based abandonment. An optional routed anchor must match even
+before unarmed cleanup. Restart neither signs nor generates another epoch, changes
+the selected target, renews a protection-loss acknowledgment or operates on a token.
+
+Public preflight reconstructs the exact one-device or one-recipient tombstone and
+checks the matching policy, parent-bound public proofs, entry contexts, complete
+ciphertext availability, source inventory and projected limits before Mac-key
+opening. Public metadata is not authenticated review or authority. Uncommitted
+restart subsequently authenticates the old key/snapshot and new key/snapshot,
+including full plaintext equality, before commitment. Committed cleanup needs only
+the exact current key and snapshot, not old manifests, keys, ciphertext or cache.
+
+Cold uncommitted restart opens two addressed Mac wrappers. An exact warm session
+supplies the old key, leaving one opening. Committed restart opens only the current
+wrapper, or none if its exact key is resident. Each result authenticates before
+another operation; cancellation and wrong output do not retry. Source, checkpoint,
+ownership and session-generation checks bracket native UI. Only authenticated
+committed state with no pending work installs a session; failures lock without
+rolling back trust or deleting pinned work. Nothing pending leaves an existing
+exact live session unchanged and does not unlock a cold session.
+
+[Eighteen software declarations](../Tests/KeyCoreTests/V3RecoveryAuthorityChangeRecoveryTests.swift)
+cover all 14 initial interruption boundaries for revocation and continuing/last
+removal, cold/warm operation counts, cancellation, lock/reauthentication, routed
+anchors, policy/kind/owner refusal, source/pending/CAS/cleanup failures, current-only
+cleanup and ordinary-save/software-recovery composition. Mac identities and
+recovery credentials are software fixtures, not physical qualification. No new
+persisted format, shipping route or real-vault activation is added.
 
 ## Proposed data contract
 

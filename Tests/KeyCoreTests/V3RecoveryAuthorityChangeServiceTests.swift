@@ -12,11 +12,11 @@ struct V3RecoveryAuthorityChangeServiceTests {
   private typealias Revocation = V3RecoveryDeviceRevocationPublisherTests
   private typealias Stop = Publication.Stop
   enum Action: CaseIterable, Sendable { case revoke, remove, removeLast }
-  private enum Review {
+  enum Review {
     case device(V3DeviceWrappedRevocationPlan)
     case recipient(V3RecoveryRecipientRemovalPlan)
   }
-  private struct Commit {
+  struct Commit {
     let checkpoint: V3ManifestCheckpoint
     let envelope: V3RecoveryManifestEnvelope
   }
@@ -418,9 +418,9 @@ struct V3RecoveryAuthorityChangeServiceTests {
         && f.owner.unwraps == f.unwraps)
   }
 
-  private struct Fixture: Sendable {
+  struct Fixture: Sendable {
     let action: Action
-    let disk: Publication.Fixture
+    let disk: V3RecoveryContentMutationPublisherTests.Fixture
     let parent: V3RecoveryManifestEnvelope
     let checkpoint: V3ManifestCheckpoint
     let entries: [V3EntryObjectKey: V3EncryptedEntry]
@@ -428,7 +428,7 @@ struct V3RecoveryAuthorityChangeServiceTests {
     let deviceID: String?
     let signatures: Int
     let unwraps: Int
-    var owner: Core.Owner { disk.core.owner }
+    var owner: V3RecoveryRegistrationTests.Owner { disk.core.owner }
     init(_ action: Action, empty: Bool = false) throws {
       self.action = action
       if action == .revoke {

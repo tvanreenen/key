@@ -230,8 +230,7 @@ struct V3RecoveryRecipientRemovalTransactionValidator: V3ContentTransactionValid
       }
       try V3RecoveryContentMutationValidator(limits: limits).validateParent(
         parent, checkpoint: input.expectedCheckpoint, vaultKey: currentVaultKey)
-      let plan = try reconstructPlan(
-        input, envelope: envelope, parent: parent, currentVaultKey: currentVaultKey)
+      let plan = try reconstructPublicPlan(input, envelope: envelope, parent: parent)
       if let approvedPlan, plan != approvedPlan {
         throw V3RecoveryRecipientRemovalError.invalidPlan
       }
@@ -260,9 +259,11 @@ struct V3RecoveryRecipientRemovalTransactionValidator: V3ContentTransactionValid
     return .init(envelope: envelope, stagedEntries: staged, completeEntries: staged, source: source)
   }
 
-  private func reconstructPlan(
+  /// Exact roster metadata only, not authenticated review or renewed consent.
+  /// Full validation separately authenticates both keys and complete snapshots.
+  func reconstructPublicPlan(
     _ input: V3ContentTransactionInput, envelope: V3RecoveryManifestEnvelope,
-    parent: V3RecoveryManifestEnvelope, currentVaultKey: Data
+    parent: V3RecoveryManifestEnvelope
   ) throws -> V3RecoveryRecipientRemovalPlan {
     let old = parent.body.recovery.recipients
     let new = envelope.body.recovery.recipients
@@ -272,8 +273,8 @@ struct V3RecoveryRecipientRemovalTransactionValidator: V3ContentTransactionValid
       before.registrationID == after.registrationID, before.publicKey == after.publicKey,
       before.slot == after.slot, before.status == .active, after.status == .revoked
     else { throw V3RecoveryRecipientRemovalError.invalidCandidate }
-    let plan = try V3RecoveryRecipientRemovalPlanner(limits: limits).plan(
-      checkpoint: input.expectedCheckpoint, parent: parent, currentVaultKey: currentVaultKey,
+    let plan = try V3RecoveryRecipientRemovalPlanner(limits: limits).planMetadata(
+      checkpoint: input.expectedCheckpoint, parent: parent,
       authorizingDeviceID: expectedOwner.deviceID, removing: before.recipientID)
     guard plan.resultingRecipients == new, plan.authorizingDevice.identity == expectedOwner else {
       throw V3RecoveryRecipientRemovalError.invalidPlan

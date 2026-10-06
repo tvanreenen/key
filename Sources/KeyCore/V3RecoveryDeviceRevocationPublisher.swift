@@ -223,8 +223,7 @@ struct V3RecoveryDeviceRevocationTransactionValidator: V3ContentTransactionValid
       }
       try V3RecoveryContentMutationValidator(limits: limits).validateParent(
         parent, checkpoint: input.expectedCheckpoint, vaultKey: currentVaultKey)
-      let plan = try reconstructPlan(
-        input, envelope: envelope, parent: parent, currentVaultKey: currentVaultKey)
+      let plan = try reconstructPublicPlan(input, envelope: envelope, parent: parent)
       if let approvedPlan, plan != approvedPlan {
         throw V3RecoveryDeviceRevocationError.invalidPlan
       }
@@ -242,9 +241,11 @@ struct V3RecoveryDeviceRevocationTransactionValidator: V3ContentTransactionValid
     return .init(envelope: envelope, stagedEntries: staged, completeEntries: staged, source: source)
   }
 
-  private func reconstructPlan(
+  /// Exact roster metadata only. Full validation still authenticates the parent
+  /// key/snapshot; restart callers must verify public epoch proofs before unwrap.
+  func reconstructPublicPlan(
     _ input: V3ContentTransactionInput, envelope: V3RecoveryManifestEnvelope,
-    parent: V3RecoveryManifestEnvelope, currentVaultKey: Data
+    parent: V3RecoveryManifestEnvelope
   ) throws -> V3DeviceWrappedRevocationPlan {
     let old = parent.body.fields.devices
     let new = envelope.body.fields.devices
@@ -253,8 +254,8 @@ struct V3RecoveryDeviceRevocationTransactionValidator: V3ContentTransactionValid
     guard changes.count == 1, let (before, after) = changes.first,
       before.identity == after.identity, before.status == .active, after.status == .revoked
     else { throw V3RecoveryDeviceRevocationError.invalidCandidate }
-    let plan = try V3RecoveryDeviceRevocationPlanner(limits: limits).plan(
-      checkpoint: input.expectedCheckpoint, parent: parent, currentVaultKey: currentVaultKey,
+    let plan = try V3DeviceRevocationRosterPolicy().plan(
+      checkpoint: input.expectedCheckpoint, devices: parent.body.fields.devices,
       authorizingDeviceID: expectedOwner.deviceID, revoking: before.identity.deviceID)
     guard plan.resultingDevices == new, plan.authorizingDevice.identity == expectedOwner else {
       throw V3RecoveryDeviceRevocationError.invalidPlan
