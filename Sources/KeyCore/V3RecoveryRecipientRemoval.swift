@@ -29,6 +29,17 @@ struct V3RecoveryRecipientRemovalPlanner: Sendable {
   ) throws -> V3RecoveryRecipientRemovalPlan {
     try V3RecoveryContentMutationValidator(limits: limits).validateParent(
       parent, checkpoint: checkpoint, vaultKey: currentVaultKey)
+    return try planMetadata(
+      checkpoint: checkpoint, parent: parent, authorizingDeviceID: authorizingDeviceID,
+      removing: recipientID)
+  }
+
+  /// Roster decision only. Callers must authenticate the checkpoint before
+  /// review or publication; public restart preflight separately checks its proof.
+  func planMetadata(
+    checkpoint: V3ManifestCheckpoint, parent: V3RecoveryManifestEnvelope,
+    authorizingDeviceID: String, removing recipientID: V3RecoveryRecipientID
+  ) throws -> V3RecoveryRecipientRemovalPlan {
     guard
       let owner = parent.body.fields.devices.first(where: {
         $0.identity.deviceID == authorizingDeviceID && $0.status == .active
@@ -157,9 +168,20 @@ struct V3RecoveryRecipientRemovalValidator: Sendable {
     _ candidate: V3RecoveryRecipientRemovalCandidate, parent: V3RecoveryManifestEnvelope,
     currentVaultKey: Data, expectedOwner: V3EnrollmentDeviceIdentity
   ) throws {
+    try V3RecoveryContentMutationValidator(limits: limits).validateParent(
+      parent, checkpoint: candidate.plan.expectedCheckpoint, vaultKey: currentVaultKey)
+    try preflightPublic(candidate, parent: parent, expectedOwner: expectedOwner)
+  }
+
+  /// Public proof and exact recipient delta only. This does not authenticate a
+  /// snapshot, infer protection-loss consent or authorize a fresh removal.
+  func preflightPublic(
+    _ candidate: V3RecoveryRecipientRemovalCandidate, parent: V3RecoveryManifestEnvelope,
+    expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws {
     let plan = candidate.plan
-    let reviewed = try V3RecoveryRecipientRemovalPlanner(limits: limits).plan(
-      checkpoint: plan.expectedCheckpoint, parent: parent, currentVaultKey: currentVaultKey,
+    let reviewed = try V3RecoveryRecipientRemovalPlanner(limits: limits).planMetadata(
+      checkpoint: plan.expectedCheckpoint, parent: parent,
       authorizingDeviceID: plan.authorizingDevice.identity.deviceID,
       removing: plan.removedRecipient.recipientID)
     guard reviewed == plan, expectedOwner == plan.authorizingDevice.identity else {
@@ -170,9 +192,9 @@ struct V3RecoveryRecipientRemovalValidator: Sendable {
       body.recovery.recipients == plan.resultingRecipients,
       body.recovery.generationID != parent.body.recovery.generationID
     else { throw V3RecoveryRecipientRemovalError.invalidCandidate }
-    try V3RecoveryEpochSnapshotValidator(limits: limits).preflight(
+    try V3RecoveryEpochSnapshotValidator(limits: limits).preflightPublic(
       candidate.envelope, checkpoint: plan.expectedCheckpoint, parent: parent,
-      stagedEntryCount: candidate.stagedEntries.count, currentVaultKey: currentVaultKey,
+      stagedEntryCount: candidate.stagedEntries.count,
       expectedOwner: expectedOwner)
   }
 

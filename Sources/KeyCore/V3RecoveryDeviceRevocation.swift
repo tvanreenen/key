@@ -77,9 +77,20 @@ struct V3RecoveryDeviceRevocationValidator: Sendable {
     _ candidate: V3RecoveryDeviceRevocationCandidate, parent: V3RecoveryManifestEnvelope,
     currentVaultKey: Data, expectedOwner: V3EnrollmentDeviceIdentity
   ) throws {
+    try V3RecoveryContentMutationValidator(limits: limits).validateParent(
+      parent, checkpoint: candidate.plan.expectedCheckpoint, vaultKey: currentVaultKey)
+    try preflightPublic(candidate, parent: parent, expectedOwner: expectedOwner)
+  }
+
+  /// Exact metadata/roster and public proofs only. Not current MAC/snapshot
+  /// authentication, review approval or permission to publish.
+  func preflightPublic(
+    _ candidate: V3RecoveryDeviceRevocationCandidate, parent: V3RecoveryManifestEnvelope,
+    expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws {
     let plan = candidate.plan
-    let reviewed = try V3RecoveryDeviceRevocationPlanner(limits: limits).plan(
-      checkpoint: plan.expectedCheckpoint, parent: parent, currentVaultKey: currentVaultKey,
+    let reviewed = try V3DeviceRevocationRosterPolicy().plan(
+      checkpoint: plan.expectedCheckpoint, devices: parent.body.fields.devices,
       authorizingDeviceID: plan.authorizingDevice.identity.deviceID,
       revoking: plan.revokedDevice.identity.deviceID)
     guard reviewed == plan, expectedOwner == plan.authorizingDevice.identity else {
@@ -90,9 +101,9 @@ struct V3RecoveryDeviceRevocationValidator: Sendable {
       body.recovery.recipients == parent.body.recovery.recipients,
       body.recovery.generationID == parent.body.recovery.generationID
     else { throw V3RecoveryDeviceRevocationError.invalidCandidate }
-    try V3RecoveryEpochSnapshotValidator(limits: limits).preflight(
+    try V3RecoveryEpochSnapshotValidator(limits: limits).preflightPublic(
       candidate.envelope, checkpoint: plan.expectedCheckpoint, parent: parent,
-      stagedEntryCount: candidate.stagedEntries.count, currentVaultKey: currentVaultKey,
+      stagedEntryCount: candidate.stagedEntries.count,
       expectedOwner: expectedOwner)
   }
 
