@@ -108,8 +108,32 @@ struct V3RecoveryDeviceEnrollmentValidator: Sendable {
     let transcript = try validateCeremony(
       state, checkpoint: candidate.expectedCheckpoint, parent: parent,
       expectedOwner: expectedOwner, at: unixTime)
+    try validatePublicPolicy(candidate, parent: parent, transcript: transcript)
+  }
+
+  /// Public transition policy for first trust from an authenticated compared
+  /// transcript. It conveys no inviter approval, local role or plaintext proof.
+  func preflightComparedEnrollment(
+    _ candidate: V3RecoveryDeviceEnrollmentCandidate, parent: V3RecoveryManifestEnvelope,
+    transcript: V3EnrollmentTranscript
+  ) throws {
+    try validatePublicPolicy(candidate, parent: parent, transcript: transcript)
+    try V3RecoveryEpochSnapshotValidator(limits: limits).preflightPublic(
+      candidate.envelope, checkpoint: candidate.expectedCheckpoint, parent: parent,
+      stagedEntryCount: candidate.stagedEntries.count,
+      expectedOwner: transcript.invitation.invitingDevice)
+  }
+
+  private func validatePublicPolicy(
+    _ candidate: V3RecoveryDeviceEnrollmentCandidate, parent: V3RecoveryManifestEnvelope,
+    transcript: V3EnrollmentTranscript
+  ) throws {
     let body = candidate.envelope.body
-    guard candidate.transcriptDigest == transcript.digest,
+    guard transcript.invitation.vaultID == candidate.expectedCheckpoint.vaultID,
+      transcript.invitation.vaultID == parent.body.fields.vaultID,
+      transcript.invitation.parentManifestDigest == candidate.expectedCheckpoint.envelopeDigest,
+      candidate.expectedCheckpoint.envelopeDigest == parent.digest,
+      candidate.transcriptDigest == transcript.digest,
       body.fields.authorityTransitionID
         == (try v3EnrollmentAuthorityTransitionID(transcriptDigest: transcript.digest)),
       body.fields.devices
