@@ -535,8 +535,8 @@ service edit. Old snapshot ciphertext is removed and the original session/Mac
 identity leaves scope before one software agreement opens the final state for
 each credential. Rotation candidates are seeded and checkpointed by test setup;
 there is no production rotation publisher, service, resume or key-transition
-catch-up yet. Compared-device enrollment and reviewed device revocation now have
-the internal components below; recipient removal remains separate work. No public
+catch-up yet. Compared-device enrollment, reviewed device revocation and recipient
+removal now have the internal components below. No public
 command or real-vault opt-in is enabled.
 
 ### Implemented compared-device enrollment foundation
@@ -599,8 +599,48 @@ revocation and an actual ordinary-service save. Recovery uses one software agree
 per credential after original Mac private state and superseded ciphertext leave
 scope. Old copied states remain readable with their old keys; revocation is
 forward-only. Durable revocation publication/resume, confirmation, remaining-Mac
-catch-up, recipient removal and product/native integration remain. No public
+catch-up and product/native integration remain. No public
 command or real-vault opt-in is enabled.
+
+### Implemented reviewed-recipient removal foundation
+
+The [removal planner/builder/validator](../Sources/KeyCore/V3RecoveryRecipientRemoval.swift)
+authenticates the exact parent checkpoint and reconstructs the complete reviewed
+recipient decision. Exactly one active credential becomes revoked. Its public key,
+registration and slot remain as a tombstone; every other recipient and all Mac
+records remain exact. Unknown and already revoked selections refuse.
+
+Removal replaces the vault key, transition ID, signing capsule and recovery
+generation. Every entry is resealed with unchanged identity, metadata and plaintext.
+Stored public keys create new wrappers for all active Macs and remaining recovery
+recipients; revoked records receive none. No token operation is needed, including
+on the removed token. Key must not clear, overwrite or reset its external anchor.
+
+Removing the last active recipient requires a loss-of-protection acknowledgment
+bound to the entire reviewed plan. Both construction and independent validation
+require that exact value. A different checkpoint, authorizer or recipient cannot
+reuse it, and ordinary removal does not accept it as a general override. The
+product must collect informed confirmation before constructing the value. The
+in-memory type is not proof of human consent, durable approval or authority to
+resume. It is not persisted in the candidate or manifest.
+
+Independent validation checks the exact recipient/device policy before the shared
+boundary and complete old/new snapshot checks. Optional one addressed local-Mac
+unwrap follows full software validation; cancellation propagates without retry.
+This does not qualify physical prompt counts.
+
+[Software tests](../Tests/KeyCoreTests/V3RecoveryRecipientRemovalTests.swift)
+materialize primary, backup and last-recipient removal, followed by an actual
+ordinary-service save. A remaining credential opens the latest secret and TOTP
+with one software agreement after original Mac private state and superseded-epoch
+ciphertext leave scope. A removed credential is refused at the visible new head
+during public selection, before agreement and without falling back to older
+wrappers. Existing copied old states remain readable with old keys: removal is
+forward-only, not remote erasure or protection against withheld newer files.
+With no active recovery recipients, ordinary Mac-authorized saves still work.
+Durable lifecycle publication/resume, user confirmation, remaining-Mac catch-up
+and product/native integration remain. No public command or real-vault opt-in is
+enabled; profile-2 behavior and persisted formats are unchanged.
 
 ## Proposed data contract
 
