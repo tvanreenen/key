@@ -67,6 +67,16 @@ struct V3RecoveryDeviceEnrollmentValidator: Sendable {
     state: V3EnrollmentCeremonyState, currentVaultKey: Data,
     expectedOwner: V3EnrollmentDeviceIdentity, at unixTime: UInt64
   ) throws {
+    try preflight(
+      candidate, parent: parent, state: state, currentVaultKey: currentVaultKey,
+      expectedOwner: expectedOwner, freshAt: unixTime)
+  }
+
+  private func preflight(
+    _ candidate: V3RecoveryDeviceEnrollmentCandidate, parent: V3RecoveryManifestEnvelope,
+    state: V3EnrollmentCeremonyState, currentVaultKey: Data,
+    expectedOwner: V3EnrollmentDeviceIdentity, freshAt unixTime: UInt64?
+  ) throws {
     let transcript = try validateCeremony(
       state, checkpoint: candidate.expectedCheckpoint, parent: parent,
       expectedOwner: expectedOwner, at: unixTime)
@@ -84,6 +94,21 @@ struct V3RecoveryDeviceEnrollmentValidator: Sendable {
       candidate.envelope, checkpoint: candidate.expectedCheckpoint, parent: parent,
       stagedEntryCount: candidate.stagedEntries.count, currentVaultKey: currentVaultKey,
       expectedOwner: expectedOwner)
+  }
+
+  /// Only for exact locally anchored work. Expiry prevents fresh approvals,
+  /// not finishing an approval whose candidate has already been pinned.
+  func validateAnchored(
+    _ candidate: V3RecoveryDeviceEnrollmentCandidate, parent: V3RecoveryManifestEnvelope,
+    currentEntries: [V3EntryObjectKey: V3EncryptedEntry], state: V3EnrollmentCeremonyState,
+    currentVaultKey: Data, nextVaultKey: Data, expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws {
+    try preflight(
+      candidate, parent: parent, state: state, currentVaultKey: currentVaultKey,
+      expectedOwner: expectedOwner, freshAt: nil)
+    try V3RecoveryEpochSnapshotValidator(limits: limits).validateSnapshots(
+      candidate.envelope, stagedEntries: candidate.stagedEntries, parent: parent,
+      currentEntries: currentEntries, currentVaultKey: currentVaultKey, nextVaultKey: nextVaultKey)
   }
 
   func validate(
@@ -120,7 +145,7 @@ struct V3RecoveryDeviceEnrollmentValidator: Sendable {
   fileprivate func validateCeremony(
     _ state: V3EnrollmentCeremonyState, checkpoint: V3ManifestCheckpoint,
     parent: V3RecoveryManifestEnvelope, expectedOwner: V3EnrollmentDeviceIdentity,
-    at unixTime: UInt64
+    at unixTime: UInt64?
   ) throws -> V3EnrollmentTranscript {
     guard state.role == .inviter, state.phase == .awaitingComparison,
       let join = state.signedJoinRequest, let transcript = state.transcript,
@@ -136,7 +161,7 @@ struct V3RecoveryDeviceEnrollmentValidator: Sendable {
     let authenticator = V3EnrollmentMessageAuthenticator()
     _ = try authenticator.verify(state.signedInvitation)
     _ = try authenticator.verify(join)
-    try transcript.invitation.requireUnexpired(at: unixTime)
+    if let unixTime { try transcript.invitation.requireUnexpired(at: unixTime) }
     return transcript
   }
 
