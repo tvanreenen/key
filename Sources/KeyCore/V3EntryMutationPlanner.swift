@@ -174,7 +174,7 @@ struct V3EntryMutationPolicy: Sendable {
         && updated[0].old.name != updated[0].new.name && updated[0].old.type == updated[0].new.type
         && (removed.first?.name == updated[0].new.name || removed.isEmpty)
     case .removeEntry: permitted = added.isEmpty && updated.isEmpty && removed.count == 1
-    case .resolveConflict, .mergeHeads, .migrateToV3, .enrollDevice, .revokeDevice,
+    case .resolveConflict, .mergeHeads, .migrateToV3, .enrollDevice, .revokeDevice, .rotateVaultKey,
       .registerRecoveryRecipient, .adoptRecoveryProfile, .catchUpVault,
       .recoverInterruptedTransaction:
       permitted = false
