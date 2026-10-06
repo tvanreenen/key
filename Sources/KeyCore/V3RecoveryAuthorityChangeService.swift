@@ -5,7 +5,7 @@ enum V3RecoveryAuthorityChangeError: Error, Equatable {
   case invalidOwner, invalidNextVaultKey
 }
 
-/// Internal initial execution of separately reviewed authority changes from an
+/// Internal execution of separately reviewed authority changes from an
 /// unlocked session. The helper supplies serialization and the operation ID.
 /// Device and recipient policies stay independent; only their shared session,
 /// source and failure handling live here. No token or product routing is used.
@@ -79,12 +79,7 @@ struct V3RecoveryAuthorityChangeService: Sendable {
           currentVaultKey: base.key, nextVaultKey: nextKey, owner: identity,
           reason: "Remove the reviewed Mac's access and change the vault's encryption key.")
         try requireUnchanged(base)
-        let commit = try V3RecoveryDeviceRevocationPublisher(
-          mutationOwner: DirectVaultTransactionMutationOwner(operationID: operationID),
-          objectStore: store, checkpointStore: checkpoints, recoveryAnchorStore: ownership,
-          registrationAnchorStore: registration, adoptionAnchorStore: adoption, cache: cache,
-          limits: limits, phaseObserver: phaseObserver
-        ).publish(
+        let commit = try revocationPublisher(operationID).publish(
           candidate, approvedPlan: plan, currentVaultKey: base.key, nextVaultKey: nextKey,
           identity: identity, reason: "Verify this Mac can open the vault after removing access.")
         return .init(checkpoint: commit.checkpoint, envelope: commit.envelope)
@@ -112,12 +107,7 @@ struct V3RecoveryAuthorityChangeService: Sendable {
           reason: "Remove the reviewed recovery key and change the vault's encryption key.",
           protectionLossAcknowledgement: protectionLossAcknowledgement)
         try requireUnchanged(base)
-        let commit = try V3RecoveryRecipientRemovalPublisher(
-          mutationOwner: DirectVaultTransactionMutationOwner(operationID: operationID),
-          objectStore: store, checkpointStore: checkpoints, recoveryAnchorStore: ownership,
-          registrationAnchorStore: registration, adoptionAnchorStore: adoption, cache: cache,
-          limits: limits, phaseObserver: phaseObserver
-        ).publish(
+        let commit = try removalPublisher(operationID).publish(
           candidate, approvedPlan: plan, currentVaultKey: base.key, nextVaultKey: nextKey,
           identity: identity,
           reason: "Verify this Mac can open the vault after removing the recovery key.",
@@ -125,6 +115,274 @@ struct V3RecoveryAuthorityChangeService: Sendable {
         return .init(checkpoint: commit.checkpoint, envelope: commit.envelope)
       })
     return .init(checkpoint: committed.checkpoint, envelope: committed.envelope)
+  }
+
+  /// Exact locally owned work only. No new review, signing, key generation or
+  /// token operation. The optional routed anchor prevents switching reservations.
+  func recoverInterruptedRevocation(
+    operationID: VaultTransactionOperationID, expectedAnchor: Data? = nil
+  ) throws -> V3ImmutableTransactionRecoveryOutcome {
+    try recover(.device, operationID: operationID, expectedAnchor: expectedAnchor)
+  }
+
+  func recoverInterruptedRemoval(
+    operationID: VaultTransactionOperationID, expectedAnchor: Data? = nil
+  ) throws -> V3ImmutableTransactionRecoveryOutcome {
+    try recover(.recipient, operationID: operationID, expectedAnchor: expectedAnchor)
+  }
+
+  private enum PendingChange {
+    case device, recipient
+    var intentKind: VaultTransactionMutationKind {
+      self == .device ? .revokeDevice : .removeRecoveryRecipient
+    }
+  }
+  private struct RecoverySource {
+    let envelope: V3RecoveryManifestEnvelope
+    let parent: V3RecoveryManifestEnvelope?
+    let source: V3ExactTransitionRepositoryState
+  }
+
+  private func recover(
+    _ kind: PendingChange, operationID: VaultTransactionOperationID, expectedAnchor: Data?
+  ) throws -> V3ImmutableTransactionRecoveryOutcome {
+    do {
+      guard identity.vaultID == vaultID else { throw V3RecoveryAuthorityChangeError.invalidOwner }
+      let state: V3ContentTransactionRecoveryState
+      switch try prepareRecovery(kind, operationID: operationID, expectedAnchor: expectedAnchor) {
+      case .finished(let outcome):
+        if case .abandoned = outcome { session.invalidate() }
+        return outcome
+      case .ready(let ready): state = ready
+      }
+      let checked = try preflightRecovery(state, kind: kind)
+      let currentID = checked.parent?.body.fields.keyID ?? checked.envelope.body.fields.keyID
+      let ticket = session.beginAuthentication()
+      let cached =
+        session.hasResidentKey ? try? session.load(vaultID: vaultID, keyID: currentID) : nil
+      try session.requireCurrent(ticket)
+      try requireRecoveryState(state)
+      var oldKey: Data?
+      if let parent = checked.parent {
+        let key =
+          try cached
+          ?? openMacKey(
+            parent,
+            reason: "Authenticate the current vault before resuming its interrupted access change.")
+        try session.requireCurrent(ticket)
+        try V3RecoveryContentMutationValidator(limits: limits).validateParent(
+          parent, checkpoint: state.intent.expectedCheckpoint, vaultKey: key)
+        _ = try V3EntrySnapshotValidator(limits: limits).plaintexts(
+          fields: parent.body.fields, entries: checked.source.entries, vaultKey: key)
+        oldKey = key
+        try recheckRecovery(state, checked: checked, kind: kind, operationID: operationID)
+        try session.requireCurrent(ticket)
+      }
+      let nextKey: Data
+      if state.alreadyCommitted, let cached {
+        nextKey = cached
+      } else {
+        nextKey = try openMacKey(
+          checked.envelope,
+          reason:
+            "Open this Mac's exact pending vault-key wrapper to finish the interrupted access change."
+        )
+      }
+      try session.requireCurrent(ticket)
+      try recheckRecovery(state, checked: checked, kind: kind, operationID: operationID)
+      try validateRecovery(state, kind: kind, oldKey: oldKey, nextKey: nextKey)
+      try requireRecoveryState(state)
+      let outcome: V3ImmutableTransactionRecoveryOutcome
+      switch kind {
+      case .device:
+        outcome = try revocationPublisher(operationID).recoverInterruptedTransaction(
+          vaultID: vaultID, currentVaultKey: oldKey, nextVaultKey: nextKey,
+          expectedOwner: identity.publicIdentity, expectedAnchor: state.anchorData)
+      case .recipient:
+        outcome = try removalPublisher(operationID).recoverInterruptedTransaction(
+          vaultID: vaultID, currentVaultKey: oldKey, nextVaultKey: nextKey,
+          expectedOwner: identity.publicIdentity, expectedAnchor: state.anchorData)
+      }
+      switch outcome {
+      case .completed, .alreadyCompleted:
+        try requireNoPending()
+        try requireCheckpoint(state.candidateCheckpoint)
+        try V3RecoveryEpochBoundary().verifyCurrentAuthentication(
+          checked.envelope, vaultKey: nextKey)
+        let source = try objects.observe(
+          checkpoint: state.candidateCheckpoint, expectedBase: checked.envelope.canonicalBytes)
+        _ = try V3EntrySnapshotValidator(limits: limits).plaintexts(
+          fields: checked.envelope.body.fields, entries: source.entries, vaultKey: nextKey)
+        try requireNoPending()
+        try requireCheckpoint(state.candidateCheckpoint)
+        try session.install(
+          nextKey, vaultID: vaultID, keyID: checked.envelope.body.fields.keyID,
+          authenticationTicket: ticket)
+      case .nothingToRecover, .abandoned: session.invalidate()
+      }
+      return outcome
+    } catch {
+      session.invalidate()
+      throw error
+    }
+  }
+
+  private func prepareRecovery(
+    _ kind: PendingChange, operationID: VaultTransactionOperationID, expectedAnchor: Data?
+  ) throws -> V3ContentTransactionRecoveryPreparation {
+    switch kind {
+    case .device:
+      return try revocationPublisher(operationID).prepareInterruptedTransaction(
+        vaultID: vaultID, expectedOwner: identity.publicIdentity, expectedAnchor: expectedAnchor)
+    case .recipient:
+      return try removalPublisher(operationID).prepareInterruptedTransaction(
+        vaultID: vaultID, expectedOwner: identity.publicIdentity, expectedAnchor: expectedAnchor)
+    }
+  }
+
+  private func input(_ state: V3ContentTransactionRecoveryState) -> V3ContentTransactionInput {
+    .init(
+      kind: state.intent.kind, expectedCheckpoint: state.intent.expectedCheckpoint,
+      manifestData: state.manifestData, manifestDigest: state.intent.candidateManifestDigest,
+      stagedEntries: state.availableEntries)
+  }
+
+  private func preflightRecovery(_ state: V3ContentTransactionRecoveryState, kind: PendingChange)
+    throws -> RecoverySource
+  {
+    try requireRecoveryState(state)
+    let envelope = try V3RecoveryManifestCodec().parseEnvelope(state.manifestData)
+    guard state.intent.kind == kind.intentKind, envelope.body.fields.vaultID == vaultID,
+      envelope.parents == [state.intent.expectedCheckpoint.envelopeDigest],
+      envelope.authorizations.map(\.signerDeviceID) == [identity.publicIdentity.deviceID],
+      envelope.body.fields.devices.contains(
+        .init(identity: identity.publicIdentity, status: .active))
+    else { throw V3RecoveryAuthorityChangeError.invalidOwner }
+    let staged = try V3EntrySnapshotValidator(limits: limits).entryMap(state.availableEntries)
+    let addresses = try envelope.body.fields.entries.map {
+      try V3RecoveryMergeMutationValidator.address($0)
+    }
+    guard Set(addresses) == Set(staged.keys) else { throw V3RecoveryValidationError.sourceChanged }
+    for (record, address) in zip(envelope.body.fields.entries, addresses) {
+      guard
+        staged[address]?.context
+          == (try V3EntryAuthenticationContext(vaultID: vaultID, entry: record))
+      else { throw V3RecoveryValidationError.sourceChanged }
+    }
+    let parent: V3RecoveryManifestEnvelope?
+    let source: V3ExactTransitionRepositoryState
+    if state.alreadyCommitted {
+      parent = nil
+      source = try objects.observe(
+        checkpoint: state.candidateCheckpoint, expectedBase: state.manifestData)
+      guard staged == source.entries else { throw V3RecoveryValidationError.sourceChanged }
+    } else {
+      let before = try V3RecoveryManifestCodec().parseEnvelope(
+        objects.readManifest(state.intent.expectedCheckpoint.envelopeDigest))
+      switch kind {
+      case .device:
+        let plan = try revocationValidator(oldKey: nil).reconstructPublicPlan(
+          input(state), envelope: envelope, parent: before)
+        try V3RecoveryDeviceRevocationValidator(limits: limits).preflightPublic(
+          .init(plan: plan, envelope: envelope, stagedEntries: state.availableEntries),
+          parent: before, expectedOwner: identity.publicIdentity)
+      case .recipient:
+        let plan = try removalValidator(oldKey: nil).reconstructPublicPlan(
+          input(state), envelope: envelope, parent: before)
+        try V3RecoveryRecipientRemovalValidator(limits: limits).preflightPublic(
+          .init(plan: plan, envelope: envelope, stagedEntries: state.availableEntries),
+          parent: before, expectedOwner: identity.publicIdentity)
+      }
+      parent = before
+      source = try objects.observe(
+        checkpoint: state.intent.expectedCheckpoint,
+        expectedBase: before.canonicalBytes, candidate: envelope,
+        stagedEntries: state.availableEntries)
+      try objects.requireProjectedUsage(
+        source, candidate: envelope, stagedEntries: state.availableEntries)
+    }
+    try requireRecoveryState(state)
+    return .init(envelope: envelope, parent: parent, source: source)
+  }
+
+  private func recheckRecovery(
+    _ state: V3ContentTransactionRecoveryState, checked: RecoverySource, kind: PendingChange,
+    operationID: VaultTransactionOperationID
+  ) throws {
+    try requireRecoveryState(state)
+    guard
+      case .ready(let fresh) = try prepareRecovery(
+        kind, operationID: operationID, expectedAnchor: state.anchorData),
+      fresh.intent == state.intent, fresh.currentCheckpoint == state.currentCheckpoint,
+      fresh.manifestData == state.manifestData, fresh.availableEntries == state.availableEntries
+    else { throw V3RecoveryValidationError.sourceChanged }
+    let observed = try preflightRecovery(fresh, kind: kind)
+    try objects.requireUnchangedSource(
+      checked.source, observed.source, candidateDigest: state.intent.candidateManifestDigest)
+  }
+  private func requireRecoveryState(_ state: V3ContentTransactionRecoveryState) throws {
+    try requireNoAuthorityWork()
+    try requireCheckpoint(state.currentCheckpoint)
+    guard try ownership.loadRecoveryAnchor(vaultID: vaultID) == state.anchorData else {
+      throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: vaultID)
+    }
+  }
+  private func openMacKey(_ envelope: V3RecoveryManifestEnvelope, reason: String) throws -> Data {
+    guard
+      let wrapped = envelope.body.fields.wrappedKeys.first(where: {
+        $0.recipientDeviceID == identity.publicIdentity.deviceID
+      })
+    else { throw V3RecoveryKeyRotationError.localWrapperMismatch }
+    let key = try identity.unwrapDeviceWrappedVaultKey(
+      wrapped.wrappedKey,
+      context: envelope.body.deviceContext(recipientDeviceID: identity.publicIdentity.deviceID),
+      reason: reason)
+    try V3RecoveryEpochBoundary().verifyCurrentAuthentication(envelope, vaultKey: key)
+    return key
+  }
+  private func validateRecovery(
+    _ state: V3ContentTransactionRecoveryState, kind: PendingChange,
+    oldKey: Data?, nextKey: Data
+  ) throws {
+    switch kind {
+    case .device:
+      _ = try revocationValidator(oldKey: oldKey).validate(
+        input(state), vaultKey: nextKey, alreadyCommitted: state.alreadyCommitted)
+    case .recipient:
+      _ = try removalValidator(oldKey: oldKey).validate(
+        input(state), vaultKey: nextKey, alreadyCommitted: state.alreadyCommitted)
+    }
+  }
+  private func revocationValidator(oldKey: Data?) -> V3RecoveryDeviceRevocationTransactionValidator
+  {
+    .init(
+      objectStore: store, registrationAnchorStore: registration, adoptionAnchorStore: adoption,
+      currentVaultKey: oldKey, expectedOwner: identity.publicIdentity, approvedPlan: nil,
+      limits: limits)
+  }
+  private func removalValidator(oldKey: Data?) -> V3RecoveryRecipientRemovalTransactionValidator {
+    .init(
+      objectStore: store, registrationAnchorStore: registration, adoptionAnchorStore: adoption,
+      currentVaultKey: oldKey, expectedOwner: identity.publicIdentity, approvedPlan: nil,
+      protectionLossAcknowledgement: nil, limits: limits)
+  }
+  private func revocationPublisher(_ operationID: VaultTransactionOperationID)
+    -> V3RecoveryDeviceRevocationPublisher
+  {
+    .init(
+      mutationOwner: DirectVaultTransactionMutationOwner(operationID: operationID),
+      objectStore: store, checkpointStore: checkpoints, recoveryAnchorStore: ownership,
+      registrationAnchorStore: registration, adoptionAnchorStore: adoption, cache: cache,
+      limits: limits, phaseObserver: phaseObserver)
+  }
+  private func removalPublisher(_ operationID: VaultTransactionOperationID)
+    -> V3RecoveryRecipientRemovalPublisher
+  {
+    .init(
+      mutationOwner: DirectVaultTransactionMutationOwner(operationID: operationID),
+      objectStore: store, checkpointStore: checkpoints, recoveryAnchorStore: ownership,
+      registrationAnchorStore: registration, adoptionAnchorStore: adoption, cache: cache,
+      limits: limits, phaseObserver: phaseObserver)
   }
 
   private struct CommittedEpoch {

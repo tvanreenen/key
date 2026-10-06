@@ -97,7 +97,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
-| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; rotation/enrollment have durable publication/resume and guarded owner sessions, with exact ceremony completion and joining-Mac first trust; reviewed device revocation and recipient removal have internal durable publication/resume and guarded initial owner sessions with exact review and last-recipient acknowledgment; their session-aware restart, user confirmation, key-transition catch-up and shipping product/native acceptance remain |
+| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; rotation/enrollment have durable publication/resume and guarded owner sessions, with exact ceremony completion and joining-Mac first trust; reviewed device revocation and recipient removal have durable publication/resume and guarded initial/restart owner sessions with exact review and initial last-recipient acknowledgment; user confirmation, key-transition catch-up and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
@@ -486,9 +486,11 @@ restart. Current-only committed cleanup retains its checkpoint without obsolete
 keys or ciphertext. Recipient removal now has its own durable kind and exact
 initial protection-loss acknowledgment, with transition-only owned restart.
 An initial authority-change service now composes separately reviewed revocation/
-removal with random-key publication and guarded session installation. Shipping
-cold-unlock/runtime/config activation, session-aware revocation/removal restart,
-user confirmation and key-transition catch-up still require implementation.
+removal with random-key publication and guarded session installation. Its explicit
+restart methods now reconcile exact locally owned work through bounded public
+preflight and cold/warm Mac-wrapper authentication without renewed consent or
+signing. Shipping cold-unlock/runtime/config activation, user confirmation and
+key-transition catch-up still require implementation.
 Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -539,6 +541,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Eleventh 810 revocation publisher component, 2026-10-06 | [Reviewed-device publisher/validator](../Sources/KeyCore/V3RecoveryDeviceRevocationPublisher.swift) and [20 software declarations](../Tests/KeyCoreTests/V3RecoveryDeviceRevocationPublisherTests.swift) | Exact approved plan precedes manifest-last/checkpoint-last publication. Before commitment, restart reconstructs one active-to-revoked change and compares complete snapshots; committed cleanup needs only pinned current state. All 14 interruptions, reciprocal kind refusal, current-state retention and primary/backup recovery after actual enrollment/revocation/save are exercised. Confirmation/session orchestration, recipient-removal durability, remaining-Mac catch-up and native/product acceptance remain. |
 | Twelfth 810 removal publisher component, 2026-10-06 | [Recipient-removal publisher/validator](../Sources/KeyCore/V3RecoveryRecipientRemovalPublisher.swift) and [20 software declarations](../Tests/KeyCoreTests/V3RecoveryRecipientRemovalPublisherTests.swift) | Exact plan and initial last-recipient acknowledgment precede reservation. Version-1 intent pins one new removal kind without saved consent. Every publication boundary covers continuing/last-recipient removal; exact restart, current-only cleanup and ordinary-save/software-recovery composition pass. Full Debug/Release and unsigned universal Preview checks pass. Owner/session orchestration, catch-up and native/product qualification remain. |
 | Thirteenth 810 initial authority service, 2026-10-06 | [Explicit revocation/removal methods](../Sources/KeyCore/V3RecoveryAuthorityChangeService.swift) and [15 software declarations](../Tests/KeyCoreTests/V3RecoveryAuthorityChangeServiceTests.swift) | One shared source/session flow retains independent decision policies and exact initial review/acknowledgment. Random-key publication installs only authenticated committed state, with generation guards against lock or same-key reauthentication during UI. All durable boundaries and ordinary-save/software-recovery composition pass. Full Debug/Release and unsigned universal Preview checks pass; session-aware restart, catch-up and native/product qualification remain. |
+| Fourteenth 810 authority restart component, 2026-10-06 | [Explicit restart/session methods](../Sources/KeyCore/V3RecoveryAuthorityChangeService.swift) and [18 software declarations](../Tests/KeyCoreTests/V3RecoveryAuthorityChangeRecoveryTests.swift) | Exact owned revocation/removal intent and optional routed anchor precede public preflight and addressed Mac-wrapper opening. Cold/warm reconciliation generates no new epoch or consent; current-only committed cleanup preserves trust without obsolete files. All initial durable boundaries, session/source/pending races and ordinary-save/software-recovery composition pass. Full Debug/Release and unsigned universal Preview checks pass; key-transition catch-up and native/product acceptance remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -2960,3 +2963,66 @@ remaining-Mac key-transition catch-up. Restore orchestration, shipping confirmat
 runtime/CLI, integrated review and native/physical qualification remain. No package
 is complete. No real vault/configuration, installed app or YubiKey is changed, and
 no token operation, administration, push or release is performed.
+
+### Fourteenth 810 authority restart component, 2026-10-06
+
+The [authority-change service](../Sources/KeyCore/V3RecoveryAuthorityChangeService.swift)
+adds explicit interrupted-revocation and interrupted-removal routes sharing session
+reconciliation. Automatically resuming any pending authority operation during a
+new preparation/save was compared with explicit typed routes. Explicit routes keep
+the existing decision boundaries and prevent interpreting unrelated work as the
+requested change. The established kernel still selects exact local intent, checks
+kind before unrelated-checkpoint abandonment and checks a routed anchor before
+even prepared/no-intent cleanup. There is no provider-wide intent scanning.
+
+The domain validators now expose public transition preflight, and the transaction
+validators share exact metadata reconstruction with the service. These helpers
+establish no authenticated review, MAC, snapshot or permission to publish. Initial
+execution retains authenticated planning and exact acknowledgment; full transaction
+validation retains old/new key and complete snapshot checks. No persisted format
+or new consent record is introduced.
+
+Before native opening, restart verifies the exact one-record policy, parent-bound
+public proofs, addresses/contexts, complete ciphertext availability, source and
+projected bounds. Cold uncommitted work opens old/new addressed Mac wrappers; an
+exact warm session avoids the old opening. Each result authenticates before the
+next operation. Already committed cleanup uses only the current wrapper, or none
+with its exact resident key, without obsolete manifests/ciphertext/cache. No new
+key, signature, token operation or protection-loss acknowledgment is requested.
+Source/checkpoint/ownership and authentication-ticket checks bracket UI. Only exact
+authenticated committed state with no pending work installs a session. Errors lock
+without rollback or deleting owned intent; nothing pending leaves a live session
+alone rather than acting as cold unlock.
+
+Eighteen software declarations reuse the actual random-key initial service and
+contained immutable filesystem fixtures. All 14 boundaries cover revocation and
+continuing/last-recipient removal. Additional cases cover cold/warm counts,
+cancellation and wrong output at either wrapper, lock/same-key reauthentication,
+changed source/pending/checkpoint, wrong owner/policy/kind, routed anchors, bounds,
+missing published ciphertext, failed CAS/cleanup and post-commit session refusal.
+Current-only cleanup succeeds after obsolete files are removed. Actual ordinary
+saves after restart remain recoverable only by continuing software recipients.
+
+Verification:
+
+- Focused restart/service/domain/publisher/rotation regression passed: 118 tests
+  in seven suites. An initial test compile error used three argument collections;
+  combining the two scenario values into one tuple collection preserves every
+  case within Swift Testing's two-collection limit.
+- Full Debug and Release passed: 1,456 KeyCore tests in 117 suites and six
+  canonical-JSON tests in one suite in each configuration. The separately gated
+  large-migration qualification was skipped in both runs.
+- Debug and optimized production compilation passed. Unsigned universal Preview
+  passed; app, CLI and helper each contain arm64 and x86_64 slices. Bundle
+  isolation and real bundled CLI help/usage/version/completion checks passed.
+- Strict formatting of touched Swift files, Git whitespace checks and all 194
+  local documentation targets passed.
+
+Raw output uses
+`tmp/piv-recovery/2026-10-06-authority-restart-`.
+
+Next: remaining-Mac key-transition catch-up, then lifecycle integration checks and
+review before closing PR 72's scope. Restore orchestration and shipping product
+composition belong in later stacked review layers. No package is complete, and no
+real vault/configuration, installed app, token operation/administration, push or
+release is involved in this increment.
