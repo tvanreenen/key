@@ -536,7 +536,8 @@ identity leaves scope before one software agreement opens the final state for
 each credential. Those foundation tests seed and checkpoint rotation candidates
 as setup. The internal durable rotation publisher below now covers publication
 and resume. The internal unlocked-session service below now composes initial
-rotation; native restart routing and key-transition catch-up remain.
+rotation and exact interrupted-rotation recovery. Shipping native restart routing
+and key-transition catch-up remain.
 Compared-device enrollment, reviewed device revocation and recipient
 removal now have the internal components below. No public
 command or real-vault opt-in is enabled.
@@ -575,9 +576,9 @@ without re-signing, rewrapping or generating a replacement epoch. Once the local
 checkpoint is the exact candidate, cleanup authenticates the pinned current
 snapshot without the old key, old ciphertext or old manifest cache. That is
 reconciliation of a committed decision, not permission to bypass initial checks.
-Keys are not persisted in intents or provided by CLI/XPC callers. Initial live-session
-installation is now composed below. Native key opening and cold-start service
-routing remain separate work.
+Keys are not persisted in intents or provided by CLI/XPC callers. Initial and
+interrupted-rotation session orchestration is now composed below. Shipping native
+restart routing and physical qualification remain separate work.
 
 [Software tests](../Tests/KeyCoreTests/V3RecoveryKeyRotationPublisherTests.swift)
 cover every publication boundary, checkpoint failures, committed cleanup,
@@ -632,8 +633,69 @@ refusal. [Five session declarations](../Tests/KeyCoreTests/V3DeviceWrappedVaultK
 exercise exact prior-epoch replacement, invalid keys, foreign vaults, locked or
 absent sessions and expiry. These use real epoch crypto and contained filesystem
 publication with software Mac identities, not physical prompt qualification.
-Cold-start old/new-wrapper opening, exact resume-to-session orchestration,
-product confirmation/runtime dispatch and integrated review remain.
+The following internal restart path now opens addressed old/new wrappers and
+composes exact resume-to-session orchestration. Product confirmation/runtime
+dispatch and integrated review remain.
+
+### Implemented interrupted-rotation service
+
+The same [rotation service](../Sources/KeyCore/V3RecoveryKeyRotationService.swift)
+now resumes only a locally pinned rotation without generating, signing or
+rewrapping another epoch. It reuses the immutable kernel's bounded pending-state
+preparation rather than scan transaction files or duplicate staged/published
+selection. Preparation may safely abandon locally owned work that never became
+publishable. Its returned ciphertext state is not authentication or permission
+to advance a checkpoint.
+
+Before private operations, the service checks strict profile-3 bytes, exact
+intent/checkpoint ownership, complete encrypted-object addresses and contexts,
+active exact Mac identity, source inventory and budgets. For an uncommitted
+rotation it also verifies unchanged device/recipient rosters, recovery generation,
+entry metadata and both public boundary authorizations against the exact local
+parent floor. The public preflight is shared with normal rotation validation;
+it does not replace parent MAC/capsule or plaintext checks.
+
+A cold uncommitted restart opens this Mac's old wrapper, authenticates the old
+epoch and complete plaintext snapshot, then rechecks pending/source state before
+opening its new wrapper. With both keys, full old/new authentication and plaintext
+comparison precede exact kernel resume. If the checkpoint already equals the
+pinned candidate, only the new wrapper and exact current snapshot are needed;
+old keys, ciphertext, manifests and cache are not required. An exact live session
+can supply its matching old or committed current key. It cannot supply another
+epoch or select a replacement candidate.
+
+The software private-operation budget is two addressed Mac unwraps for a cold
+uncommitted restart, one for cold committed cleanup, one when the uncommitted old
+key is already live, and zero when the committed current key is already live.
+This is not a physical Touch ID/prompt count. No recovery-token agreement,
+administrative operation, automatic authentication retry or new signature occurs.
+
+After authentication, exact intent bytes, checkpoint, ownership, source and
+authority barriers are checked again. The kernel retains manifest-last ordering,
+checkpoint CAS and full profile validation. Unavailable already-published objects
+retain the pending operation without requesting authentication until exact bytes
+return. Safe incomplete-staging abandonment retains the old checkpoint; a changed
+staged source may use that existing abandonment path on recheck too.
+
+Before session installation, the exact committed current MAC/capsule and complete
+snapshot authenticate again. A process-local, store-bound authentication ticket
+prevents an intervening explicit lock, actual expiry or session replacement from
+being undone. Polling an already locked session does not cancel authentication.
+The ticket contains no key, is not persisted or sent over IPC, and proves neither
+authentication nor consent. Errors lock the session; they never roll back a
+committed checkpoint or silently delete an otherwise valid pending operation.
+A no-pending result is not a general cold-unlock operation.
+
+[Fifteen restart declarations](../Tests/KeyCoreTests/V3RecoveryKeyRotationRecoveryTests.swift)
+exercise the actual random-key service interrupted at all 14 publication points,
+exact recovery and continued saving, committed cleanup without obsolete objects,
+warm-key reuse, cancellation, lock/source/authority/checkpoint changes, provider
+result validation, malformed inputs, aggregate/projected budgets and post-commit
+refusal. Four additional [session declarations](../Tests/KeyCoreTests/V3DeviceWrappedVaultKeySessionTests.swift)
+cover status polling, explicit empty-session lock, store/session replacement and
+expiry across guarded authentication. All use software private keys and contained
+filesystem publication. Shipping cold unlock/routing, other lifecycle publication,
+key-transition catch-up, integrated review and physical acceptance remain.
 
 ### Implemented compared-device enrollment foundation
 

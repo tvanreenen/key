@@ -4,7 +4,7 @@ import Foundation
 /// Internal, explicitly requested unchanged-roster rotation from an unlocked
 /// session. The helper owns serialization and supplies one operation ID. This
 /// service never provisions a token, opens a recovery credential or resumes a
-/// different pending operation. Cold-start rotation routing is separate work.
+/// different pending operation. Restart uses only an exact locally pinned rotation.
 struct V3RecoveryKeyRotationService: Sendable {
   typealias Identity = any V3EnrollmentMessageSigning & V3DeviceWrappedVaultKeyUnwrapping
 
@@ -50,6 +50,206 @@ struct V3RecoveryKeyRotationService: Sendable {
     try loadCurrent().commit
   }
 
+  /// Resume exact ciphertext without signing or generating another epoch. Public
+  /// preflight precedes each native operation; actual authority and both complete
+  /// snapshots still authenticate before an uncommitted checkpoint can advance.
+  func recoverInterruptedRotation(operationID: VaultTransactionOperationID) throws
+    -> V3ImmutableTransactionRecoveryOutcome
+  {
+    do {
+      guard identity.vaultID == vaultID else { throw V3RecoveryKeyRotationError.invalidOwner }
+      let publisher = publisher(operationID)
+      let state: V3ContentTransactionRecoveryState
+      switch try publisher.prepareInterruptedTransaction(
+        vaultID: vaultID, expectedOwner: identity.publicIdentity)
+      {
+      case .finished(let outcome):
+        if case .abandoned = outcome { session.invalidate() }
+        return outcome
+      case .ready(let ready): state = ready
+      }
+      let checked = try preflightRecovery(state)
+      let currentID =
+        checked.parent?.body.fields.keyID ?? checked.candidate.envelope.body.fields.keyID
+      let ticket = session.beginAuthentication()
+      let cached =
+        session.hasResidentKey ? try? session.load(vaultID: vaultID, keyID: currentID) : nil
+      try session.requireCurrent(ticket)
+      try requireRecoveryState(state)
+      var oldKey: Data?
+      if let parent = checked.parent {
+        let key =
+          try cached
+          ?? openMacKey(
+            parent,
+            reason: "Authenticate the current vault before resuming its interrupted key change.")
+        try V3RecoveryKeyRotationValidator(limits: limits).preflight(
+          checked.candidate, parent: parent, currentVaultKey: key,
+          expectedOwner: identity.publicIdentity)
+        _ = try V3EntrySnapshotValidator(limits: limits).plaintexts(
+          fields: parent.body.fields, entries: checked.source.entries, vaultKey: key)
+        oldKey = key
+        try recheckRecovery(state, checked: checked, publisher: publisher)
+        try session.requireCurrent(ticket)
+      }
+      let nextKey: Data
+      if state.alreadyCommitted, let cached {
+        nextKey = cached
+      } else {
+        nextKey = try openMacKey(
+          checked.candidate.envelope,
+          reason:
+            "Open this Mac's exact pending vault-key wrapper to finish the interrupted key change.")
+      }
+      try session.requireCurrent(ticket)
+      try recheckRecovery(state, checked: checked, publisher: publisher)
+      let validator = V3RecoveryKeyRotationTransactionValidator(
+        objectStore: store, registrationAnchorStore: registration, adoptionAnchorStore: adoption,
+        currentVaultKey: oldKey, expectedOwner: identity.publicIdentity, limits: limits)
+      _ = try validator.validate(
+        input(state), vaultKey: nextKey, alreadyCommitted: state.alreadyCommitted)
+      try requireRecoveryState(state)
+      let outcome = try publisher.recoverInterruptedTransaction(
+        vaultID: vaultID, currentVaultKey: oldKey, nextVaultKey: nextKey,
+        expectedOwner: identity.publicIdentity, expectedAnchor: state.anchorData)
+      switch outcome {
+      case .completed, .alreadyCompleted:
+        try requireNoPending()
+        try requireCheckpoint(state.candidateCheckpoint)
+        let envelope = checked.candidate.envelope
+        try V3RecoveryEpochBoundary().verifyCurrentAuthentication(envelope, vaultKey: nextKey)
+        let current = try objects.observe(
+          checkpoint: state.candidateCheckpoint, expectedBase: envelope.canonicalBytes)
+        _ = try V3EntrySnapshotValidator(limits: limits).plaintexts(
+          fields: envelope.body.fields, entries: current.entries, vaultKey: nextKey)
+        try requireNoPending()
+        try requireCheckpoint(state.candidateCheckpoint)
+        try session.install(
+          nextKey, vaultID: vaultID, keyID: envelope.body.fields.keyID,
+          authenticationTicket: ticket)
+      case .nothingToRecover, .abandoned:
+        session.invalidate()
+      }
+      return outcome
+    } catch {
+      session.invalidate()
+      throw error
+    }
+  }
+
+  private struct RecoverySource {
+    let candidate: V3RecoveryKeyRotationCandidate
+    let parent: V3RecoveryManifestEnvelope?
+    let source: V3ExactTransitionRepositoryState
+  }
+
+  private func input(_ state: V3ContentTransactionRecoveryState) -> V3ContentTransactionInput {
+    .init(
+      kind: state.intent.kind, expectedCheckpoint: state.intent.expectedCheckpoint,
+      manifestData: state.manifestData, manifestDigest: state.intent.candidateManifestDigest,
+      stagedEntries: state.availableEntries)
+  }
+
+  private func preflightRecovery(_ state: V3ContentTransactionRecoveryState) throws
+    -> RecoverySource
+  {
+    try requireRecoveryState(state)
+    let envelope = try V3RecoveryManifestCodec().parseEnvelope(state.manifestData)
+    guard envelope.body.fields.vaultID == vaultID,
+      envelope.parents == [state.intent.expectedCheckpoint.envelopeDigest],
+      envelope.authorizations.map(\.signerDeviceID) == [identity.publicIdentity.deviceID],
+      envelope.body.fields.devices.contains(
+        .init(identity: identity.publicIdentity, status: .active))
+    else { throw V3RecoveryKeyRotationError.invalidOwner }
+    let staged = try V3EntrySnapshotValidator(limits: limits).entryMap(state.availableEntries)
+    let addresses = try envelope.body.fields.entries.map {
+      try V3RecoveryMergeMutationValidator.address($0)
+    }
+    guard Set(addresses) == Set(staged.keys) else {
+      throw V3RecoveryKeyRotationError.invalidCandidate
+    }
+    for (record, address) in zip(envelope.body.fields.entries, addresses) {
+      guard
+        staged[address]?.context
+          == (try V3EntryAuthenticationContext(vaultID: vaultID, entry: record))
+      else { throw V3RecoveryKeyRotationError.invalidCandidate }
+    }
+    let candidate = V3RecoveryKeyRotationCandidate(
+      expectedCheckpoint: state.intent.expectedCheckpoint,
+      envelope: envelope, stagedEntries: state.availableEntries)
+    let parent: V3RecoveryManifestEnvelope?
+    let source: V3ExactTransitionRepositoryState
+    if state.alreadyCommitted {
+      parent = nil
+      source = try objects.observe(
+        checkpoint: state.candidateCheckpoint, expectedBase: state.manifestData)
+      guard staged == source.entries else { throw V3RecoveryKeyRotationError.invalidCandidate }
+    } else {
+      let before = try V3RecoveryManifestCodec().parseEnvelope(
+        objects.readManifest(state.intent.expectedCheckpoint.envelopeDigest))
+      try V3RecoveryKeyRotationValidator(limits: limits).preflightPublic(
+        candidate, parent: before, expectedOwner: identity.publicIdentity)
+      parent = before
+      source = try objects.observe(
+        checkpoint: state.intent.expectedCheckpoint,
+        expectedBase: before.canonicalBytes, candidate: envelope,
+        stagedEntries: state.availableEntries)
+      try objects.requireProjectedUsage(
+        source, candidate: envelope, stagedEntries: state.availableEntries)
+    }
+    try requireRecoveryState(state)
+    return .init(candidate: candidate, parent: parent, source: source)
+  }
+
+  private func recheckRecovery(
+    _ state: V3ContentTransactionRecoveryState,
+    checked: RecoverySource, publisher: V3RecoveryKeyRotationPublisher
+  ) throws {
+    try requireRecoveryState(state)
+    guard
+      case .ready(let fresh) = try publisher.prepareInterruptedTransaction(
+        vaultID: vaultID, expectedOwner: identity.publicIdentity, expectedAnchor: state.anchorData),
+      fresh.intent == state.intent, fresh.currentCheckpoint == state.currentCheckpoint,
+      fresh.manifestData == state.manifestData, fresh.availableEntries == state.availableEntries
+    else { throw V3RecoveryValidationError.sourceChanged }
+    let observed = try preflightRecovery(fresh)
+    try objects.requireUnchangedSource(
+      checked.source, observed.source,
+      candidateDigest: state.intent.candidateManifestDigest)
+  }
+
+  private func requireRecoveryState(_ state: V3ContentTransactionRecoveryState) throws {
+    try requireNoAuthorityWork()
+    try requireCheckpoint(state.currentCheckpoint)
+    guard try ownership.loadRecoveryAnchor(vaultID: vaultID) == state.anchorData else {
+      throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: vaultID)
+    }
+  }
+
+  private func openMacKey(_ envelope: V3RecoveryManifestEnvelope, reason: String) throws -> Data {
+    guard
+      let wrapper = envelope.body.fields.wrappedKeys.first(where: {
+        $0.recipientDeviceID == identity.publicIdentity.deviceID
+      })
+    else { throw V3RecoveryKeyRotationError.localWrapperMismatch }
+    let key = try identity.unwrapDeviceWrappedVaultKey(
+      wrapper.wrappedKey,
+      context: envelope.body.deviceContext(recipientDeviceID: identity.publicIdentity.deviceID),
+      reason: reason)
+    try V3RecoveryEpochBoundary().verifyCurrentAuthentication(envelope, vaultKey: key)
+    return key
+  }
+
+  private func publisher(_ operationID: VaultTransactionOperationID)
+    -> V3RecoveryKeyRotationPublisher
+  {
+    .init(
+      mutationOwner: DirectVaultTransactionMutationOwner(operationID: operationID),
+      objectStore: store, checkpointStore: checkpoints, recoveryAnchorStore: ownership,
+      registrationAnchorStore: registration, adoptionAnchorStore: adoption, cache: cache,
+      limits: limits, phaseObserver: phaseObserver)
+  }
+
   func rotate(
     expectedCheckpoint: V3ManifestCheckpoint, operationID: VaultTransactionOperationID
   ) throws -> V3RecoveryKeyRotationCommit {
@@ -78,12 +278,7 @@ struct V3RecoveryKeyRotationService: Sendable {
           == base.key
       else { throw V3RecoveryValidationError.sourceChanged }
 
-      let commit = try V3RecoveryKeyRotationPublisher(
-        mutationOwner: DirectVaultTransactionMutationOwner(operationID: operationID),
-        objectStore: store, checkpointStore: checkpoints, recoveryAnchorStore: ownership,
-        registrationAnchorStore: registration, adoptionAnchorStore: adoption, cache: cache,
-        limits: limits, phaseObserver: phaseObserver
-      ).publish(
+      let commit = try publisher(operationID).publish(
         candidate, currentVaultKey: base.key, nextVaultKey: nextKey, identity: identity,
         reason: "Verify this Mac can open the changed vault encryption key.")
 

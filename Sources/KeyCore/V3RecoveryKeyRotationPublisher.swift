@@ -93,6 +93,19 @@ struct V3RecoveryKeyRotationPublisher: Sendable {
     }
   }
 
+  /// Select exact pending ciphertext and safely abandon incomplete work before
+  /// the service requests native authentication. This establishes no authority.
+  func prepareInterruptedTransaction(
+    vaultID: String, expectedOwner: V3EnrollmentDeviceIdentity, expectedAnchor: Data? = nil
+  ) throws -> V3ContentTransactionRecoveryPreparation {
+    try mutationOwner.perform(.recoverInterruptedTransaction) { context in
+      try publisher(
+        validator(currentVaultKey: nil, expectedOwner: expectedOwner),
+        operationID: context.operationID
+      ).prepareInterruptedTransaction(vaultID: vaultID, expectedAnchor: expectedAnchor)
+    }
+  }
+
   private func requireFreshStart(_ checkpoint: V3ManifestCheckpoint) throws {
     if let bytes = try recoveryAnchorStore.loadRecoveryAnchor(vaultID: checkpoint.vaultID) {
       guard let anchor = try? V3ImmutableTransactionRecoveryAnchor(canonicalBytes: bytes),
