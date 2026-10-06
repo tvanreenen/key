@@ -163,20 +163,12 @@ struct V3RecoveryContentTransactionValidator: V3ContentTransactionValidating {
     vaultKey: Data, alreadyCommitted: Bool
   ) throws {
     let fresh = try validate(input, vaultKey: vaultKey, alreadyCommitted: alreadyCommitted)
-    var before = validated.source.manifestBytes
-    var after = fresh.source.manifestBytes
-    let removedBefore = before.removeValue(forKey: input.manifestDigest) != nil
-    let removedAfter = after.removeValue(forKey: input.manifestDigest) != nil
     guard fresh.envelope == validated.envelope,
       fresh.stagedEntries == validated.stagedEntries,
-      fresh.completeEntries == validated.completeEntries,
-      fresh.source.baseBytes == validated.source.baseBytes,
-      fresh.source.entries == validated.source.entries,
-      before == after,
-      fresh.source.listedObjectCount - (removedAfter ? 1 : 0)
-        == validated.source.listedObjectCount - (removedBefore ? 1 : 0),
-      !removedBefore || removedAfter
+      fresh.completeEntries == validated.completeEntries
     else { throw V3RecoveryValidationError.sourceChanged }
+    try objects.requireUnchangedSource(
+      validated.source, fresh.source, candidateDigest: input.manifestDigest)
   }
 
   func validateStagedObjects(

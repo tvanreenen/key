@@ -533,11 +533,59 @@ epochs or reopening superseded ciphertext.
 primary and backup recovery after three rotations and a production ordinary
 service edit. Old snapshot ciphertext is removed and the original session/Mac
 identity leaves scope before one software agreement opens the final state for
-each credential. Rotation candidates are seeded and checkpointed by test setup;
-there is no production rotation publisher, service, resume or key-transition
-catch-up yet. Compared-device enrollment, reviewed device revocation and recipient
+each credential. Those foundation tests seed and checkpoint rotation candidates
+as setup. The internal durable rotation publisher below now covers publication
+and resume; service/session/native routing and key-transition catch-up remain.
+Compared-device enrollment, reviewed device revocation and recipient
 removal now have the internal components below. No public
 command or real-vault opt-in is enabled.
+
+### Implemented durable unchanged-roster rotation
+
+The [rotation publisher and source validator](../Sources/KeyCore/V3RecoveryKeyRotationPublisher.swift)
+reuse the existing immutable transaction kernel rather than add another ordering
+or interruption engine. Rotation validation remains separate from ordinary edit,
+enrollment, revocation and recipient-removal policy. The shared source inventory
+also owns the unchanged-byte comparison used by ordinary publication.
+
+Initial publication authenticates the exact parent checkpoint, both key epochs,
+unchanged rosters/generation, boundary authorizations, complete staged objects and
+old/new plaintext equality. Bounded source inventory and projected usage precede
+one addressed local-Mac wrapper verification. Cancellation reserves nothing;
+source and pending authority work are rechecked after the private operation.
+No recovery token or administrative operation is required.
+
+The same mutation-owner operation ID spans local intent reservation, immutable
+entry staging/publication, exact manifest readback, checkpoint-last activation
+and cleanup. Every write retains the existing local ownership/checkpoint guards.
+Competing registration/adoption, changed source, unavailable objects and resource
+limits refuse without silently selecting another candidate or branch.
+
+A new internal `rotateVaultKey` intent kind uses the existing version-1 intent
+shape; existing kinds and manifest formats are unchanged. Older readers do not
+recognize this kind and refuse it. Both ordinary-profile resume routes now admit
+only ordinary edit kinds before acting on an intent. Rotation resume accepts only
+its exact locally pinned rotation intent, never an enrollment/removal approval or
+an ordinary transaction. There is no automatic profile or lifecycle fallback.
+
+Before checkpoint commitment, resume requires helper-scoped old and new keys,
+both complete snapshots and full rotation validation. It resumes the same bytes
+without re-signing, rewrapping or generating a replacement epoch. Once the local
+checkpoint is the exact candidate, cleanup authenticates the pinned current
+snapshot without the old key, old ciphertext or old manifest cache. That is
+reconciliation of a committed decision, not permission to bypass initial checks.
+Keys are not persisted in intents or provided by CLI/XPC callers. Native key
+opening, session installation and cold-start service routing remain separate work.
+
+[Software tests](../Tests/KeyCoreTests/V3RecoveryKeyRotationPublisherTests.swift)
+cover every publication boundary, checkpoint failures, committed cleanup,
+unavailable published entries, pending/changed state and cross-kind refusal.
+Primary and backup credentials each recover the latest secret and TOTP after an
+actual durable rotation and ordinary-service save, with one software agreement
+and without original Mac private state or superseded ciphertext. Physical prompt
+counts and native restart behavior are not qualified. Other lifecycle publication,
+service/product integration and key-transition catch-up remain; no public command
+or real-vault opt-in is enabled.
 
 ### Implemented compared-device enrollment foundation
 

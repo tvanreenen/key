@@ -97,7 +97,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
-| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; rotation, compared-device enrollment, reviewed device revocation and recipient removal have internal builders/validators; exact-plan last-recipient acknowledgment is required; durable publication/resume, user confirmation, joining adoption, key-transition catch-up and product/native acceptance remain |
+| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; unchanged-roster rotation has internal durable publication/resume; compared-device enrollment, reviewed revocation and recipient removal have builders/validators with exact last-recipient acknowledgment; service/session routing, other lifecycle publication/resume, user confirmation, joining adoption, key-transition catch-up and product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
@@ -436,9 +436,11 @@ sharing its recipient-addition policy. Compared-device enrollment now uses that
 material and shared snapshot cryptography, with its own exact ceremony/roster
 validator. Reviewed device revocation now uses the same epoch components and a
 roster policy shared with profile 2. Recipient removal has its own exact reviewed
-policy, fresh generation and plan-bound last-recipient acknowledgment. Durable
-lifecycle publication/resume, user confirmation, joining adoption and key-transition
-catch-up still require implementation.
+policy, fresh generation and plan-bound last-recipient acknowledgment. Rotation
+now reuses the immutable durability kernel with its own exact source/policy
+validator and interrupted-publication reconciliation. Service/session routing,
+other lifecycle publication/resume, user confirmation, joining adoption and
+key-transition catch-up still require implementation.
 Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -480,6 +482,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Second 810 enrollment component, 2026-10-05 | [Compared-device builder/validator](../Sources/KeyCore/V3RecoveryDeviceEnrollment.swift), [shared epoch checks](../Sources/KeyCore/V3RecoveryKeyRotation.swift) and [15 software tests](../Tests/KeyCoreTests/V3RecoveryDeviceEnrollmentTests.swift) | One exact signed, unexpired comparison ceremony adds only its joining Mac; transcript-derived epoch, complete resealing, exact recipient/generation preservation and all-active coverage. Primary/backup recovery follows two materialized enrollments and an actual service save without original Mac private state or superseded ciphertext. No enrollment publication/resume, ceremony consumption, joining adoption, catch-up or product/native qualification. |
 | Third 810 revocation component, 2026-10-05 | [Reviewed revocation planner/builder/validator](../Sources/KeyCore/V3RecoveryDeviceRevocation.swift), [shared roster policy](../Sources/KeyCore/V3DeviceRevocationRosterPolicy.swift), [profile-2 reuse](../Sources/KeyCore/V3DeviceWrappedRevocationPlanner.swift) and [15 software tests](../Tests/KeyCoreTests/V3RecoveryDeviceRevocationTests.swift) | Exact one-device revocation retains tombstones, approving-Mac access and complete recovery coverage while replacing the key epoch. Old-key/new-snapshot separation and primary/backup recovery after materialized enrollment/revocation plus an actual save. No durable revocation publication/resume, remaining-Mac catch-up, product/native routing or integrated qualification. |
 | Fourth 810 removal component, 2026-10-06 | [Reviewed recipient removal and exact-plan acknowledgment](../Sources/KeyCore/V3RecoveryRecipientRemoval.swift) and [15 software declarations](../Tests/KeyCoreTests/V3RecoveryRecipientRemovalTests.swift) | One recipient becomes a tombstone in a fresh vault-key/recovery generation; all other authority and plaintext stay exact. Primary/backup/last removal followed by an actual save; only remaining recipients recover the latest snapshot. Last removal requires explicit plan-bound acknowledgment, not a general override or durable approval. No lifecycle publisher/resume, user-confirmation UI, product/native routing or integrated qualification. |
+| Fifth 810 durable rotation component, 2026-10-06 | [Rotation publisher/source validator](../Sources/KeyCore/V3RecoveryKeyRotationPublisher.swift), [shared exact source comparison](../Sources/KeyCore/V3ExactTransitionRepository.swift) and [17 software declarations](../Tests/KeyCoreTests/V3RecoveryKeyRotationPublisherTests.swift) | Actual manifest-last/checkpoint-last rotation with exact locally pinned resume, unchanged authority and one initial addressed Mac-wrapper verification. Every interruption boundary, pending/source guards, committed current-only cleanup and primary/backup recovery after an actual rotation/save. Keys remain helper-scoped inputs; native restart/session routing, other lifecycle publication, product composition and integrated qualification remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -2185,6 +2188,96 @@ Verification:
   still require an unlocked rerun; no protection or test guard was weakened.
 
 Raw logs use `tmp/piv-recovery/2026-10-06-recipient-removal-`; build artifacts
+remain in the existing ignored directory. No installed app, real vault/configuration
+or YubiKey was changed. No token operation, administration, push, notarization or
+release was performed.
+
+### Fifth 810 durable rotation component, 2026-10-06
+
+Unchanged-roster rotation now has an internal durable publisher and source
+validator. A separate rotation transaction engine was compared with reusing the
+existing profile-neutral immutable kernel. The latter retains one implementation
+of local intent/checkpoint CAS, manifest-last ordering, readback and interruption
+cleanup. Rotation owns authentication, full resealing and source policy; enrollment,
+revocation and recipient-removal approvals are not inferred from that policy.
+Ordinary publication and rotation also share the exact source-byte comparison,
+allowing only the reviewed candidate to appear during publication.
+
+One mutation-owner operation ID spans the workflow. Before durable reservation,
+the publisher verifies the exact parent, both key epochs, unchanged authority and
+recipient generation, both boundary authorizations, complete staged objects,
+old/new plaintext equality and bounded projected usage. It then verifies one
+addressed local-Mac wrapper and rechecks source/pending work after authentication.
+Cancellation or a changed source creates no intent. Physical prompt counts remain
+unqualified; no recovery-token operation is involved.
+
+The new internal `rotateVaultKey` kind uses the existing version-1 intent shape.
+Existing kind encodings and manifest formats are unchanged; an older reader
+refuses the unrecognized kind. Both ordinary-profile resume validators now reject
+lifecycle kinds before intent cleanup or publication. Rotation accepts only its
+exact locally pinned intent, with no enrollment transcript, merge resolutions or
+profile/lifecycle fallback. Pending registration/adoption and changed ownership,
+checkpoint, source or projected limits retain the established refusal boundaries.
+
+Uncommitted resume requires helper-scoped old/new keys and complete old/new
+snapshots. It resumes the same encrypted epoch without signing, rewrapping or
+generating another candidate. If the local checkpoint already equals the pinned
+candidate, reconciliation validates its current MAC/capsule, exact complete
+snapshot and immutable bytes before cleanup. Old keys, old ciphertext and old
+manifest cache are not needed after commitment. This does not relax initial
+publication checks or treat synchronized intents as approval. Keys are never
+persisted in intents or supplied through CLI/XPC.
+
+Seventeen software declarations cover manifest-last/checkpoint-last ordering,
+empty snapshots, all 14 publication interruption boundaries, checkpoint failure,
+committed current-only cleanup, wrong/missing keys and owners, cancellation,
+source changes during private approval, pending authority work at critical
+boundaries, changed ownership/checkpoint, routed-anchor equality, cross-kind
+refusal in both ordinary profiles, refusal of recipient removal as rotation and
+source/projected budgets. An unavailable entry after manifest publication leaves
+the old checkpoint and exact pending intent until its bytes return. The initial
+repair fixture was corrected to restage the exact bytes, because publication
+consumes staging; no production behavior was changed to accommodate the test.
+
+Primary and backup credentials recover the latest secret and TOTP after an actual
+durable rotation and ordinary mutation-service save. Original Mac private state
+and superseded ciphertext leave scope before one software agreement per credential.
+Rotation is no longer just seeded test setup. Initial profile-3 registration still
+uses the existing disposable fixture setup, not a product opt-in.
+
+Next is service/session orchestration, including native wrapper opening on restart,
+then publication/resume for compared enrollment, reviewed revocation and recipient
+removal under their own approval rules. Joining adoption, key-transition catch-up,
+restore orchestration, product/runtime/CLI integration, integrated review and
+physical acceptance remain. No implementation package is complete and no public
+command or real-vault opt-in is enabled.
+
+Verification:
+
+- Complete serial Debug regression passed on the unlocked host: 1,286 KeyCore
+  tests in 107 suites and six canonical-JSON tests in one suite. The final run
+  includes the ordinary-profile routing guard and profile-2 refusal case.
+  The separately gated large-migration qualification was skipped.
+- An initial full Release run reported seven assertions in one pre-existing
+  [qualification-namespace fixture](../Tests/KeyCoreTests/KeyAppTests.swift).
+  The [production configuration](../Sources/KeyCore/RuntimeConfiguration.swift)
+  intentionally enables qualification namespaces only in Debug. The test now
+  verifies isolated namespaces in Debug and the unchanged stable identity in
+  Release, rather than assuming Debug behavior or skipping Release. Its 41-test
+  Debug suite passed after that test-only correction.
+- Complete serial optimized Release regression then passed: the same 1,286
+  KeyCore tests in 107 suites and six canonical-JSON tests in one suite, with the
+  separately gated large-migration qualification skipped. The previous full
+  Debug and broad Release protected-fixture failures are resolved by these
+  unlocked runs; no file protection or production qualification guard changed.
+- Unsigned universal Preview build passed. App, CLI and helper contain arm64 and
+  x86_64 slices. Product-bundle isolation and CLI help/completion checks passed;
+  no app was installed.
+- Strict formatting of changed/new components and tests, 141 local documentation
+  targets, Xcode project syntax and `git diff --check` passed. Existing formatting
+  outside the added mutation-kind lines was retained.
+
+Raw logs use `tmp/piv-recovery/2026-10-06-rotation-publication-`; build artifacts
 remain in the existing ignored directory. No installed app, real vault/configuration
 or YubiKey was changed. No token operation, administration, push, notarization or
 release was performed.
