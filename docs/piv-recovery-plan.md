@@ -97,7 +97,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
-| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; rotation/enrollment have durable publication/resume and guarded owner sessions, with exact ceremony completion and joining-Mac first trust; reviewed device revocation has internal durable publication/resume; recipient removal has a builder/validator with exact last-recipient acknowledgment; revocation/removal session orchestration, recipient-removal durability, user confirmation, key-transition catch-up and shipping product/native acceptance remain |
+| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; rotation/enrollment have durable publication/resume and guarded owner sessions, with exact ceremony completion and joining-Mac first trust; reviewed device revocation and recipient removal have internal durable publication/resume with exact review and last-recipient acknowledgment; revocation/removal session orchestration, user confirmation, key-transition catch-up and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
@@ -483,8 +483,10 @@ then pins insert-only checkpoint trust before ceremony completion and guarded
 session installation. Reviewed device revocation now uses the immutable kernel
 with exact approved-plan comparison and one-device policy reconstruction on
 restart. Current-only committed cleanup retains its checkpoint without obsolete
-keys or ciphertext. Shipping cold-unlock/runtime/config activation, revocation/
-removal session orchestration, recipient-removal durability, user confirmation
+keys or ciphertext. Recipient removal now has its own durable kind and exact
+initial protection-loss acknowledgment, with transition-only owned restart.
+Shipping cold-unlock/runtime/config activation, revocation/
+removal session orchestration, user confirmation
 and key-transition catch-up still require implementation.
 Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
@@ -534,6 +536,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Ninth 810 enrollment owner component, 2026-10-06 | [Owner service and exact restart](../Sources/KeyCore/V3RecoveryEnrollmentOwnerService.swift), [public enrollment preflight](../Sources/KeyCore/V3RecoveryDeviceEnrollment.swift) and [23 software declarations](../Tests/KeyCoreTests/V3RecoveryEnrollmentOwnerServiceTests.swift) | Exact compared approval generates and publishes a random-key epoch, then installs only authenticated committed authority with a session race guard. All 14 interruption points, cold/warm restart, exact ceremony completion, substituted anchor refusal and primary/backup recovery after owner-service enrollment/save are covered. Joining adoption, other lifecycle publication, shipping composition and native acceptance remain. |
 | Tenth 810 joining component, 2026-10-06 | [Joining-Mac adoption](../Sources/KeyCore/V3RecoveryEnrollmentAdoption.swift) and [17 software declarations](../Tests/KeyCoreTests/V3RecoveryEnrollmentAdoptionTests.swift) | Exact comparison and public enrollment proofs precede the joining Mac wrapper; full current authentication precedes insert-only checkpoint trust, exact ceremony completion and guarded session installation. Cold/warm retry, interruption/lock at three verification/persistence boundaries, malformed/competing state and primary/backup recovery after a joining-Mac save pass. Config/runtime activation, catch-up, other lifecycle publication and native acceptance remain. |
 | Eleventh 810 revocation publisher component, 2026-10-06 | [Reviewed-device publisher/validator](../Sources/KeyCore/V3RecoveryDeviceRevocationPublisher.swift) and [20 software declarations](../Tests/KeyCoreTests/V3RecoveryDeviceRevocationPublisherTests.swift) | Exact approved plan precedes manifest-last/checkpoint-last publication. Before commitment, restart reconstructs one active-to-revoked change and compares complete snapshots; committed cleanup needs only pinned current state. All 14 interruptions, reciprocal kind refusal, current-state retention and primary/backup recovery after actual enrollment/revocation/save are exercised. Confirmation/session orchestration, recipient-removal durability, remaining-Mac catch-up and native/product acceptance remain. |
+| Twelfth 810 removal publisher component, 2026-10-06 | [Recipient-removal publisher/validator](../Sources/KeyCore/V3RecoveryRecipientRemovalPublisher.swift) and [20 software declarations](../Tests/KeyCoreTests/V3RecoveryRecipientRemovalPublisherTests.swift) | Exact plan and initial last-recipient acknowledgment precede reservation. Version-1 intent pins one new removal kind without saved consent. Every publication boundary covers continuing/last-recipient removal; exact restart, current-only cleanup and ordinary-save/software-recovery composition pass. Full Debug/Release and unsigned universal Preview checks pass. Owner/session orchestration, catch-up and native/product qualification remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -2841,3 +2844,62 @@ runtime/CLI composition, integrated review and native/physical qualification rem
 No implementation package is complete. Raw logs use
 `tmp/piv-recovery/2026-10-06-device-revocation-`. No real vault, config, installed
 app or YubiKey was changed. No token operation, administration, push or release occurred.
+
+### Twelfth 810 removal publisher component, 2026-10-06
+
+The [internal recipient-removal publisher](../Sources/KeyCore/V3RecoveryRecipientRemovalPublisher.swift)
+uses the established immutable kernel and independent removal policy. Initial
+publication requires the exact separately reviewed plan and, when losing the
+last recipient, its explicit plan-bound acknowledgment. Both snapshots and all
+authority/source/limit guards pass before one addressed Mac-wrapper operation;
+private cancellation or wrong output leaves no intent.
+
+Persisting another review/consent record was compared with reconstructing the
+decision from exact owned intent. The version-1 selectors already bind the old
+checkpoint and entire candidate, so duplication would add schema and false consent
+semantics without authority. The existing fields are retained with one new explicit
+`removeRecoveryRecipient` kind. Ordinary mutation policy refuses it, and restart
+refuses other kinds before unrelated-checkpoint abandonment. Existing-profile
+bytes and other kind encodings do not change; old decoders refuse the new kind.
+
+The domain validator separates initial acknowledgment from transition-only
+validation used after the kernel establishes exact local restart ownership. This
+does not synthesize an acknowledgment or authorize a new removal. Uncommitted
+restart rechecks exactly one recipient tombstone, unchanged Macs, fresh generation
+and full old/new plaintext identity. Committed cleanup needs only exact current
+authentication/snapshot. It never re-signs, generates a key or requests a token.
+
+Twenty software declarations cover both continuing-protection and last-removal
+publication across all 14 boundaries, incorrect acknowledgment/review, wrong keys
+or owner, cancellation, provider result, pending/source/CAS changes, missing state,
+kind/policy refusal and bounds. Actual primary/backup/last removal plus an ordinary
+save remains recoverable only by continuing recipients after original Mac state
+leaves scope. Last removal still permits ordinary Mac-authorized saves. One early
+acknowledgment fixture accidentally reused the exact original plan; that fixture
+was corrected without weakening production checks.
+
+Verification:
+
+- Focused removal/revocation/rotation/joining regression passed: 72 tests in
+  four suites.
+- Full Debug and Release passed: 1,423 KeyCore tests in 115 suites and six
+  canonical-JSON tests in one suite in each configuration. The separately gated
+  large-migration qualification was skipped in both runs.
+- The first Debug run failed one existing handler test with seven issues after
+  protected temporary-file writes were refused while the Mac was locked. The
+  unchanged test passed in both unlocked runs. Protected-storage settings were
+  not changed; the initial failure log is retained alongside the successful runs.
+- Debug and optimized production compilation passed.
+- Unsigned universal Preview build passed. The app, CLI and helper each contain
+  arm64 and x86_64 slices; bundle isolation and CLI help/usage checks passed.
+- Strict formatting of the touched modern Swift files, Xcode project syntax,
+  Git whitespace checks and all 184 local documentation targets passed.
+
+Raw output uses `tmp/piv-recovery/2026-10-06-recipient-removal-`.
+
+Next: revocation/removal owner/session services, then remaining-Mac key-transition
+catch-up. Restore orchestration, shipping confirmation/runtime/CLI, integrated
+review and native/physical qualification remain. No package is complete. No real
+vault/configuration, installed app or YubiKey is changed, and no token operation,
+administration or release is performed. Work remains local unless separately
+published through the tracked stack.
