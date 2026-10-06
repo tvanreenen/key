@@ -70,6 +70,38 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
         )
     }
 
+    /// Switch a committed key epoch only while the exact prior session is still
+    /// live. A lock/expiry during publication must not be undone by installation.
+    func replace(
+        _ key: Data,
+        vaultID: String,
+        keyID: V3VaultKeyID,
+        expectedKeyID: V3VaultKeyID
+    ) throws {
+        guard key.count == 32,
+              (try? V3VaultKeyID.derive(vaultKey: key, vaultID: vaultID))
+                == keyID
+        else {
+            throw V3DeviceWrappedVaultKeySessionError.invalidKey
+        }
+        lock.lock()
+        defer { lock.unlock() }
+        let current = clock.now
+        guard let deadline = state.deadline, current < deadline else {
+            clearLocked()
+            throw V3DeviceWrappedVaultKeySessionError.unavailable
+        }
+        guard state.vaultID == vaultID,
+              state.keyID == expectedKeyID,
+              state.key != nil
+        else {
+            throw V3DeviceWrappedVaultKeySessionError.unavailable
+        }
+        state.keyID = keyID
+        state.key = key
+        scheduleExpirationLocked(from: current, wallTime: now())
+    }
+
     func load(vaultID: String, keyID: V3VaultKeyID) throws -> Data {
         lock.lock()
         defer { lock.unlock() }

@@ -535,7 +535,8 @@ service edit. Old snapshot ciphertext is removed and the original session/Mac
 identity leaves scope before one software agreement opens the final state for
 each credential. Those foundation tests seed and checkpoint rotation candidates
 as setup. The internal durable rotation publisher below now covers publication
-and resume; service/session/native routing and key-transition catch-up remain.
+and resume. The internal unlocked-session service below now composes initial
+rotation; native restart routing and key-transition catch-up remain.
 Compared-device enrollment, reviewed device revocation and recipient
 removal now have the internal components below. No public
 command or real-vault opt-in is enabled.
@@ -574,8 +575,9 @@ without re-signing, rewrapping or generating a replacement epoch. Once the local
 checkpoint is the exact candidate, cleanup authenticates the pinned current
 snapshot without the old key, old ciphertext or old manifest cache. That is
 reconciliation of a committed decision, not permission to bypass initial checks.
-Keys are not persisted in intents or provided by CLI/XPC callers. Native key
-opening, session installation and cold-start service routing remain separate work.
+Keys are not persisted in intents or provided by CLI/XPC callers. Initial live-session
+installation is now composed below. Native key opening and cold-start service
+routing remain separate work.
 
 [Software tests](../Tests/KeyCoreTests/V3RecoveryKeyRotationPublisherTests.swift)
 cover every publication boundary, checkpoint failures, committed cleanup,
@@ -586,6 +588,52 @@ and without original Mac private state or superseded ciphertext. Physical prompt
 counts and native restart behavior are not qualified. Other lifecycle publication,
 service/product integration and key-transition catch-up remain; no public command
 or real-vault opt-in is enabled.
+
+### Implemented unlocked-session rotation service
+
+The [internal service](../Sources/KeyCore/V3RecoveryKeyRotationService.swift)
+composes authenticated review, random key generation, construction, publication
+and live-session replacement. It requires an already unlocked, exact vault/key
+session and this Mac's signing/unwrapping identity. The helper owns serialization
+and supplies one operation ID; no new queue, signing protocol, token adapter or
+public command is added. Ordinary saves retain their separate no-private-operation
+service.
+
+Preparation authenticates the local checkpoint, active exact Mac identity and
+complete current plaintext snapshot against bounded immutable inventory. It
+neither generates a key nor signs or reserves work. Execution requires the reviewed
+checkpoint to remain exact and refuses any existing ordinary, rotation,
+registration or adoption work. It does not resume or replace that pending work.
+After Mac signing, source bytes, checkpoint, pending work and the old session are
+rechecked before the publisher's addressed local-wrapper verification. The existing
+publisher still owns full old/new snapshot comparison, projected limits, source
+rechecks, durable intent and manifest-last/checkpoint-last publication.
+
+After successful publication, the service authenticates the committed current
+MAC/capsule and complete snapshot before replacing the live session. The
+[session store](../Sources/KeyCore/V3DeviceWrappedVaultKeySession.swift) owns an
+atomic exact-prior-key replacement check: a lock or expiry during publication
+cannot be undone by session installation. Returned commit data contains no raw
+key; raw keys remain scoped in memory and are never written into the intent.
+
+An error does not imply that the checkpoint failed to advance. The service keeps
+the old session only if the checkpoint remains the exact reviewed checkpoint;
+changed, missing or unreadable checkpoint state locks the session. It never
+installs a key from an error path, rolls back a committed checkpoint, erases the
+intent or retries authentication. Best-effort cleanup may fail without preventing
+successful commitment and session replacement; the exact pending rotation then
+still needs its dedicated reconciliation route before another save.
+
+[Thirteen service test declarations](../Tests/KeyCoreTests/V3RecoveryKeyRotationServiceTests.swift)
+exercise actual random-key rotation and continued ordinary saving, all 14
+publication interruption points, checkpoint/cleanup failures, cancellation,
+invalid or changed sources, identity/session/pending barriers and post-commit
+refusal. [Five session declarations](../Tests/KeyCoreTests/V3DeviceWrappedVaultKeySessionTests.swift)
+exercise exact prior-epoch replacement, invalid keys, foreign vaults, locked or
+absent sessions and expiry. These use real epoch crypto and contained filesystem
+publication with software Mac identities, not physical prompt qualification.
+Cold-start old/new-wrapper opening, exact resume-to-session orchestration,
+product confirmation/runtime dispatch and integrated review remain.
 
 ### Implemented compared-device enrollment foundation
 

@@ -97,7 +97,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
-| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; unchanged-roster rotation has internal durable publication/resume; compared-device enrollment, reviewed revocation and recipient removal have builders/validators with exact last-recipient acknowledgment; service/session routing, other lifecycle publication/resume, user confirmation, joining adoption, key-transition catch-up and product/native acceptance remain |
+| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; unchanged-roster rotation has internal durable publication/resume and initial unlocked-session orchestration; compared-device enrollment, reviewed revocation and recipient removal have builders/validators with exact last-recipient acknowledgment; cold-start rotation/session reconciliation, other lifecycle publication/resume, user confirmation, joining adoption, key-transition catch-up and product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
@@ -438,9 +438,11 @@ validator. Reviewed device revocation now uses the same epoch components and a
 roster policy shared with profile 2. Recipient removal has its own exact reviewed
 policy, fresh generation and plan-bound last-recipient acknowledgment. Rotation
 now reuses the immutable durability kernel with its own exact source/policy
-validator and interrupted-publication reconciliation. Service/session routing,
-other lifecycle publication/resume, user confirmation, joining adoption and
-key-transition catch-up still require implementation.
+validator and interrupted-publication reconciliation. An internal unlocked-session
+service now composes initial rotation and an atomic live-session replacement;
+post-commit errors lock rather than leave a stale session. Cold-start rotation/session
+reconciliation, other lifecycle publication/resume, user confirmation, joining
+adoption and key-transition catch-up still require implementation.
 Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -483,6 +485,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Third 810 revocation component, 2026-10-05 | [Reviewed revocation planner/builder/validator](../Sources/KeyCore/V3RecoveryDeviceRevocation.swift), [shared roster policy](../Sources/KeyCore/V3DeviceRevocationRosterPolicy.swift), [profile-2 reuse](../Sources/KeyCore/V3DeviceWrappedRevocationPlanner.swift) and [15 software tests](../Tests/KeyCoreTests/V3RecoveryDeviceRevocationTests.swift) | Exact one-device revocation retains tombstones, approving-Mac access and complete recovery coverage while replacing the key epoch. Old-key/new-snapshot separation and primary/backup recovery after materialized enrollment/revocation plus an actual save. No durable revocation publication/resume, remaining-Mac catch-up, product/native routing or integrated qualification. |
 | Fourth 810 removal component, 2026-10-06 | [Reviewed recipient removal and exact-plan acknowledgment](../Sources/KeyCore/V3RecoveryRecipientRemoval.swift) and [15 software declarations](../Tests/KeyCoreTests/V3RecoveryRecipientRemovalTests.swift) | One recipient becomes a tombstone in a fresh vault-key/recovery generation; all other authority and plaintext stay exact. Primary/backup/last removal followed by an actual save; only remaining recipients recover the latest snapshot. Last removal requires explicit plan-bound acknowledgment, not a general override or durable approval. No lifecycle publisher/resume, user-confirmation UI, product/native routing or integrated qualification. |
 | Fifth 810 durable rotation component, 2026-10-06 | [Rotation publisher/source validator](../Sources/KeyCore/V3RecoveryKeyRotationPublisher.swift), [shared exact source comparison](../Sources/KeyCore/V3ExactTransitionRepository.swift) and [17 software declarations](../Tests/KeyCoreTests/V3RecoveryKeyRotationPublisherTests.swift) | Actual manifest-last/checkpoint-last rotation with exact locally pinned resume, unchanged authority and one initial addressed Mac-wrapper verification. Every interruption boundary, pending/source guards, committed current-only cleanup and primary/backup recovery after an actual rotation/save. Keys remain helper-scoped inputs; native restart/session routing, other lifecycle publication, product composition and integrated qualification remain. |
+| Sixth 810 initial rotation service, 2026-10-06 | [Unlocked-session orchestration](../Sources/KeyCore/V3RecoveryKeyRotationService.swift), [atomic session replacement](../Sources/KeyCore/V3DeviceWrappedVaultKeySession.swift), [13 service declarations](../Tests/KeyCoreTests/V3RecoveryKeyRotationServiceTests.swift) and [five session declarations](../Tests/KeyCoreTests/V3DeviceWrappedVaultKeySessionTests.swift) | Actual random-key generation, reviewed checkpoint execution, full source checks, publication and authenticated live-session switch. Errors after checkpoint changes lock rather than retain a stale key; intervening lock/expiry cannot be undone. Cold-start wrapper opening/resume-to-session routing, other lifecycle publication, product composition and integrated qualification remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -2280,4 +2283,88 @@ Verification:
 Raw logs use `tmp/piv-recovery/2026-10-06-rotation-publication-`; build artifacts
 remain in the existing ignored directory. No installed app, real vault/configuration
 or YubiKey was changed. No token operation, administration, push, notarization or
+release was performed.
+
+### Sixth 810 initial rotation service, 2026-10-06
+
+The internal unchanged-roster service now composes initial rotation from an
+already unlocked session. Extending the ordinary save service was compared with
+a dedicated signer/unwrapper-dependent service. The dedicated service keeps
+ordinary edits free of private-operation dependencies and leaves epoch policy,
+durability and session expiry with their existing owners. It uses the helper's
+operation ID through direct nested publishers, not another serialized queue or
+a new generic lifecycle abstraction.
+
+Preparation returns the exact authenticated current checkpoint/envelope after
+checking this Mac's active identity, complete plaintext snapshot, source bounds
+and pending barriers. It is review data, not persisted approval or proof of user
+consent. Execution requires that reviewed checkpoint, generates a random 256-bit
+key with a distinct derived key ID, and uses the existing builder/publisher.
+Signing is followed by exact source/checkpoint/pending/session rechecks before
+the addressed local wrapper is opened. Projected old/new storage limits remain
+the publisher's responsibility and can refuse after signing but before wrapper
+verification and durable reservation. No recovery credential is opened.
+
+Session installation after publisher return was compared with adding a shared
+transaction-kernel callback. A kernel callback would widen ordinary publication
+to own a private session side effect and would still need to handle exceptions
+after checkpoint advancement. This service instead authenticates the committed
+current snapshot before its own exact session switch. The session store now owns
+an atomic prior-epoch replacement check under its existing expiry lock. A lock or
+timeout during publication cannot be undone by installation; existing install,
+load and profile-2 behavior are unchanged.
+
+An error may occur after checkpoint commitment. Only an unchanged exact reviewed
+checkpoint permits the old session to remain. A changed, missing or unreadable
+checkpoint locks the session without rolling back authority, deleting pending
+intent or installing a key from an error path. Cleanup can fail after a successful
+commit and still permit verified session replacement, leaving the exact rotation
+pending for dedicated reconciliation. The service refuses all existing pending
+work instead of generating or signing a substitute. Raw keys are in-memory
+implementation values, not return fields, intent contents or CLI/XPC inputs.
+
+Thirteen service declarations use real key generation, epoch crypto, session and
+contained filesystem publication. They cover review without private operations,
+empty/populated rotation and continued ordinary saving, all 14 publication
+interruption points, failed checkpoint CAS, cleanup failure, both cancellation
+boundaries, source/identity/session/pending refusals, changes during signing,
+lock during wrapper verification and post-commit source/authority/checkpoint
+failure. Five session declarations cover exact prior-epoch replacement, wrong
+keys/epochs, foreign vaults, absent or explicitly locked sessions and expiry.
+An initial focused compile exposed a missing `try` on the established software
+identity's throwing initializer; the fixture call was corrected before execution.
+
+Cold-start service recovery was separated from initial session orchestration to
+keep the next review boundary explicit. It must select the exact locally pinned
+rotation, distinguish pre-commit and committed states, validate bounded public
+inputs before native authentication, open only the addressed old/new Mac wrappers
+needed for that state, recheck after authentication, and install only authenticated
+committed authority. The existing publisher already resumes scoped keys without
+re-signing. No cold-start service path or physical prompt count is claimed by this
+increment. Other lifecycle publication/resume, key-transition catch-up, joining
+adoption, restore/product composition, user confirmation and integrated review
+remain. `REC-810` and the other implementation packages are not complete.
+
+Verification:
+
+- Complete serial Debug regression passed on the unlocked host: 1,304 KeyCore
+  tests in 109 suites and six canonical-JSON tests in one suite. This includes
+  all final service/session declarations and existing profile-2 paths. The
+  separately gated large-migration qualification was skipped as designed.
+- Targeted serial optimized Release regression passed: 83 tests in seven suites
+  covering recovery rotation construction/publication/service, exact session
+  replacement, recovery ordinary-service composition and permanent-profile
+  checkpoint unlock/revocation service. This increment did not rerun the full
+  Release suite; the preceding durable-rotation increment's full Release result
+  is recorded above.
+- Unsigned universal Preview build passed. App, CLI and helper contain arm64 and
+  x86_64 slices. Product-bundle isolation and CLI help/completion checks passed;
+  no app was installed.
+- Strict formatting of new service/test files, 149 local documentation targets,
+  Xcode project syntax and `git diff --check` passed. Existing session-store
+  formatting outside the added replacement method was retained.
+
+Raw logs use `tmp/piv-recovery/2026-10-06-rotation-service-`; build artifacts stay
+in the existing ignored directory. No installed app, real vault/configuration or
+YubiKey was changed. No token operation, administration, push, notarization or
 release was performed.
