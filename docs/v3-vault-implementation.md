@@ -2219,11 +2219,13 @@ and token-free ordinary read/edit/reopen with disposable entries. The experiment
 are archived locally, not supported product commands. No public prerelease
 was cut for this work. The latest private artifact was `0.2.0-piv-test.2 (21)`.
 
-Current work is `REC-806`: an isolated epoch-key capsule is implemented and
+Current work is `REC-807`: an isolated epoch-key capsule is implemented and
 AI-reviewed; recipient contexts/wrappers, profile codecs, and boundary transcripts
 are implemented as internal domain components, alongside bounded anchored
-selection and complete current-snapshot verification. Native token provenance,
-domain acceptance/review and product lifecycle integration remain. The
+selection, complete current-snapshot verification, native public-reader and
+scoped agreement foundations with configured-policy checks. Owner-operated
+credential setup is selected; guarded anchor writes, hardware qualification, domain
+acceptance/review and product lifecycle integration remain. The
 [contract](piv-recovery-contract.md) and [review dispositions](piv-recovery-ai-review.md)
 record the single-approval
 experimental direction and historical-verification/alternative-lineage limits.

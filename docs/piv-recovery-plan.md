@@ -91,11 +91,11 @@ are the implementation packages, not new names for already completed probes.
 
 | Package | Deliverable | Depends on | Status |
 |---|---|---|---|
-| `REC-804` | Format, authority, lifecycle, and compatibility contract | Baseline | In progress; AI review disposition recorded; experimental direction authorized; graph/platform/adoption decisions remain |
+| `REC-804` | Format, authority, lifecycle, and compatibility contract | Baseline | In progress; experimental direction and AI review disposition recorded; internal exact adoption publication/resume implemented; integrated graph/platform and rollout acceptance remain |
 | `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; profile-3 domain codecs, contexts, proof construction/checks, and fixtures implemented; final acceptance and integrated review remain |
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
-| `REC-807` | Product token binding, supported administration, and credential lifecycle | 804 | Planned |
-| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | Planned |
+| `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
+| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; candidate/intent, durable journal, native binding and internal prepare/resume/finish with manifest-last activation implemented; product composition/status, reciprocal pending barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | Planned |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | Planned |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
@@ -240,14 +240,17 @@ single deferred integration PR.
 - Define PIN/touch policy requirements, removal/cancellation/deadline behavior,
   per-process operation exclusion, and public-reader/private-operation session
   ordering. Never retry authentication automatically or expose PIN/PUK values.
-- Compare supported owner-operated vendor administration with in-app management
-  writes. Prefer the supported owner-operated route initially if it meets the
-  workflow; in-app writes would add credential custody and interrupted-write
-  responsibilities. Record the decision and how exact readback is verified.
-- Establish protected anchor administration before real registration. Refuse
-  unknown occupied objects/slots, preserve reviewed prior state, and never reset
-  PIV or replace a key automatically. Keep management credentials out of CLI
-  arguments, XPC, logs, and provider files.
+- All administration, including credential preparation and anchor installation,
+  stays in owner-run vendor tools. Key does not collect administrative secrets or
+  execute a vendor importer. Export only the reviewed public anchor and explain
+  the exact write, target selection and finish verification.
+- Document protected administration as an owner prerequisite before real
+  registration. Refuse occupied application objects during initial preparation
+  and incompatible credentials; never reset PIV or replace a key automatically.
+  Explicitly exclude atomic prior-state preservation across an external import:
+  preflight and exact readback cannot prevent the vendor tool from overwriting
+  changed state. Keep management credentials out of Key, command arguments,
+  XPC, logs and provider files.
 - Qualify certificate renewal/expiry with an unchanged key, key replacement,
   reset invalidation, and safe PIN/PUK recovery guidance. Simulate wrong-PIN and
   blocked-token cases; do not deliberately consume hardware retry counters.
@@ -259,6 +262,9 @@ single deferred integration PR.
 - Register an explicitly reviewed credential from a complete authenticated
   enrolled-Mac vault. Publish exact encrypted artifacts, verify anchor readback,
   and prove possession before reporting verified registration.
+- Separate prepare/export from finish/activation. Authenticate one immutable
+  pending candidate and source checkpoint; reselect and review the token after
+  the external write. Vendor success is never an activation signal.
 - Preserve one authenticated candidate across interruption. Reconcile that
   candidate after reauthentication; do not regenerate randomness, overwrite
   unfamiliar objects, repeat hardware writes, or promote provider intent to trust.
@@ -390,15 +396,23 @@ single deferred integration PR.
 - **Real-vault ready:** 813/814 pass and explicit adoption in 815 is qualified.
 - **Full completion:** 815's Stable artifact is released and verified.
 
-The current increment is `REC-806`, with final `REC-805` acceptance and remaining
-`REC-804` integrated decisions tracked explicitly. The [contract](piv-recovery-contract.md) describes the
+The latest increment is internal durable adoption under `REC-804`, following
+the `REC-808` registration service, with remaining `REC-807` integration,
+final `REC-805`/`REC-806` acceptance and `REC-804` integrated decisions tracked
+explicitly. The
+[contract](piv-recovery-contract.md) describes the
 experimental dual-authorization direction and its reduced historical replay
 promise. The capsule, recipient roster, recovery contexts/wrappers, containing
-profile, canonical proof projection, anchor codec, graph selector, and snapshot
-verifier are implemented as internal domain components. Finish domain acceptance
-and integrate native token provenance next. Only the isolated capsule has a fresh
-independent AI review; the new components have software checks, not integrated
-review or product/hardware qualification.
+profile, canonical proof projection, anchor codec, graph selector, snapshot
+verifier, registration candidate/intent, completion checks, durable preparation
+journal and service-owned manifest-last activation are implemented as internal
+components. Explicit profile-adoption construction/validation, durable exact
+publication/resume and a source-level old-client refusal check are implemented.
+Finish profile-3 ordinary mutations/catch-up/lifecycle, domain acceptance and
+product integration next. Native public-read binding and
+scoped agreement are implemented but have not been physically qualified. Only
+the isolated capsule has a fresh independent AI review; the new components have
+software checks, not integrated review or product/hardware qualification.
 
 ## Implementation evidence ledger
 
@@ -413,6 +427,14 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Second 805 domain component, 2026-10-04 | [Recipient roster/codec](../Sources/KeyCore/V3RecoveryRecipients.swift), [recovery HPKE](../Sources/KeyCore/V3RecoveryVaultKeyHPKE.swift), and software tests | No profile dispatch, epoch proof, token anchor, registration, source graph, service command, or real-vault activation. Verification details follow below. |
 | Third 805 domain component, 2026-10-04 | [Profile/codec](../Sources/KeyCore/V3RecoveryManifest.swift), [boundary transcripts](../Sources/KeyCore/V3RecoveryEpochBoundary.swift), [14 software tests](../Tests/KeyCoreTests/V3RecoveryManifestTests.swift), and [experimental schema](schemas/v3-recovery-manifest-body.schema.json) | Parsed/publicly checked state is not an anchored graph, a publication-approved candidate, or a restorable snapshot. No shipping profile-3 caller is enabled. |
 | First 806 domain increment, 2026-10-04 | [Anchor](../Sources/KeyCore/V3RecoveryAnchor.swift), [bounded history selector](../Sources/KeyCore/V3RecoveryHistory.swift), [snapshot verifier](../Sources/KeyCore/V3RecoverySnapshot.swift), and [graph/source tests](../Tests/KeyCoreTests/V3RecoveryHistoryTests.swift) | One software agreement across multiple epochs; complete selected current entries; no native token provenance, protected administration, restore service, or product activation. |
+| First 807 native foundation, 2026-10-04 | [Public token reader](../Sources/KeyCore/PIVRecoveryTokenReader.swift), [17 software tests](../Tests/KeyCoreTests/PIVRecoveryTokenReaderTests.swift), native SDK and two-architecture compilation | No external certificate file or fixed reader name. Scripted read/session tests are not physical-token qualification, private-key binding, possession, protected administration or registration readiness. |
+| Second 807 native foundation, 2026-10-05 | [Scoped agreement adapter](../Sources/KeyCore/PIVRecoveryAgreement.swift), [software boundary tests](../Tests/KeyCoreTests/PIVRecoveryAgreementTests.swift), shared reader lease and native compilation | Unique token/public-key handle binding, one-use scope and pending-worker exclusion. Native query/prompt delivery, required PIN/touch policy, protected setup and hardware behavior remain unqualified. No product caller or hardware operation was enabled. |
+| Third 807 native foundation, 2026-10-05 | [Key metadata codec](../Sources/KeyCore/PIVRecoveryKeyMetadata.swift), [codec tests](../Tests/KeyCoreTests/PIVRecoveryKeyMetadataTests.swift), reader/agreement refusal tests and [setup boundary](piv-recovery-contract.md#owner-operated-setup-boundary) | Requires explicit PIN/touch ALWAYS and reported generated origin, not attestation or demonstrated enforcement. Vendor credential setup selected; unconditional object import does not satisfy guarded anchor writing. |
+| First 808 domain increment, 2026-10-05 | [Registration construction/completion checks](../Sources/KeyCore/V3RecoveryRegistration.swift), [authenticated pending-intent codec](../Sources/KeyCore/V3RecoveryRegistrationIntent.swift), [19 software tests](../Tests/KeyCoreTests/V3RecoveryRegistrationTests.swift), and [external workflow](piv-recovery-contract.md#planned-external-registration-experience) | All administration stays external; atomic prior-state preservation across vendor import is explicitly excluded. No durable staging/publisher, native registration service, product command, hardware call or activation. Verification details below. |
+| Second 808 storage increment, 2026-10-05 | [Complete preparation codec](../Sources/KeyCore/V3RecoveryRegistrationBundle.swift), [journal](../Sources/KeyCore/V3RecoveryRegistrationJournal.swift), [contained filesystem storage](../Sources/KeyCore/V3RecoveryRegistrationFilesystem.swift), and 22 additional tests in the [registration suite](../Tests/KeyCoreTests/V3RecoveryRegistrationTests.swift) | Durable atomic preparation and revalidated resume/export only. Device-local store behavior is scripted, not native Keychain qualification. No service-owned source/head/native-token review, reconciliation cleanup, activation, status route or hardware call. |
+| Third 808 service increment, 2026-10-05 | [Registration service](../Sources/KeyCore/V3RecoveryRegistrationService.swift), [bounded exact-transition observer](../Sources/KeyCore/V3RecoveryRegistrationRepository.swift), and [service phase tests](../Tests/KeyCoreTests/V3RecoveryRegistrationServiceTests.swift) | Internal profile-3 prepare/resume/finish and committed-state reconciliation. Real filesystem/crypto, scripted native calls and local stores. No shipping composition/CLI/XPC, profile-2 adoption, general profile-3 catch-up/content writes, physical qualification or hardware administration. |
+| First 804 adoption implementation, 2026-10-05 | [Adoption builder/validator](../Sources/KeyCore/V3RecoveryProfileAdoption.swift), [shared snapshot validator](../Sources/KeyCore/V3EntrySnapshotValidator.swift), [11 adoption tests](../Tests/KeyCoreTests/V3RecoveryProfileAdoptionTests.swift), and `v0.2.0` source comparison | Exact signed profile-2 to profile-3 candidate only. Tested existing discovery/access-gate refusal, not the released binary. No durable adoption service, checkpoint advancement, ordinary profile-3 writes or product route. |
+| Second 804 adoption implementation, 2026-10-05 | [Adoption service](../Sources/KeyCore/V3RecoveryAdoptionService.swift), [encrypted preparation](../Sources/KeyCore/V3RecoveryAdoptionPreparation.swift), [contained preparation store](../Sources/KeyCore/V3RecoveryAdoptionFilesystem.swift), [shared exact-source reader](../Sources/KeyCore/V3ExactTransitionRepository.swift), and [20 service/storage tests](../Tests/KeyCoreTests/V3RecoveryAdoptionServiceTests.swift) | Internal exact publication/resume, manifest-last checkpoint/session advancement and committed reconciliation. Real filesystem/crypto with scripted local stores and confirmation failures. No product routing, reciprocal runtime barriers, ordinary profile-3 writes/lifecycle or native qualification. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -491,7 +513,7 @@ The shared foundation is preserved locally as `9331268`.
   plist syntax, 53 local documentation targets, schema JSON syntax/shape, 60 local
   schema references, and `git diff --check` passed. Schema shape checks are not
   an independent JSON Schema validation engine.
-- Full Debug verification of this increment awaits an unlocked console. The Mac
+- At this increment, full Debug verification awaited an unlocked console. The Mac
   locked again after the previous increment's passing full run. No protected
   storage behavior, system lock setting, or token configuration was changed.
 
@@ -543,7 +565,499 @@ symlink refusal. No private hardware callback is exercised by these tests.
   the verified snapshot's fileprivate initializer. Raw probe code/output remains
   under ignored `tmp/piv-recovery/`, not in the product or committed tests.
 
-Full Debug verification still awaits an unlocked console; the unchanged full
+At this increment, full Debug verification awaited an unlocked console; the unchanged full
 Release compatibility limitation is recorded above. No system lock setting or
 protected-file behavior was changed. Raw logs remain under ignored
 `tmp/piv-recovery/`; no install, token operation, push, or release was performed.
+
+### Native public-reader verification, 2026-10-04
+
+The first 807 increment uses token-to-slot metadata and a retained native card
+instance rather than the archived probe's one fixed reader name and separately
+supplied certificate. It requires explicit selection, reads slot 9d's public
+certificate and the application anchor in one exclusive session, validates the
+P-256 point and anchor credential ID, and rechecks the retained binding. Candidate
+handles belong to one reader instance; removal cannot revive a reviewed handle
+through a same-named replacement. Certificate issuer/expiry is not authority.
+
+The command surface contains only PIV application selection and the two public
+GET DATA reads. It cannot express PIN verification, administration, private-key
+operations, writes or reset. Occupied unrecognized bytes are not returned; a
+private digest detects changes during revalidation. An absent object is distinct
+from an occupied empty object or an invalid response. A recognized anchor is
+not proof of protected administration or registration readiness.
+
+Live access shares a process-wide operation gate. Late begin/send callbacks
+retain its lease after the 25-second public-read deadline until native completion
+and session closure. Timeout does not claim cancellation or allow overlapping
+operations. The software tests exercise these lifetime rules without sleeping,
+calling native token methods or consuming hardware retry counters.
+
+Native implementation was compiled against the installed macOS 27 SDK with
+deployment target 14; the SDK's token-info and card-lifetime contracts informed
+the binding. [Apple's token information](https://developer.apple.com/documentation/cryptotokenkit/tktokenwatcher/tokeninfo?language=objc)
+exposes token ID and optional reader-slot metadata. This is not hardware
+attestation. The SDK documents `com.apple.security.smartcard` for access to
+`TKSmartCardSlotManager.default`. Neither helper currently grants it; no
+entitlement, installed-product capability or CLI/XPC route changed here.
+
+Verification:
+
+- Focused Debug and Release regressions each passed 146 tests across 14 suites,
+  including 17 new public-reader and session-lifetime tests. Neither result is a
+  full-suite pass.
+- Unsigned arm64/x86_64 Preview app, CLI and helper build, product-bundle
+  isolation and bundled CLI help passed. No recovery command was enabled.
+- Strict formatting, project plist syntax, 64 local documentation link targets
+  and `git diff --check` passed.
+
+Remaining 807 work is unique native agreement-key binding to this observation,
+one approved operation, cancellation/deadline/exclusion integration, protected
+owner-operated setup and product/hardware qualification. The occupied disposable
+object and factory-default management credentials were not altered. No native
+token discovery, read or private operation was run in this increment. Full Debug
+verification then awaited an unlocked console; the known full Release limitation
+remains. Raw logs stay under ignored `tmp/piv-recovery/`.
+
+### Scoped agreement verification, 2026-10-05
+
+The second 807 increment connects a reviewed reader observation to one-use HPKE
+agreement through the Security provider. One process-wide lease spans public
+revalidation, noninteractive lookup, another public revalidation, one ECDH
+request and final public revalidation. No public card session stays open during
+agreement. Token ID, public point, private P-256 attributes, uniqueness and
+algorithm support are checked before enabling interaction. There is no external
+certificate input, label-only identity, software fallback or authentication retry.
+
+Cancellation, scope exit and the absolute deadline discard stopped/late results
+and invalidate the operation's authentication context. The waiting caller can
+return while native work remains pending; that worker retains exclusion until
+native return and cleanup. Context invalidation is a cancellation request, not
+a native termination guarantee. Tests deliberately hold a scripted provider
+pending, prove the gate stays claimed, and release it without a token operation.
+
+The software tests exercise scope escape/concurrent reuse, malformed peers,
+missing/ambiguous/mismatched/unsupported handles, provider failure, invalid result
+size, removal, anchor changes, busy exclusion, cancellation and timeout. The KEM
+comparison uses a software peer and public certificate fixture; it is not native
+provider interoperability. Native code was compiled, not invoked. Apple's
+[authentication context](https://developer.apple.com/documentation/security/ksecuseauthenticationcontext)
+and the installed macOS 27 SDK informed the query and cancellation boundary.
+
+Verification:
+
+- Focused Debug and Release regressions each passed 161 tests across 15 suites,
+  including 15 new agreement-boundary tests. Neither is a full-suite pass.
+- The 15 agreement-boundary tests also passed with default runner concurrency.
+- Unsigned arm64/x86_64 Preview app, CLI and helper build, product-bundle
+  isolation and bundled CLI help passed. No recovery command was enabled.
+- Strict formatting, project plist syntax, 67 local documentation link targets
+  and `git diff --check` passed.
+- An ephemeral software public-key import exposed the nonempty application
+  label required by lookup; a software private-key import confirmed attribute
+  decoding. Neither probe queried the keychain or native token.
+
+Protected owner-operated setup, required PIN/touch policy and signed-product
+capabilities remain next, followed by explicit-scope native qualification on
+disposable data. Public observation and successful ECDH alone are not registration
+readiness or a real-vault restore. No entitlement, CLI/XPC route, installed build,
+YubiKey credential/object or vault was changed. Raw logs remain under ignored
+`tmp/piv-recovery/`; full Debug then awaited an unlocked console and the known
+full Release limitation remains.
+
+### Configured policy and setup verification, 2026-10-05
+
+The third 807 increment adds only GET METADATA for slot 9d to the closed public
+command surface. It checks the metadata P-256 point against the certificate,
+retains reported origin/PIN/touch policy in the observation, and compares them
+on every revalidation. Agreement refuses all but generated origin and explicit
+PIN/touch ALWAYS before provider lookup. Missing metadata cannot fall back to
+certificate-only identity. There is no PIN verification or administrative APDU.
+
+The codec reuses strict bounded TLV framing: exact fields, supported values and
+curve encoding, with a 256-byte response limit. Ten additional software tests
+cover recognized versus accepted policies, malformed and substituted metadata,
+removal during the new read, weaker/imported credentials, and policy changes
+before or after agreement. Fixtures are software-only; no current token metadata
+was fetched and no hardware retry counter was consumed.
+
+Primary evidence: Yubico's
+[GET METADATA extension](https://developers.yubico.com/PIV/Introduction/Yubico_extensions.html),
+[policy guide](https://docs.yubico.com/yesdk/users-manual/application-piv/pin-touch-policies.html),
+and [PIV CLI guide](https://docs.yubico.com/software/yubikey/tools/ykman/PIV_Commands.html),
+plus the installed `ykman` 5.9.2 `yubikit/piv.py` and `ykman/_cli/piv.py`.
+The source establishes flat metadata TLVs, policy/origin constants, nested
+public-point encoding, management authentication for PUT DATA, hidden credential
+prompts and unconditional object import. It was read, not executed on hardware.
+
+At this increment, owner-operated vendor credential setup was the initial choice.
+Key would not collect management credentials for it. Guarded anchor writing was
+unresolved:
+the vendor importer has no reviewed-prior-state comparison, and Key's gate is
+not cross-process exclusion. The contract records the random nondefault AES
+management-key direction, PIN-protected versus separate custody tradeoff, and
+the approval/readback requirements. These are not hardware instructions or proof
+of current protected administration. The existing disposable object and default
+management key were not changed.
+
+The subsequent external-registration decision below supersedes that unresolved
+writer choice; the observations and qualification limits above remain applicable.
+
+Verification:
+
+- Complete Debug suite with the console unlocked: 949 KeyCore tests across
+  88 suites and 6 canonical-JSON tests passed. This covers the previously deferred
+  profile, history, reader and agreement increments together with the policy
+  changes. Their earlier unlocked-console verification gap is closed.
+- Focused Release regression: 171 tests across 16 suites passed. This does not
+  supersede the unchanged full Release qualification-bundle limitation.
+- Unsigned arm64/x86_64 Preview app, CLI and helper build, product-bundle
+  isolation and bundled CLI help passed. No recovery command was enabled.
+- Strict formatting, project plist syntax, 71 local documentation targets and
+  `git diff --check` passed. Logs remain under ignored `tmp/piv-recovery/`.
+
+Configured-policy checks do not qualify actual prompts, native metadata delivery
+or protected anchor administration. No install, hardware call, write, credential
+change, push or release was performed.
+
+### First 808 domain verification and external-administration decision
+
+The owner selected vendor tools for both preparation and anchor installation.
+Key must not collect administrative credentials, execute the vendor importer, or
+write to the token. Public preflight and exact finish verification do not provide
+atomic prior-state preservation across an unconditional external import. This
+limit is recorded in the contract, together with the planned user workflow.
+
+The [registration component](../Sources/KeyCore/V3RecoveryRegistration.swift)
+adds one new recipient to an already authenticated experimental profile-3 parent.
+It refuses occupied application objects, incompatible credentials and duplicate
+recipients, retains existing devices/recipients, rotates the vault and epoch
+authority, reseals the complete current snapshot, and creates new device and
+recovery wrappers. It reuses the existing entry cipher, HPKE contexts and dual
+boundary authorization; no shipping profile-2 dispatch or adoption is changed.
+
+The [pending intent](../Sources/KeyCore/V3RecoveryRegistrationIntent.swift) has
+bounded exact canonical fields and a domain-separated HKDF/HMAC under the parent
+vault key. It binds the operation, parent, authorizing Mac, candidate/anchor,
+recipient and staged-entry addresses. Serialized bytes contain public identifiers
+and an authentication tag, not raw keys, plaintext or saved possession approval.
+Parsing does not authenticate it or make it publication authority.
+
+Completion authenticates the same pending candidate, checks its exact parent and
+anchor, verifies dual signatures and current MAC/capsule, opens the local Mac
+wrapper, and independently compares every old/new entry's plaintext bytes. It
+then opens one exact candidate recovery wrapper and compares that key with the
+local result. Cancellation and other failures are not retried; a reloaded intent
+requires a fresh operation. Scripted/software inputs do not establish native
+provenance, actual PIN/touch enforcement or administration readiness.
+
+This is an internal domain increment, not a finished prepare/finish service.
+Remaining 808 work includes durable immutable staging/export, authenticated local
+intent ownership and phase reconciliation, fresh native review around the
+external handoff, source/head/token rechecks under product mutation ownership,
+manifest-last activation, checkpoint advancement and readiness/status. The
+completion function returns no durable approval and must not substitute for
+those publication barriers. Product commands and physical tests are not enabled.
+
+Verification, 2026-10-05:
+
+- The 19 new registration tests passed. They cover candidate construction,
+  exact intent parsing/authentication, policy and occupancy refusal, complete
+  same-byte resealing, substitution checks, cancellation and fresh possession
+  after reloading the serialized intent. All key operations use software fixtures.
+- `swift test --no-parallel` passed the complete Debug suite: 968 KeyCore tests
+  across 89 suites and 6 canonical-JSON tests. Two full runs without explicit
+  serial scheduling failed one-second coordination waits in unchanged runtime,
+  catch-up and mutation-owner tests. The later run had no competing compilation;
+  competing builds do not explain that result. A focused run of those three
+  suites passed all 27 tests under ordinary scheduling. Scheduling sensitivity
+  under the full concurrent load is suspected, not established as the cause;
+  no unrelated timeout or concurrency code was changed.
+- The final-source affected Release regression passed 217 tests across 17
+  suites, covering recovery/profile, epoch capsules, token boundaries and device
+  transitions. A complete Release run was not performed; the previously recorded
+  qualification-bundle limitation is unchanged.
+- The unsigned Preview app, CLI and helper built for arm64 and x86_64 using the
+  existing package checkout. Product-bundle isolation and bundled CLI help checks
+  passed. This compiles the internal components, not an enabled recovery command.
+- Strict Swift formatting, project plist syntax, 37 unique local documentation
+  file targets and `git diff --check` passed. Raw logs and the unsigned build
+  remain under ignored `tmp/piv-recovery/`.
+
+No native token operation, hardware write, credential change, installation,
+notarization, push or release was performed. These tests do not replace integrated
+review, durable-phase verification or physical qualification.
+
+### Second 808 storage increment, 2026-10-05
+
+The preparation journal chooses one atomically installed bundle over independent
+intent/manifest/entry writes. It preserves the exact randomized candidate before
+the external handoff, without publishing any current-state object. The existing
+contained no-overwrite writer and root-identity checks are reused; no replacement
+filesystem writer or new provider backend was introduced. The bundle embeds existing
+canonical objects rather than base64-encoding the encrypted snapshot a second
+time. Aggregate/per-object limits precede parsing or object construction where
+possible; the outer read is bounded before allocation.
+
+Local ownership uses the existing prepared/recoverable record and compare-before-
+replacement interface in a dedicated non-synchronizing registration namespace.
+The ordinary transaction default is unchanged. A provider-only bundle is never
+selected or adopted. Registration staging lives under
+`.recovery-registrations/<operationID>/preparation.json`, outside ordinary
+transaction discovery. This record is experimental version 1 with exactly
+`format`, `version`, `intent`, `candidate` and `entries` fields; the codec enforces
+exact candidate/parent/authorizer and ordered entry bindings. Parsing proves no
+parent authority, consent or possession.
+
+Preparation validates the complete old/new snapshot before reserving ownership,
+installs the complete bundle, reads it back, revalidates it, confirms exact-file
+and directory synchronization, promotes ownership, and only then returns the
+exact public anchor. Resume repeats full cryptographic
+and plaintext checks with caller-supplied authenticated keys. It does not sign,
+reseal, rewrite the bundle or save a possession result. Missing or invalid files,
+changed authority, ownership conflicts and failures retain pending evidence.
+A prepared reservation without a complete bundle cannot resume automatically;
+explicit pre-handoff abandonment/reconciliation remains a later service case.
+
+Twenty-two additional tests include all four journal phase interruptions, failure
+before atomic installation, exact reload, duplicate/unsupported/substituted
+records, aggregate/per-object limits, missing/invalid/oversized files, competing
+ownership attempts, ownership changes before export, no-overwrite installation,
+linked-path refusal, changed configured-root identity, failed durability
+confirmation and disappearance after readback. Readable data cannot be promoted
+after a synchronization failure; retry validates and synchronizes the same bytes
+without regenerating them. A completion exercise on reloaded disk bytes still
+requires a fresh software possession operation each
+time. The filesystem writer is real; local ownership is a scripted store using
+the production compare-before-replacement contract, not a test of native
+Keychain persistence or cross-process exclusion.
+
+The journal must be called inside the helper's mutation owner. It does not
+observe live heads/checkpoints, block other product mutations, review a native
+credential, write a standalone export file, activate recovery or clear pending
+records. Native binding, integrated phase reconciliation, manifest-last
+publication, checkpoint advancement and user-facing status remain next. No
+product route, installation or hardware administration was enabled.
+
+Verification:
+
+- All 41 registration tests passed, including the 22 new storage tests and the
+  four cases of the journal interruption test. No token was contacted.
+- Final-source `swift test --no-parallel` passed the complete Debug suite:
+  990 KeyCore tests across 89 suites and 6 canonical-JSON tests. The previously
+  recorded concurrent full-suite scheduling limitation was not reassessed.
+- Affected Release regression passed 283 tests across 20 suites. This includes
+  recovery/profile, token boundaries, device transitions, ordinary immutable
+  transaction recovery and the immutable repository. Full Release was not run;
+  the existing qualification-bundle limitation is unchanged.
+- Final-source unsigned arm64/x86_64 Preview app, CLI and helper builds passed,
+  as did product-bundle isolation and bundled CLI help/completion checks.
+- Strict formatting of the new/expanded Swift files, project plist syntax,
+  40 unique local documentation file targets and `git diff --check` passed.
+  Raw verification logs and the unsigned build remain in ignored
+  `tmp/piv-recovery/`.
+
+No user vault/configuration, installed product, hardware credential or token
+object was changed. No notarization, push or release was performed. Native
+Keychain qualification, integrated review and product/hardware acceptance remain.
+
+### Third 808 service increment, 2026-10-05
+
+The internal registration service now owns prepare, exact resume/export and
+finish under the existing shared mutation owner. It composes the registration
+builder/validator, durable journal, contained immutable publisher, local
+checkpoint store and native reader/agreement adapters. Shipping profile-2
+dispatch is unchanged; no CLI/XPC route instantiates this service.
+
+Preparation reviews the authenticated current snapshot and fresh bound token,
+requires absent anchor occupancy and the reported generated/PIN ALWAYS/touch
+ALWAYS policy, persists one exact randomized candidate and returns only its
+public anchor. All credential generation, administration and import remain
+owner-run outside Key. Resume opens the candidate's local wrapper once and
+revalidates the retained exact bytes without signing or generating a replacement.
+
+Finish rechecks intent, owner, current source/checkpoint, exact installed anchor,
+dual boundary, MAC/capsule and complete same-plaintext comparison. It opens the
+local wrapper once and requests one agreement through the scoped native adapter.
+Successful possession is consumed within that request, never persisted. The
+existing publisher installs entries first and the manifest last, with exact
+readback, source/checkpoint/token rechecks and resource budgets before local
+checkpoint advancement. Session installation follows checkpoint advancement;
+only then is local pending ownership cleared. The encrypted preparation bundle
+is retained inert for audit, not deleted or adopted by scanning.
+
+The bounded observer uses the local authenticated checkpoint as its floor,
+matching the shipping observer's trust model. It accepts only that current
+snapshot and this exact pending transition above the floor. Competing same-vault
+state refuses instead of silently selecting, merging or rebasing it. Pre-floor
+manifests consume listing/byte budgets but are not reopened under historical
+keys. This observer does not apply recovery's reduced replay rules to authorize
+normal publication. General profile-3 catch-up remains separate work.
+
+An interruption before checkpoint advancement requires a fresh possession
+operation, including after manifest publication. After exact checkpoint
+advancement, reconciliation reauthenticates current local contents and repairs
+session/ownership state without another agreement or republication. Cleanup
+failure reports a committed result with cleanup pending. A lost reply after
+ownership cleanup is recognized only when the existing local checkpoint equals
+the token floor and its authenticated active recipient matches. Token/provider
+data cannot establish a new local checkpoint through that path.
+
+Nineteen service tests exercise real filesystem staging/publication, actual
+cryptography, the mutation owner and reader/agreement adapters. Native calls and
+device-local stores are scripted. Cases include prepare interruption, eight
+finish phase interruptions, checkpoint/session/cleanup failures, lost replies,
+single-operation cancellation, pre-expired requests, changed source/token,
+competing state before and after publication, corruption and projected limits.
+No hardware operation, credential change or administrative write was performed.
+
+Remaining work includes explicit profile-2 adoption, helper composition and
+status/CLI/XPC boundaries, pending-state barriers for other mutations, ordinary
+profile-3 content and authority lifecycle, and native checkpoint/token physical
+qualification. `REC-808` is not complete. The components have not received a
+fresh integrated independent review.
+
+Verification of final source:
+
+- Complete serial Debug regression passed 1,009 KeyCore tests in 90 suites and
+  6 canonical-JSON tests. This includes all 60 registration tests. The previously
+  recorded concurrent full-suite scheduling limitation was not reassessed.
+- Affected serial Release regression passed 319 tests in 23 suites. The initial
+  concurrent selection hit the existing one-second first-operation waits in two
+  mutation-owner tests; both failures and the serial retry are retained. Full
+  Release was not run; the prior qualification-bundle limitation is unchanged.
+- The unsigned Preview app, CLI and helper built for arm64 and x86_64. Bundle
+  isolation and bundled CLI help/completion checks passed. Nothing was installed.
+- Strict formatting of the new/expanded Swift files, project plist syntax,
+  43 unique local documentation targets and `git diff --check` passed.
+  Raw logs and build output remain under ignored `tmp/piv-recovery/`.
+
+No real vault/configuration, installed product or token was changed. No
+notarization, push or release was performed.
+
+### First 804 adoption implementation, 2026-10-05
+
+The adoption builder creates an explicit profile-2 to profile-3 child of the
+exact locally authenticated checkpoint. It is not a new vault, a registration
+or a profile discriminator change applied to old ciphertext. It retains the
+whole device roster, creates profile-3 wrappers for active Macs only, rotates
+the vault key and authority-transition ID, reseals every current entry and
+creates a fresh epoch capsule. Entry identity, name, type and revision stay
+unchanged. The initial recovery roster is empty, with no recovery wrapper or
+protection claim.
+
+The old active Mac signs the entire canonical child and exact parent digest.
+The epoch proof is null because profile 2 supplies no prior epoch signer. The
+independent validator checks strict parsing, old/new MACs and key identities,
+the active parent's signature, exact roster and metadata, the new capsule and
+all old/new plaintexts. Publication validation additionally opens the addressed
+local new wrapper once and compares its key. Errors/cancellation return without
+an automatic private-operation retry. No saved approval is returned.
+
+Registration and adoption now share the bounded complete-entry snapshot checker.
+Registration retains its existing error contract; its 60 tests are included in
+regression. No new cryptographic primitive or dependency was introduced.
+
+Eleven adoption tests cover secret/TOTP and Unicode metadata, a retained
+revision-7 entry, multiple active Macs and a revoked Mac, empty vaults, opening
+both active wrappers, wrong profile domains, independent validation, malformed
+preparation before signing, snapshot/manifest limits, missing/duplicate objects,
+changed roster/content/capsule/proof, wrong authorizer and local wrapper failure
+or cancellation. A separate integration case uses the real contained filesystem
+to present the exact signed adoption candidate to existing profile-2 discovery
+and the access gate. Both ordinary and stale-read requests receive
+upgrade-required before a wrapper operation. A follow-on software registration
+uses the adopted snapshot as its parent and establishes its separate token floor.
+
+The `v0.2.0` discovery and owner-signature guard files are unchanged from the
+tested code. Related outer-parser differences are shared visibility/comments;
+the coordinator difference is prompt copy. This supports the intended refusal
+without claiming execution of the published binary or complete multi-Mac upgrade
+qualification. A provider withholding the adoption file remains outside global
+freshness guarantees.
+
+This increment implements migration construction/validation only. Durable
+adoption intent, exact resume, source/head and pending-state barriers,
+manifest-last publication, checkpoint/session advancement and product routing
+remain. Ordinary profile-3 mutation/lifecycle and integrated review/qualification
+must pass before real-vault opt-in. No implementation package is marked complete.
+
+Verification:
+
+- Complete serial Debug regression passed 1,020 KeyCore tests in 91 suites and
+  6 canonical-JSON tests. Focused adoption/registration regression passed all
+  71 tests in three suites.
+- Affected serial Release regression passed 330 tests in 24 suites. Full Release
+  and concurrent full-suite scheduling were not reassessed; prior limitations
+  remain recorded above.
+- The unsigned arm64/x86_64 Preview app, CLI and helper built. Product-bundle
+  isolation and bundled CLI help/completion checks passed.
+- Strict formatting of the new/expanded Swift files, project plist syntax and
+  `git diff --check` passed. Raw output remains under ignored `tmp/piv-recovery/`.
+
+No installed product, real vault/configuration or token was changed. No native
+authentication, hardware write, notarization, push or release was performed.
+
+### Second 804 adoption implementation, 2026-10-05
+
+The internal service now publishes and resumes the exact adoption candidate.
+It reuses the contained immutable writer, shared mutation owner, local ownership
+and checkpoint compare-and-swap. Registration and adoption share bounded exact
+source inventory and preparation durability checks; each retains its domain
+authentication and full snapshot validation. No new dependency or crypto
+primitive was introduced, and shipping profile-2 dispatch stays unchanged.
+
+One complete canonical encrypted preparation is stored under
+`.recovery-adoptions/<operationID>/preparation.json`. A dedicated non-sync local
+record pins the whole preparation digest. Unarmed ownership is reserved before
+atomic installation, then promoted to recoverable only after exact readback,
+one addressed local wrapper opening, complete old/new crypto validation and
+file/directory synchronization. Resume repeats those checks on the same bytes;
+it cannot regenerate keys or a signature. An ambiguous confirmation failure
+must be reconfirmed, not inferred successful from readability.
+
+Bounded inventory refuses competing same-vault manifests and projected budget
+overflow. Other pending transaction/registration records, the source, local
+ownership and checkpoint are checked before signing/publication and around
+approval. Entries publish first and are read back before the manifest publishes.
+The checkpoint advances after exact manifest/entry readback and source checks;
+the verified new key then installs in the local session before ownership clears.
+
+Committed reconciliation opens the current local wrapper once, authenticates
+the capsule/MAC and complete current snapshot, and repairs session/ownership.
+It does not decrypt old entries, publish again or re-sign. After ownership
+cleanup, an explicitly selected provider preparation can reconcile only the
+already committed exact local checkpoint; it cannot establish ownership,
+advance trust or prove operation attribution. Encrypted files remain inert for
+inspection. An incomplete unarmed reservation requires attention or explicit
+exact-operation abandonment; recoverable ownership cannot use that escape.
+
+Twenty service/storage tests exercise real crypto and filesystem publication,
+13 interruption phases, lost replies, missing preparation, failed durability
+confirmation, checkpoint and cleanup failures, session repair without old
+entries, provider-only preparations, changed bindings/source/checkpoint,
+competing manifests, pending barriers, cancellation without retry, projected
+limits, canonical/aggregate bounds, no-overwrite and symlink containment.
+Dedicated registration/adoption kinds are refused by ordinary recovery intents.
+Local persistence and confirmation failures are scripted, not physical Keychain
+or power-loss qualification.
+
+Verification:
+
+- Complete serial Debug regression passed 1,040 KeyCore tests in 92 suites and
+  six canonical-JSON tests, including all final service and race cases.
+- Affected serial Release regression passed 350 tests in 25 suites. This is not
+  a full Release result or a reassessment of the previously recorded concurrent
+  full-suite scheduling and qualification-bundle limitations.
+- The unsigned arm64/x86_64 Preview app, CLI and helper built. Product-bundle
+  isolation and bundled CLI help/completion checks passed.
+- Strict formatting of the new/expanded Swift files, project plist syntax,
+  51 local documentation targets and `git diff --check` passed. Raw logs/builds
+  remain under ignored `tmp/piv-recovery/`.
+
+No package is complete. Next is profile-3 ordinary mutation/catch-up and
+lifecycle support, preserving recovery coverage without a connected token.
+Product composition/status, reciprocal pending-state barriers, restore,
+integrated review and physical/distribution qualification remain before
+real-vault opt-in. No installed app, real vault/configuration or YubiKey was
+changed, and no native authentication, push, notarization or release occurred.

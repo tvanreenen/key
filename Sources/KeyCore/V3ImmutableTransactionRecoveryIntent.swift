@@ -51,6 +51,8 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
         enrollmentTranscriptDigest: Data? = nil
     ) throws {
         guard kind != .recoverInterruptedTransaction,
+              kind != .registerRecoveryRecipient,
+              kind != .adoptRecoveryProfile,
               isValidV3UUID(vaultID),
               expectedCheckpoint.vaultID == vaultID,
               !expectedHeads.isEmpty,

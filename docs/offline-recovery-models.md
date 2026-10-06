@@ -275,11 +275,13 @@ mandatory receipt. Token-held anchor storage and the bounded two-Mac
 new-vault recovery/read/edit/reopen rehearsal passed. These establish
 feasibility, not an ongoing recovery format or real-vault readiness.
 
-Current work is `REC-806`: the isolated epoch capsule is implemented and
+Current work is `REC-807`: the isolated epoch capsule is implemented and
 AI-reviewed; recipient contexts/wrappers, profile codecs, and boundary transcripts
 are implemented as internal domain components, alongside bounded anchored
-selection and complete current-snapshot verification. Native token provenance,
-domain acceptance/review and product integration remain. Remaining `REC-804`
+selection, complete current-snapshot verification, native public-reader and
+scoped agreement foundations with configured-policy checks. Owner-operated
+credential setup is selected; guarded anchor writes, hardware qualification, domain
+acceptance/review and product integration remain. Remaining `REC-804`
 platform/adoption decisions stay explicit. Implementation integrates registration, ordinary edits, key rotation,
 history verification, and restore into product services.
 Independent backup-token recovery, protected administration, compatibility,

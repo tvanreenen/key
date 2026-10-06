@@ -28,7 +28,8 @@ or add a guessable secret to achieve it. A restarted or explicitly resumed
 attempt may require a new approval. The integrated operation count is unqualified.
 
 Initial proposed scope: macOS 26+ recovery, existing on-token P-256 credentials
-in explicitly selected slot 9d, one registration per token, and independent
+in explicitly selected slot 9d with readable Yubico metadata (firmware 5.3+),
+reported generated origin and explicit PIN/touch `ALWAYS`, one registration per token, and independent
 primary/backup tokens. YubiKey 5C NFC is the tested model; the supported OS/token
 matrix is not frozen. Ordinary profile-2 support retains its platform policy.
 Automatic provisioning, other slots/algorithms, multi-vault allocation,
@@ -412,6 +413,142 @@ lifetimes do not guarantee zeroization. No plaintext persistence or resume
 format is implemented. Software callback counts and disposable filesystem tests
 do not qualify hardware prompts, protected administration, or a complete restore.
 
+### Implemented native public reader
+
+The [internal reader](../Sources/KeyCore/PIVRecoveryTokenReader.swift) replaces the
+prototype's fixed reader name and certificate-file input with bounded token
+inventory, explicit candidate selection and token-to-slot metadata. A retained
+native card instance and removal invalidation prevent a same-named reinsertion
+from silently replacing the reviewed connection. Slot 9d's public certificate,
+key metadata and the application object are read in one exclusive session. The
+metadata point must equal the certificate point, and that validated P-256 point
+must match a recognized anchor's recipient ID. The certificate is a
+public-key container, not issuer, expiry or attestation authority.
+
+Discovery requests no card commands. Reading has only four expressible commands:
+select PIV, GET DATA for the 9d certificate, GET METADATA for slot 9d, and GET DATA
+for object `0x5F4B59`.
+There is no raw APDU, PIN, management authentication, write, reset or private
+operation interface. Absent, recognized and unrecognized occupancy are distinct;
+unknown bytes are withheld, with an internal digest for exact revalidation.
+A recognized anchor does not establish protected administration or possession.
+The [metadata codec](../Sources/KeyCore/PIVRecoveryKeyMetadata.swift) bounds
+responses to 256 bytes with exact fields, lengths and supported
+P-256 encoding. Missing, malformed or unsupported metadata fails without a
+certificate-only fallback. Revalidation compares origin and policies as well as
+the public key and anchor.
+
+The live process-wide gate remains claimed while a native begin/send callback is
+pending after the public-read deadline. A successful session closes once after
+pending completion; no authentication retry or guessed cancellation is used.
+Software tests cover orchestration and lifetime behavior, not native delivery or
+physical identity. The reader has no product caller and does not make 806
+snapshots eligible for real-vault restore.
+
+### Implemented scoped agreement adapter
+
+The [internal adapter](../Sources/KeyCore/PIVRecoveryAgreement.swift) supplies a
+scoped, one-use receiver to the existing recovery HPKE boundary. Constructing it
+does not discover tokens, look up keys or request authentication. On agreement,
+one reader operation lease spans fresh public revalidation, noninteractive key
+lookup, another public revalidation, standard P-256 ECDH and final public
+revalidation. Every public session closes before the provider operation.
+
+Lookup specifies the observed token ID and the public key's application label,
+private EC key class, 256-bit size and data-protection keychain. Exactly one
+result is required. The returned handle's token ID, exported public point, key
+class/type/size and ECDH support are checked independently. The label is a query
+constraint, not identity proof. No private key is exported, no other credential
+or algorithm is tried, and failure cannot trigger a second operation through
+that receiver. Scope exit invalidates an escaped receiver and any pending attempt.
+Before lookup, the receiver requires reported generated origin and explicit PIN
+`ALWAYS` and touch `ALWAYS`. `DEFAULT`, `ONCE`, `NEVER`, biometric alternatives,
+cached touch and imported origin are not accepted by the initial adapter. This
+is a Key support policy, not a claim that every excluded vendor option is unsafe.
+
+The caller waits until explicit cancellation or an absolute deadline, defaulting
+to 60 seconds for the scope. Stopped or late results are discarded. Context
+invalidation requests cancellation of authentication; it does not prove native
+termination. A pending worker retains the shared operation lease until provider
+return and cleanup, or pending public-read completion. Process termination clears
+local state but does not establish the token's authentication-cache state.
+Native provider failures expose a fixed category, not arbitrary diagnostic text.
+
+Scripted tests cover binding checks, session ordering, scope closure,
+cancellation, deadline, removal, anchor changes, and exclusion until delayed
+completion. They do not qualify native query delivery, physical identity, PIN or
+touch enforcement, prompt cancellation, or hardware session/cache behavior.
+Configured-policy checks are implemented; actual PIN/touch enforcement,
+protected setup, signed-product capability and actual
+hardware qualification remain 807 requirements. Neither adapter has a product
+caller; an absent or unrecognized anchor is not permission to register or restore.
+
+### Owner operated setup boundary
+
+Use Yubico's supported tools for all device administration initially, including
+credential preparation and registration-anchor installation. Key must not
+collect an administrative PIN, PUK or management key, invoke an importer, or
+provide a management writer. Ordinary possession/recovery agreement remains
+through the macOS hardware provider. The installed `ykman` 5.9.2 implementation
+was inspected without running it against a token. Key's public checks and scoped
+agreement remain separate from administration. This decision does not authorize
+changing the owner's test credential, default management key or occupied object.
+
+Credential requirements are an on-device P-256 key in reviewed slot 9d with PIN
+and touch `ALWAYS`, plus a matching certificate. An incompatible occupied slot
+is refused, not repaired. Policy changes require generation/import of another
+key, so do not suggest an in-place policy toggle or silently regenerate a
+registered key. Yubico documents these limits in its
+[policy guide](https://docs.yubico.com/yesdk/users-manual/application-piv/pin-touch-policies.html).
+Reported generated origin is not verified attestation or independent assurance
+that a private key was never copied. Actual driver policy enforcement remains
+a separate hardware qualification.
+
+Before real registration, management authentication must use a vendor-generated
+random, nondefault AES key with management touch required. Prefer Yubico's
+PIN-protected storage for the initial owner-operated setup: it avoids placing a
+separate management secret in Key. It also means device plus PIN can authorize
+administration; the management key is not an independent human factor. Separate
+offline management-key custody is an alternative with another backup obligation.
+Neither management-key custody choice changes ordinary recovery inputs.
+Yubico's [PIV CLI guide](https://docs.yubico.com/software/yubikey/tools/ykman/PIV_Commands.html)
+documents both random generation and PIN-protected storage. Management changes
+affect the PIV application's administration, not just slot 9d. Obtain exact-scope
+owner approval and preserve recovery access before changing it.
+
+Keep secret values out of arguments, environment variables, Key/XPC, repository
+files and captured terminal output. The inspected vendor command can prompt for
+credentials; generation without protected storage can print the generated key.
+Do not capture such output as project evidence. Owner PIN/PUK backup and vendor
+PIN-unblock guidance remain outside Key. Never change retry limits, deliberately
+consume attempts, reset PIV or use key regeneration as a forgotten-PIN remedy.
+Randomness, secret custody and protected storage cannot be proven by the public
+key metadata implemented here. Do not label that metadata registration readiness.
+
+The external-write decision explicitly excludes an atomic reviewed-state write
+guarantee. The vendor object importer accepts an ID and bytes but does not
+compare prior occupancy. Key refuses occupied application objects before
+preparing a first registration and verifies exact installed bytes afterward;
+it cannot prevent the owner or another administrator from changing or
+overwriting that object during the external step. Closing competing clients and
+selecting the device explicitly reduce mistakes, not eliminate this gap. Do not
+describe successful vendor import as verified registration or protection against
+an unexpected overwrite. Key's process-wide gate does not serialize the vendor
+tool or other applications.
+
+Initial preparation accepts only an absent application object and an existing
+compatible slot-9d credential. Even recognized occupied records require a
+separate replacement/reconciliation operation; they are not permission for a
+new registration. An immutable public export and an authenticated pending intent
+bind one exact candidate, recipient and expected parent. The product can display
+the exact owner-run vendor command after review, but must not execute it, accept
+arbitrary command hooks, or include secrets in it. A serial is a selection aid,
+not cryptographic authority. After any external step, discard prior native
+observations and freshly select/review the credential and installed anchor.
+Exact readback, authenticated candidate verification, possession and publication
+are required before verified registration. Preparation files and pending intents
+are not inputs required on a replacement Mac during ordinary recovery.
+
 ## Registration and authority lifecycle
 
 Only an authenticated active Mac can authorize registration or recipient
@@ -424,8 +561,10 @@ all resulting active device and recovery wrappers before publication.
 Registration prepares one exact candidate from a complete reviewed checkpoint.
 Persist an authenticated local intent and stage/verify immutable encrypted
 candidate objects without selecting them as ordinary current state. Review the
-token/object, prior occupancy and protected administration before any approved
-anchor write. Read back exact anchor bytes and verify possession against that
+token/object and absent prior occupancy, and explain the externally prepared
+administration prerequisite and unconditional-import limitation. Export only the
+exact public anchor for an owner-run vendor write. Read back exact anchor bytes
+from a fresh bound token observation and verify possession against that
 candidate; revalidate the base and publish the activation manifest last, then
 advance local checkpoint and report verified registration.
 
@@ -437,11 +576,80 @@ attempt and prior-anchor backup for explicit reconciliation. Never silently
 repin, rebase, replace a candidate, or restore old token bytes. Resume must
 reauthenticate and review any dependent hardware operation.
 
-This ordering is proposed for 808 and needs durable-phase tests. In particular,
-successful local possession verification cannot be treated as a reusable
-hardware proof after restart. Global status should describe authenticated
-configured coverage and the scope/time of last verified registration, not
-guarantee an absent token is unchanged, available, or unblocked.
+The pending intent must authenticate the exact parent checkpoint, approving Mac,
+candidate envelope, recipient, anchor and staged-entry addresses. It contains no
+raw vault/epoch key, PIN, PUK, management key or saved possession approval.
+Completion authenticates the same intent after owner reauthentication, checks
+the candidate's dual authorization and MAC/capsule, independently compares all
+current and resealed entry plaintexts, and verifies the local Mac wrapper before
+requesting one hardware opening of the exact candidate recovery wrapper. A
+restart before local checkpoint advancement requires a fresh possession check;
+never persist or reuse that result. An exact candidate already committed in the
+local checkpoint needs authenticated session/cleanup reconciliation, not another
+hardware approval or publication.
+
+The internal preparation journal stores one complete canonical bundle containing
+the authenticated intent, candidate envelope and encrypted resealed entries.
+It reuses the contained atomic no-overwrite writer, with file synchronization
+before installation and directory synchronization afterward. Separate artifact
+writes were rejected because an interruption could leave randomized candidate
+bytes incomplete. The bundle is non-authoritative staging, never a current
+manifest, and contains no raw vault/epoch key or saved approval.
+
+A dedicated non-synchronizing device-local ownership record pins the operation,
+vault and exact intent digest. Its Keychain namespace and provider directory are
+separate from ordinary transaction recovery. Reserve ownership before installing
+the bundle; promote it to recoverable only after exact readback, full
+registration validation and confirmation of exact-file/directory local
+synchronization. Readable bytes alone cannot establish that an interrupted
+installation completed its durability steps. Return public anchor bytes only
+after that promotion and an ownership recheck. Recoverable means preparation
+retained, not token installation, possession, activation or registration readiness.
+Local synchronization does not establish provider upload, remote durability or
+freshness; those remain outside Key's storage-provider contract.
+
+Resume selects only the locally owned bundle, not synchronized records found by
+directory scanning. It repeats intent authentication, parent/owner checks,
+boundary/MAC/capsule verification and complete same-plaintext validation with
+newly authenticated keys. The service must still obtain fresh native observations
+and guard the current source/head/directory under mutation ownership. Parsed
+pending data is not permission to unwrap, export or publish without those checks.
+No candidate is regenerated, rebased or automatically deleted. A reservation
+interrupted before the complete bundle was installed stays attention-required;
+it cannot resume from a partial file or silently start a replacement. Missing,
+changed or invalid state also retains ownership for explicit reconciliation.
+
+The internal profile-3 registration service owns prepare, exact resume/export,
+finish and committed-state reconciliation under the shared mutation owner. It
+uses the native reader/agreement adapters, with scripted native calls in software
+tests. Preparation checks the current source and token before and after its
+durable handoff. Finish checks the complete old/new snapshots, opens the local
+candidate wrapper once and requests one token agreement. It publishes and checks
+entries first, rechecks source/checkpoint/token state, then publishes the manifest
+last. Exact readback and current authentication precede local checkpoint
+advancement and session installation. Only then may local ownership be cleared;
+the encrypted preparation bundle remains inert for audit.
+
+The local authenticated checkpoint is the publication floor, as in the shipping
+observer. Above it, this service accepts only its exact locally owned registration
+transition with full same-plaintext checks. Other same-vault edits, rotations or
+branches refuse; this is not a general profile-3 catch-up implementation. It does
+not use recovery's reduced historical replay checks to authorize publication.
+
+Interruption tests exercise real filesystem publication and cryptography, but
+native checkpoint storage, physical hardware policies and product routing remain
+unqualified. Before checkpoint advancement, retries require fresh possession
+even if the candidate manifest is already present. After exact checkpoint
+advancement, reconciliation reauthenticates local current contents and repairs
+only session/ownership state. If ownership cleanup completed but the reply was
+lost, only an exact local checkpoint matching the token floor and authenticated
+active recipient is recognized as already activated. No token/provider record
+can establish that local checkpoint. Successful local possession verification
+cannot be treated as a reusable hardware proof after restart.
+
+Shipping dispatch and CLI/XPC commands remain disabled. Global status should
+describe authenticated configured coverage and the scope/time of last verified
+registration, not guarantee an absent token is unchanged, available, or unblocked.
 
 Adding a backup starts its independent anchor at that token's registration
 checkpoint, not at the primary's original floor. It must recover without the
@@ -451,6 +659,40 @@ Required recovery history begins at that token's pinned floor, not before it.
 Missing objects below the floor cannot become a dependency on the primary
 token's older registration. Competing or incomplete reachable descendants
 above the floor remain refusal cases.
+
+### Planned external registration experience
+
+This is a product workflow description, not a runnable command reference or
+permission to modify the current disposable credential. Preparation through
+Yubico tools is documented separately from Key's registration. Existing
+compatible credentials skip generation; occupied incompatible slot-9d
+credentials are not overwritten. PIN/PUK backup and administrative settings
+remain owner responsibilities.
+
+1. Connect and explicitly select the prepared device. Key reviews the
+   authenticated vault, credential fingerprint, fixed slot/policies and absent
+   application object. Cancel if anything differs from the intended target.
+2. After local owner authorization, Key durably retains and checks one encrypted
+   candidate and authenticated pending intent. It exports only that candidate's
+   public anchor and explains the owner-run vendor import, including explicit
+   target selection and its overwrite limitation. No administrative secret is
+   entered in Key. Report pending, not enabled, at this point.
+3. Run the reviewed vendor import independently. Enter administrative credentials
+   only in the vendor tool, never in a command argument or saved script. Vendor
+   success reports only that a write completed. Do not automatically repeat an
+   uncertain or interrupted write.
+4. Return to Key for finish. Reselect/review the token from fresh native reads
+   and authenticate the pending candidate and unchanged parent. Key verifies
+   the exact installed anchor, all resealed contents and the local wrapper,
+   then requests one candidate recovery opening through the macOS provider.
+   Enter the PIN in its system dialog and physically touch when requested.
+5. Recheck source/token bindings, publish the activation manifest last and
+   advance the local checkpoint. Only then report verified registration. Any
+   incomplete step stays pending or attention-required for explicit review.
+
+Repeat with an independently prepared backup device. Normal use does not need
+either token connected; replacement-Mac recovery must not require this export,
+pending intent, original configuration or administrative credential.
 
 Removing a recipient rotates the key and omits its future wrapper on the
 continuing lineage. Removing
@@ -470,6 +712,62 @@ explicit return to a retained older snapshot under compatible software, not
 an in-place downgrade that keeps new-format edits or undoes remote adoption.
 Never delete ordinary config or Keychain material during upgrade. New-profile
 genesis, no-recipient mode, and recovery registration are separate operations.
+
+The internal adoption builder and independent validator now construct this
+transition from an exact authenticated profile-2 checkpoint. They preserve the
+complete Mac roster and entry identities, names, types and revisions, rotate the
+vault key, reseal all current contents and create profile-3 device wrappers and
+a fresh epoch capsule. The initial recovery roster is empty and the epoch proof
+is null because profile 2 has no prior epoch signing authority. The existing
+active Mac signs the complete new content and exact old parent digest. Both
+manifest MACs, the new capsule and full same-plaintext comparison are required;
+publication validation also opens the local new wrapper once.
+
+Software tests feed the exact candidate through the existing profile-2 discovery
+and access gate, which refuse it as upgrade-required even with stale reads
+requested. The discovery and owner-signature guard source is unchanged from
+`v0.2.0`; the outer parser differs only in shared visibility and comments, and
+the coordinator's difference is prompt copy. This is source-level compatibility
+evidence, not an execution of the released binary or multi-Mac qualification.
+
+The internal adoption service now owns durable preparation, exact resume and
+manifest-last publication. It shares the contained immutable writer, bounded
+source reader, mutation owner and checkpoint compare-and-swap with existing
+publication mechanisms. It refuses competing same-vault changes and pending
+ordinary transactions or registrations instead of rebasing the conversion.
+Before publication it checks the complete old/new snapshot, both MACs, the
+capsule, old active Mac signature and one addressed new local wrapper opening.
+
+The complete canonical preparation contains encrypted entries and the signed
+candidate, not plaintext or raw keys. Its full SHA-256 digest is pinned in a
+dedicated non-sync local ownership namespace. That local record, not a file
+provided by the storage provider, identifies the approved exact preparation.
+Ownership is reserved as unarmed before atomic installation. Exact readback
+and file/directory synchronization must succeed before ownership becomes
+recoverable and any current object can be published. Resume repeats those
+checks without generating keys or signing a replacement candidate.
+
+Entries are published and checked first, the manifest last. Exact source,
+ownership and checkpoint checks precede checkpoint advancement. The session
+receives the verified new key only after that advancement; ownership is cleared
+after session installation. A failure after checkpoint advancement reconciles
+the already committed current snapshot with one local wrapper opening, without
+reopening old entries, re-signing or repeating publication. A lost reply after
+ownership cleanup can reconcile only a preparation matching the exact existing
+local checkpoint. Provider files cannot establish a checkpoint or new local
+ownership, and do not prove attribution to an operation after cleanup.
+
+A reserved operation missing its preparation requires attention. Only an
+explicit exact-operation abandonment can clear an unarmed reservation; the
+service never automatically abandons it or abandons recoverable ownership.
+Encrypted preparation files remain inert for inspection, not discovery-based
+publication authority. No source/configuration/Keychain deletion is performed.
+
+No shipping composition, public command or real-vault opt-in is enabled.
+Adoption alone does not claim recovery protection; that requires separate
+registration. Reciprocal pending-state barriers in ordinary product services,
+profile-3 writes/catch-up/lifecycle support, integrated review and distribution
+qualification remain required before real-vault opt-in.
 
 The proposed public workflow is a `recovery` command group for status,
 credential review, registration, recipient listing/removal, restore review,
@@ -519,13 +817,13 @@ barriers. The [tracker](piv-recovery-plan.md#architecture-ownership) records
 ownership and package acceptance; do not ship archive diagnostics as product
 integration.
 
-Next is final domain acceptance and integrated review, followed by native token
-binding and restore-service integration. Shipping profile-2 bytes remain
-unchanged. Review the
-new exact bytes before format freeze; do not enable publication/recovery by
-treating transcript checks as a complete service validator.
-Graph/platform/adoption decisions remain open in 804 and dependent packages.
-Protected administration, durable-phase reconciliation, independent backup-token
-and OS qualification, a fresh integrated AI review, and explicit opt-in adoption
-remain gates. No whole-protocol approval or real-vault safety is implied.
+Next is profile-3 ordinary mutation/lifecycle and restore-service integration,
+final domain acceptance and integrated review. Native token binding and scoped
+agreement are implemented but not physically qualified in their final adapters.
+Shipping profile-2 bytes remain unchanged. Review exact bytes before format
+freeze; transcript checks alone are not a complete service validator.
+Remaining gates include integrated graph/platform decisions, owner-operated
+protected setup instructions, product interruption reconciliation, independent
+backup-token and OS qualification, a fresh integrated AI review, and explicit
+opt-in rollout. No whole-protocol approval or real-vault safety is implied.
 Versioning permits improvements but cannot undo disclosure or replace lost files.
