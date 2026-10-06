@@ -724,10 +724,62 @@ This does not qualify physical prompt counts or create durable approval.
 recover after two successive enrollments, an ordinary mutation-service save and
 removal of obsolete ciphertext, with one software agreement per primary/backup
 credential. The original Mac identities/sessions leave scope before recovery.
-Enrollment epochs/checkpoints are materialized by test setup; durable publication,
-resume, ceremony consumption, joining-Mac adoption, key-transition catch-up and
-shipping/native integration remain. Existing profile-2 dispatch and persisted
+Those foundation tests materialize enrollment epochs/checkpoints in test setup.
+The internal durable component below exercises actual enrollment publication.
+Owner-service/session composition, joining-Mac adoption, key-transition catch-up
+and shipping/native integration remain. Existing profile-2 dispatch and persisted
 formats are unchanged. No public command or real-vault opt-in is enabled.
+
+### Implemented durable compared-device enrollment
+
+The [enrollment publisher/source validator](../Sources/KeyCore/V3RecoveryDeviceEnrollmentPublisher.swift)
+accepts only an explicitly approved transcript matching exact device-local signed
+ceremony bytes. Awaiting-comparison state alone does not establish human consent;
+the helper caller must supply the digest of the comparison the user approved.
+Both messages, inviter identity, exact parent checkpoint, transcript-derived
+transition ID, single joining identity, unchanged existing devices/recipients and
+fresh complete key epoch are validated before one addressed inviting-Mac wrapper
+verification. Cancellation and changed source, local ceremony or pending authority
+refuse before any transaction is reserved.
+
+The dedicated enrollment validator reuses the immutable transaction kernel rather
+than rotation policy. It persists the existing version-2 intent with the exact
+transcript digest and encrypted candidate selectors. The device-local anchor
+pins that entire intent; provider intent files cannot authorize publication.
+Keys and a prepared owner-approval carrier are not persisted in it. Every source
+recheck also reloads the exact signed local ceremony and checks competing
+registration/adoption work. Entries publish first, the manifest last, and the
+checkpoint advances only after exact readback and full validation.
+
+Fresh approvals require an unexpired awaiting-comparison ceremony. Exact pending
+work can finish after expiry without new comparison, signature, key generation,
+wrapper verification or token agreement. Before commitment both scoped keys and
+full old/new plaintext comparison remain required. After commitment, authenticated
+current ciphertext, current key/capsule and exact pinned transcript/intent suffice;
+obsolete ciphertext and the old key are not required for completion cleanup.
+Other transaction kinds and mismatched transcripts refuse before owned cleanup,
+including when the local checkpoint has changed. Existing safe abandonment of
+incomplete unpublished staging remains; it does not consume the ceremony.
+
+A [shared domain completion hook](../Sources/KeyCore/V3ContentTransactionValidation.swift)
+marks this exact inviter ceremony consumed by local CAS after commitment, while
+the pending anchor still exists. The publisher and recoverer check exact checkpoint
+and ownership around the hook. Enrollment reopens the authenticated current
+snapshot before writing the marker. A marker failure retains pending ownership;
+a consumed marker is idempotent when later cleanup fails. Consumption is
+bookkeeping, not authority, cannot admit another transcript, and prevents fresh
+reuse. Other validators use a no-op hook; profile-2 enrollment is unchanged.
+
+[Software publication tests](../Tests/KeyCoreTests/V3RecoveryDeviceEnrollmentPublisherTests.swift)
+exercise all 14 interruption points, empty snapshots, exact intent binding,
+expiry, cancellation, source/local/pending changes, incorrect keys, checkpoint
+and completion failures, current-only cleanup and cross-kind refusal. They also
+open the joining-Mac wrapper and recover with either primary or backup after
+actual enrollment publication, an ordinary save and obsolete ciphertext removal.
+The tested one-operation wrapper check and one-agreement recovery are software
+counts, not physical prompt qualification. This component neither presents
+comparison UI nor installs an owner/joiner session. Owner-service restart and
+session orchestration are next; product routing and native acceptance remain.
 
 ### Implemented reviewed-device revocation foundation
 
