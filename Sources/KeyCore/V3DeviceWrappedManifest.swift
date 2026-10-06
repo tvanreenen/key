@@ -55,17 +55,9 @@ struct V3DeviceWrappedManifestKey: Equatable, Sendable {
     }
 }
 
-/// Exact permanent-profile manifest body.
-///
-/// This type deliberately remains separate from the released-alpha manifest
-/// model. A later integration increment can therefore reject the old profile
-/// explicitly instead of accidentally interpreting it as this format.
-struct V3DeviceWrappedManifestBody: Equatable, Sendable {
-    static let format = "key-vault-manifest"
-    static let version: UInt64 = 3
-    static let profile = V3VaultKeyHPKEContext.profile
-    static let profileVersion = V3VaultKeyHPKEContext.profileVersion
-
+/// Validated fields shared by explicit device-wrapped profile versions.
+/// This is neither a profile discriminator nor an authenticated checkpoint.
+struct V3DeviceWrappedManifestFields: Equatable, Sendable {
     let vaultID: String
     let keyID: V3VaultKeyID
     let authorityTransitionID: String
@@ -99,16 +91,8 @@ struct V3DeviceWrappedManifestBody: Equatable, Sendable {
         try validateSemantics()
     }
 
-    var canonicalBytes: Data {
-        CanonicalJSON.encode(canonicalValue)
-    }
-
-    var canonicalValue: CanonicalJSONValue {
-        .object([
-            ("format", .string(Self.format)),
-            ("version", .integer(Self.version)),
-            ("profile", .string(Self.profile)),
-            ("profileVersion", .integer(Self.profileVersion)),
+    var canonicalMembers: [(String, CanonicalJSONValue)] {
+        [
             ("vaultID", .string(vaultID)),
             ("keyID", .string(keyID.rawValue)),
             ("authorityTransitionID", .string(authorityTransitionID)),
@@ -121,7 +105,7 @@ struct V3DeviceWrappedManifestBody: Equatable, Sendable {
             ("devices", .array(devices.map(Self.canonicalDevice))),
             ("wrappedKeys", .array(wrappedKeys.map(Self.canonicalWrappedKey))),
             ("entries", .array(entries.map(Self.canonicalEntry))),
-        ])
+        ]
     }
 
     private func validateSemantics() throws {
@@ -242,6 +226,44 @@ struct V3DeviceWrappedManifestBody: Equatable, Sendable {
     }
 }
 
+/// Shipping profile 2 only. Shared field validation does not make its services
+/// understand or accept experimental profile 3.
+struct V3DeviceWrappedManifestBody: Equatable, Sendable {
+    static let format = "key-vault-manifest"
+    static let version: UInt64 = 3
+    static let profile = V3VaultKeyHPKEContext.profile
+    static let profileVersion = V3VaultKeyHPKEContext.profileVersion
+
+    let fields: V3DeviceWrappedManifestFields
+    var vaultID: String { fields.vaultID }
+    var keyID: V3VaultKeyID { fields.keyID }
+    var authorityTransitionID: String { fields.authorityTransitionID }
+    var devices: [V3DeviceWrappedManifestDevice] { fields.devices }
+    var wrappedKeys: [V3DeviceWrappedManifestKey] { fields.wrappedKeys }
+    var entries: [V3ManifestEntry] { fields.entries }
+
+    init(
+        vaultID: String, keyID: V3VaultKeyID, authorityTransitionID: String,
+        devices: [V3DeviceWrappedManifestDevice], wrappedKeys: [V3DeviceWrappedManifestKey],
+        entries: [V3ManifestEntry]
+    ) throws {
+        fields = try V3DeviceWrappedManifestFields(
+            vaultID: vaultID, keyID: keyID, authorityTransitionID: authorityTransitionID,
+            devices: devices, wrappedKeys: wrappedKeys, entries: entries)
+    }
+
+    init(fields: V3DeviceWrappedManifestFields) { self.fields = fields }
+
+    var canonicalValue: CanonicalJSONValue {
+        .object([
+            ("format", .string(Self.format)), ("version", .integer(Self.version)),
+            ("profile", .string(Self.profile)), ("profileVersion", .integer(Self.profileVersion)),
+        ] + fields.canonicalMembers)
+    }
+
+    var canonicalBytes: Data { CanonicalJSON.encode(canonicalValue) }
+}
+
 struct V3DeviceWrappedManifestCodec: Sendable {
     func parseCanonicalBody(_ data: Data) throws -> V3DeviceWrappedManifestBody {
         let value: CanonicalJSONValue
@@ -305,6 +327,14 @@ struct V3DeviceWrappedManifestCodec: Sendable {
             ],
             path: path
         )
+        return try V3DeviceWrappedManifestBody(fields: decodeFields(in: body, path: path))
+    }
+
+    /// The explicit profile codec owns its discriminator and exact root fields.
+    /// Device, suite, entry and coverage rules remain in one implementation.
+    func decodeFields(
+        in body: [(String, CanonicalJSONValue)], path: String
+    ) throws -> V3DeviceWrappedManifestFields {
         try decodeHPKESuite(
             v3PermanentMember("hpkeSuite", in: body, path: path),
             path: "\(path).hpkeSuite"
@@ -348,7 +378,7 @@ struct V3DeviceWrappedManifestCodec: Sendable {
             try decodeEntry($0.element, path: "\(path).entries[\($0.offset)]")
         }
 
-        return try V3DeviceWrappedManifestBody(
+        return try V3DeviceWrappedManifestFields(
             vaultID: v3PermanentString("vaultID", in: body, path: path),
             keyID: keyID,
             authorityTransitionID: v3PermanentString(
@@ -539,7 +569,7 @@ private func v3PermanentFields(
     names: Set<String>,
     path: String
 ) throws {
-    guard Set(object.map(\.0)) == names else {
+    guard object.count == names.count, Set(object.map(\.0)) == names else {
         throw V3DeviceWrappedManifestError.invalidStructure(path)
     }
 }

@@ -27,14 +27,22 @@ struct V3DeviceWrappedGenesisCandidate: Equatable, Sendable {
     let manifestDigest: Data
 }
 
+/// Plaintext input to genesis, independent of the source's storage format.
+/// Kept only in memory while publication is verified.
+struct V3GenesisSourceEntry: Equatable, Sendable {
+    let name: String
+    let type: SecretEntryType
+    let plaintext: String
+}
+
 /// Complete, still-unpublished permanent genesis snapshot.
 ///
-/// Source plaintext remains here only while the helper-owned migration call
+/// Source plaintext remains here only while the helper-owned installation call
 /// validates its exact staged and published output. It is never written to
 /// transaction or recovery state.
 struct V3DeviceWrappedGenesisPublicationCandidate: Sendable {
     struct Entry: Sendable {
-        let source: V2MigrationSourceEntry
+        let source: V3GenesisSourceEntry
         let manifestEntry: V3ManifestEntry
         let encryptedEntry: V3EncryptedEntry
         let digest: Data
@@ -63,6 +71,26 @@ struct V3DeviceWrappedGenesisBuilder: Sendable {
         authorityTransitionID: String,
         entryIDs: [String],
         sourceEntries: [V2MigrationSourceEntry],
+        vaultKey: Data,
+        ownerIdentity: V3EnrollmentDeviceIdentity
+    ) throws -> V3DeviceWrappedGenesisPublicationCandidate {
+        try buildPublicationCandidate(
+            vaultID: vaultID,
+            authorityTransitionID: authorityTransitionID,
+            entryIDs: entryIDs,
+            snapshotEntries: sourceEntries.map {
+                V3GenesisSourceEntry(name: $0.name, type: $0.type, plaintext: $0.plaintext)
+            },
+            vaultKey: vaultKey,
+            ownerIdentity: ownerIdentity
+        )
+    }
+
+    func buildPublicationCandidate(
+        vaultID: String,
+        authorityTransitionID: String,
+        entryIDs: [String],
+        snapshotEntries sourceEntries: [V3GenesisSourceEntry],
         vaultKey: Data,
         ownerIdentity: V3EnrollmentDeviceIdentity
     ) throws -> V3DeviceWrappedGenesisPublicationCandidate {

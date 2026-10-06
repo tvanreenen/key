@@ -350,9 +350,15 @@ For the complete promises and limitations, read:
 - [Security, continuity, and recovery](docs/security-continuity-recovery.md)
 - [Version 3 device-wrapped key architecture](docs/v3-device-wrapped-key-architecture.md)
 - [Version 3 implementation and qualification tracker](docs/v3-vault-implementation.md)
+- [PIV recovery implementation plan](docs/piv-recovery-plan.md): integrated recovery work and completion gates, not a released capability.
 - [Release process](docs/release.md)
 
 ## Development
+
+Use the root `tmp/` folder for local experiment files and raw logs. It is Git-ignored,
+not a backup or a safe place for credentials; copy anything needed elsewhere
+before archiving a managed worktree. Durable decisions, tests, and implementation
+evidence belong in the source tree and docs.
 
 The Swift package and release-script checks run with:
 
