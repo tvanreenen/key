@@ -183,6 +183,25 @@ struct V3ExactTransitionRepository: Sendable {
     else { throw V3RecoveryValidationError.resourceLimit }
   }
 
+  /// Only this exact candidate may appear between observations. Every other
+  /// listed byte/count and the pinned base snapshot must stay exact. Publication
+  /// may add the candidate once, but cannot make it disappear after observation.
+  func requireUnchangedSource(
+    _ previous: V3ExactTransitionRepositoryState, _ fresh: V3ExactTransitionRepositoryState,
+    candidateDigest: Data
+  ) throws {
+    var before = previous.manifestBytes
+    var after = fresh.manifestBytes
+    let removedBefore = before.removeValue(forKey: candidateDigest) != nil
+    let removedAfter = after.removeValue(forKey: candidateDigest) != nil
+    guard fresh.baseBytes == previous.baseBytes, fresh.entries == previous.entries,
+      before == after,
+      fresh.listedObjectCount - (removedAfter ? 1 : 0)
+        == previous.listedObjectCount - (removedBefore ? 1 : 0),
+      !removedBefore || removedAfter
+    else { throw V3RecoveryValidationError.sourceChanged }
+  }
+
   func readManifest(_ digest: Data) throws -> Data {
     try read(
       source.readManifest(digest: digest, maximumBytes: limits.maximumManifestBytes),

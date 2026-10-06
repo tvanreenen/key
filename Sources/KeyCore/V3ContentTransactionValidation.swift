@@ -66,7 +66,8 @@ protocol V3ContentTransactionValidating: Sendable {
 
 extension V3ContentTransactionValidating {
   func validateRecoveryIntent(_ intent: V3ImmutableTransactionRecoveryIntent) throws {
-    guard intent.expectedHeads == [intent.expectedCheckpoint.envelopeDigest],
+    guard [.addEntry, .editEntry, .copyEntry, .moveEntry, .removeEntry].contains(intent.kind),
+      intent.expectedHeads == [intent.expectedCheckpoint.envelopeDigest],
       intent.enrollmentTranscriptDigest == nil, intent.recoveryMergeResolutions == nil
     else {
       throw V3ImmutableTransactionRecoveryError.invalidIntent(
