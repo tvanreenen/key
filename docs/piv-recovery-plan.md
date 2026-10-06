@@ -97,7 +97,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
-| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; unchanged-roster rotation and compared-device enrollment have internal durable publication/resume and guarded owner-session orchestration, with exact enrollment ceremony completion and joining-Mac first trust; reviewed revocation and recipient removal have builders/validators with exact last-recipient acknowledgment; other lifecycle publication/resume, user confirmation, key-transition catch-up and shipping product/native acceptance remain |
+| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; rotation/enrollment have durable publication/resume and guarded owner sessions, with exact ceremony completion and joining-Mac first trust; reviewed device revocation has internal durable publication/resume; recipient removal has a builder/validator with exact last-recipient acknowledgment; revocation/removal session orchestration, recipient-removal durability, user confirmation, key-transition catch-up and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
@@ -449,9 +449,12 @@ service now composes exact reviewed comparison approval, random-key publication
 and guarded initial/restart sessions without new signing on resume. Joining-Mac
 adoption now authenticates the exact compared enrollment and current snapshot,
 then pins insert-only checkpoint trust before ceremony completion and guarded
-session installation. Shipping cold-unlock/runtime/config activation, other
-lifecycle publication/resume, user confirmation and key-transition catch-up still
-require implementation.
+session installation. Reviewed device revocation now uses the immutable kernel
+with exact approved-plan comparison and one-device policy reconstruction on
+restart. Current-only committed cleanup retains its checkpoint without obsolete
+keys or ciphertext. Shipping cold-unlock/runtime/config activation, revocation/
+removal session orchestration, recipient-removal durability, user confirmation
+and key-transition catch-up still require implementation.
 Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -499,6 +502,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Eighth 810 durable enrollment component, 2026-10-06 | [Enrollment publisher/source validator](../Sources/KeyCore/V3RecoveryDeviceEnrollmentPublisher.swift), [domain completion hook](../Sources/KeyCore/V3ContentTransactionValidation.swift) and [publication tests](../Tests/KeyCoreTests/V3RecoveryDeviceEnrollmentPublisherTests.swift) | Exact locally stored compared transcript and approved digest select one manifest-last enrollment epoch. All interruption points, marker/cleanup failure ordering, expiry, source guards, current-only committed cleanup and primary/backup recovery after actual enrollment/save are exercised. Owner-service/session composition, joining adoption, other lifecycle publication and product/native acceptance remain. |
 | Ninth 810 enrollment owner component, 2026-10-06 | [Owner service and exact restart](../Sources/KeyCore/V3RecoveryEnrollmentOwnerService.swift), [public enrollment preflight](../Sources/KeyCore/V3RecoveryDeviceEnrollment.swift) and [23 software declarations](../Tests/KeyCoreTests/V3RecoveryEnrollmentOwnerServiceTests.swift) | Exact compared approval generates and publishes a random-key epoch, then installs only authenticated committed authority with a session race guard. All 14 interruption points, cold/warm restart, exact ceremony completion, substituted anchor refusal and primary/backup recovery after owner-service enrollment/save are covered. Joining adoption, other lifecycle publication, shipping composition and native acceptance remain. |
 | Tenth 810 joining component, 2026-10-06 | [Joining-Mac adoption](../Sources/KeyCore/V3RecoveryEnrollmentAdoption.swift) and [17 software declarations](../Tests/KeyCoreTests/V3RecoveryEnrollmentAdoptionTests.swift) | Exact comparison and public enrollment proofs precede the joining Mac wrapper; full current authentication precedes insert-only checkpoint trust, exact ceremony completion and guarded session installation. Cold/warm retry, interruption/lock at three verification/persistence boundaries, malformed/competing state and primary/backup recovery after a joining-Mac save pass. Config/runtime activation, catch-up, other lifecycle publication and native acceptance remain. |
+| Eleventh 810 revocation publisher component, 2026-10-06 | [Reviewed-device publisher/validator](../Sources/KeyCore/V3RecoveryDeviceRevocationPublisher.swift) and [20 software declarations](../Tests/KeyCoreTests/V3RecoveryDeviceRevocationPublisherTests.swift) | Exact approved plan precedes manifest-last/checkpoint-last publication. Before commitment, restart reconstructs one active-to-revoked change and compares complete snapshots; committed cleanup needs only pinned current state. All 14 interruptions, reciprocal kind refusal, current-state retention and primary/backup recovery after actual enrollment/revocation/save are exercised. Confirmation/session orchestration, recipient-removal durability, remaining-Mac catch-up and native/product acceptance remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -2730,3 +2734,79 @@ restore orchestration, shipping UI/runtime/CLI composition, integrated review an
 native/physical qualification remain. Raw logs use
 `tmp/piv-recovery/2026-10-06-enrollment-joiner-`. No real
 vault, config, installed app or token was changed; no release or push occurred.
+
+### Eleventh 810 revocation publisher component, 2026-10-06
+
+The [internal publisher and transaction validator](../Sources/KeyCore/V3RecoveryDeviceRevocationPublisher.swift)
+now durably publish the exact reviewed one-device revocation and resume its pinned
+bytes through the existing immutable kernel. This does not implement confirmation,
+session replacement, remaining-Mac catch-up or a shipping command. The caller
+supplies its approved plan and scoped keys; a typed plan alone is not human consent.
+
+The existing version-1 intent was compared with adding a persisted reviewed-roster
+record under the same requirements: exact target/checkpoint binding, no new approval
+on restart, full pre-commit verification and current-only committed cleanup. The
+local intent already pins the old checkpoint and full candidate digest, so the
+complete roster decision can be reconstructed and compared before commitment.
+Another stored roster would duplicate those selectors and require a new format
+without adding authority. The existing intent was retained. A generic lifecycle
+dispatcher was also considered, but separate revocation policy keeps its one-device
+approval distinct from unchanged-roster rotation and enrollment. Only the durability
+kernel and established source/crypto mechanisms are shared.
+
+Initial publication requires a separately supplied plan exactly equal to the
+candidate's plan. The authenticated old floor, active authorizer and one-device
+change are reconstructed independently. Both boundary authorizations, unchanged
+recovery recipients/generation and complete old/new metadata/plaintext checks
+remain mandatory. Source inventory, projected limits, exact checkpoint/ownership
+and reciprocal registration/adoption guards pass before the one addressed Mac
+wrapper. Cancellation or wrong provider output does not reserve an intent; source,
+plan and local state are rechecked when the private operation returns.
+
+The shared kernel reserves a local exact intent, stages and readbacks entries,
+publishes the manifest last, then advances only the expected checkpoint. Resume
+accepts only `revokeDevice` without enrollment/merge fields. Existing intent kind
+checks precede checkpoint-based abandonment, and an explicit routed anchor must
+match even before missing prepared-intent cleanup. An incomplete unpublished
+attempt may be abandoned without selecting a different target or creating consent.
+
+Uncommitted restart still requires both keys, full snapshots and exactly one
+active-to-revoked change, retaining all identities and other statuses. Other valid
+epoch policies cannot stand in for revocation. Committed cleanup authenticates
+only the current key/MAC/capsule and full snapshot after the kernel checks its
+exact candidate checkpoint and locally pinned intent. It does not reopen old keys,
+ciphertext, manifests or cache. Missing current objects retain intent and checkpoint.
+Restart never signs, generates an epoch, requests a Mac unwrap, selects a target
+or invokes a token. Future session orchestration will own scoped native operations.
+
+[Twenty software declarations](../Tests/KeyCoreTests/V3RecoveryDeviceRevocationPublisherTests.swift)
+use actual durable enrollment and contained immutable files, then exercise all 14
+revocation interruptions, exact reviewed plans, empty/full snapshots, wrong keys
+and owner, cancellation/provider output, source/pending/ownership guards, checkpoint
+and cleanup failure, missing required state, projected bounds and reciprocal kind
+refusal. Primary/backup software recovery follows actual publication and an ordinary
+service save with one agreement each after obsolete ciphertext removal. Revoked
+Macs do not gain new wrappers; their retained old copies are not erased or revoked.
+
+An early test expected the inner roster error on resume, while the established
+recovery kernel correctly returned `invalidRecoveryState`. The assertion was fixed
+and a direct domain-validator check added. No production check was weakened.
+
+Verification:
+
+- Focused revocation/rotation/joining regression passed: 69 tests in four suites,
+  including the final wrong-policy, missing-snapshot and provider-result cases.
+- Full Debug and Release suites passed: 1,403 KeyCore tests in 114 suites and
+  six canonical-JSON tests in one suite in each configuration. The separately
+  gated large-migration qualification was skipped in both runs.
+- Unsigned universal Preview build passed. The app, CLI and helper each contain
+  arm64 and x86_64 slices; bundle isolation and CLI help/usage checks passed.
+- Strict formatting of the new Swift files, Xcode project syntax, Git whitespace
+  checks and all 179 local documentation targets passed.
+
+Next: durable recovery-recipient removal, then revocation/removal session services.
+Remaining-Mac key-transition catch-up, restore orchestration, shipping confirmation/
+runtime/CLI composition, integrated review and native/physical qualification remain.
+No implementation package is complete. Raw logs use
+`tmp/piv-recovery/2026-10-06-device-revocation-`. No real vault, config, installed
+app or YubiKey was changed. No token operation, administration, push or release occurred.

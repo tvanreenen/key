@@ -908,9 +908,61 @@ to open the new snapshot, and primary/backup recovery after materialized enrollm
 revocation and an actual ordinary-service save. Recovery uses one software agreement
 per credential after original Mac private state and superseded ciphertext leave
 scope. Old copied states remain readable with their old keys; revocation is
-forward-only. Durable revocation publication/resume, confirmation, remaining-Mac
-catch-up and product/native integration remain. No public
-command or real-vault opt-in is enabled.
+forward-only. Durable publication/resume is implemented separately below;
+confirmation, session orchestration, remaining-Mac catch-up and product/native
+integration remain. No public command or real-vault opt-in is enabled.
+
+### Implemented durable reviewed-device revocation
+
+The [internal revocation publisher](../Sources/KeyCore/V3RecoveryDeviceRevocationPublisher.swift)
+requires an independently supplied approved plan exactly equal to the candidate's
+plan. That value is supplied by the caller, not proof that a confirmation UI ran.
+The caller owns user confirmation and scoped keys; this component owns exact
+publication and restart through the shared immutable durability kernel.
+
+Before the addressed approving-Mac wrapper is opened, it authenticates the old
+checkpoint/key/capsule, reconstructs the complete reviewed roster decision,
+verifies both epoch boundary authorizations and unchanged recovery policy, and
+compares every old/new entry's metadata and plaintext. Bounded source inventory,
+projected snapshot usage and all pending-work guards must pass. After the private
+operation returns, everything is rechecked before a local intent is reserved.
+Cancellation or an incorrect wrapper result never reserves work or retries.
+
+The existing version-1 `revokeDevice` intent pins the exact old checkpoint, sole
+parent, candidate digest and staged entry selectors. No keys, duplicate reviewed
+roster or new consent carrier are persisted. Manifest-last publication and exact
+checkpoint CAS retain the original old floor until complete immutable readback
+and full software revalidation succeed. Visible competitors, changed authority
+ownership/checkpoint, or pending registration/adoption stop publication.
+
+Restart selects only this locally anchored kind and exact candidate. When an
+intent is present, another kind refuses before checkpoint-based abandonment;
+an explicitly routed anchor must also remain exact before prepared/no-intent
+cleanup. Incomplete unpublished work can be safely abandoned by the existing
+kernel, never adopted as a new review. Selection itself authenticates nothing.
+
+Before commitment, both keys and complete snapshots remain necessary. The
+validator reconstructs exactly one active-to-revoked change with unchanged
+identities, other statuses, recipients and generation. An unchanged-roster or
+recipient-removal epoch is not a device revocation even if its public signature
+and encoding are valid. After the exact candidate checkpoint has committed,
+cleanup authenticates only the current key/MAC/capsule and complete snapshot; old
+keys, ciphertext, manifest and cache are unnecessary. Missing or invalid current
+objects retain pending work and never rewind the checkpoint. Restart performs no
+signing, new epoch generation, target selection, native unwrap or token operation.
+
+[Twenty software test declarations](../Tests/KeyCoreTests/V3RecoveryDeviceRevocationPublisherTests.swift)
+exercise actual enrollment followed by revocation publication, all 14 interruption
+points, empty/full snapshots, exact review/key/identity guards, checkpoint and
+cleanup failures, source/pending changes, cancellation, incorrect provider output,
+missing required snapshots, bounded input and reciprocal kind refusal. Primary
+and backup software credentials each recover after durable enrollment, revocation
+and an ordinary save with one agreement and without superseded ciphertext.
+Old copied vault states remain readable under their old keys; removal is forward-only.
+
+No helper/session workflow, confirmation UI, public command, remaining-Mac
+catch-up, real-vault opt-in or hardware qualification is enabled by this increment.
+Profile-2 dispatch and persisted intent formats remain unchanged.
 
 ### Implemented reviewed-recipient removal foundation
 
