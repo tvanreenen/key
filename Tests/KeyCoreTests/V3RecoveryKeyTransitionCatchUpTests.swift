@@ -8,9 +8,9 @@ import Testing
 /// Two independent local checkpoints/sessions, actual immutable publication and
 /// software Mac identities. No vault, token, protected store or native UI is used.
 struct V3RecoveryKeyTransitionCatchUpTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
-  private typealias Stop = Publication.Stop
+  typealias Core = V3RecoveryRegistrationTests
+  typealias Publication = V3RecoveryContentMutationPublisherTests
+  typealias Stop = Publication.Stop
   enum Action: CaseIterable, Sendable {
     case rotation, enrollment, revocation, removal, lastRemoval, addition
   }
@@ -591,7 +591,7 @@ struct V3RecoveryKeyTransitionCatchUpTests {
     #expect(f.pending.allSatisfy { $0.value == nil })
   }
 
-  private final class Fixture: @unchecked Sendable {
+  final class Fixture: @unchecked Sendable {
     let disk: Publication.Fixture
     let receiver: Core.Owner
     let target: Core.Owner
