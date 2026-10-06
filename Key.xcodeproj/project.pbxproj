@@ -21,6 +21,7 @@
 		D61800000000000000000002 /* V3RecoveryRecipientRemoval.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61800000000000000000001 /* V3RecoveryRecipientRemoval.swift */; };
 		D61900000000000000000002 /* V3RecoveryKeyRotationPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61900000000000000000001 /* V3RecoveryKeyRotationPublisher.swift */; };
 		D62000000000000000000002 /* V3RecoveryKeyRotationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D62000000000000000000001 /* V3RecoveryKeyRotationService.swift */; };
+		D62100000000000000000002 /* V3RecoveryDeviceEnrollmentPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D62100000000000000000001 /* V3RecoveryDeviceEnrollmentPublisher.swift */; };
 		D60600000000000000000002 /* V3RecoveryManifestGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60600000000000000000001 /* V3RecoveryManifestGraph.swift */; };
 		D60500000000000000000082 /* V3RecoveryContentMutationPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60500000000000000000081 /* V3RecoveryContentMutationPublisher.swift */; };
 		D60500000000000000000072 /* V3ContentTransactionPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60500000000000000000071 /* V3ContentTransactionPublisher.swift */; };
@@ -250,6 +251,7 @@
 		D61800000000000000000001 /* V3RecoveryRecipientRemoval.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryRecipientRemoval.swift; sourceTree = "<group>"; };
 		D61900000000000000000001 /* V3RecoveryKeyRotationPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryKeyRotationPublisher.swift; sourceTree = "<group>"; };
 		D62000000000000000000001 /* V3RecoveryKeyRotationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryKeyRotationService.swift; sourceTree = "<group>"; };
+		D62100000000000000000001 /* V3RecoveryDeviceEnrollmentPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryDeviceEnrollmentPublisher.swift; sourceTree = "<group>"; };
 		D60600000000000000000001 /* V3RecoveryManifestGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryManifestGraph.swift; sourceTree = "<group>"; };
 		D60500000000000000000081 /* V3RecoveryContentMutationPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryContentMutationPublisher.swift; sourceTree = "<group>"; };
 		D60500000000000000000071 /* V3ContentTransactionPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ContentTransactionPublisher.swift; sourceTree = "<group>"; };
@@ -614,6 +616,7 @@
 				D61800000000000000000001 /* V3RecoveryRecipientRemoval.swift */,
 				D61900000000000000000001 /* V3RecoveryKeyRotationPublisher.swift */,
 				D62000000000000000000001 /* V3RecoveryKeyRotationService.swift */,
+				D62100000000000000000001 /* V3RecoveryDeviceEnrollmentPublisher.swift */,
 				D60500000000000000000001 /* V3RecoveryContentMutation.swift */,
 				D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */,
 				D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */,
@@ -1092,6 +1095,7 @@
 				D61800000000000000000002 /* V3RecoveryRecipientRemoval.swift in Sources */,
 				D61900000000000000000002 /* V3RecoveryKeyRotationPublisher.swift in Sources */,
 				D62000000000000000000002 /* V3RecoveryKeyRotationService.swift in Sources */,
+				D62100000000000000000002 /* V3RecoveryDeviceEnrollmentPublisher.swift in Sources */,
 				D60500000000000000000002 /* V3RecoveryContentMutation.swift in Sources */,
 				D53100000000000000000002 /* V3DeviceWrappedRevocationTransitionValidation.swift in Sources */,
 				D53200000000000000000002 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift in Sources */,

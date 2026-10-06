@@ -275,6 +275,8 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
                 throw recoveryError(for: error, intent: intent)
             }
             try requireState(checkpoint: candidateCheckpoint, anchorData: anchorData)
+            try validator.finishCommitted(input, validated: validated, vaultKey: vaultKey)
+            try requireState(checkpoint: candidateCheckpoint, anchorData: anchorData)
             try cleanup(
                 intent,
                 intentData: intentData,
@@ -342,6 +344,9 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
             expectedCheckpoint: intent.expectedCheckpoint.canonicalBytes,
             vaultID: intent.vaultID
         )
+        try requireState(checkpoint: candidateCheckpoint, anchorData: anchorData)
+        try validator.finishCommitted(input, validated: validated, vaultKey: vaultKey)
+        try requireState(checkpoint: candidateCheckpoint, anchorData: anchorData)
         try cleanup(
             intent,
             intentData: intentData,

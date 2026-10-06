@@ -277,6 +277,12 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
             operationID: operationID
         )
 
+        try requireExactCheckpoint(checkpoint)
+        try requireOwnership(armedAnchorData, vaultID: vaultID)
+        try validator.finishCommitted(candidate, validated: validated, vaultKey: vaultKey)
+        try requireExactCheckpoint(checkpoint)
+        try requireOwnership(armedAnchorData, vaultID: vaultID)
+
         if (try? removeRecoveryArtifacts(
             intent: intent,
             intentData: intentData,
