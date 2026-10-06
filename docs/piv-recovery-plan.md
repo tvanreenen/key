@@ -97,7 +97,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
-| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; rotation/enrollment have durable publication/resume and guarded owner sessions, with exact ceremony completion and joining-Mac first trust; reviewed device revocation and recipient removal have durable publication/resume and guarded initial/restart owner sessions with exact review and initial last-recipient acknowledgment; user confirmation, key-transition catch-up and shipping product/native acceptance remain |
+| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; durable publication/resume, owner sessions, exact comparison completion and joining first trust are implemented; reviewed revocation/removal retain exact initial review and last-recipient acknowledgment; remaining-Mac one-epoch catch-up retains full reseal checks; mixed content/epoch coordination, user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
@@ -489,8 +489,10 @@ An initial authority-change service now composes separately reviewed revocation/
 removal with random-key publication and guarded session installation. Its explicit
 restart methods now reconcile exact locally owned work through bounded public
 preflight and cold/warm Mac-wrapper authentication without renewed consent or
-signing. Shipping cold-unlock/runtime/config activation, user confirmation and
-key-transition catch-up still require implementation.
+signing. A guarded remaining-Mac key-transition step now validates exact public
+history and fully authenticates the selected epoch and resealed snapshots before
+local trust advances. Shipping cold-unlock/runtime/config activation, user
+confirmation and mixed content/key-epoch coordination still require implementation.
 Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -542,6 +544,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Twelfth 810 removal publisher component, 2026-10-06 | [Recipient-removal publisher/validator](../Sources/KeyCore/V3RecoveryRecipientRemovalPublisher.swift) and [20 software declarations](../Tests/KeyCoreTests/V3RecoveryRecipientRemovalPublisherTests.swift) | Exact plan and initial last-recipient acknowledgment precede reservation. Version-1 intent pins one new removal kind without saved consent. Every publication boundary covers continuing/last-recipient removal; exact restart, current-only cleanup and ordinary-save/software-recovery composition pass. Full Debug/Release and unsigned universal Preview checks pass. Owner/session orchestration, catch-up and native/product qualification remain. |
 | Thirteenth 810 initial authority service, 2026-10-06 | [Explicit revocation/removal methods](../Sources/KeyCore/V3RecoveryAuthorityChangeService.swift) and [15 software declarations](../Tests/KeyCoreTests/V3RecoveryAuthorityChangeServiceTests.swift) | One shared source/session flow retains independent decision policies and exact initial review/acknowledgment. Random-key publication installs only authenticated committed state, with generation guards against lock or same-key reauthentication during UI. All durable boundaries and ordinary-save/software-recovery composition pass. Full Debug/Release and unsigned universal Preview checks pass; session-aware restart, catch-up and native/product qualification remain. |
 | Fourteenth 810 authority restart component, 2026-10-06 | [Explicit restart/session methods](../Sources/KeyCore/V3RecoveryAuthorityChangeService.swift) and [18 software declarations](../Tests/KeyCoreTests/V3RecoveryAuthorityChangeRecoveryTests.swift) | Exact owned revocation/removal intent and optional routed anchor precede public preflight and addressed Mac-wrapper opening. Cold/warm reconciliation generates no new epoch or consent; current-only committed cleanup preserves trust without obsolete files. All initial durable boundaries, session/source/pending races and ordinary-save/software-recovery composition pass. Full Debug/Release and unsigned universal Preview checks pass; key-transition catch-up and native/product acceptance remain. |
+| Fifteenth 810 remaining-Mac key-transition step, 2026-10-06 | [Bounded observation and guarded step](../Sources/KeyCore/V3RecoveryKeyTransitionCatchUpService.swift) and [24 software declarations](../Tests/KeyCoreTests/V3RecoveryKeyTransitionCatchUpTests.swift) | One continuing-Mac wrapper authenticates the selected new epoch and full old/new reseal before checkpoint CAS. Independent checkpoints, edits around several epochs, late joins, visible conflicts and source/session/pending races are exercised. Software recovery follows another Mac's save without Mac private state. Verification below; mixed coordination and integrated/native/product review remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -3026,3 +3029,90 @@ review before closing PR 72's scope. Restore orchestration and shipping product
 composition belong in later stacked review layers. No package is complete, and no
 real vault/configuration, installed app, token operation/administration, push or
 release is involved in this increment.
+
+### Fifteenth 810 remaining-Mac key-transition step, 2026-10-06
+
+The [new step service](../Sources/KeyCore/V3RecoveryKeyTransitionCatchUpService.swift)
+compares a single automatic history-to-latest operation with explicit guarded
+epoch steps. Explicit steps fit the existing same-epoch and profile-2 step
+contracts: publication and each ordinary epoch retain full old/new plaintext
+checks, cancellation does not trigger another private attempt, and a verified
+prefix is not reported as current. A complete mixed content/epoch coordinator
+will compose these steps separately; catastrophe recovery's one-token opening
+does not authorize reduced ordinary catch-up validation.
+
+Discovery reuses bounded graph loading, checkpoint-linked ancestry, public
+cryptography and existing independent device/recipient planners. Public policy
+recognizes only the supported single lifecycle decisions. Comparison, possession
+and acknowledgment belong to original publication, not a remote reader accepting
+its authenticated immutable result. Neither provider metadata nor the public
+observation grants a trusted checkpoint. No format, saved-consent or intent
+change is introduced.
+
+All visible forward public boundaries, same-epoch progression, epoch uniqueness,
+inventory and deduplicated ciphertext bounds/contexts check before UI. Visible
+content/authority/closed-epoch competition refuses. Current-epoch snapshots fully
+authenticate, including uncommitted siblings; exact committed same-epoch ancestors
+explain late joins without obsolete ciphertext. Future ciphertext must be present,
+but later epoch keys/MACs/AEAD are not claimed authenticated by the first step.
+After the one addressed continuing-Mac opening, current MAC/capsule correspondence,
+full boundary plaintext equality and all selected-epoch content snapshots check.
+One exact source and checkpoint, all pending namespaces and the session-generation
+ticket bracket UI/CAS. Errors lock without rollback or an invented resume pin.
+Best-effort cache failure cannot undo committed trust.
+
+Twenty-four declarations use independent local trust/cache/session states over
+contained actual filesystem publication. Rotation, enrollment, revocation and
+recipient removal use production services/publishers. Recipient addition uses the
+real domain builder and explicit materialization; it is not another possession
+ceremony. Cases cover mixed edits and several explicit epoch steps, resolved late
+branches, obsolete committed ciphertext, revocation in a later visible epoch,
+concurrent stale callers, cancellation, wrong output, MACs, complete reseal equality,
+bounds and pre-/post-CAS source/pending/lock/re-authentication changes. Recovery of
+another Mac's subsequent save uses only a continuing software recipient and files
+after both Macs leave scope.
+
+Initial test compilation corrected two calls to existing API signatures and
+separated nested Swift Testing macros. A
+resource-limit fixture initially violated its constructor precondition; it now
+uses a valid aggregate-byte boundary. A serialization test incorrectly nested the
+same synchronous queue and stopped the process; it was replaced with genuine
+concurrent callers using the established owner contract. Production checks were
+not weakened.
+
+Verification before the local commit:
+
+- Catch-up regression passed: 79 tests in four suites, followed by two focused
+  preflight/concurrency tests, including five altered-proof/roster cases. The
+  two additional late-branch/software-recovery declarations also passed in their
+  separate composition run and the broader catch-up regression.
+- Full Debug ran 1,480 KeyCore tests in 118 suites. The new 24-declaration
+  catch-up suite passed, but one existing handler test reported seven issues.
+  Its first complete-file-protection write failed with a permission error,
+  followed by missing-entry errors; the console was observed locked at the end.
+  An unlocked Debug rerun passed all 29 tests in the mutation-owner and storage
+  suites, including that exact handler test. This supports the locked-storage
+  explanation; the original full run remains recorded as failed, with its
+  affected suites successfully rerun. Six canonical-JSON tests passed.
+  Large-migration qualification remained skipped.
+- Debug and optimized production compilation passed. Unsigned universal Preview
+  passed, with arm64/x86_64 app, CLI and helper slices; bundle isolation and real
+  bundled CLI help/usage/version/completion checks passed.
+- The initial Release attempt was cancelled during test compilation while the
+  console remained locked. After unlock, a complete Release run passed all
+  1,480 KeyCore tests in 118 suites and six canonical-JSON tests in one suite.
+  Large-migration qualification remained skipped. No protection or screen-lock
+  setting was changed.
+- Strict formatting, Xcode project syntax, Git whitespace checks and all 199
+  local documentation targets passed again after the unlocked rerun. Raw output
+  remains ignored; only source, tests, project wiring and the implementation
+  record belong in the local commit.
+
+Raw output uses
+`tmp/piv-recovery/2026-10-06-key-catch-up-`.
+
+Next: mixed content/key-epoch coordination and lifecycle integration checks/review
+within PR 72. Restore orchestration and shipping runtime/CLI composition remain
+later stack layers. No package is complete. This increment changes no real vault,
+configuration, installed app or token, and performs no hardware administration,
+push, notarization or release.

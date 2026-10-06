@@ -1108,6 +1108,56 @@ cleanup and ordinary-save/software-recovery composition. Mac identities and
 recovery credentials are software fixtures, not physical qualification. No new
 persisted format, shipping route or real-vault activation is added.
 
+### Implemented remaining-Mac key-transition step
+
+The [key-transition service](../Sources/KeyCore/V3RecoveryKeyTransitionCatchUpService.swift)
+adds one serialized epoch step from an exact unlocked profile-3 Mac checkpoint.
+It uses ordinary Mac credentials, not a token anchor or a fabricated recovery
+selection. This is an internal step, not shipping dispatch or a complete mixed
+content/key-epoch coordinator.
+
+Bounded discovery reuses the manifest graph, checkpoint-linked same-epoch
+ancestry, public epoch proofs and existing roster planners. Rotation, one compared
+device addition, one device revocation, one recipient addition and one recipient
+removal remain separate permitted policies. Catch-up verifies already-published
+authority; it does not renew an enrollment comparison, registration possession
+ceremony or last-recipient acknowledgment, or authorize a new publication.
+Changed identities, missing tombstones, combined unrelated roster changes and
+reactivation are not accepted transitions.
+
+Every visible forward boundary verifies both parent-bound signatures. Same-epoch
+metadata and revision progression, epoch uniqueness, graph/entry budgets, exact
+ciphertext addresses and contexts check before native opening. Visible competing
+authority, content heads or closed-epoch branches refuse rather than select by
+time or provider order. Current-epoch snapshots authenticate completely; exact
+committed older same-epoch ancestors explain late joins without reopening their
+obsolete ciphertext. Required forward ciphertext, including unopened later
+epochs, must be available.
+
+Only the addressed continuing Mac wrapper is opened, once per successful step.
+The resulting key authenticates its MAC and signing capsule, the complete boundary
+snapshots must have identical plaintexts, and every visible content snapshot in
+that selected next epoch fully authenticates. This retains ordinary catch-up's
+full reseal checks, not catastrophe recovery's reduced historical replay. Later
+epochs remain publicly checked but not MAC/AEAD-trusted until separate steps open
+their keys. Success returns only the first committed epoch root, never a claim
+that the latest state or global provider freshness was reached. Same-epoch-only
+work returns `noKeyTransition` without advancing content trust.
+
+Exact checkpoint, all three pending-work namespaces, source bytes and session
+generation bracket UI and checkpoint CAS. Cancellation and incorrect output do
+not retry. Failures lock without rolling back committed trust or creating/deleting
+intent. A cache failure cannot undo an authenticated advance. A Mac visibly
+revoked at the selected history head refuses before a private operation.
+
+[Twenty-four software declarations](../Tests/KeyCoreTests/V3RecoveryKeyTransitionCatchUpTests.swift)
+exercise independent local checkpoints/sessions over contained filesystem
+publication, mixed edits/epochs, late joins, removal, coverage, limits, cancellation,
+source/session/pending/CAS races and software recovery after both Macs leave scope.
+Rotation/enrollment/revocation/removal use actual publishers; recipient-addition
+bytes use the domain builder and fixture materialization, not another registration
+possession ceremony. No native prompt or physical-token qualification is claimed.
+
 ## Proposed data contract
 
 Keep outer vault/envelope version 3 and the understood envelope shape.
