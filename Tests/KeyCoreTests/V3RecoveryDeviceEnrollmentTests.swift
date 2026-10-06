@@ -477,7 +477,7 @@ struct V3RecoveryDeviceEnrollmentTests {
     }
   }
 
-  private func ceremony(
+  func ceremony(
     parentDigest: Data, owner: any V3EnrollmentMessageSigning,
     joiner: any V3EnrollmentMessageSigning
   ) throws -> V3EnrollmentCeremonyState {

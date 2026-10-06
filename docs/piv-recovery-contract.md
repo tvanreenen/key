@@ -535,9 +535,9 @@ service edit. Old snapshot ciphertext is removed and the original session/Mac
 identity leaves scope before one software agreement opens the final state for
 each credential. Rotation candidates are seeded and checkpointed by test setup;
 there is no production rotation publisher, service, resume or key-transition
-catch-up yet. Device revocation and recipient removal policy remain separate work.
-Compared-device enrollment now has the internal component below. No public command
-or real-vault opt-in is enabled.
+catch-up yet. Compared-device enrollment and reviewed device revocation now have
+the internal components below; recipient removal remains separate work. No public
+command or real-vault opt-in is enabled.
 
 ### Implemented compared-device enrollment foundation
 
@@ -570,6 +570,37 @@ Enrollment epochs/checkpoints are materialized by test setup; durable publicatio
 resume, ceremony consumption, joining-Mac adoption, key-transition catch-up and
 shipping/native integration remain. Existing profile-2 dispatch and persisted
 formats are unchanged. No public command or real-vault opt-in is enabled.
+
+### Implemented reviewed-device revocation foundation
+
+The [revocation planner/builder/validator](../Sources/KeyCore/V3RecoveryDeviceRevocation.swift)
+authenticates the exact profile-3 parent and reconstructs the complete reviewed
+checkpoint/device/roster decision. Exactly one other active Mac becomes revoked;
+all identities and tombstones remain. The approving Mac retains access. Unknown,
+already revoked and self selections refuse, and the last active Mac cannot be
+removed. A changed plan cannot approve another checkpoint or device.
+
+Both profiles reuse the [existing roster rule](../Sources/KeyCore/V3DeviceRevocationRosterPolicy.swift)
+while keeping separate profile/checkpoint authentication boundaries. The pure rule
+establishes no authority or durable approval. Profile-2 behavior, plan types,
+persisted formats and shipping dispatch remain unchanged.
+
+Recovery recipients/registrations/statuses and generation remain exact. A fresh
+key epoch reseals the complete snapshot without changing metadata or values.
+Public keys create new wrappers for every remaining active Mac and recovery
+recipient; revoked devices receive none. Full independent software validation
+precedes optional one addressed approving-Mac unwrap, without automatic retry.
+No token or administrative operation is required for construction.
+
+[Software tests](../Tests/KeyCoreTests/V3RecoveryDeviceRevocationTests.swift)
+show remaining devices opening new wrappers, the revoked Mac's old key failing
+to open the new snapshot, and primary/backup recovery after materialized enrollment,
+revocation and an actual ordinary-service save. Recovery uses one software agreement
+per credential after original Mac private state and superseded ciphertext leave
+scope. Old copied states remain readable with their old keys; revocation is
+forward-only. Durable revocation publication/resume, confirmation, remaining-Mac
+catch-up, recipient removal and product/native integration remain. No public
+command or real-vault opt-in is enabled.
 
 ## Proposed data contract
 
