@@ -77,6 +77,14 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
         }
     }
 
+    func prepareInterruptedTransaction(
+        vaultID: String, expectedAnchor: Data? = nil
+    ) throws -> V3ContentTransactionRecoveryPreparation {
+        try mutationOwner.perform(.recoverInterruptedTransaction) { _ in
+            try recoverer.prepare(vaultID: vaultID, expectedAnchor: expectedAnchor)
+        }
+    }
+
     private func publish(
         _ candidate: V3ContentTransactionInput,
         vaultKey: Data,

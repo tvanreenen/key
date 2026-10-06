@@ -140,15 +140,34 @@ struct V3RecoveryKeyRotationValidator: Sendable {
     _ candidate: V3RecoveryKeyRotationCandidate, parent: V3RecoveryManifestEnvelope,
     currentVaultKey: Data, expectedOwner: V3EnrollmentDeviceIdentity
   ) throws {
+    try requireUnchangedRoster(candidate.envelope, parent: parent)
+    try V3RecoveryEpochSnapshotValidator(limits: limits).preflight(
+      candidate.envelope, checkpoint: candidate.expectedCheckpoint, parent: parent,
+      stagedEntryCount: candidate.stagedEntries.count, currentVaultKey: currentVaultKey,
+      expectedOwner: expectedOwner)
+  }
+
+  /// Exact local-floor metadata and public authorization only, not a MAC,
+  /// plaintext comparison or permission to publish. Safe before native unwrap.
+  func preflightPublic(
+    _ candidate: V3RecoveryKeyRotationCandidate, parent: V3RecoveryManifestEnvelope,
+    expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws {
     let envelope = candidate.envelope
+    try requireUnchangedRoster(envelope, parent: parent)
+    try V3RecoveryEpochSnapshotValidator(limits: limits).preflightPublic(
+      envelope, checkpoint: candidate.expectedCheckpoint, parent: parent,
+      stagedEntryCount: candidate.stagedEntries.count,
+      expectedOwner: expectedOwner)
+  }
+
+  private func requireUnchangedRoster(
+    _ envelope: V3RecoveryManifestEnvelope, parent: V3RecoveryManifestEnvelope
+  ) throws {
     guard envelope.body.fields.devices == parent.body.fields.devices,
       envelope.body.recovery.recipients == parent.body.recovery.recipients,
       envelope.body.recovery.generationID == parent.body.recovery.generationID
     else { throw V3RecoveryKeyRotationError.invalidCandidate }
-    try V3RecoveryEpochSnapshotValidator(limits: limits).preflight(
-      envelope, checkpoint: candidate.expectedCheckpoint, parent: parent,
-      stagedEntryCount: candidate.stagedEntries.count, currentVaultKey: currentVaultKey,
-      expectedOwner: expectedOwner)
   }
 
   func validate(
@@ -194,6 +213,21 @@ struct V3RecoveryEpochSnapshotValidator: Sendable {
   ) throws {
     try V3RecoveryContentMutationValidator(limits: limits).validateParent(
       parent, checkpoint: checkpoint, vaultKey: currentVaultKey)
+    try preflightPublic(
+      envelope, checkpoint: checkpoint, parent: parent, stagedEntryCount: stagedEntryCount,
+      expectedOwner: expectedOwner)
+  }
+
+  func preflightPublic(
+    _ envelope: V3RecoveryManifestEnvelope, checkpoint: V3ManifestCheckpoint,
+    parent: V3RecoveryManifestEnvelope, stagedEntryCount: Int,
+    expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws {
+    guard parent.canonicalBytes.count <= limits.maximumManifestBytes,
+      parent.body.fields.entries.count <= limits.maximumReferencedEntryObjects,
+      parent.body.fields.vaultID == checkpoint.vaultID,
+      Data(SHA256.hash(data: parent.canonicalBytes)) == checkpoint.envelopeDigest
+    else { throw V3RecoveryKeyRotationError.invalidCandidate }
     guard envelope.canonicalBytes.count <= limits.maximumManifestBytes,
       stagedEntryCount <= limits.maximumReferencedEntryObjects,
       parent.body.fields.devices.contains(where: {
