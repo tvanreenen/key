@@ -726,8 +726,9 @@ removal of obsolete ciphertext, with one software agreement per primary/backup
 credential. The original Mac identities/sessions leave scope before recovery.
 Those foundation tests materialize enrollment epochs/checkpoints in test setup.
 The internal durable component below exercises actual enrollment publication.
-Owner-service/session composition, joining-Mac adoption, key-transition catch-up
-and shipping/native integration remain. Existing profile-2 dispatch and persisted
+Joining-Mac adoption, key-transition catch-up and shipping/native integration
+remain. The internal owner service below composes publication and sessions.
+Existing profile-2 dispatch and persisted
 formats are unchanged. No public command or real-vault opt-in is enabled.
 
 ### Implemented durable compared-device enrollment
@@ -779,7 +780,64 @@ actual enrollment publication, an ordinary save and obsolete ciphertext removal.
 The tested one-operation wrapper check and one-agreement recovery are software
 counts, not physical prompt qualification. This component neither presents
 comparison UI nor installs an owner/joiner session. Owner-service restart and
-session orchestration are next; product routing and native acceptance remain.
+session orchestration are implemented separately below; joining adoption,
+product routing and native acceptance remain.
+
+### Implemented enrollment owner service and exact restart
+
+The [internal owner service](../Sources/KeyCore/V3RecoveryEnrollmentOwnerService.swift)
+loads the exact signed local ceremony and authenticates the entire current
+snapshot with an already unlocked session. Preparation returns the pinned
+checkpoint and comparison transcript; it does not sign, generate a key or save
+approval. Execution requires the exact reviewed checkpoint and explicitly approved
+transcript digest. An expired, consumed, replaced, conflicting or unavailable
+ceremony cannot create a fresh enrollment. Existing pending work and invalid
+source/session/identity refuse before signing.
+
+Initial execution generates a random 256-bit key with CryptoKit and calls the
+existing builder and durable enrollment publisher. After signing it rechecks
+source, checkpoint, local ceremony, pending work and the live session before
+the addressed Mac wrapper is opened. The session's process-local authentication
+ticket is checked before and after that operation; a lock or replacement during
+the operation prevents reservation. Successful publication must authenticate
+the exact committed current key/capsule and full snapshot, verify consumed local
+ceremony bytes and recheck checkpoint/ownership before guarded installation.
+
+An initial cleanup failure may leave the exact committed enrollment pending
+while its authenticated new session is installed. Before selecting such pending
+work, the service reconstructs this operation's exact transcript-bearing intent
+digest and checks its local anchor, then verifies the selected committed bytes.
+A substituted operation or intent is not cleaned up or used for installation.
+Failure after checkpoint advancement locks without rollback. Before commitment,
+failure retains the old session only if the reviewed checkpoint is still exact;
+it never reinstalls a key or removes pending approval from an error path.
+
+Restart loads the exact local transcript without reapplying invitation expiry
+and selects only its locally anchored enrollment. Public preflight checks the
+full roster/recipient decision, transcript-derived transition ID, both public
+boundary authorizations, snapshot metadata, source inventory and projected
+budgets before opening an uncommitted old Mac wrapper. That result must
+authenticate the old key/capsule and complete plaintext snapshot. Exact pending,
+source, ceremony and session checks precede the new Mac wrapper. Full old/new
+comparison remains in the publisher before commitment. Committed reconciliation
+uses only the current epoch and key, not old ciphertext, manifest or cache.
+
+No new comparison, signing, random epoch, rewrapping or recovery-token agreement
+occurs on restart. Software counts are two/one/one/zero Mac unwraps for cold
+uncommitted, cold committed, warm old-key and warm committed-key sessions.
+They are not physical prompt guarantees. All recovery errors lock, and successful
+installation cannot undo explicit lock, expiry or replacement. Nothing-to-recover
+is not a general unlock or a fresh approval; incomplete unpublished staging may
+still be safely abandoned without consuming the ceremony.
+
+[Twenty-three software declarations](../Tests/KeyCoreTests/V3RecoveryEnrollmentOwnerServiceTests.swift)
+exercise actual random-key service publication and restart at all 14 boundaries,
+continued ordinary saves, warm reuse, cancellation, same-key session replacement,
+source/ceremony/pending changes before further private operations, bad provider
+results, malformed and over-budget input, checkpoint/completion/cleanup failures
+and post-commit refusal. Primary/backup recovery after an owner-service enrollment
+and save uses one software agreement each. No public command, comparison UI,
+joining-Mac adoption, native qualification or real-vault opt-in is added.
 
 ### Implemented reviewed-device revocation foundation
 

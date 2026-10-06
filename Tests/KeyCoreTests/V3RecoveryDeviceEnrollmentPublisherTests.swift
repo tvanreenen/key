@@ -7,8 +7,8 @@ import Testing
 /// Real profile cryptography and contained immutable storage. Only local CAS
 /// failures, cancellation and interruption boundaries are scripted.
 struct V3RecoveryDeviceEnrollmentPublisherTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  typealias Core = V3RecoveryRegistrationTests
+  typealias Publication = V3RecoveryContentMutationPublisherTests
   private typealias Stop = Publication.Stop
   private static let nextKey = Data(repeating: 0x55, count: 32)
   private static let now: UInt64 = 4_102_444_800
@@ -559,7 +559,7 @@ struct V3RecoveryDeviceEnrollmentPublisherTests {
       expectedOwner: owner ?? f.disk.core.owner.publicIdentity, expectedAnchor: expectedAnchor)
   }
 
-  private struct Fixture: Sendable {
+  struct Fixture: Sendable {
     let disk: Publication.Fixture
     let joiner: Core.Owner
     let state: V3EnrollmentCeremonyState
@@ -577,7 +577,7 @@ struct V3RecoveryDeviceEnrollmentPublisherTests {
       try .init(canonicalBytes: #require(local.value))
     }
   }
-  private final class StateStore: V3EnrollmentCeremonyStateStoring, @unchecked Sendable {
+  final class StateStore: V3EnrollmentCeremonyStateStoring, @unchecked Sendable {
     private let lock = NSLock()
     private var bytes: Data?
     private var rejected = false

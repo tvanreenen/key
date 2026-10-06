@@ -77,6 +77,34 @@ struct V3RecoveryDeviceEnrollmentValidator: Sendable {
     state: V3EnrollmentCeremonyState, currentVaultKey: Data,
     expectedOwner: V3EnrollmentDeviceIdentity, freshAt unixTime: UInt64?
   ) throws {
+    try validatePolicy(
+      candidate, parent: parent, state: state,
+      expectedOwner: expectedOwner, freshAt: unixTime)
+    try V3RecoveryEpochSnapshotValidator(limits: limits).preflight(
+      candidate.envelope, checkpoint: candidate.expectedCheckpoint, parent: parent,
+      stagedEntryCount: candidate.stagedEntries.count, currentVaultKey: currentVaultKey,
+      expectedOwner: expectedOwner)
+  }
+
+  /// Public provenance/policy checks before opening Mac wrappers for exact
+  /// anchored work. This does not replace MAC/capsule or plaintext validation.
+  func preflightPublicAnchored(
+    _ candidate: V3RecoveryDeviceEnrollmentCandidate, parent: V3RecoveryManifestEnvelope,
+    state: V3EnrollmentCeremonyState, expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws {
+    try validatePolicy(
+      candidate, parent: parent, state: state,
+      expectedOwner: expectedOwner, freshAt: nil)
+    try V3RecoveryEpochSnapshotValidator(limits: limits).preflightPublic(
+      candidate.envelope, checkpoint: candidate.expectedCheckpoint, parent: parent,
+      stagedEntryCount: candidate.stagedEntries.count, expectedOwner: expectedOwner)
+  }
+
+  private func validatePolicy(
+    _ candidate: V3RecoveryDeviceEnrollmentCandidate, parent: V3RecoveryManifestEnvelope,
+    state: V3EnrollmentCeremonyState, expectedOwner: V3EnrollmentDeviceIdentity,
+    freshAt unixTime: UInt64?
+  ) throws {
     let transcript = try validateCeremony(
       state, checkpoint: candidate.expectedCheckpoint, parent: parent,
       expectedOwner: expectedOwner, at: unixTime)
@@ -90,10 +118,6 @@ struct V3RecoveryDeviceEnrollmentValidator: Sendable {
       body.recovery.recipients == parent.body.recovery.recipients,
       body.recovery.generationID == parent.body.recovery.generationID
     else { throw V3RecoveryDeviceEnrollmentError.invalidCandidate }
-    try V3RecoveryEpochSnapshotValidator(limits: limits).preflight(
-      candidate.envelope, checkpoint: candidate.expectedCheckpoint, parent: parent,
-      stagedEntryCount: candidate.stagedEntries.count, currentVaultKey: currentVaultKey,
-      expectedOwner: expectedOwner)
   }
 
   /// Only for exact locally anchored work. Expiry prevents fresh approvals,
@@ -142,7 +166,7 @@ struct V3RecoveryDeviceEnrollmentValidator: Sendable {
       candidate.envelope, nextVaultKey: nextVaultKey, identity: identity, reason: reason)
   }
 
-  fileprivate func validateCeremony(
+  func validateCeremony(
     _ state: V3EnrollmentCeremonyState, checkpoint: V3ManifestCheckpoint,
     parent: V3RecoveryManifestEnvelope, expectedOwner: V3EnrollmentDeviceIdentity,
     at unixTime: UInt64?
@@ -165,7 +189,7 @@ struct V3RecoveryDeviceEnrollmentValidator: Sendable {
     return transcript
   }
 
-  fileprivate func resultingDevices(
+  func resultingDevices(
     parent: [V3DeviceWrappedManifestDevice], joining: V3EnrollmentDeviceIdentity
   ) throws -> [V3DeviceWrappedManifestDevice] {
     guard !parent.contains(where: { $0.identity.deviceID == joining.deviceID }),
