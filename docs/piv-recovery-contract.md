@@ -1000,9 +1000,48 @@ during public selection, before agreement and without falling back to older
 wrappers. Existing copied old states remain readable with old keys: removal is
 forward-only, not remote erasure or protection against withheld newer files.
 With no active recovery recipients, ordinary Mac-authorized saves still work.
-Durable lifecycle publication/resume, user confirmation, remaining-Mac catch-up
-and product/native integration remain. No public command or real-vault opt-in is
+Durable removal publication/resume is implemented separately below; user
+confirmation, remaining-Mac catch-up and product/native integration remain.
+No public command or real-vault opt-in is
 enabled; profile-2 behavior and persisted formats are unchanged.
+
+### Implemented durable reviewed-recipient removal
+
+The [internal removal publisher](../Sources/KeyCore/V3RecoveryRecipientRemovalPublisher.swift)
+requires a separately supplied exact plan and, for the last active recipient,
+its exact protection-loss acknowledgment before any Mac operation or reservation.
+The caller still owns informed confirmation; the typed value is not proof that
+the user saw a warning. Complete source/transition/snapshot checks precede one
+addressed Mac-wrapper opening, then source and local state are checked again.
+Cancellation or mismatched provider output cannot pin new work.
+
+The existing immutable kernel publishes entries before the manifest and advances
+the checkpoint last. Version-1 local intent retains its original fields, with a
+new `removeRecoveryRecipient` operation kind. Existing kind encodings do not
+change; older decoders refuse the unknown kind. No consent marker or duplicate
+recipient roster is persisted. Kind checks precede checkpoint-based abandonment;
+an explicit routed anchor must match before cleanup of an unarmed reservation.
+
+Uncommitted restart reconstructs exactly one active-to-revoked recipient change
+from the authenticated parent and pinned candidate, retaining all identities and
+Mac records, changing the recovery generation and checking complete old/new
+plaintext equality. Transition-only validation is not fresh approval: the kernel
+must already establish exact local intent ownership. Restart requests no renewed
+acknowledgment, signing, key generation, Mac unwrap or token operation. A missing
+unpublished preparation may be abandoned, not regenerated as a new removal.
+
+Already committed cleanup authenticates the current key, capsule/MAC and complete
+snapshot at the exact pinned checkpoint without old keys, ciphertext or manifests.
+Missing current state retains ownership and trust. Other valid epoch policies and
+ordinary/rotation/revocation/enrollment intents cannot stand in for removal.
+
+[Twenty software declarations](../Tests/KeyCoreTests/V3RecoveryRecipientRemovalPublisherTests.swift)
+cover all 14 publication interruptions with and without remaining protection,
+exact review and acknowledgment, current-only cleanup, source/pending/CAS guards,
+missing state and resource bounds. Primary/backup/last removal uses actual durable
+publication followed by an ordinary save; only continuing software recipients
+recover the latest snapshot. Retained old copies remain outside removal promises.
+No owner/session orchestration, shipping route or physical qualification is added.
 
 ## Proposed data contract
 
