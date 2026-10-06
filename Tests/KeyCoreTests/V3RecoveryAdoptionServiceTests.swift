@@ -465,6 +465,91 @@ struct V3RecoveryAdoptionServiceTests {
     }
   }
 
+  @Test(arguments: [
+    V3RecoveryAdoptionPhase.candidateConstructed, .bundlePersisted, .localWrapperVerified,
+    .artifactsStaged, .entriesVerified, .manifestVerified, .checkpointAdvanced, .sessionUpdated,
+  ])
+  func competingWorkAtDurableBoundariesStopsRemainingAdoptionEffects(phase: V3RecoveryAdoptionPhase)
+    throws
+  {
+    let f = try Fixture()
+    defer { f.remove() }
+    let installs = Core.Counter()
+    #expect(throws: V3RecoveryAdoptionServiceError.otherMutationPending) {
+      try f.service(
+        observer: Observer {
+          if $0 == phase {
+            try f.registration.replaceRecoveryAnchor(
+              Data([1]), expectedAnchor: nil, vaultID: Core.vaultID)
+          }
+        }
+      ).adopt(currentVaultKey: Core.oldKey) { _, _ in installs.increment() }
+    }
+    let committed = phase == .checkpointAdvanced || phase == .sessionUpdated
+    #expect((f.checkpoints.value != f.core.base.checkpoint.canonicalBytes) == committed)
+    #expect(installs.value == (phase == .sessionUpdated ? 1 : 0))
+    #expect(f.registration.value == Data([1]))
+    if phase == .candidateConstructed {
+      #expect(f.ownership.value == nil)
+      return
+    }
+    let preparation = try f.pending()
+    try f.registration.replaceRecoveryAnchor(nil, expectedAnchor: Data([1]), vaultID: Core.vaultID)
+    let result = try f.service().resume(
+      operationID: preparation.operationID, currentVaultKey: Core.oldKey)
+    #expect(result.alreadyAdopted == committed && f.ownership.value == nil)
+    #expect(f.core.owner.signatures == 1)
+  }
+
+  @Test(arguments: [false, true])
+  func competingWorkBlocksPreparedAdoptionResumeBeforeLocalApproval(registration: Bool) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    #expect(throws: Core.FixtureError.cancelled) {
+      try f.service(
+        observer: Observer { if $0 == .bundlePersisted { throw Core.FixtureError.cancelled } }
+      )
+      .adopt(currentVaultKey: Core.oldKey)
+    }
+    let preparation = try f.pending()
+    let pin = f.ownership.value
+    let barrier = registration ? f.registration : f.transactions
+    try barrier.replaceRecoveryAnchor(Data([1]), expectedAnchor: nil, vaultID: Core.vaultID)
+    #expect(throws: V3RecoveryAdoptionServiceError.otherMutationPending) {
+      try f.service().resume(operationID: preparation.operationID, currentVaultKey: Core.oldKey)
+    }
+    #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
+    #expect(
+      f.ownership.value == pin && f.checkpoints.value == f.core.base.checkpoint.canonicalBytes)
+  }
+
+  @Test(arguments: [false, true])
+  func competingWorkBlocksCommittedAdoptionRepairEvenAfterCleanup(cleaned: Bool) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let operation: VaultTransactionOperationID
+    if cleaned {
+      operation = try f.service().adopt(currentVaultKey: Core.oldKey).operationID
+    } else {
+      #expect(throws: Core.FixtureError.cancelled) {
+        try f.service(
+          observer: Observer { if $0 == .checkpointAdvanced { throw Core.FixtureError.cancelled } }
+        )
+        .adopt(currentVaultKey: Core.oldKey)
+      }
+      operation = try f.pending().operationID
+    }
+    let checkpoint = f.checkpoints.value
+    let pin = f.ownership.value
+    let unwraps = f.core.owner.unwraps
+    try f.transactions.replaceRecoveryAnchor(Data([1]), expectedAnchor: nil, vaultID: Core.vaultID)
+    #expect(throws: V3RecoveryAdoptionServiceError.otherMutationPending) {
+      try f.service().resume(operationID: operation, currentVaultKey: Core.oldKey)
+    }
+    #expect(f.core.owner.unwraps == unwraps && f.core.owner.signatures == 1)
+    #expect(f.checkpoints.value == checkpoint && f.ownership.value == pin)
+  }
+
   private struct Observer: V3RecoveryAdoptionPhaseObserving {
     let body: @Sendable (V3RecoveryAdoptionPhase) throws -> Void
     init(_ body: @escaping @Sendable (V3RecoveryAdoptionPhase) throws -> Void) { self.body = body }

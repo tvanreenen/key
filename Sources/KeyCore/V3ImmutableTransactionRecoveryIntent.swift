@@ -39,6 +39,9 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
     /// Binds recovery to the exact locally approved enrollment ceremony.
     /// Ordinary content transactions use the original version 1 shape.
     let enrollmentTranscriptDigest: Data?
+    /// Version 3 is reserved for profile 3 all-parent content publication.
+    /// An empty array marks an automatic merge; nil retains versions 1/2.
+    let recoveryMergeResolutions: [VaultConflictResolution]?
 
     init(
         operationID: VaultTransactionOperationID,
@@ -48,38 +51,50 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
         expectedHeads: [Data],
         candidateManifestDigest: Data,
         stagedEntries: [V3ImmutableTransactionRecoveryEntry],
-        enrollmentTranscriptDigest: Data? = nil
+        enrollmentTranscriptDigest: Data? = nil,
+        recoveryMergeResolutions: [VaultConflictResolution]? = nil
     ) throws {
         guard kind != .recoverInterruptedTransaction,
-              kind != .registerRecoveryRecipient,
-              kind != .adoptRecoveryProfile,
-              isValidV3UUID(vaultID),
-              expectedCheckpoint.vaultID == vaultID,
-              !expectedHeads.isEmpty,
-              expectedHeads.count <= Self.maximumHeads,
-              expectedHeads.allSatisfy({ $0.count == 32 }),
-              Set(expectedHeads).count == expectedHeads.count,
-              expectedHeads == expectedHeads.sorted(by: {
-                  $0.lexicographicallyPrecedes($1)
-              }),
-              candidateManifestDigest.count == 32,
-              enrollmentTranscriptDigest == nil
+            kind != .registerRecoveryRecipient,
+            kind != .adoptRecoveryProfile,
+            isValidV3UUID(vaultID),
+            expectedCheckpoint.vaultID == vaultID,
+            !expectedHeads.isEmpty,
+            expectedHeads.count <= Self.maximumHeads,
+            expectedHeads.allSatisfy({ $0.count == 32 }),
+            Set(expectedHeads).count == expectedHeads.count,
+            expectedHeads
+                == expectedHeads.sorted(by: {
+                    $0.lexicographicallyPrecedes($1)
+                }),
+            candidateManifestDigest.count == 32,
+            enrollmentTranscriptDigest == nil
                 || enrollmentTranscriptDigest?.count == 32,
-              stagedEntries.count <= Self.maximumStagedEntries,
-              stagedEntries.allSatisfy({
-                  isValidV3UUID($0.entryID) && $0.digest.count == 32
-              }),
-              Set(stagedEntries.map {
-                  V3RecoveryEntryKey(
-                      entryID: $0.entryID,
-                      digest: $0.digest
-                  )
-              }).count == stagedEntries.count,
-              stagedEntries == stagedEntries.sorted(
-                  by: recoveryEntryPrecedes
-              )
+            stagedEntries.count <= Self.maximumStagedEntries,
+            stagedEntries.allSatisfy({
+                isValidV3UUID($0.entryID) && $0.digest.count == 32
+            }),
+            Set(
+                stagedEntries.map {
+                    V3RecoveryEntryKey(
+                        entryID: $0.entryID,
+                        digest: $0.digest
+                    )
+                }
+            ).count == stagedEntries.count,
+            stagedEntries
+                == stagedEntries.sorted(
+                    by: recoveryEntryPrecedes
+                )
         else {
             throw V3ImmutableTransactionRecoveryIntentError.invalidFormat
+        }
+        if let resolutions = recoveryMergeResolutions {
+            guard enrollmentTranscriptDigest == nil else {
+                throw V3ImmutableTransactionRecoveryIntentError.invalidFormat
+            }
+            try Self.validateRecoveryMerge(
+                kind: kind, expectedHeads: expectedHeads, resolutions: resolutions)
         }
         self.operationID = operationID
         self.kind = kind
@@ -89,88 +104,114 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
         self.candidateManifestDigest = candidateManifestDigest
         self.stagedEntries = stagedEntries
         self.enrollmentTranscriptDigest = enrollmentTranscriptDigest
+        self.recoveryMergeResolutions = recoveryMergeResolutions
+        guard canonicalBytes.count <= Self.maximumBytes else {
+            throw V3ImmutableTransactionRecoveryIntentError.invalidFormat
+        }
     }
 
     init(canonicalBytes: Data) throws {
+        guard canonicalBytes.count <= Self.maximumBytes else {
+            throw V3ImmutableTransactionRecoveryIntentError.invalidFormat
+        }
         let json: CanonicalJSONValue
         do {
             json = try CanonicalJSON.parse(canonicalBytes)
         } catch {
             throw V3ImmutableTransactionRecoveryIntentError.invalidFormat
         }
-        guard canonicalBytes.count <= Self.maximumBytes,
-              CanonicalJSON.encode(json) == canonicalBytes,
-              let object = json.objectValue,
-              let version = recoveryInteger("version", in: object),
-              version == 1 || version == 2
+        guard CanonicalJSON.encode(json) == canonicalBytes,
+            let object = json.objectValue,
+            let version = recoveryInteger("version", in: object),
+            version == 1 || version == 2 || version == 3
         else {
             throw V3ImmutableTransactionRecoveryIntentError.invalidFormat
         }
         let commonFields = Set([
-                  "candidateManifestDigest",
-                  "expectedCheckpoint",
-                  "expectedHeads",
-                  "format",
-                  "kind",
-                  "operationID",
-                  "stagedEntries",
-                  "vaultID",
-                  "version"
-              ])
-        let expectedFields = version == 1
-            ? commonFields
-            : commonFields.union(["enrollmentTranscriptDigest"])
+            "candidateManifestDigest",
+            "expectedCheckpoint",
+            "expectedHeads",
+            "format",
+            "kind",
+            "operationID",
+            "stagedEntries",
+            "vaultID",
+            "version",
+        ])
+        let expectedFields: Set<String>
+        switch version {
+        case 1: expectedFields = commonFields
+        case 2: expectedFields = commonFields.union(["enrollmentTranscriptDigest"])
+        default: expectedFields = commonFields.union(["recoveryMergeResolutions"])
+        }
         guard Set(object.map(\.0)) == expectedFields,
-              recoveryString("format", in: object)
+            recoveryString("format", in: object)
                 == "key-vault-transaction-recovery",
-              let operationIDValue = recoveryString(
-                  "operationID",
-                  in: object
-              ),
-              let operationID = try? VaultTransactionOperationID(
-                  validating: operationIDValue
-              ),
-              let kindValue = recoveryString("kind", in: object),
-              let kind = VaultTransactionMutationKind(rawValue: kindValue),
-              let vaultID = recoveryString("vaultID", in: object),
-              let expectedCheckpoint = decodeRecoveryCheckpoint(
-                  recoveryMember("expectedCheckpoint", in: object)
-              ),
-              let expectedHeadValues = recoveryMember(
-                  "expectedHeads",
-                  in: object
-              )?.arrayValue,
-              let expectedHeads = decodeRecoveryDigests(
-                  expectedHeadValues
-              ),
-              let candidateDigestValue = recoveryString(
-                  "candidateManifestDigest",
-                  in: object
-              ),
-              let candidateManifestDigest = Base64URL.decodeCanonical(
-                  candidateDigestValue
-              ),
-              let entryValues = recoveryMember(
-                  "stagedEntries",
-                  in: object
-              )?.arrayValue,
-              let stagedEntries = decodeRecoveryEntries(entryValues)
+            let operationIDValue = recoveryString(
+                "operationID",
+                in: object
+            ),
+            let operationID = try? VaultTransactionOperationID(
+                validating: operationIDValue
+            ),
+            let kindValue = recoveryString("kind", in: object),
+            let kind = VaultTransactionMutationKind(rawValue: kindValue),
+            let vaultID = recoveryString("vaultID", in: object),
+            let expectedCheckpoint = decodeRecoveryCheckpoint(
+                recoveryMember("expectedCheckpoint", in: object)
+            ),
+            let expectedHeadValues = recoveryMember(
+                "expectedHeads",
+                in: object
+            )?.arrayValue,
+            let expectedHeads = decodeRecoveryDigests(
+                expectedHeadValues
+            ),
+            let candidateDigestValue = recoveryString(
+                "candidateManifestDigest",
+                in: object
+            ),
+            let candidateManifestDigest = Base64URL.decodeCanonical(
+                candidateDigestValue
+            ),
+            let entryValues = recoveryMember(
+                "stagedEntries",
+                in: object
+            )?.arrayValue,
+            let stagedEntries = decodeRecoveryEntries(entryValues)
         else {
             throw V3ImmutableTransactionRecoveryIntentError.invalidFormat
         }
         let enrollmentTranscriptDigest: Data?
         if version == 2 {
-            guard let encoded = recoveryString(
-                "enrollmentTranscriptDigest",
-                in: object
-            ), let digest = Base64URL.decodeCanonical(encoded),
-                  digest.count == 32
+            guard
+                let encoded = recoveryString(
+                    "enrollmentTranscriptDigest",
+                    in: object
+                ), let digest = Base64URL.decodeCanonical(encoded),
+                digest.count == 32
             else {
                 throw V3ImmutableTransactionRecoveryIntentError.invalidFormat
             }
             enrollmentTranscriptDigest = digest
         } else {
             enrollmentTranscriptDigest = nil
+        }
+        let resolutions: [VaultConflictResolution]?
+        if version == 3 {
+            guard let values = recoveryMember("recoveryMergeResolutions", in: object)?.arrayValue,
+                values.count <= Self.maximumStagedEntries
+            else { throw V3ImmutableTransactionRecoveryIntentError.invalidFormat }
+            resolutions = try values.map { value in
+                guard let fields = value.objectValue,
+                    Set(fields.map(\.0)) == Set(["conflictID", "versionID"]),
+                    let conflictID = recoveryString("conflictID", in: fields),
+                    let versionID = recoveryString("versionID", in: fields)
+                else { throw V3ImmutableTransactionRecoveryIntentError.invalidFormat }
+                return VaultConflictResolution(conflictID: conflictID, versionID: versionID)
+            }
+        } else {
+            resolutions = nil
         }
         try self.init(
             operationID: operationID,
@@ -180,16 +221,21 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
             expectedHeads: expectedHeads,
             candidateManifestDigest: candidateManifestDigest,
             stagedEntries: stagedEntries,
-            enrollmentTranscriptDigest: enrollmentTranscriptDigest
+            enrollmentTranscriptDigest: enrollmentTranscriptDigest,
+            recoveryMergeResolutions: resolutions
         )
     }
 
     var canonicalBytes: Data {
         var members: [(String, CanonicalJSONValue)] = [
             ("format", .string("key-vault-transaction-recovery")),
-            ("version", .integer(
-                enrollmentTranscriptDigest == nil ? 1 : 2
-            )),
+            (
+                "version",
+                .integer(
+                    recoveryMergeResolutions != nil
+                        ? 3 : (enrollmentTranscriptDigest == nil ? 1 : 2)
+                )
+            ),
             ("operationID", .string(operationID.rawValue)),
             ("kind", .string(kind.rawValue)),
             ("vaultID", .string(vaultID)),
@@ -204,17 +250,19 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
                     ("vaultID", .string(expectedCheckpoint.vaultID)),
                     (
                         "envelopeDigest",
-                        .string(Base64URL.encode(
-                            expectedCheckpoint.envelopeDigest
-                        ))
-                    )
+                        .string(
+                            Base64URL.encode(
+                                expectedCheckpoint.envelopeDigest
+                            ))
+                    ),
                 ])
             ),
             (
                 "expectedHeads",
-                .array(expectedHeads.map {
-                    .string(Base64URL.encode($0))
-                })
+                .array(
+                    expectedHeads.map {
+                        .string(Base64URL.encode($0))
+                    })
             ),
             (
                 "candidateManifestDigest",
@@ -222,22 +270,66 @@ struct V3ImmutableTransactionRecoveryIntent: Equatable, Sendable {
             ),
             (
                 "stagedEntries",
-                .array(stagedEntries.map { entry in
-                    .object([
-                        ("entryID", .string(entry.entryID)),
-                        ("digest", .string(Base64URL.encode(entry.digest)))
-                    ])
-                })
-            )
+                .array(
+                    stagedEntries.map { entry in
+                        .object([
+                            ("entryID", .string(entry.entryID)),
+                            ("digest", .string(Base64URL.encode(entry.digest))),
+                        ])
+                    })
+            ),
         ]
         if let enrollmentTranscriptDigest {
-            members.append((
-                "enrollmentTranscriptDigest",
-                .string(Base64URL.encode(enrollmentTranscriptDigest))
-            ))
+            members.append(
+                (
+                    "enrollmentTranscriptDigest",
+                    .string(Base64URL.encode(enrollmentTranscriptDigest))
+                ))
+        }
+        if let recoveryMergeResolutions {
+            members.append(
+                (
+                    "recoveryMergeResolutions",
+                    .array(
+                        recoveryMergeResolutions.map {
+                            .object([
+                                ("conflictID", .string($0.conflictID)),
+                                ("versionID", .string($0.versionID)),
+                            ])
+                        })
+                ))
         }
         return CanonicalJSON.encode(.object(members))
     }
+
+    static func validateRecoveryMerge(
+        kind: VaultTransactionMutationKind, expectedHeads: [Data],
+        resolutions: [VaultConflictResolution]
+    ) throws {
+        guard expectedHeads.count > 1, expectedHeads.count <= maximumHeads,
+            expectedHeads.allSatisfy({ $0.count == 32 }),
+            Set(expectedHeads).count == expectedHeads.count,
+            expectedHeads == expectedHeads.sorted(by: { $0.lexicographicallyPrecedes($1) }),
+            (kind == .mergeHeads && resolutions.isEmpty)
+                || (kind == .resolveConflict && !resolutions.isEmpty),
+            resolutions.count <= maximumStagedEntries,
+            Set(resolutions.map(\.conflictID)).count == resolutions.count,
+            resolutions == resolutions.sorted(by: { $0.conflictID < $1.conflictID }),
+            resolutions.allSatisfy(validRecoveryMergeResolution)
+        else { throw V3ImmutableTransactionRecoveryIntentError.invalidFormat }
+    }
+}
+
+private func validRecoveryMergeResolution(_ resolution: VaultConflictResolution) -> Bool {
+    let conflict = Array(resolution.conflictID.utf8)
+    let version = Array(resolution.versionID.utf8)
+    return conflict.count == 66 && resolution.conflictID.hasPrefix("c-")
+        && conflict.dropFirst(2).allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+        && (16...64).contains(version.count)
+        && version.allSatisfy {
+            (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0)
+                || $0 == 45 || $0 == 95
+        }
 }
 
 private struct V3RecoveryEntryKey: Hashable {
@@ -261,8 +353,8 @@ private func decodeRecoveryDigests(
     result.reserveCapacity(values.count)
     for value in values {
         guard let encoded = value.stringValue,
-              let digest = Base64URL.decodeCanonical(encoded),
-              digest.count == 32
+            let digest = Base64URL.decodeCanonical(encoded),
+            digest.count == 32
         else {
             return nil
         }
@@ -289,17 +381,18 @@ private func decodeRecoveryEntries(
     result.reserveCapacity(values.count)
     for value in values {
         guard let object = value.objectValue,
-              Set(object.map(\.0)) == Set(["digest", "entryID"]),
-              let entryID = recoveryString("entryID", in: object),
-              let encodedDigest = recoveryString("digest", in: object),
-              let digest = Base64URL.decodeCanonical(encodedDigest)
+            Set(object.map(\.0)) == Set(["digest", "entryID"]),
+            let entryID = recoveryString("entryID", in: object),
+            let encodedDigest = recoveryString("digest", in: object),
+            let digest = Base64URL.decodeCanonical(encodedDigest)
         else {
             return nil
         }
-        result.append(V3ImmutableTransactionRecoveryEntry(
-            entryID: entryID,
-            digest: digest
-        ))
+        result.append(
+            V3ImmutableTransactionRecoveryEntry(
+                entryID: entryID,
+                digest: digest
+            ))
     }
     return result
 }

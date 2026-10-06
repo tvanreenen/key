@@ -71,6 +71,7 @@ struct V3RecoveryAdoptionService: Sendable {
       guard try loadOwnership() == nil else { throw V3RecoveryAdoptionServiceError.adoptionPending }
       let checkpoint = try loadCheckpoint()
       let (parent, initial) = try authenticatedBase(checkpoint, key: currentVaultKey)
+      try requireCheckpoint(checkpoint)
       let nextKey = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }
       let candidate = try V3RecoveryProfileAdoptionBuilder(limits: limits).build(
         from: parent, currentEntries: initial.entries, currentVaultKey: currentVaultKey,
@@ -253,6 +254,7 @@ struct V3RecoveryAdoptionService: Sendable {
       next.canonicalBytes, expectedCheckpoint: parent.checkpoint.canonicalBytes,
       vaultID: vaultID)
     try observer.didReach(.checkpointAdvanced)
+    try requireCheckpoint(next)
     try afterCheckpointAdvance(next, nextKey)
     try observer.didReach(.sessionUpdated)
     return try complete(preparation, checkpoint: next, alreadyAdopted: false, clear: true)
@@ -276,6 +278,7 @@ struct V3RecoveryAdoptionService: Sendable {
     guard try loadOwnership() == local else {
       throw V3RecoveryAdoptionServiceError.ownershipChanged
     }
+    try requireCheckpoint(checkpoint)
     try afterCheckpointAdvance(checkpoint, nextKey)
     try observer.didReach(.sessionUpdated)
     return try complete(
@@ -330,6 +333,7 @@ struct V3RecoveryAdoptionService: Sendable {
     else { throw V3RecoveryProfileAdoptionError.invalidOwner }
   }
   private func openLocal(_ envelope: V3RecoveryManifestEnvelope, reason: String) throws -> Data {
+    try requireNoOtherPending()
     guard
       let local = envelope.body.fields.wrappedKeys.first(where: {
         $0.recipientDeviceID == identity.publicIdentity.deviceID
@@ -376,10 +380,14 @@ struct V3RecoveryAdoptionService: Sendable {
     else { throw V3RecoveryAdoptionServiceError.checkpointChanged }
     return checkpoint
   }
+  // Include competing durable work when rechecking trust before local effects.
+  // Cross-service serialization still belongs to the shared mutation owner.
   private func requireCheckpoint(_ expected: V3ManifestCheckpoint) throws {
+    try requireNoOtherPending()
     guard try loadCheckpoint() == expected else {
       throw V3RecoveryAdoptionServiceError.checkpointChanged
     }
+    try requireNoOtherPending()
   }
   private func anchor(
     _ preparation: V3RecoveryAdoptionPreparation,

@@ -67,227 +67,67 @@ struct V3DeviceWrappedManifestCandidateBuilder: Sendable {
     private static let authenticationAlgorithm =
         "HKDF-SHA256+HMAC-SHA256"
 
-    private let entryCipher = V3EntryCipher()
     private let envelopeCodec = V3DeviceWrappedManifestEnvelopeCodec()
 
-    func add(
-        to base: V3DeviceWrappedTrustedCheckpoint,
-        entryID: String,
-        name: String,
-        type: SecretEntryType,
-        plaintext: String,
-        vaultKey: Data
-    ) throws -> V3DeviceWrappedContentMutationCandidate {
-        try validate(base: base, vaultKey: vaultKey)
-        try validate(entryID: entryID)
-        try validate(name: name)
-        guard entry(named: name, in: base.envelope.body) == nil else {
-            throw V3DeviceWrappedContentMutationError.entryExists
-        }
-        guard !base.envelope.body.entries.contains(where: {
-            $0.entryID == entryID
-        }) else {
-            throw V3DeviceWrappedContentMutationError.invalidEntryID
-        }
+    private let planner = V3EntryMutationPlanner()
 
-        let encrypted = try seal(
-            plaintext,
-            entryID: entryID,
-            name: name,
-            type: type,
-            revision: 1,
-            base: base,
-            vaultKey: vaultKey
-        )
-        return try build(
-            kind: .addEntry,
-            entries: base.envelope.body.entries + [manifestEntry(encrypted)],
-            stagedEntries: [encrypted],
-            base: base,
-            vaultKey: vaultKey
-        )
+    func add(
+        to base: V3DeviceWrappedTrustedCheckpoint, entryID: String,
+        name: String, type: SecretEntryType, plaintext: String, vaultKey: Data
+    ) throws -> V3DeviceWrappedContentMutationCandidate {
+        try plan(
+            .add(entryID: entryID, name: name, type: type, plaintext: plaintext),
+            base: base, vaultKey: vaultKey)
     }
 
     func edit(
-        in base: V3DeviceWrappedTrustedCheckpoint,
-        name: String,
-        type: SecretEntryType,
-        plaintext: String,
-        vaultKey: Data
+        in base: V3DeviceWrappedTrustedCheckpoint, name: String,
+        type: SecretEntryType, plaintext: String, vaultKey: Data
     ) throws -> V3DeviceWrappedContentMutationCandidate {
-        try validate(base: base, vaultKey: vaultKey)
-        try validate(name: name)
-        guard let existing = entry(named: name, in: base.envelope.body) else {
-            throw V3DeviceWrappedContentMutationError.entryNotFound
-        }
-        guard existing.revision < v3MaximumSafeInteger else {
-            throw V3DeviceWrappedContentMutationError.revisionOverflow
-        }
-
-        let encrypted = try seal(
-            plaintext,
-            entryID: existing.entryID,
-            name: name,
-            type: type,
-            revision: existing.revision + 1,
-            base: base,
-            vaultKey: vaultKey
-        )
-        return try build(
-            kind: .editEntry,
-            entries: replacing(
-                existing.entryID,
-                with: manifestEntry(encrypted),
-                in: base.envelope.body.entries
-            ),
-            stagedEntries: [encrypted],
-            base: base,
-            vaultKey: vaultKey
-        )
+        try plan(
+            .edit(name: name, type: type, plaintext: plaintext),
+            base: base, vaultKey: vaultKey)
     }
 
     func copy(
-        in base: V3DeviceWrappedTrustedCheckpoint,
-        sourceName: String,
-        sourceData: Data,
-        destinationEntryID: String,
-        destinationName: String,
-        overwrite: Bool,
-        vaultKey: Data
+        in base: V3DeviceWrappedTrustedCheckpoint, sourceName: String,
+        sourceData: Data, destinationEntryID: String, destinationName: String,
+        overwrite: Bool, vaultKey: Data
     ) throws -> V3DeviceWrappedContentMutationCandidate {
-        try validate(base: base, vaultKey: vaultKey)
-        try validate(name: sourceName)
-        try validate(name: destinationName)
-        try validate(entryID: destinationEntryID)
-        guard sourceName != destinationName else {
-            throw V3DeviceWrappedContentMutationError.unchangedName
-        }
-        guard let source = entry(
-            named: sourceName,
-            in: base.envelope.body
-        ) else {
-            throw V3DeviceWrappedContentMutationError.entryNotFound
-        }
-        let destination = entry(
-            named: destinationName,
-            in: base.envelope.body
-        )
-        guard destination == nil || overwrite else {
-            throw V3DeviceWrappedContentMutationError.entryExists
-        }
-        guard !base.envelope.body.entries.contains(where: {
-            $0.entryID == destinationEntryID
-        }) else {
-            throw V3DeviceWrappedContentMutationError.invalidEntryID
-        }
-
-        let plaintext = try entryCipher.openTrusted(
-            sourceData,
-            vaultID: base.envelope.body.vaultID,
-            manifestEntry: source,
-            vaultKey: vaultKey
-        )
-        let encrypted = try seal(
-            plaintext,
-            entryID: destinationEntryID,
-            name: destinationName,
-            type: source.type,
-            revision: 1,
-            base: base,
-            vaultKey: vaultKey
-        )
-        var entries = base.envelope.body.entries.filter {
-            $0.entryID != destination?.entryID
-        }
-        entries.append(manifestEntry(encrypted))
-        return try build(
-            kind: .copyEntry,
-            entries: entries,
-            stagedEntries: [encrypted],
-            base: base,
-            vaultKey: vaultKey
-        )
+        try plan(
+            .copy(
+                sourceName: sourceName, sourceData: sourceData,
+                destinationEntryID: destinationEntryID,
+                destinationName: destinationName, overwrite: overwrite),
+            base: base, vaultKey: vaultKey)
     }
 
     func move(
-        in base: V3DeviceWrappedTrustedCheckpoint,
-        sourceName: String,
-        sourceData: Data,
-        destinationName: String,
-        overwrite: Bool,
-        vaultKey: Data
+        in base: V3DeviceWrappedTrustedCheckpoint, sourceName: String,
+        sourceData: Data, destinationName: String, overwrite: Bool, vaultKey: Data
     ) throws -> V3DeviceWrappedContentMutationCandidate {
-        try validate(base: base, vaultKey: vaultKey)
-        try validate(name: sourceName)
-        try validate(name: destinationName)
-        guard sourceName != destinationName else {
-            throw V3DeviceWrappedContentMutationError.unchangedName
-        }
-        guard let source = entry(
-            named: sourceName,
-            in: base.envelope.body
-        ) else {
-            throw V3DeviceWrappedContentMutationError.entryNotFound
-        }
-        let destination = entry(
-            named: destinationName,
-            in: base.envelope.body
-        )
-        guard destination == nil || overwrite else {
-            throw V3DeviceWrappedContentMutationError.entryExists
-        }
-        guard source.revision < v3MaximumSafeInteger else {
-            throw V3DeviceWrappedContentMutationError.revisionOverflow
-        }
-
-        let plaintext = try entryCipher.openTrusted(
-            sourceData,
-            vaultID: base.envelope.body.vaultID,
-            manifestEntry: source,
-            vaultKey: vaultKey
-        )
-        let encrypted = try seal(
-            plaintext,
-            entryID: source.entryID,
-            name: destinationName,
-            type: source.type,
-            revision: source.revision + 1,
-            base: base,
-            vaultKey: vaultKey
-        )
-        var entries = base.envelope.body.entries.filter {
-            $0.entryID != source.entryID
-                && $0.entryID != destination?.entryID
-        }
-        entries.append(manifestEntry(encrypted))
-        return try build(
-            kind: .moveEntry,
-            entries: entries,
-            stagedEntries: [encrypted],
-            base: base,
-            vaultKey: vaultKey
-        )
+        try plan(
+            .move(
+                sourceName: sourceName, sourceData: sourceData,
+                destinationName: destinationName, overwrite: overwrite),
+            base: base, vaultKey: vaultKey)
     }
 
     func remove(
-        from base: V3DeviceWrappedTrustedCheckpoint,
-        name: String,
-        vaultKey: Data
+        from base: V3DeviceWrappedTrustedCheckpoint, name: String, vaultKey: Data
+    ) throws -> V3DeviceWrappedContentMutationCandidate {
+        try plan(.remove(name: name), base: base, vaultKey: vaultKey)
+    }
+
+    private func plan(
+        _ request: V3EntryMutationRequest,
+        base: V3DeviceWrappedTrustedCheckpoint, vaultKey: Data
     ) throws -> V3DeviceWrappedContentMutationCandidate {
         try validate(base: base, vaultKey: vaultKey)
-        try validate(name: name)
-        guard let existing = entry(named: name, in: base.envelope.body) else {
-            throw V3DeviceWrappedContentMutationError.entryNotFound
-        }
+        let plan = try planner.plan(request, fields: base.envelope.body.fields, vaultKey: vaultKey)
         return try build(
-            kind: .removeEntry,
-            entries: base.envelope.body.entries.filter {
-                $0.entryID != existing.entryID
-            },
-            stagedEntries: [],
-            base: base,
-            vaultKey: vaultKey
-        )
+            kind: plan.kind, entries: plan.entries,
+            stagedEntries: plan.stagedEntries, base: base, vaultKey: vaultKey)
     }
 
     private func validate(
@@ -319,69 +159,6 @@ struct V3DeviceWrappedManifestCandidateBuilder: Sendable {
             throw V3DeviceWrappedContentMutationError
                 .invalidTrustedCheckpoint
         }
-    }
-
-    private func validate(entryID: String) throws {
-        guard isValidV3UUID(entryID) else {
-            throw V3DeviceWrappedContentMutationError.invalidEntryID
-        }
-    }
-
-    private func validate(name: String) throws {
-        guard isValidV3EntryName(name) else {
-            throw V3DeviceWrappedContentMutationError.invalidEntryName
-        }
-    }
-
-    private func entry(
-        named name: String,
-        in body: V3DeviceWrappedManifestBody
-    ) -> V3ManifestEntry? {
-        body.entries.first { $0.name == name }
-    }
-
-    private func replacing(
-        _ entryID: String,
-        with replacement: V3ManifestEntry,
-        in entries: [V3ManifestEntry]
-    ) -> [V3ManifestEntry] {
-        entries.map { $0.entryID == entryID ? replacement : $0 }
-    }
-
-    private func seal(
-        _ plaintext: String,
-        entryID: String,
-        name: String,
-        type: SecretEntryType,
-        revision: UInt64,
-        base: V3DeviceWrappedTrustedCheckpoint,
-        vaultKey: Data
-    ) throws -> V3EncryptedEntry {
-        try entryCipher.seal(
-            plaintext,
-            context: V3EntryAuthenticationContext(
-                vaultID: base.envelope.body.vaultID,
-                entryID: entryID,
-                name: name,
-                type: type,
-                keyID: base.envelope.body.keyID,
-                revision: revision
-            ),
-            vaultKey: vaultKey
-        )
-    }
-
-    private func manifestEntry(
-        _ encrypted: V3EncryptedEntry
-    ) -> V3ManifestEntry {
-        V3ManifestEntry(
-            entryID: encrypted.context.entryID,
-            name: encrypted.context.name,
-            type: encrypted.context.type,
-            revision: encrypted.context.revision,
-            keyID: encrypted.context.keyID,
-            ciphertextDigest: encrypted.ciphertextDigest
-        )
     }
 
     private func build(
