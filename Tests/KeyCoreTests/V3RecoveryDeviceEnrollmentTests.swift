@@ -81,6 +81,23 @@ struct V3RecoveryDeviceEnrollmentTests {
     #expect(f.core.owner.signatures == before && f.core.owner.unwraps == 0)
   }
 
+  @Test func publicComparedPreflightDoesNotImpersonateAnInviterOrGrantPublicationApproval() throws {
+    let f = try Fixture()
+    let candidate = try f.build()
+    let joiner = try V3EnrollmentCeremonyState(
+      vaultID: Core.vaultID, invitationDigest: f.state.invitationDigest,
+      role: .joiner, phase: .awaitingComparison,
+      signedInvitation: f.state.signedInvitation, signedJoinRequest: f.state.signedJoinRequest)
+    let validator = V3RecoveryDeviceEnrollmentValidator()
+    try validator.preflightComparedEnrollment(
+      candidate, parent: f.core.parent, transcript: #require(joiner.transcript))
+    #expect(throws: V3RecoveryDeviceEnrollmentError.invalidCeremony) {
+      try validator.preflightPublicAnchored(
+        candidate, parent: f.core.parent, state: joiner, expectedOwner: f.core.owner.publicIdentity)
+    }
+    #expect(f.joiner.unwraps == 0 && f.core.owner.unwraps == 0)
+  }
+
   @Test(arguments: [false, true])
   func invalidMessageAuthenticationRefusesBeforeSigning(joinRequest: Bool) throws {
     let f = try Fixture()
@@ -234,6 +251,13 @@ struct V3RecoveryDeviceEnrollmentTests {
       candidate: material.body, parent: f.core.parent,
       currentVaultKey: Core.oldKey, nextVaultKey: Core.nextKey,
       signer: f.core.owner, reason: "Owned software roster-policy fixture")
+    #expect(throws: V3RecoveryDeviceEnrollmentError.invalidCandidate) {
+      try V3RecoveryDeviceEnrollmentValidator().preflightComparedEnrollment(
+        .init(
+          expectedCheckpoint: f.core.checkpoint, envelope: envelope,
+          stagedEntries: material.stagedEntries, transcriptDigest: transcript.digest),
+        parent: f.core.parent, transcript: transcript)
+    }
     #expect(throws: V3RecoveryDeviceEnrollmentError.invalidCandidate) {
       try f.validate(
         .init(

@@ -97,7 +97,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
-| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; unchanged-roster rotation and compared-device enrollment have internal durable publication/resume and guarded owner-session orchestration, with exact enrollment ceremony completion; reviewed revocation and recipient removal have builders/validators with exact last-recipient acknowledgment; other lifecycle publication/resume, user confirmation, joining adoption, key-transition catch-up and shipping product/native acceptance remain |
+| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; unchanged-roster rotation and compared-device enrollment have internal durable publication/resume and guarded owner-session orchestration, with exact enrollment ceremony completion and joining-Mac first trust; reviewed revocation and recipient removal have builders/validators with exact last-recipient acknowledgment; other lifecycle publication/resume, user confirmation, key-transition catch-up and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
@@ -446,9 +446,12 @@ preflight before addressed Mac unwraps. Enrollment now reuses that durability
 kernel under its own transcript/source policy and consumes the exact local ceremony
 after authenticated commitment while pending ownership protects retries. Its owner
 service now composes exact reviewed comparison approval, random-key publication
-and guarded initial/restart sessions without new signing on resume. Shipping
-cold-unlock/runtime dispatch, other lifecycle publication/resume, user confirmation,
-joining adoption and key-transition catch-up still require implementation.
+and guarded initial/restart sessions without new signing on resume. Joining-Mac
+adoption now authenticates the exact compared enrollment and current snapshot,
+then pins insert-only checkpoint trust before ceremony completion and guarded
+session installation. Shipping cold-unlock/runtime/config activation, other
+lifecycle publication/resume, user confirmation and key-transition catch-up still
+require implementation.
 Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
@@ -495,6 +498,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Seventh 810 rotation restart component, 2026-10-06 | [Exact restart orchestration](../Sources/KeyCore/V3RecoveryKeyRotationService.swift), [shared pending-state preparation](../Sources/KeyCore/V3ContentTransactionRecoverer.swift), [15 restart declarations](../Tests/KeyCoreTests/V3RecoveryKeyRotationRecoveryTests.swift) and [guarded session authentication](../Tests/KeyCoreTests/V3DeviceWrappedVaultKeySessionTests.swift) | Exact interrupted random-key rotation resumes without new signing or token use, then installs only authenticated committed authority. Public preflight precedes addressed Mac unwraps; committed cleanup needs only the new epoch, and exact warm sessions reduce operations. Lock/expiry/status races and post-commit failures are exercised. Shipping cold unlock/routing, other lifecycle publication, product composition and integrated qualification remain. |
 | Eighth 810 durable enrollment component, 2026-10-06 | [Enrollment publisher/source validator](../Sources/KeyCore/V3RecoveryDeviceEnrollmentPublisher.swift), [domain completion hook](../Sources/KeyCore/V3ContentTransactionValidation.swift) and [publication tests](../Tests/KeyCoreTests/V3RecoveryDeviceEnrollmentPublisherTests.swift) | Exact locally stored compared transcript and approved digest select one manifest-last enrollment epoch. All interruption points, marker/cleanup failure ordering, expiry, source guards, current-only committed cleanup and primary/backup recovery after actual enrollment/save are exercised. Owner-service/session composition, joining adoption, other lifecycle publication and product/native acceptance remain. |
 | Ninth 810 enrollment owner component, 2026-10-06 | [Owner service and exact restart](../Sources/KeyCore/V3RecoveryEnrollmentOwnerService.swift), [public enrollment preflight](../Sources/KeyCore/V3RecoveryDeviceEnrollment.swift) and [23 software declarations](../Tests/KeyCoreTests/V3RecoveryEnrollmentOwnerServiceTests.swift) | Exact compared approval generates and publishes a random-key epoch, then installs only authenticated committed authority with a session race guard. All 14 interruption points, cold/warm restart, exact ceremony completion, substituted anchor refusal and primary/backup recovery after owner-service enrollment/save are covered. Joining adoption, other lifecycle publication, shipping composition and native acceptance remain. |
+| Tenth 810 joining component, 2026-10-06 | [Joining-Mac adoption](../Sources/KeyCore/V3RecoveryEnrollmentAdoption.swift) and [17 software declarations](../Tests/KeyCoreTests/V3RecoveryEnrollmentAdoptionTests.swift) | Exact comparison and public enrollment proofs precede the joining Mac wrapper; full current authentication precedes insert-only checkpoint trust, exact ceremony completion and guarded session installation. Cold/warm retry, interruption/lock at three verification/persistence boundaries, malformed/competing state and primary/backup recovery after a joining-Mac save pass. Config/runtime activation, catch-up, other lifecycle publication and native acceptance remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -2655,3 +2659,74 @@ Raw logs use `tmp/piv-recovery/2026-10-06-enrollment-owner-`; build artifacts st
 in the existing ignored directory. No installed app, real vault/configuration or
 YubiKey was changed. No token operation, administration, push, notarization or
 release was performed.
+
+### Tenth 810 joining component, 2026-10-06
+
+The [internal joining service](../Sources/KeyCore/V3RecoveryEnrollmentAdoption.swift)
+now establishes exact first trust from an explicitly compared digest and this
+Mac's exact local signed joining ceremony. The inviter role is never fabricated:
+shared public transition policy is separate from the owner approval/freshness checks. The
+existing owner paths still require their original inviter ceremony and approval.
+
+Two composition options were considered against exact retry, lock safety and
+shipping isolation. Extending the profile-2 adoption workflow would put config
+selection and runtime callbacks into this increment and require profile dispatch
+plus changes to its existing persistence/session behavior. Both options must
+preserve exact retries, full authentication and lock safety. A separate profile-3
+domain service reuses graph, snapshot, stores and session guards while leaving
+shipping profile-2 behavior unchanged. The latter was chosen. Configuration and
+runtime activation stay with later product composition; this result only names
+the exact verified enrollment and local checkpoint/session.
+
+Public preparation requires one exact transcript-derived, directly parented
+enrollment. Owner/epoch authorizations, exact device addition, unchanged recovery
+recipients/generation and reseal metadata are checked before the Mac wrapper.
+The bounded graph/inventory refuses unreadable named files, ambiguous approvals,
+visible later heads or competitors rather than choosing an older approval. This
+is exact adoption, not catch-up; withheld files remain outside its freshness
+claim. Existing pending work, a different checkpoint/session, missing or replaced
+local messages, invalid identities and limits stop before private authentication.
+
+After one cold Mac unwrap, the current key/MAC/capsule and every current entry
+must authenticate. A warm exact session avoids that operation. Source, local
+ceremony, checkpoint, pending work and the authentication ticket are rechecked
+across authentication and persistence. The non-authoritative encrypted cache is
+written before insert-only checkpoint trust. The checkpoint is then pinned before
+the exact ceremony CAS is marked consumed. Retries accept only nil or that same
+checkpoint; failure never rolls it back or overwrites a different one. Guarded
+session installation is last, and all errors lock. No shared object is published
+by adoption. Public parent/history bytes remain necessary, but obsolete entry
+ciphertext is not opened or required.
+
+[Seventeen software test declarations](../Tests/KeyCoreTests/V3RecoveryEnrollmentAdoptionTests.swift)
+exercise actual owner-service output and separate joining local state,
+empty/full snapshots, ordinary joining-Mac saves, primary/backup recovery,
+interruption and lock at three verification/persistence boundaries, local CAS/cache failure,
+cancellation, mismatched provider output, source/ceremony/checkpoint/pending/session
+changes, obsolete ciphertext removal, ambiguous approvals and bounded malformed
+inventory. Protected-filesystem execution was initially deferred because the
+host console was locked, then passed after the owner unlocked the Mac. No storage
+protection policy was changed. Primary/backup recovery after a joining-Mac save
+uses one software agreement per credential, not a qualified physical prompt count.
+
+Verification:
+
+- Debug compilation of the new production and test files passed.
+- Software-only enrollment policy/session regression passed: 25 tests in two
+  suites, including compared public preflight without inviter-role substitution
+  and rejection of well-formed but different roster/recovery decisions.
+- Focused joining/owner/publisher/legacy-adoption/session regression passed:
+  96 tests in six suites, including all 17 new adoption declarations.
+- Complete serial Debug and optimized Release regressions each passed: 1,383
+  KeyCore tests in 113 suites and six canonical-JSON tests in one suite. The
+  independently gated large-migration qualification was skipped in both runs.
+- Unsigned universal Preview build passed. App, CLI and helper each contain arm64
+  and x86_64 slices; product-bundle isolation and CLI help/completion checks passed.
+- Strict formatting of changed Swift files, Xcode project syntax and
+  `git diff --check` passed; 173 local documentation targets verified.
+
+Next: durable reviewed revocation and recipient removal. Key-transition catch-up,
+restore orchestration, shipping UI/runtime/CLI composition, integrated review and
+native/physical qualification remain. Raw logs use
+`tmp/piv-recovery/2026-10-06-enrollment-joiner-`. No real
+vault, config, installed app or token was changed; no release or push occurred.

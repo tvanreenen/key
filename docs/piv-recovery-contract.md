@@ -836,8 +836,50 @@ continued ordinary saves, warm reuse, cancellation, same-key session replacement
 source/ceremony/pending changes before further private operations, bad provider
 results, malformed and over-budget input, checkpoint/completion/cleanup failures
 and post-commit refusal. Primary/backup recovery after an owner-service enrollment
-and save uses one software agreement each. No public command, comparison UI,
-joining-Mac adoption, native qualification or real-vault opt-in is added.
+and save uses one software agreement each. This owner-service increment adds no
+public command, comparison UI, joining-Mac adoption, native qualification or
+real-vault opt-in. Internal joining adoption is implemented separately below.
+
+### Implemented joining-Mac adoption
+
+The [internal joining service](../Sources/KeyCore/V3RecoveryEnrollmentAdoption.swift)
+establishes exact local first trust without enabling a shipping enrollment route.
+Its [seventeen software test declarations](../Tests/KeyCoreTests/V3RecoveryEnrollmentAdoptionTests.swift)
+use actual owner-service publication, separate owner/joiner local stores and
+contained immutable filesystem storage. Only Mac identity operations and local
+failure/interruption boundaries are supplied by owned software fixtures.
+
+It requires this Mac's exact authenticated local joining messages and an explicitly
+compared transcript digest. Public transition policy is shared without fabricating
+an inviter ceremony or relaxing owner publication approval. Before opening a Mac
+wrapper, bounded graph/source checks require a sole direct matching enrollment,
+both boundary authorizations, the exact roster addition, unchanged recovery
+recipient/generation policy and preserved snapshot metadata. A different local
+checkpoint, competing pending work, ambiguous approval or visible later/competing
+state refuses; exact adoption does not perform catch-up or claim provider-global
+freshness. Public parent/history bytes remain required on retry, not old ciphertext.
+
+One cold addressed Mac-wrapper result must authenticate the current MAC/capsule
+and every current entry. Warm exact session reuse avoids that operation. All local
+and source state is rechecked before persistence and completion. The encrypted
+cache is non-authoritative. Insert-only checkpoint trust precedes consumed-ceremony
+bookkeeping so interruptions cannot permit a different matching epoch to replace
+the pinned one. Retry is nil-or-exact only. Guarded session installation is last;
+lock, expiry or replacement during authentication cannot be undone, and errors
+invalidate the session without rolling back or deleting committed local trust.
+
+The result names the verified enrollment/checkpoint. It does not select a config
+vault, claim an active shipping runtime, publish shared files or call/provision
+a recovery token. Product activation and key-transition catch-up remain separate.
+
+Tests cover empty/full snapshots, exact cold/warm retry, interruption and lock
+at approval verification, checkpoint installation and ceremony consumption,
+checkpoint/cache/completion failures, cancellation and wrong provider results,
+local/source/session changes, competing pending work, invalid signatures and
+inventory limits. Primary and backup software credentials each recover with one
+agreement after an actual owner approval, joining adoption and joining-Mac save,
+even with obsolete ciphertext removed. These are software operation counts, not
+native prompt or two-physical-token qualification.
 
 ### Implemented reviewed-device revocation foundation
 
