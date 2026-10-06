@@ -126,6 +126,37 @@ The tracker records completion, not a duplicate PR description. Product
 integration proceeds incrementally; 812 is the complete-workflow gate, not a
 single deferred integration PR.
 
+### Review stack, 2026-10-06
+
+The accumulated implementation is partitioned at consecutive existing commit
+boundaries and published through `gh stack` as GitHub stack 73. No implementation
+commit was rewritten. The existing CLI/help PR remains ready for review; the four
+recovery PRs are drafts assigned to the maintainer. Each targets the preceding
+branch so its diff contains only that layer.
+
+| PR | Review scope | Implementation boundary |
+|---|---|---|
+| [68](https://github.com/tvanreenen/key/pull/68) | Existing CLI/help changes, unchanged | `2adba7d` |
+| [69](https://github.com/tvanreenen/key/pull/69) | Genesis preparation, recovery format, anchored history and current-snapshot verification | `22a431c` |
+| [70](https://github.com/tvanreenen/key/pull/70) | Read-only token binding, external registration and profile adoption | `dfc34f0` |
+| [71](https://github.com/tvanreenen/key/pull/71) | Ordinary mutations, catch-up, branches, merge/resolution and reciprocal guards | `f7d671f` |
+| [72](https://github.com/tvanreenen/key/pull/72) | Key/device/recipient lifecycle; active unfinished layer | `19e1e3e` before this documentation-only record |
+
+Independent serial Debug boundary reruns passed 141 tests in 12 suites for
+foundations (including genesis/initialization), 223 tests in 16 suites for
+registration/adoption, and 401 tests in 27 suites for content/reconciliation and
+shared publication. These are affected regressions, not full-suite claims. The
+unchanged lifecycle code retains its recorded full Debug/Release and universal
+Preview evidence below. Raw boundary logs and PR drafts remain ignored under
+`tmp/piv-recovery/2026-10-06-stack-` and `tmp/piv-recovery/stack-`.
+
+Continue lifecycle implementation on `codex/recovery-lifecycle` in PR 72. Changes
+to an earlier layer belong on that layer and propagate through stack-aware rebase
+and submission, rather than being patched around at the top. Restore and product
+integration should get subsequent review layers when their boundaries are known.
+Stack publication does not complete any implementation package or authorize a
+hardware operation, real-vault activation, merge or release.
+
 ## Architecture ownership
 
 - Format and cryptographic validation stay in `KeyCore`, following
