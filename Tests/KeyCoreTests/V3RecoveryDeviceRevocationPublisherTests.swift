@@ -544,14 +544,15 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     #expect(f.enrollment.joiner.unwraps == 0)
   }
 
-  private struct Fixture: Sendable {
-    let enrollment: Enrollment.Fixture
+  struct Fixture: Sendable {
+    let enrollment: V3RecoveryDeviceEnrollmentPublisherTests.Fixture
     let parent: V3RecoveryManifestEnvelope
     let checkpoint: V3ManifestCheckpoint
     let entries: [V3EntryObjectKey: V3EncryptedEntry]
     let signatures: Int
     let unwraps: Int
-    var owner: Core.Owner { enrollment.disk.core.owner }
+    var owner: V3RecoveryRegistrationTests.Owner { enrollment.disk.core.owner }
+    var currentKey: Data { SelfKey.current }
     init(empty: Bool = false) throws {
       enrollment = try Enrollment.Fixture(empty: empty)
       let disk = enrollment.disk

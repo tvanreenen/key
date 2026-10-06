@@ -1043,6 +1043,36 @@ publication followed by an ordinary save; only continuing software recipients
 recover the latest snapshot. Retained old copies remain outside removal promises.
 No owner/session orchestration, shipping route or physical qualification is added.
 
+### Implemented initial authority-change session service
+
+The [internal authority-change service](../Sources/KeyCore/V3RecoveryAuthorityChangeService.swift)
+has separate preparation/execution methods for device revocation and recovery-key
+removal. It shares source, session and error handling, not their decision policies.
+Preparation authenticates the complete current snapshot without private identity
+operations, new keys, saved approval or durable reservation. Execution recomputes
+the exact reviewed plan and requires last-recipient acknowledgment before random-key
+generation or signing, then uses the corresponding existing builder and publisher.
+The helper must serialize the operation and supply its operation ID.
+
+After signing, the service rechecks the session generation, source, checkpoint and
+pending work before Mac-wrapper verification. After publication, exact committed
+authority and the complete current snapshot authenticate before an atomic session
+installation. Lock, expiry or same-old-key reauthentication during native UI cannot
+be undone by that installation. An error retains the old session only while its
+reviewed checkpoint remains exact; otherwise it locks without rolling back trust
+or deleting pending ownership. Best-effort cleanup failure allows the new session
+only with the exact matching committed intent; pending work still blocks new saves.
+
+[Fifteen software declarations](../Tests/KeyCoreTests/V3RecoveryAuthorityChangeServiceTests.swift)
+cover continuing/last-recipient removal and device revocation through all 14
+publication boundaries, independent review and acknowledgment, cancellation,
+incorrect provider output, lock/reauthentication races, source/pending/CAS changes,
+missing snapshots and bounds. Ordinary saving continues from the installed new
+session; only continuing software recipients can recover that saved state.
+Session-aware interrupted-change reconciliation, remaining-Mac catch-up, shipping
+confirmation/runtime/CLI and native/physical qualification remain separate work.
+No persisted format or shipping route changes in this increment.
+
 ## Proposed data contract
 
 Keep outer vault/envelope version 3 and the understood envelope shape.
