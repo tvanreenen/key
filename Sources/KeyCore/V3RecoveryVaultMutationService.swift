@@ -66,6 +66,21 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
     }
   }
 
+  /// Reuse the existing publication kernel for the exact local content intent.
+  /// The runtime authenticates its floor under that same ownership first.
+  func reconcilePendingContent(
+    operationID: VaultTransactionOperationID, vaultKey: Data, expectedAnchor: Data
+  ) throws {
+    try translated {
+      try requireNoAuthorityWork()
+      guard try ownership.loadRecoveryAnchor(vaultID: vaultID) == expectedAnchor else {
+        throw VaultUXServiceError.expectedHeadsChanged
+      }
+      try resumePinned(operationID, key: vaultKey)
+      try requireNoPending()
+    }
+  }
+
   func edit(
     name: String, secret: String, type: SecretEntryType, operationID: VaultTransactionOperationID
   )

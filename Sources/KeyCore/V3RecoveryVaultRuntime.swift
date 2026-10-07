@@ -283,9 +283,24 @@ struct V3RecoveryVaultRuntime:
     operationID: VaultTransactionOperationID, allowStale: Bool
   ) throws -> Prepared {
     do {
+      var continuation = admission
+      var fresh = explicitly
+      if try ownership[0].loadRecoveryAnchor(vaultID: vaultID) != nil {
+        let pending = try unlockRuntime.authenticatedPendingContext(
+          namespace: .transaction, reason: "Authenticate this Mac's interrupted vault save.",
+          explicitly: explicitly, continuing: admission)
+        continuation = try pending.authenticationTicket()
+        let key = try pending.loadVaultKey()
+        try mutations.reconcilePendingContent(
+          operationID: operationID, vaultKey: key, expectedAnchor: pending.anchor.canonicalBytes)
+        // Reconciliation can advance the checkpoint, but cannot replace the
+        // same-epoch session or turn cancellation into a fresh authentication.
+        try session.requireCurrent(continuation)
+        fresh = false
+      }
       let opened = try unlockRuntime.authenticatedReadContext(
         reason: "Unlock the vault.",
-        explicitly: explicitly, continuing: admission)
+        explicitly: fresh, continuing: continuation)
       let ticket = try opened.authenticationTicket()
       guard
         let identity = try identities.loadDeviceIdentity(

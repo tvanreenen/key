@@ -619,9 +619,15 @@ equality with the selection observation; then its outer read guard rechecks the
 session, pending ownership and published source. Conflict values have no stale
 fallback. These software checks request no additional private-key operation.
 
-Any pending ordinary, registration or adoption ownership still blocks routine
-runtime admission. Existing services retain their exact reconciliation protocols,
-but dedicated pending-state routing is not yet composed here. If lock follows a
+Pending registration or adoption still blocks routine runtime admission.
+Interrupted ordinary content saves use a separate pending-authentication context:
+one exact bounded device-local anchor must remain unchanged, and both other
+namespaces must stay empty. This context cannot be passed to an ordinary reader.
+The existing content/merge publication kernel reconciles only that pinned intent;
+normal unlock and catch-up then continue the same live session ticket against the
+resulting checkpoint, with no cold fallback. Malformed or competing ownership
+refuses before identity access. Explicit registration/adoption routing remains.
+If lock follows a
 durable publication, the saved bytes are not undone; the request's late success
 is refused. No automatic authentication retry, token administration, configuration
 change or source repair is added. Software operation counts do not qualify native
