@@ -10,6 +10,37 @@ enum V3RecoveryVaultUnlockError: Error, Equatable {
 /// recovery, adoption, catch-up or a shipping factory. No key/checkpoint is saved.
 /// The returned floor authenticates manifest/capsule only, not entry availability.
 final class V3RecoveryVaultUnlockRuntime: @unchecked Sendable {
+  /// Process-local read authority bound to the authentication that produced it.
+  /// It contains no key and cannot survive lock, expiry or session replacement.
+  struct ReadContext: Sendable {
+    let current: V3RecoveryContentCommit
+    private let runtime: V3RecoveryVaultUnlockRuntime
+    private let ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+
+    fileprivate init(
+      current: V3RecoveryContentCommit, runtime: V3RecoveryVaultUnlockRuntime,
+      ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+    ) {
+      self.current = current
+      self.runtime = runtime
+      self.ticket = ticket
+    }
+
+    func revalidate() throws {
+      try runtime.requireState(current.checkpoint, ticket: ticket)
+    }
+
+    func loadVaultKey(keyID: V3VaultKeyID) throws -> Data {
+      guard keyID == current.envelope.body.fields.keyID else {
+        throw V3RecoveryVaultUnlockError.locked
+      }
+      try revalidate()
+      let key = try runtime.session.load(vaultID: current.checkpoint.vaultID, keyID: keyID)
+      try revalidate()
+      return key
+    }
+  }
+
   private let vaultID: String
   private let checkpoints: any V3ManifestCheckpointStoring
   private let source: any V3ImmutableObjectReading
@@ -41,19 +72,23 @@ final class V3RecoveryVaultUnlockRuntime: @unchecked Sendable {
   /// Explicit unlock discards any prior key before identity access. Requests
   /// capture their ticket before serialization, so a lock also cancels waiters.
   func unlock(reason: String) throws -> V3RecoveryContentCommit {
-    try authenticate(reason: reason, explicitly: true)
+    try authenticate(reason: reason, explicitly: true).current
   }
 
   /// Reuse only a matching resident key. Cold access performs one local unwrap;
   /// a malformed or mismatched resident session refuses without an automatic retry.
   func authenticatedCheckpoint(reason: String) throws -> V3RecoveryContentCommit {
+    try authenticatedReadContext(reason: reason).current
+  }
+
+  func authenticatedReadContext(reason: String) throws -> ReadContext {
     try authenticate(reason: reason, explicitly: false)
   }
 
   /// Independent of the request mutex, so native UI cannot delay cancellation.
   func lock() { session.invalidate() }
 
-  private func authenticate(reason: String, explicitly: Bool) throws -> V3RecoveryContentCommit {
+  private func authenticate(reason: String, explicitly: Bool) throws -> ReadContext {
     let admission = session.beginAuthentication()
     return try requests.withLock {
       do {
@@ -73,7 +108,9 @@ final class V3RecoveryVaultUnlockRuntime: @unchecked Sendable {
           try requireState(checkpoint, ticket: ticket)
           if loaded.shouldCache { try? cache.store(loaded.bytes, for: checkpoint) }
           try requireState(checkpoint, ticket: ticket)
-          return .init(checkpoint: checkpoint, envelope: envelope)
+          return .init(
+            current: .init(checkpoint: checkpoint, envelope: envelope), runtime: self,
+            ticket: ticket)
         }
 
         guard !reason.isEmpty else { throw V3RecoveryVaultUnlockError.recoveryRequired }
@@ -102,7 +139,9 @@ final class V3RecoveryVaultUnlockRuntime: @unchecked Sendable {
         let installed = try session.install(
           key, vaultID: vaultID, keyID: envelope.body.fields.keyID, authenticationTicket: ticket)
         try requireState(checkpoint, ticket: installed)
-        return .init(checkpoint: checkpoint, envelope: envelope)
+        return .init(
+          current: .init(checkpoint: checkpoint, envelope: envelope), runtime: self,
+          ticket: installed)
       } catch {
         session.invalidate()
         switch error {
