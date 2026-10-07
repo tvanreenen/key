@@ -97,7 +97,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
-| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; durable publication/resume, owner sessions, exact comparison completion and joining first trust are implemented; reviewed revocation/removal retain exact initial review and last-recipient acknowledgment; remaining-Mac one-epoch catch-up retains full reseal checks; mixed coordination now composes guarded steps against a fixed source; integrated review, user confirmation and shipping product/native acceptance remain |
+| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; durable publication/resume, owner sessions, exact comparison completion and joining first trust are implemented; reviewed revocation/removal retain exact initial review and last-recipient acknowledgment; remaining-Mac catch-up retains full reseal checks; fixed-source mixed coordination and reciprocal lifecycle/software recovery checks are implemented; independent review, user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
@@ -498,7 +498,8 @@ activation, user confirmation and lifecycle integration review remain.
 Native public-read binding and
 scoped agreement are implemented but have not been physically qualified. Only
 the isolated capsule has a fresh independent AI review; the new components have
-software checks, not integrated review or product/hardware qualification.
+combined software integration checks and source self-review, not a fresh
+independent review or product/hardware qualification.
 
 ## Implementation evidence ledger
 
@@ -548,6 +549,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Fourteenth 810 authority restart component, 2026-10-06 | [Explicit restart/session methods](../Sources/KeyCore/V3RecoveryAuthorityChangeService.swift) and [18 software declarations](../Tests/KeyCoreTests/V3RecoveryAuthorityChangeRecoveryTests.swift) | Exact owned revocation/removal intent and optional routed anchor precede public preflight and addressed Mac-wrapper opening. Cold/warm reconciliation generates no new epoch or consent; current-only committed cleanup preserves trust without obsolete files. All initial durable boundaries, session/source/pending races and ordinary-save/software-recovery composition pass. Full Debug/Release and unsigned universal Preview checks pass; key-transition catch-up and native/product acceptance remain. |
 | Fifteenth 810 remaining-Mac key-transition step, 2026-10-06 | [Bounded observation and guarded step](../Sources/KeyCore/V3RecoveryKeyTransitionCatchUpService.swift) and [24 software declarations](../Tests/KeyCoreTests/V3RecoveryKeyTransitionCatchUpTests.swift) | One continuing-Mac wrapper authenticates the selected new epoch and full old/new reseal before checkpoint CAS. Independent checkpoints, edits around several epochs, late joins, visible conflicts and source/session/pending races are exercised. Software recovery follows another Mac's save without Mac private state. Verification below; mixed coordination and integrated/native/product review remain. |
 | Sixteenth 810 mixed catch-up coordination, 2026-10-06 | [Concrete coordinator](../Sources/KeyCore/V3RecoveryCatchUpCoordinator.swift), [14 software declarations](../Tests/KeyCoreTests/V3RecoveryCatchUpCoordinatorTests.swift) and [atomic session receipts](../Sources/KeyCore/V3DeviceWrappedVaultKeySession.swift) | One mutation owner composes content/epoch steps from an exact unlocked floor. Original-source checks prevent a late old-floor sibling from disappearing; atomic installation receipts reject unrelated reauthentication between epochs. Committed prefixes survive failures without a current claim or automatic retry. Verification below; lifecycle integration review and shipping/native composition remain. |
+| Seventeenth 810 lifecycle integration checks, 2026-10-06 | [Two longer software sequences](../Tests/KeyCoreTests/V3RecoveryLifecycleIntegrationTests.swift) and the source self-review below | Independent Macs walk mixed five-/seven-epoch histories, reject the revoked Mac, take turns saving and retain recovery without Mac state or caches. Last-recipient removal explicitly ends recovery without ending ordinary access. Full unlocked regression and integration verification are recorded below; independent review and native/product acceptance remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -3188,3 +3190,62 @@ Next: lifecycle integration checks and review within PR 72. Restore orchestratio
 and shipping runtime/CLI composition remain later stack layers. No package is
 complete. This increment changes no real vault, configuration, installed app or
 token, and performs no hardware administration, push, notarization or release.
+
+### Seventeenth 810 lifecycle integration checks, 2026-10-06
+
+The [integration suite](../Tests/KeyCoreTests/V3RecoveryLifecycleIntegrationTests.swift)
+extends the existing component evidence with two longer sequences. Actual
+enrollment, rotation, revocation and recipient-removal publication surround
+ordinary edits. Recipient addition retains the existing domain-builder and
+fixture-materialization boundary; this is not another possession/registration
+ceremony. Independent local Mac checkpoints catch up through five or seven epochs,
+and a visibly revoked Mac refuses before a private opening.
+
+The continuing Mac saves, the original writer catches up to that save and writes,
+then the continuing Mac catches up again. Those reciprocal same-epoch advances
+need no additional Mac opening or owner signature. Sessions are invalidated,
+both public manifest caches are removed, and the Mac fixtures leave helper scope.
+Only the immutable source, public recovery anchor and software backup credential
+remain. Recovery must open the complete final snapshot with exactly one software
+agreement callback and preserve both later saves, the final edit and TOTP entry.
+The second sequence explicitly acknowledges the last-recipient removal, still
+permits ordinary catch-up and saves, and rejects the former backup recipient
+before recovery opening. Neither test uses native UI, a token or a real vault.
+
+Source self-review traced concrete coordinator ownership, direct component
+owners, generation receipts, public-before-private epoch checks, full boundary
+snapshot equality, three pending-work namespaces, checkpoint CAS, committed
+cleanup and reciprocal ordinary publication. No confirmed production defect
+requiring a change was found in that review. This is not a fresh independent
+review, proof of protocol security or physical/native qualification. Public
+history, current-snapshot authentication and source-stability checks retain their
+documented scope; provider withholding remains outside the project's guarantee.
+
+Verification before the local commit:
+
+- The unlocked full Debug run at `f04164b` passed 1,495 KeyCore tests in 119
+  suites and six canonical-JSON tests in one suite. It started before the new
+  integration declarations were added. The exact protected-storage handler test
+  that failed while locked in the earlier increment passed in this full run.
+- Both added integration declarations then passed in their focused Debug run,
+  using the expanded test module. No production code changed between these runs.
+- Full Release with the expanded module passed 1,497 KeyCore tests in 120 suites
+  and six canonical-JSON tests in one suite, including both new declarations and
+  protected storage. The separately gated large-migration qualification remained
+  skipped in both full runs.
+- Strict formatting of the new test file, Git whitespace checks and all 208 local
+  documentation targets passed. Production sources and Xcode wiring are unchanged;
+  the preceding universal Preview/bundle/CLI evidence still applies to them.
+- The console was observed unlocked through these checks. No protection or
+  screen-lock setting changed. Only contained fixture caches were removed; no
+  user data or installed app was affected.
+
+Raw output uses `tmp/piv-recovery/2026-10-06-lifecycle-integration-` and remains
+ignored. Only the tests and reconciled implementation evidence belong in the commit.
+
+Next: evaluate the integration results, then review/finalize PR 72's internal
+lifecycle scope before moving to the restore review layer. Product dispatch,
+confirmation UX, native prompt behavior and physical backup-token acceptance
+remain later work. No implementation package is marked complete, and no real
+vault/configuration, installed app, token operation/administration, push or release
+is involved in this test-and-evidence increment.
