@@ -14,7 +14,7 @@ protocol V3RecoveryRestoreTrustPhaseObserving: Sendable {
   func didReach(_ phase: V3RecoveryRestoreTrustPhase) throws
 }
 
-private struct V3NoopRestoreTrustObserver: V3RecoveryRestoreTrustPhaseObserving {
+struct V3NoopRestoreTrustObserver: V3RecoveryRestoreTrustPhaseObserving {
   func didReach(_: V3RecoveryRestoreTrustPhase) throws {}
 }
 
@@ -49,8 +49,10 @@ struct V3RecoveryRestoreTrustInstaller: Sendable {
 
   func install(
     sourceVaultID: String, snapshot: V3RecoveryVerifiedSnapshot,
-    environment: V3RecoveryRestoreEnvironment, vaultKey: Data
+    environment: V3RecoveryRestoreEnvironment, vaultKey: Data,
+    validateScope: () throws -> Void = {}
   ) throws -> V3RecoveryRestoreTrustReport {
+    try validateScope()
     guard let pending = try journal.loadPending(sourceVaultID: sourceVaultID),
       let saved = pending.preparation, pending.preparationOwnership?.phase == .recoverable
     else { throw V3RecoveryRestoreTrustError.preparationUnavailable }
@@ -67,6 +69,7 @@ struct V3RecoveryRestoreTrustInstaller: Sendable {
     try pending.reservation.requireSnapshot(snapshot)
     try environment.requireCurrent(saved.intent.locations)
     try environment.requireSnapshot(snapshot)
+    try validateScope()
     guard
       let identity = try identities.loadDeviceIdentity(
         vaultID: checkpoint.vaultID, reason: "Load this Mac's saved restored-vault credentials."),
@@ -78,6 +81,7 @@ struct V3RecoveryRestoreTrustInstaller: Sendable {
       sourceVaultID: sourceVaultID, snapshot: snapshot, environment: environment,
       vaultKey: vaultKey, expectedOwner: identity.publicIdentity)
     func recheck(_ expectedCheckpoint: Data?, requireCache: Bool = false) throws {
+      try validateScope()
       guard try checkpoints.loadCheckpoint(vaultID: checkpoint.vaultID) == expectedCheckpoint else {
         throw V3RecoveryRestoreTrustError.conflictingCheckpoint
       }
@@ -95,6 +99,7 @@ struct V3RecoveryRestoreTrustInstaller: Sendable {
       guard try checkpoints.loadCheckpoint(vaultID: checkpoint.vaultID) == expectedCheckpoint else {
         throw V3RecoveryRestoreTrustError.conflictingCheckpoint
       }
+      try validateScope()
     }
     try observer.didReach(.publishedSnapshotVerified)
     try recheck(prior)
@@ -116,6 +121,7 @@ struct V3RecoveryRestoreTrustInstaller: Sendable {
     try observer.didReach(.manifestCached)
     try recheck(prior, requireCache: true)
     if prior == nil {
+      try validateScope()
       try checkpoints.replaceCheckpoint(
         checkpoint.canonicalBytes, expectedCheckpoint: nil, vaultID: checkpoint.vaultID)
     }
