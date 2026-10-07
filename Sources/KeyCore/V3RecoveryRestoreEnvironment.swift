@@ -104,6 +104,7 @@ struct V3RecoveryRestoreEnvironment: Sendable {
   let destinationParent: VaultRootDirectoryHandle
   private let source: VaultRootDirectoryHandle
   private let configuration: VaultRootDirectoryHandle
+  private let newDirectory: V3NewVaultDirectory?
 
   static func create(
     source: VaultRootDirectoryHandle, in parent: VaultRootDirectoryHandle, name: String,
@@ -121,22 +122,47 @@ struct V3RecoveryRestoreEnvironment: Sendable {
     try configuration.requireConfiguredRootIdentity()
     let directory = try V3NewVaultDirectory.create(in: parent, name: name)
     return try Self(
-      source: source, directory: directory, parent: parent, configuration: configuration)
+      source: source, destination: directory.rootHandle, parent: parent,
+      configuration: configuration, newDirectory: directory)
+  }
+
+  /// Independently supplied handles/path. Caller obtains `expected` from the
+  /// journal's locally pinned reservation, not provider metadata.
+  /// This path can never start another reservation or create a directory.
+  static func reopen(
+    source: VaultRootDirectoryHandle, destination: VaultRootDirectoryHandle,
+    parent: VaultRootDirectoryHandle, configStore: KeyConfigStore,
+    expected: V3RecoveryRestoreLocations
+  ) throws -> Self {
+    let environment = try Self(
+      source: source, destination: destination, parent: parent,
+      configuration: configStore.unconfiguredRestoreRoot(), newDirectory: nil)
+    try environment.requireCurrent(expected)
+    return environment
   }
 
   private init(
-    source: VaultRootDirectoryHandle, directory: V3NewVaultDirectory,
-    parent: VaultRootDirectoryHandle, configuration: VaultRootDirectoryHandle
+    source: VaultRootDirectoryHandle, destination: VaultRootDirectoryHandle,
+    parent: VaultRootDirectoryHandle, configuration: VaultRootDirectoryHandle,
+    newDirectory: V3NewVaultDirectory?
   ) throws {
     self.source = source
-    destination = directory.rootHandle
+    self.destination = destination
     destinationParent = parent
     self.configuration = configuration
+    self.newDirectory = newDirectory
     locations = .init(
       source: source, destination: destination,
       destinationParent: parent, configuration: configuration)
     try requireCurrent(locations)
-    try directory.begin(for: destination.rootURL)
+  }
+
+  /// Shared single-use directory gate survives copies of this value. Resume
+  /// cannot reserve again, even when the owned destination is still empty.
+  func beginReservation() throws {
+    try requireCurrent(locations)
+    guard let newDirectory else { throw V3RecoveryRestoreError.invalidIntent }
+    try newDirectory.begin(for: destination.rootURL)
   }
 
   /// Call across approvals and before each durable transition. A parsed record
@@ -172,6 +198,20 @@ struct V3RecoveryRestoreEnvironment: Sendable {
       snapshot, boundAnchor: snapshot.selection.anchor,
       credentialPublicKey: snapshot.selection.credentialPublicKey)
     try requireCurrent(locations)
+  }
+
+  func validateCandidate(
+    _ publication: V3DeviceWrappedGenesisPublicationCandidate,
+    restoring snapshot: V3RecoveryVerifiedSnapshot, vaultKey: Data,
+    expectedOwner: V3EnrollmentDeviceIdentity, limits: V3ManifestRepositoryLimits
+  ) throws -> V3RecoveryRestoreCandidate {
+    try requireCurrent(locations)
+    let candidate = try V3RecoveryRestoreCandidateBuilder(
+      source: V3FilesystemTransactionArtifactStore(rootHandle: source), limits: limits
+    ).validateAndBind(
+      publication, restoring: snapshot, vaultKey: vaultKey, expectedOwner: expectedOwner)
+    try requireCurrent(locations)
+    return candidate
   }
 
   private static func requireAbsentConfiguration(_ configuration: VaultRootDirectoryHandle) throws {

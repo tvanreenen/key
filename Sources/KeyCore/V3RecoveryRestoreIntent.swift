@@ -187,7 +187,7 @@ struct V3RecoveryRestoreIntent: Equatable, Sendable {
     ]
   }
 
-  private static func observationDigest(_ selection: V3RecoveryPublicSelection) -> Data {
+  static func observationDigest(_ selection: V3RecoveryPublicSelection) -> Data {
     // Current entry bytes are already committed by the exact head. Also bind
     // the public observation so resume cannot silently absorb a different
     // listing/history while retaining the same selected head.

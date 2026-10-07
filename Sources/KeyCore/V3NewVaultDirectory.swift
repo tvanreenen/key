@@ -3,7 +3,8 @@ import Foundation
 
 /// A single-use destination for an explicit new-vault initialization.
 /// An empty listing does not prove that a sync provider has finished delivery.
-final class V3NewVaultDirectory {
+// Immutable handles; the only mutable field (`used`) is guarded by `lock`.
+final class V3NewVaultDirectory: @unchecked Sendable {
     let rootHandle: VaultRootDirectoryHandle
     private let parentHandle: VaultRootDirectoryHandle
     private let lock = NSLock()

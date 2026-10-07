@@ -1458,10 +1458,10 @@ roster is inherited; the destination starts without recovery registration.
 [Six software declarations](../Tests/KeyCoreTests/V3RecoveryRestoreCandidateTests.swift)
 cover ordinary rotation/edit-to-recovery composition, empty and populated inputs,
 changed sources, reused authority, mismatched objects and bounded resources.
-The destination wrapper still requires a Mac opening, and restore still needs
-native token binding, durable destination/config ownership and encrypted
-preparation, manifest-last publication, explicit resume and fresh-process ordinary
-reopening before selection. No route, checkpoint write or selection is enabled.
+The destination wrapper still requires a Mac opening. Internal durable ownership
+and encrypted preparation are implemented below; native token binding,
+manifest-last publication, product resume and fresh-process ordinary reopening
+before selection remain. No route, checkpoint write or selection is enabled.
 
 ### Implemented restore locations and intent format
 
@@ -1492,16 +1492,69 @@ reader cannot be accepted solely because the caller supplied plausible paths.
 The saved anchor is still a binding, not a substitute for a fresh native token
 read during an actual recovery ceremony.
 
-This is a format and live location guard, not a durable journal or saved
-approval. There is no reservation before credential creation, complete encrypted
-preparation storage, checkpoint install, configuration selection or resume yet.
-Future resume must first establish local ownership of the exact saved preparation
-before opening its addressed Mac wrapper, then authenticate this record and
-reverify the source and complete destination contents. A matching MAC alone
-cannot authorize publication. Source/native binding, session-generation checks,
-explicit reauthentication and final no-overwrite configuration selection remain
+This format is not saved approval. The internal journal below now reserves local
+ownership and stores complete encrypted preparations. Product resume must first
+establish local ownership of the exact saved preparation before opening its
+addressed Mac wrapper, then authenticate this record and reverify the source and
+complete destination contents. A matching MAC alone cannot authorize publication.
+Source/native binding, session-generation checks, explicit reauthentication,
+checkpoint installation and final no-overwrite configuration selection remain
 the restore owner's responsibilities. The checks observe filesystem state;
 they do not lock folders against concurrent external changes.
+
+### Implemented local restore reservation and encrypted preparation
+
+The [restore journal](../Sources/KeyCore/V3RecoveryRestoreJournal.swift) owns two
+separate non-synchronizing device-local records, using the existing ownership
+store and contained atomic file writer. Both are keyed by the source vault ID,
+not the newly generated destination ID. One pending attempt blocks another
+attempt for the same source on that Mac/product. The namespaces cannot collide
+with ordinary transactions, registration or profile adoption. The ownership
+anchor format and those existing workflows are unchanged.
+
+Before any platform credential is created, `reserve` pins the operation and
+SHA-256 digest of a [public reservation](../Sources/KeyCore/V3RecoveryRestoreReservation.swift).
+That record binds the exact reviewed source, physical locations, and fresh vault,
+transition and entry IDs. The journal writes and synchronizes its canonical
+bytes, reads them back and rechecks the source and pins before returning. The
+new-directory gate is shared across environment copies and consumed once;
+independently reopened handles cannot start another reservation. The record
+contains no raw key, credential or saved authorization.
+
+After full candidate validation, `stage` pins the SHA-256 digest of the complete
+[encrypted bundle](../Sources/KeyCore/V3RecoveryRestoreBundle.swift) before writing
+it. The bundle contains the authenticated intent, exact genesis envelope and all
+encrypted entries. It is local-only at
+`v3-restore-attempts/<operationID>/preparation.json`, beside `reservation.json`
+under the configuration root, not in the recovery source. Both records use
+bounded canonical parsing and exact bindings. Parsing alone does not authenticate
+the MAC, ciphertext or plaintext equality.
+
+`loadPending` follows only the operation ID in the local reservation pin. It
+does not scan for files, adopt a provider record, or open source/destination paths
+from JSON. It checks the complete saved bytes against both ownership digests
+before returning any candidate wrapper. Files without local ownership are inert.
+Missing, changed, oversized, symlinked or otherwise invalid records stop the
+operation. A reservation without a complete preparation does not authorize
+replacement credential creation or automatic reconstruction.
+
+Explicit `confirmPreparation` takes a freshly recovered source snapshot,
+destination key and expected Mac identity from its caller. It authenticates the
+intent and validates the saved manifest and every ciphertext against that source
+using the existing full genesis checks. It neither encrypts again nor generates
+new IDs, wrappers or credentials. The source and live locations are rechecked;
+both files are read back and synchronized; both ownership pins are compared
+before and after the preparation becomes durable. A final reload checks that the
+records still match. These observations do not replace the future service's
+serialized mutation owner, current authentication scope or lock-generation checks.
+
+This increment has no private-key caller, cleanup, publication, checkpoint,
+configuration selection or product resume route. Software tests use real
+disposable filesystem writes and software keys, including a fresh journal reader,
+independently opened handles and a new destination wrapper opening. They do not
+qualify a separate OS process, native credential provenance, the new Keychain
+namespaces or physical-token behavior. Interrupted partial reservations remain
+pending for later explicit reconciliation; they are not silently abandoned.
 
 ### Implemented native public reader
 

@@ -136,17 +136,21 @@ protocol V3ImmutableTransactionRecoveryAnchorStoring: Sendable {
     ) throws
 }
 
-/// Registration ownership cannot collide with ordinary transaction recovery.
+/// Dedicated workflow ownership cannot collide with ordinary transactions.
 enum V3RecoveryOwnershipNamespace: String, Sendable {
     case transaction = "v3-transaction-recovery"
     case registration = "v3-recovery-registration"
     case adoption = "v3-recovery-profile-adoption"
+    case restoreReservation = "v3-recovery-restore-reservation"
+    case restorePreparation = "v3-recovery-restore-preparation"
 
     var label: String {
         switch self {
         case .transaction: "key v3 transaction recovery anchor"
         case .registration: "key v3 recovery registration ownership"
         case .adoption: "key v3 recovery profile adoption ownership"
+        case .restoreReservation: "key v3 recovery restore reservation ownership"
+        case .restorePreparation: "key v3 recovery restore preparation ownership"
         }
     }
 }
