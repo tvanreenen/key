@@ -84,9 +84,11 @@ public final class KeyServiceHost {
         _ request: KeyServiceRequest, connection: KeyServiceConnection? = nil
     ) -> KeyServiceResponse {
         if request == .lock, cancelRecoveryRequests() {
-            // Active recovery was admitted only with no configured handler.
             // Cancel before the exclusive queue, even if native UI has not
-            // drained. Its scope blocks all later authority transitions.
+            // drained. Configured setup can coexist with a composed runtime;
+            // its resident session must also lock without waiting on this host.
+            let resolved = compositionLock.withLock { handler }
+            if let resolved { _ = resolved(.lock) }
             return .success()
         }
         if case let .recovery(action) = request {

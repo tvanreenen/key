@@ -37,6 +37,7 @@ struct V3RecoveryAdoptionService: Sendable {
   private let otherOwnership: [any V3ImmutableTransactionRecoveryAnchorStoring]
   private let limits: V3ManifestRepositoryLimits
   private let observer: any V3RecoveryAdoptionPhaseObserving
+  private let validateScope: @Sendable () throws -> Void
   private var objects: V3ExactTransitionRepository { .init(source: store, limits: limits) }
   private var validator: V3RecoveryProfileAdoptionValidator { .init(limits: limits) }
 
@@ -49,7 +50,8 @@ struct V3RecoveryAdoptionService: Sendable {
     transactionOwnershipStore: any V3ImmutableTransactionRecoveryAnchorStoring,
     registrationOwnershipStore: any V3ImmutableTransactionRecoveryAnchorStoring,
     limits: V3ManifestRepositoryLimits = .standard,
-    observer: any V3RecoveryAdoptionPhaseObserving = V3NoopAdoptionObserver()
+    observer: any V3RecoveryAdoptionPhaseObserving = V3NoopAdoptionObserver(),
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) {
     self.vaultID = vaultID
     self.identity = identity
@@ -60,6 +62,7 @@ struct V3RecoveryAdoptionService: Sendable {
     otherOwnership = [transactionOwnershipStore, registrationOwnershipStore]
     self.limits = limits
     self.observer = observer
+    self.validateScope = validateScope
   }
 
   func adopt(
@@ -140,6 +143,7 @@ struct V3RecoveryAdoptionService: Sendable {
   /// Encrypted files stay inert for audit; no provider data is deleted.
   func abandonUnarmedPreparation(operationID: VaultTransactionOperationID) throws {
     try mutationOwner.perform(.adoptRecoveryProfile) { _ in
+      try validateScope()
       guard let local = try loadOwnership(), local.operationID == operationID,
         local.phase == .prepared
       else { throw V3RecoveryAdoptionServiceError.ownershipChanged }
@@ -369,6 +373,7 @@ struct V3RecoveryAdoptionService: Sendable {
     try requireCheckpoint(checkpoint)
   }
   private func requireNoOtherPending() throws {
+    try validateScope()
     for store in otherOwnership where try store.loadRecoveryAnchor(vaultID: vaultID) != nil {
       throw V3RecoveryAdoptionServiceError.otherMutationPending
     }

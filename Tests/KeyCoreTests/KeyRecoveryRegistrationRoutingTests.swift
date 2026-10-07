@@ -128,5 +128,29 @@ struct KeyRecoveryRegistrationRoutingTests {
       host.handle(.recoveryRegistration(.status), connection: connection).exitCode != EXIT_SUCCESS)
   }
 
-  private final class Events: @unchecked Sendable { var values: [String] = [] }
+  @Test func lockDuringConfiguredSetupAlsoLocksTheComposedRuntimeWithoutWaitingOnItsBarrier() {
+    let events = Events()
+    let host = KeyServiceHost(
+      hasConfiguration: { true },
+      makeHandler: {
+        { request in
+          events.values.append(request == .lock ? "lock" : "normal")
+          return .success()
+        }
+      }, initialize: { _ in "" },
+      registerRecovery: { _, scope in
+        #expect(events.host?.handle(.lock).exitCode == EXIT_SUCCESS)
+        #expect(throws: (any Error).self) { try scope.requireCurrent() }
+        return .success("Must not escape")
+      })
+    events.host = host
+    #expect(host.handle(.list).exitCode == EXIT_SUCCESS)
+    #expect(host.handle(.recoveryRegistration(.status)).exitCode != EXIT_SUCCESS)
+    #expect(events.values == ["normal", "lock"])
+  }
+
+  private final class Events: @unchecked Sendable {
+    var values: [String] = []
+    weak var host: KeyServiceHost?
+  }
 }

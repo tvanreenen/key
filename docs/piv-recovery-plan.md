@@ -4873,3 +4873,31 @@ directory base fixed it; exact-byte, existing-file and symlink cases now pass.
 The public fixture file from that failed run was moved to ignored temp evidence.
 No existing file was overwritten. Concrete configured workflow and live gating
 remain next. Logs are ignored under `tmp/piv-recovery/2026-10-07-registration-cli-*`.
+
+### 2026-10-07: concrete configured setup composition
+
+The [configured workflow](../Sources/KeyCore/KeyRecoveryRegistrationWorkflow.swift)
+authenticates the exact local checkpoint and routes explicit registration and
+adoption through their existing services. A per-request session is discarded on
+exit; no key or native observation crosses the protocol. Pending setup uses the
+separate exact-ownership context. The services and scoped Mac identity check the
+host's cancellation/generation/deadline before further private work or state
+guards. Status has no token dependency. Format parsing chooses a profile, not
+provider authority; its normal unlock service still authenticates the floor.
+
+Keeping setup in a host-barrier workflow was compared with adding it to each
+ordinary runtime. The host already owns configured selection, bounded connection
+lifetime and restart; the domain services own exact resume and publication.
+Reusing those boundaries avoids another queue or publication implementation.
+Out-of-band lock now also locks a composed ordinary runtime during configured
+setup; the former restore-only shortcut could otherwise leave that key resident.
+
+Focused Debug passed 86 declarations across four suites in 27.037 seconds.
+Five new declarations exercise seven cases: actual prepare/export-resume,
+simulated external import, one software-provider possession operation, status,
+ordinary reopening, cancellation during Mac opening, wrong recipient, explicit
+adoption/resume and configured lock. Compilation corrections used the existing
+HPKE types and recipient-ID derivation; no guard was relaxed. Hardware/provider
+calls remain scripted; native policy and signed qualification are unverified.
+The Xcode source list includes the workflow. Live factory/gating is next; logs
+remain ignored under `tmp/piv-recovery/2026-10-07-registration-workflow-*`.

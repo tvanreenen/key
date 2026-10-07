@@ -63,6 +63,7 @@ struct V3RecoveryRegistrationService: Sendable {
   private let validator: V3RecoveryRegistrationValidator
   private let limits: V3ManifestRepositoryLimits
   private let observer: any V3RecoveryRegistrationServicePhaseObserving
+  private let validateScope: @Sendable () throws -> Void
 
   init(
     vaultID: String,
@@ -75,7 +76,8 @@ struct V3RecoveryRegistrationService: Sendable {
     adoptionOwnershipStore: any V3ImmutableTransactionRecoveryAnchorStoring,
     reader: PIVRecoveryTokenReader, agreement: PIVRecoveryAgreement,
     limits: V3ManifestRepositoryLimits = .standard,
-    observer: any V3RecoveryRegistrationServicePhaseObserving = V3NoopRegistrationServiceObserver()
+    observer: any V3RecoveryRegistrationServicePhaseObserving = V3NoopRegistrationServiceObserver(),
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) {
     self.vaultID = vaultID
     self.identity = identity
@@ -91,6 +93,7 @@ struct V3RecoveryRegistrationService: Sendable {
     validator = V3RecoveryRegistrationValidator(limits: limits)
     self.limits = limits
     self.observer = observer
+    self.validateScope = validateScope
   }
 
   func prepare(
@@ -473,6 +476,7 @@ struct V3RecoveryRegistrationService: Sendable {
   }
 
   private func requireNoOtherPending() throws {
+    try validateScope()
     for store in otherOwnership where try store.loadRecoveryAnchor(vaultID: vaultID) != nil {
       throw V3RecoveryRegistrationServiceError.otherMutationPending
     }
@@ -511,6 +515,7 @@ struct V3RecoveryRegistrationService: Sendable {
   }
 
   private func checkCancellation(_ cancellation: PIVRecoveryCancellation) throws {
+    try validateScope()
     guard !cancellation.isCancelled else { throw PIVRecoveryAgreementError.cancelled }
   }
 
