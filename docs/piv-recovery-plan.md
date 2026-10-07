@@ -96,10 +96,10 @@ are the implementation packages, not new names for already completed probes.
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; domain prepare/resume/finish/status, configured workflow, CLI, gated factory and reciprocal pending barriers implemented; integrated review and signed physical qualification remain |
-| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
+| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation service, reciprocal ownership guards and gated ordinary runtime/CLI composition implemented; integrated review and signed native acceptance remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; domain restore/resume, insert-only trust, ordinary reopening, configuration selection, ordered finalization and gated product dispatch/barriers implemented; integrated review, separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Integration implemented for review/testing: public credential/source review, registration/adoption/status/pending/rotation/restore/resume commands, scoped host barriers/restart, exact pending routing and gated profile-3 ordinary runtime; combined verification and signed two-Mac qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | At review/testing checkpoint: public credential/source review, registration/adoption/status/pending/rotation/restore/resume commands, scoped host barriers/restart, exact pending routing and gated ordinary runtime implemented; full serialized Release and unsigned universal Preview release checks pass; implementation review and signed two-Mac qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -429,7 +429,7 @@ hardware operation, real-vault activation, merge or release.
 
 The current integration checkpoint includes gated configured registration,
 adoption, token-free rotation, exact pending selectors, restore/resume and the
-ordinary profile-3 runtime. Combined automated verification, implementation
+ordinary profile-3 runtime. Combined automated verification passes; implementation
 review and the signed two-Mac vertical slice establish the next acceptance
 checkpoint. This does not complete backup-token/lifecycle/platform/release
 qualification or enable real-vault use. The ledger below records each component's
@@ -4988,3 +4988,37 @@ are ignored under `tmp/piv-recovery/2026-10-07-rotation-route-*` and
 
 Reaching this handoff is not completion of `REC-813` through `REC-815`, nor
 authorization to publish or enable real-vault recovery.
+
+### 2026-10-07: combined integration verification and review checkpoint
+
+The six implementation increments above are locally committed. Configured
+registration/adoption, exact pending selectors, token-free rotation, restore
+dispatch and ordinary profile-3 composition are ready for implementation review
+and disposable signed-product testing. This is the requested integration
+checkpoint, not completion of the full recovery roadmap.
+
+- Full `swift test -c release --no-parallel` passed: 1,748 KeyCore tests across
+  140 suites in 439.210 seconds, plus six canonical-JSON tests. The existing
+  opt-in large mixed migration test was skipped. An initial unconstrained full
+  run failed with 70 timing issues in eight concurrency suites. Those exact
+  suites and the whole source passed serialized, consistent with test-runner
+  scheduling contention. No tests, production deadlines or guards were relaxed.
+  Unconstrained runner timing sensitivity remains visible, not a clean first-run
+  result. Both logs remain ignored under
+  `tmp/piv-recovery/2026-10-07-configured-recovery-full-release*`.
+- Unsigned universal `PreviewRelease` build passed. Bundle isolation and compiled
+  CLI version `0.2.0 (19)` passed; app, CLI and helper each contain arm64/x86_64
+  slices. Produced app/helper plists report Preview identity and contain no
+  experimental recovery flag. Only version/help were executed, not the app,
+  helper or recovery commands. AppIntents metadata-extraction warnings remain.
+  Build log and products stay ignored under `tmp/piv-recovery`.
+- Strict formatting of the edited two-space files, project plist syntax,
+  331 relative documentation targets and diff whitespace passed. Existing
+  four-space shared files retain their baseline formatting. The contract now
+  distinguishes implemented gated commands from remaining lifecycle integration.
+
+No physical token operation, installed-product change, signing, notarization,
+release, real-vault adoption or push occurred. Default builds remain gated off.
+The next work is the review/signed-test handoff above; independent backup-token,
+broader device/recipient lifecycle and final OS/provider/release acceptance stay
+open. The raw runner output is not committed.

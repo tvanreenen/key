@@ -2502,17 +2502,28 @@ publication authority. No source/configuration/Keychain deletion is performed.
 
 No shipping recovery composition or real-vault opt-in is enabled.
 Adoption alone does not claim recovery protection; that requires separate
-registration. Reciprocal pending-state barriers in ordinary product services,
-product integration of profile-3 writes/catch-up, lifecycle support, integrated
-review and distribution qualification remain required before real-vault opt-in.
+registration. Reciprocal pending-state barriers and ordinary profile-3
+writes/catch-up are now composed behind the Preview gate. Broader lifecycle
+integration, implementation review and distribution qualification remain
+required before real-vault opt-in.
 
-The proposed complete public workflow is a `recovery` command group for status,
-credential review, registration, recipient listing/removal, restore review,
-restore, and explicit resume. Token listing, public source review and
-restore/resume syntax and disabled-build help now exist; other commands remain
-proposed, not a runnable command listing.
-Names/options are reviewed with service fixtures before implementation. No PIN, PUK,
-management key, or raw vault key crosses CLI arguments or XPC. Destructive
+The gated public `recovery` workflow now includes token/credential/source review,
+registration status/prepare/resume-export/finish, exact local pending selectors,
+explicit adoption/resume, token-free key rotation/resume and restore/resume.
+Native configured factories and the ordinary profile-3 runtime are composed
+only by an explicitly enabled Preview bundle; shipping plists remain disabled.
+Recipient-removal and broader device-lifecycle product flows still need separate
+integration and qualification. Software fixtures do not establish native
+PIN/touch enforcement, prompt counts or signed separate-process behavior.
+
+`recovery pending` returns bounded device-local operation IDs only. It neither
+authenticates an intent nor establishes readiness or resume approval. The actual
+resuming service checks exact ownership, authenticated contents and operation
+kind. A missing intent is preserved for inspection, not treated as new authority.
+Checkpoint-changing requests retire an existing runtime even after ambiguous
+failure; explicit restart/reconciliation must precede ordinary use.
+
+No PIN, PUK, management key, or raw vault key crosses CLI arguments or XPC. Destructive
 changes use exact-target review and opaque confirmation references.
 
 Product services own normal mutations and destination/config barriers. Token
