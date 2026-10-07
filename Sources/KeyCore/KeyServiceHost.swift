@@ -13,6 +13,7 @@ public final class KeyServiceHost {
     private let enroll: ((KeyShareRequest, String) throws -> KeyServiceResponse)?
     private let recovery: KeyRecoveryCapability?
     private let reviewRecovery: ((KeyRecoveryReviewRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)?
+    private let registerRecovery: ((KeyRecoveryRegistrationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)?
     private let recoveryLock = NSLock()
     private let recoveryAuthentication = V3DeviceWrappedVaultKeySessionStore()
     private var recoveryRequest: KeyRecoveryRequestScope?
@@ -31,7 +32,8 @@ public final class KeyServiceHost {
         configuredDirectory: (() throws -> URL)? = nil,
         enroll: ((KeyShareRequest, String) throws -> KeyServiceResponse)? = nil,
         recovery: KeyRecoveryCapability? = nil,
-        reviewRecovery: ((KeyRecoveryReviewRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil
+        reviewRecovery: ((KeyRecoveryReviewRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil,
+        registerRecovery: ((KeyRecoveryRegistrationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil
     ) {
         self.hasConfiguration = hasConfiguration
         self.makeHandler = makeHandler
@@ -41,6 +43,7 @@ public final class KeyServiceHost {
         self.enroll = enroll
         self.recovery = recovery
         self.reviewRecovery = reviewRecovery
+        self.registerRecovery = registerRecovery
     }
 
     public static func live(
@@ -91,6 +94,9 @@ public final class KeyServiceHost {
         }
         if case let .recoveryReview(action) = request {
             return handleRecoveryReview(action, connection: connection)
+        }
+        if case let .recoveryRegistration(action) = request {
+            return handleRecoveryRegistration(action, connection: connection)
         }
         if case let .shareInDirectory(action, path) = request {
             return queue.sync(flags: .barrier) {
@@ -224,6 +230,38 @@ public final class KeyServiceHost {
             if response.exitCode == EXIT_SUCCESS, try !hasConfiguration() {
                 throw AppError.operationRefused("Recovery returned without selecting a vault. Leave the attempt intact and explicitly resume; do not start another restore.")
             }
+            try scope.requireCurrent()
+            return response
+        }
+    }
+
+    private func handleRecoveryRegistration(
+        _ request: KeyRecoveryRegistrationRequest, connection: KeyServiceConnection?
+    ) -> KeyServiceResponse {
+        guard let registerRecovery else {
+            return .failure("Recovery registration is not enabled in this product build.")
+        }
+        return withRecoveryScope(connection: connection, flags: .barrier) { scope in
+            try scope.requireCurrent()
+            guard !restartPending else { return restarting() }
+            try request.validate()
+            try requireNoRecoveryPending()
+            guard try hasConfiguration() else {
+                throw AppError.operationRefused("Recovery registration requires this Mac's configured vault.")
+            }
+            // The host barrier excludes all ordinary configured requests. A
+            // checkpoint-changing setup never leaves an old resident runtime
+            // usable, including after an ambiguous failure or lost result.
+            if request.changesCheckpoint {
+                if let handler { _ = handler(.lock) }
+                restartPending = true
+            }
+            try recoveryLock.withLock {
+                try scope.requireCurrent()
+                activeRecovery = scope.id
+            }
+            defer { recoveryLock.withLock { activeRecovery = nil } }
+            let response = try registerRecovery(request, scope)
             try scope.requireCurrent()
             return response
         }

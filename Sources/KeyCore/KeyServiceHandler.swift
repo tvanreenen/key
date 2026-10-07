@@ -651,6 +651,8 @@ public final class KeyServiceHandler {
                 throw AppError.operationRefused("Recovery must be dispatched by Key Agent's service host.")
             case .recoveryReview:
                 throw AppError.operationRefused("Public recovery review must be dispatched by Key Agent's service host.")
+            case .recoveryRegistration:
+                throw AppError.operationRefused("Recovery registration must be dispatched by Key Agent's service host.")
             case .list:
                 let entries = if let vaultReader {
                     try vaultReader.list(allowStale: false)
