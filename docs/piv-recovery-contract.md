@@ -1580,13 +1580,52 @@ Restart timeout guidance refuses a second initial restore.
 Once recovery enters, process-local uncertainty blocks competing setup and
 configuration changes; explicit resume remains available. Configuration present
 on any exit requires helper restart, even after an error or cancelled/lost reply.
-Restart-persistent admission against exact saved ownership is still required;
-this in-memory guard is not durable recovery authority. Stable and ordinary
-Preview live hosts keep the capability disabled. No CLI command, native service
-factory, saved-attempt scan, replacement credential or cleanup is added here.
+Restart-persistent admission now checks the presence of either existing local
+restore ownership namespace. The in-memory guard is not durable recovery
+authority. Recovery dispatch and this inspector are supplied as one capability;
+the host cannot accept the dispatch hook without an ownership dependency.
+Stable and ordinary Preview live hosts keep that capability disabled. No CLI
+command, native service factory, saved-attempt scan, replacement credential or
+cleanup is added here.
 [Host tests](../Tests/KeyCoreTests/KeyRecoveryRoutingTests.swift) include actual
 restore-service cancellation but substitute native I/O and service composition;
 actual XPC interruptions and hardware acceptance remain unqualified.
+
+### Restart ownership admission
+
+The [Keychain inspector](../Sources/KeyCore/V3ImmutableTransactionRecoveryAnchor.swift)
+uses the exact service/access-group construction already used for local pins.
+It checks only the restore-reservation and restore-preparation namespaces, with
+one match per query, synchronization disabled and a noninteractive authentication
+context. It supplies no return type and a nil result pointer. It neither lists
+accounts nor reads or parses item contents. Namespace-wide queries are never
+used for writes; existing pin reads and compare-and-swap updates still require
+the exact source vault ID.
+
+Only two not-found results establish absence. Either pin blocks admission even
+if its contents, account or accompanying files are unusable. Any other status,
+including unavailable storage, missing entitlement or forbidden interaction,
+refuses admission rather than assuming a clean Mac. The result is not cached.
+This is a refusal guard, not evidence that a particular attempt is valid or that
+recovery succeeded.
+
+Before initial restore, init, directory-scoped enrollment or changing the vault
+directory, the host requires both its process-local guard and the durable
+inspector to permit admission. A cold configured host also checks before
+composing ordinary authority, since selection can precede final pin cleanup.
+Lock remains available without that query. Unconfigured status remains a locked
+status without composing anything. Explicit resume bypasses the broad presence
+guard but still runs the existing exact source-bound journal, physical-location,
+trust and fresh-authentication checks. Cleared pins and inert files cannot
+retrospectively authorize resume or claim success.
+
+The [tests](../Tests/KeyCoreTests/KeyRecoveryOwnershipTests.swift) run real restore
+and resume services across fresh host instances, with software crypto and native
+I/O substituted at the existing boundaries. Keychain status/query-shape tests
+substitute only the matching call. They do not establish signed Keychain access,
+actual helper-process restart, Secure Enclave behavior or physical prompt counts.
+The native factory must install the paired capability before enablement; live
+Stable and Preview remain unchanged and disabled.
 
 ### Implemented restore locations and intent format
 

@@ -97,3 +97,26 @@ struct KeyRecoveryRequestScope: Sendable {
     try authentication.requireCurrent(ticket)
   }
 }
+
+/// Recovery dispatch and durable setup admission are installed together. A
+/// host cannot enable recovery with only the process-local uncertainty guard.
+struct KeyRecoveryCapability {
+  let ownership: any V3RecoveryRestoreOwnershipChecking
+  let recover: (KeyRecoveryRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse
+
+  func requireNoPendingRestore() throws {
+    let pending: Bool
+    do {
+      pending = try ownership.hasPendingRestore()
+    } catch {
+      throw AppError.operationRefused(
+        "Could not inspect saved recovery ownership. No setup or runtime selection was authorized. Leave the existing state intact and explicitly resume or inspect it. \(error.localizedDescription)"
+      )
+    }
+    guard !pending else {
+      throw AppError.operationRefused(
+        "A saved recovery attempt requires explicit resume or inspection. Leave its records and folders intact; do not initialize, enroll or change vault configuration."
+      )
+    }
+  }
+}

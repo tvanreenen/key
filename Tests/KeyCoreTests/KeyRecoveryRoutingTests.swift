@@ -109,10 +109,12 @@ struct KeyRecoveryRoutingTests {
     let composed = KeyServiceHost(
       hasConfiguration: { true }, makeHandler: { { _ in .success("Normal") } },
       initialize: { _ in "" },
-      recover: { _, _ in
-        Issue.record("Active configured runtime cannot enter recovery")
-        return .success()
-      })
+      recovery: .init(
+        ownership: ClearOwnership(),
+        recover: { _, _ in
+          Issue.record("Active configured runtime cannot enter recovery")
+          return .success()
+        }))
     #expect(composed.handle(.list) == .success("Normal"))
     #expect(composed.handle(.recovery(Self.resume)).exitCode != EXIT_SUCCESS)
   }
@@ -180,10 +182,12 @@ struct KeyRecoveryRoutingTests {
         return { _ in .success() }
       },
       initialize: { _ in "" },
-      recover: { _, scope in
-        state.scope = scope
-        return .success("Unsupported success")
-      })
+      recovery: .init(
+        ownership: ClearOwnership(),
+        recover: { _, scope in
+          state.scope = scope
+          return .success("Unsupported success")
+        }))
     #expect(host.handle(.recovery(Self.restore), connection: connection).exitCode != EXIT_SUCCESS)
     let scope = try #require(state.scope)
     #expect(scope.cancellation.isCancelled && !scope.authentication.hasResidentKey)
@@ -352,27 +356,29 @@ struct KeyRecoveryRoutingTests {
         Issue.record("Never init an owned attempt")
         return ""
       },
-      recover: { _, scope in
-        state.scope = scope
-        let observer = Observer { event in
-          if event == stops[phase] {
-            if disconnect {
-              connection.invalidate()
-            } else {
-              #expect(box.host.handle(.lock) == .success())
+      recovery: .init(
+        ownership: ClearOwnership(),
+        recover: { _, scope in
+          state.scope = scope
+          let observer = Observer { event in
+            if event == stops[phase] {
+              if disconnect {
+                connection.invalidate()
+              } else {
+                #expect(box.host.handle(.lock) == .success())
+              }
             }
           }
-        }
-        _ = try V3RecoveryRestoreService(
-          configStore: f.config, journal: f.journal(), identities: f.identities,
-          checkpoints: f.checkpoints, cache: f.cache, mutationOwner: f.owner, reader: f.reader,
-          agreement: f.agreement, authentication: scope.authentication, observer: observer
-        ).restore(
-          source: f.sourceHandle, parent: f.parentHandle, name: "restored", deviceName: "New Mac",
-          observation: f.reader.read(try #require(f.reader.candidates().first)),
-          cancellation: scope.cancellation, deadline: scope.deadline)
-        return .success("Completed")
-      })
+          _ = try V3RecoveryRestoreService(
+            configStore: f.config, journal: f.journal(), identities: f.identities,
+            checkpoints: f.checkpoints, cache: f.cache, mutationOwner: f.owner, reader: f.reader,
+            agreement: f.agreement, authentication: scope.authentication, observer: observer
+          ).restore(
+            source: f.sourceHandle, parent: f.parentHandle, name: "restored", deviceName: "New Mac",
+            observation: f.reader.read(try #require(f.reader.candidates().first)),
+            cancellation: scope.cancellation, deadline: scope.deadline)
+          return .success("Completed")
+        }))
     box.assign(host)
     #expect(host.handle(.recovery(Self.restore), connection: connection).exitCode != EXIT_SUCCESS)
     #expect(f.provider.requests == 1 && f.identities.creates.value == 1)
@@ -402,7 +408,11 @@ struct KeyRecoveryRoutingTests {
         Issue.record("Cannot enroll after uncertain restore")
         return .success()
       },
-      recover: recover)
+      recovery: .init(ownership: ClearOwnership(), recover: recover))
+  }
+
+  private struct ClearOwnership: V3RecoveryRestoreOwnershipChecking {
+    func hasPendingRestore() -> Bool { false }
   }
 
   private struct Observer: V3RecoveryRestoreServicePhaseObserving {

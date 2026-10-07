@@ -11,15 +11,15 @@ public final class KeyServiceHost {
     private let updateVaultDirectory: ((String) throws -> Void)?
     private let configuredDirectory: (() throws -> URL)?
     private let enroll: ((KeyShareRequest, String) throws -> KeyServiceResponse)?
-    private let recover: ((KeyRecoveryRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)?
+    private let recovery: KeyRecoveryCapability?
     private let recoveryLock = NSLock()
     private let recoveryAuthentication = V3DeviceWrappedVaultKeySessionStore()
     private var recoveryRequest: KeyRecoveryRequestScope?
     private var activeRecovery: UUID?
     private var handler: ((KeyServiceRequest) -> KeyServiceResponse)?
     private var restartPending = false
-    // Process-local uncertainty guard, not durable ownership. Live composition
-    // must also admit setup against saved ownership across helper restarts.
+    // Process-local uncertainty guard supplements the capability's durable
+    // ownership check. It also covers failure before the first pin is saved.
     private var recoveryPending = false
 
     init(
@@ -29,7 +29,7 @@ public final class KeyServiceHost {
         updateVaultDirectory: ((String) throws -> Void)? = nil,
         configuredDirectory: (() throws -> URL)? = nil,
         enroll: ((KeyShareRequest, String) throws -> KeyServiceResponse)? = nil,
-        recover: ((KeyRecoveryRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil
+        recovery: KeyRecoveryCapability? = nil
     ) {
         self.hasConfiguration = hasConfiguration
         self.makeHandler = makeHandler
@@ -37,7 +37,7 @@ public final class KeyServiceHost {
         self.updateVaultDirectory = updateVaultDirectory
         self.configuredDirectory = configuredDirectory
         self.enroll = enroll
-        self.recover = recover
+        self.recovery = recovery
     }
 
     public static func live(
@@ -159,6 +159,10 @@ public final class KeyServiceHost {
                         }
                         return { _ in .failure(KeyConfigStore.notInitializedError) }
                     }
+                    // A selected restore can still own unfinished completion.
+                    // A restarted helper must not compose ordinary authority
+                    // until explicit resume has validated and cleared its pins.
+                    try requireNoRecoveryPending()
                     // A moved vault cannot compose its old runtime. Correct
                     // only an existing selection, without opening the old root.
                     if case let .setVaultDirectory(path) = request,
@@ -181,7 +185,7 @@ public final class KeyServiceHost {
     ) -> KeyServiceResponse {
         // No live capability is installed yet. Stable and ordinary Preview
         // refuse without composing a runtime, reading a card or touching files.
-        guard let recover else {
+        guard let recovery else {
             return .failure("Recovery is not enabled in this product build.")
         }
         let pending = recoveryLock.withLock { () -> KeyRecoveryRequestScope? in
@@ -227,7 +231,7 @@ public final class KeyServiceHost {
                     catch { restartPending = true }
                 }
                 recoveryPending = true
-                let response = try recover(request, scope)
+                let response = try recovery.recover(request, scope)
                 try scope.requireCurrent()
                 if response.exitCode == EXIT_SUCCESS, try !hasConfiguration() {
                     throw AppError.operationRefused("Recovery returned without selecting a vault. Leave the attempt intact and explicitly resume; do not start another restore.")
@@ -254,6 +258,7 @@ public final class KeyServiceHost {
         guard !recoveryPending else {
             throw AppError.operationRefused("A recovery request may have left a saved attempt. Leave its records and folders intact and explicitly resume or inspect it; do not initialize, enroll or change vault configuration.")
         }
+        try recovery?.requireNoPendingRestore()
     }
 
     private func respond(_ operation: () throws -> KeyServiceResponse) -> KeyServiceResponse {
