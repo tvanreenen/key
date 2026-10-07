@@ -1197,6 +1197,23 @@ pending/checkpoint races, cold or wrong state, missing future ciphertext, cache
 failure and concurrent stale callers. A separate session test checks installation
 receipts. These are software checks, not native-prompt or hardware qualification.
 
+### Integrated software lifecycle checks
+
+The [lifecycle integration tests](../Tests/KeyCoreTests/V3RecoveryLifecycleIntegrationTests.swift)
+combine enrollment, rotation, recipient addition, revocation and recipient removal
+with ordinary edits and coordinated catch-up. Each Mac has its own checkpoint and
+session; both take turns saving and then catch up to the other's save. A revoked
+Mac refuses without opening a wrapper. After sessions are invalidated, caches are
+removed and the Mac fixtures leave scope, the software backup recipient must
+recover the final snapshot with one agreement callback and preserve both saves,
+the latest edit and a TOTP entry. Explicitly removing all recovery recipients
+must instead refuse recovery while ordinary Mac access continues.
+
+Publication and cryptography are concrete. Recipient addition uses the existing
+domain builder with fixture materialization, not another possession ceremony.
+These checks do not qualify a physical token, native prompt behavior or shipping
+dispatch, and they are not an independent security audit.
+
 ## Proposed data contract
 
 Keep outer vault/envelope version 3 and the understood envelope shape.
