@@ -885,6 +885,123 @@ struct V3RecoveryRegistrationServiceTests {
     }
   }
 
+  @Test func configuredWorkflowComposesPrepareExternalImportFinishStatusAndOrdinaryReopen() throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    let workflow = try workflow(f)
+    let selectors = (
+      f.card.tokenID,
+      try V3RecoveryRecipientID.derive(publicKey: f.core.credential.publicKey).rawValue
+    )
+    let initial = try workflow.handle(.status, scope: requestScope())
+    #expect(
+      initial.recoveryRegistration
+        == .status(
+          state: .unregistered, vaultID: Core.vaultID, recipients: [], activationCommitted: false))
+    #expect(f.card.publicSessions == 0 && f.provider.requests == 0)
+    let prepared = try workflow.handle(
+      .prepare(tokenID: selectors.0, recipientID: selectors.1), scope: requestScope())
+    guard case .export(let operation, _, _, let encoded) = prepared.recoveryRegistration,
+      let anchor = Base64URL.decodeCanonical(encoded)
+    else { throw Core.FixtureError.cancelled }
+    let pending = try workflow.handle(.status, scope: requestScope())
+    #expect(
+      pending.recoveryRegistration
+        == .status(
+          state: .pending, vaultID: Core.vaultID, recipients: [], activationCommitted: false))
+    let resumed = try workflow.handle(
+      .resumeExport(tokenID: selectors.0, recipientID: selectors.1), scope: requestScope())
+    #expect(resumed.recoveryRegistration == prepared.recoveryRegistration)
+    #expect(f.provider.requests == 0)
+    f.card.anchor = anchor  // Test-only simulation of the separate vendor import.
+    let finished = try workflow.handle(
+      .finish(tokenID: selectors.0, recipientID: selectors.1), scope: requestScope())
+    guard case .completed(let vaultID, let digest, let cleanup) = finished.recoveryRegistration
+    else {
+      throw Core.FixtureError.cancelled
+    }
+    #expect(vaultID == Core.vaultID && !cleanup && f.ownership.value == nil)
+    #expect(f.provider.requests == 1)
+    #expect(try Data(contentsOf: f.bundleURL(.init(validating: operation))).count > 0)
+    let status = try workflow.handle(.status, scope: requestScope())
+    #expect(
+      status.recoveryRegistration
+        == .status(
+          state: .registered, vaultID: Core.vaultID, recipients: [selectors.1],
+          activationCommitted: false))
+    let runtime = V3RecoveryVaultRuntime(
+      vaultID: Core.vaultID, objectStore: f.store, checkpointStore: f.checkpoints,
+      transactionOwnershipStore: f.transactions, registrationOwnershipStore: f.ownership,
+      adoptionOwnershipStore: f.adoption, cache: workflow.cache,
+      identityLoader: WorkflowLoader(identity: f.core.owner), session: .init(),
+      mutationOwner: f.mutationOwner)
+    #expect(
+      try runtime.read(name: "fixture/secret", allowStale: false).plaintext
+        == "Software fixture secret e\u{301}\r\n")
+    #expect(try runtime.status().health == .ready)
+    #expect(f.provider.requests == 1)
+    #expect(Base64URL.decodeCanonical(digest)?.count == 32)
+  }
+
+  @Test(arguments: [false, true])
+  func configuredWorkflowCancellationDuringMacOpeningCannotPrepareOrExport(resume: Bool) throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    if resume { _ = try f.prepare() }
+    let before = f.ownership.value
+    let scope = requestScope()
+    f.core.owner.onUnwrap = { scope.cancellation.cancel() }
+    let action: KeyRecoveryRegistrationRequest =
+      resume
+      ? .resumeExport(
+        tokenID: f.card.tokenID,
+        recipientID: try V3RecoveryRecipientID.derive(publicKey: f.core.credential.publicKey)
+          .rawValue)
+      : .prepare(
+        tokenID: f.card.tokenID,
+        recipientID: try V3RecoveryRecipientID.derive(publicKey: f.core.credential.publicKey)
+          .rawValue)
+    #expect(throws: (any Error).self) { try workflow(f).handle(action, scope: scope) }
+    #expect(f.ownership.value == before && f.checkpoints.value == f.core.checkpoint.canonicalBytes)
+    #expect(f.provider.requests == 0)
+  }
+
+  @Test func configuredWorkflowWrongRecipientCannotCreatePendingWork() throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    #expect(throws: PIVRecoveryTokenError.anchorCredentialMismatch) {
+      try workflow(f).handle(
+        .prepare(
+          tokenID: f.card.tokenID, recipientID: Base64URL.encode(Data(repeating: 7, count: 32))),
+        scope: requestScope())
+    }
+    #expect(f.ownership.value == nil && f.provider.requests == 0)
+  }
+
+  private func requestScope() -> KeyRecoveryRequestScope {
+    .init(authentication: .init(), deadline: .now() + 90)
+  }
+  private func workflow(_ f: Fixture) throws -> KeyRecoveryRegistrationWorkflow {
+    let root = f.root.appendingPathComponent(".test-local-cache", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    return .init(
+      vaultID: Core.vaultID, store: f.store, checkpoints: f.checkpoints,
+      transaction: f.transactions, registration: f.ownership, adoption: f.adoption,
+      cache: V3CheckpointManifestFilesystemCache(
+        rootHandle: try VaultRootDirectoryHandle(opening: root)),
+      identities: WorkflowLoader(identity: f.core.owner), reader: f.reader, agreement: f.agreement,
+      owner: f.mutationOwner)
+  }
+  private struct WorkflowLoader: V3DeviceWrappedIdentityLoading {
+    let identity: any V3DeviceWrappedVaultKeyUnwrapping
+    func loadDeviceIdentity(vaultID _: String, reason _: String) throws -> (
+      any V3DeviceWrappedVaultKeyUnwrapping
+    )? { identity }
+  }
+
   private struct Fixture: Sendable {
     let core: Core.Fixture
     let root: URL
