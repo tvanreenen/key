@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; internal authenticated initial restore and exact resume now compose preparation, manifest-last publication, insert-only trust, ordinary-runtime reopening, configuration selection and ordered finalization; product dispatch/barriers, separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; public token/source review and restore/resume CLI/protocol, gated host/connection lifecycle, restart ownership admission, native factories and internal profile-3 Mac unlock/read adapter implemented; catch-up composition, remaining commands, live feature gating, shipping runtime and signed qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; public token/source review and restore/resume CLI/protocol, gated host/connection lifecycle, restart ownership admission, native factories and internal profile-3 unlock/read/catch-up/write/session composition implemented; conflict-value reads, pending routing, registration commands, live factory and signed qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -4692,3 +4692,69 @@ Verification for this increment:
 - No install, signing, publishing, push, real-vault access or token operation.
   Logs remain ignored under `tmp/piv-recovery/2026-10-07-recovery-read-*`; build
   products reuse `tmp/piv-recovery/registration-status-build`.
+
+### 2026-10-07: internal profile-3 runtime orchestration
+
+The [runtime](../Sources/KeyCore/V3RecoveryVaultRuntime.swift) composes the
+existing unlock, catch-up, read adapter, ordinary mutation and memory-session
+services. Extending the permanent-profile runtime with generic callbacks was
+compared with a recovery-specific orchestrator. The latter keeps profile-3
+continuation and stale-policy decisions explicit without broadening profile-2
+dispatch or projecting recovery envelopes into permanent-profile trust types.
+Neither approach needed new cryptography or a second publication engine.
+
+Reads/catch-up share the existing helper mutation queue. Writes reuse its
+operation ID and direct owners. A separate runtime lock would invert acquisition
+order between reads and helper-owned writes, so it was not introduced. Admission
+tickets are captured before read serialization. They continue through unlock,
+identity loading, catch-up and final output; epoch receipts replace the ticket
+only after legitimate installation. Exact reads consume that context directly,
+without another authentication call at the hand-off. Lock does not wait for UI
+or the mutation queue.
+
+The coordinator's continuation result retains an exact published-source guard.
+It rechecks bounded inventory, manifest bytes and ciphertext after the read,
+with context checks on both sides. This is byte comparison, not reopening old
+keys or independently decrypting historical snapshots. Transport fallback is
+limited to an unchanged, MAC-authenticated admission floor. Partial checkpoint
+advances, invalidity, source changes, authority conflict, revocation and pending
+work refuse instead. No provider-global freshness guarantee is added.
+
+Ordinary writes retain automatic reconciliation and exact publication checks.
+Conflict metadata and helper-owned resolution are composed; conflict plaintext
+remains explicitly unsupported. All pending ownership still blocks routine
+admission, preserving files and markers for the dedicated reconciliation route
+yet to be composed. Memory-session status and lock use the existing session.
+No shipping hook, gate, CLI, protocol, configuration or token operation changes.
+`REC-812` remains in progress; pending routing, sealed conflict-value reads,
+registration commands, the gated factory and signed qualification remain.
+
+The [runtime tests](../Tests/KeyCoreTests/V3RecoveryVaultRuntimeTests.swift)
+use real profile-3 history, publication, software Mac keys and the actual helper
+serialization queue. They exercise mixed edits/rotations, all ordinary write
+routes, save/reopen, conflict/stale policy, resolution, automatic merge, missing
+files, pending namespaces, admission cancellation and late identity changes.
+New [coordinator cases](../Tests/KeyCoreTests/V3RecoveryCatchUpCoordinatorTests.swift)
+cover epoch receipts, queued same-key replacement, authenticated fallback,
+transport failure after a committed advance and late published-file changes.
+Verification for this increment:
+
+- Initial focused Debug passed 57 declarations across four suites in 130.178
+  seconds. After preserving the mutation reconciler's automatic-merge policy and
+  adding final published-file checks, expanded Debug passed 119 declarations
+  across nine suites in 135.270 seconds. The final memory-session test and
+  operation-neutral cancellation wording were then included in final Release:
+  202 declarations across 13 suites passed in 88.942 seconds. The new runtime
+  suite has 12 declarations exercising 26 cases; five new coordinator declarations
+  exercise eight continuation/source cases. No production guard was relaxed to
+  obtain a pass. The full suite was not repeated; the earlier unlock increment
+  records its full Release baseline.
+- Final unsigned universal Preview build, product-bundle isolation, compiled
+  version `0.2.0 (19)` and arm64/x86_64 app, CLI and helper slices passed. Strict
+  formatting, project plist syntax, 325 relative documentation targets and
+  whitespace checks passed. Existing routing-test Sendable and AppIntents
+  metadata warnings remain unchanged.
+- No install, signing, publication, push, user-vault access or physical token
+  operation. Logs remain ignored under
+  `tmp/piv-recovery/2026-10-07-recovery-runtime-*`; build products reuse
+  `tmp/piv-recovery/registration-status-build`.

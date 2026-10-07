@@ -30,6 +30,11 @@ final class V3RecoveryVaultUnlockRuntime: @unchecked Sendable {
       try runtime.requireState(current.checkpoint, ticket: ticket)
     }
 
+    func authenticationTicket() throws -> V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket {
+      try revalidate()
+      return ticket
+    }
+
     func loadVaultKey(keyID: V3VaultKeyID) throws -> Data {
       guard keyID == current.envelope.body.fields.keyID else {
         throw V3RecoveryVaultUnlockError.locked
@@ -85,11 +90,40 @@ final class V3RecoveryVaultUnlockRuntime: @unchecked Sendable {
     try authenticate(reason: reason, explicitly: false)
   }
 
+  /// Retain admission captured before an outer serialization queue. A lock
+  /// while waiting must not become a new request's authentication grant.
+  func authenticatedReadContext(
+    reason: String, explicitly: Bool,
+    continuing admission: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  ) throws -> ReadContext {
+    try authenticate(reason: reason, explicitly: explicitly, admission: admission)
+  }
+
+  /// Continue a coordinator's exact committed floor and installation receipt.
+  /// No cold fallback or new private operation is permitted at this hand-off.
+  func continuedReadContext(
+    current: V3RecoveryContentCommit,
+    ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  ) throws -> ReadContext {
+    guard current.checkpoint.vaultID == vaultID,
+      current.envelope.body.fields.vaultID == vaultID,
+      current.envelope.digest == current.checkpoint.envelopeDigest
+    else { throw V3RecoveryVaultUnlockError.recoveryRequired }
+    let context = ReadContext(current: current, runtime: self, ticket: ticket)
+    let key = try context.loadVaultKey(keyID: current.envelope.body.fields.keyID)
+    try V3RecoveryEpochBoundary().verifyCurrentAuthentication(current.envelope, vaultKey: key)
+    try context.revalidate()
+    return context
+  }
+
   /// Independent of the request mutex, so native UI cannot delay cancellation.
   func lock() { session.invalidate() }
 
-  private func authenticate(reason: String, explicitly: Bool) throws -> ReadContext {
-    let admission = session.beginAuthentication()
+  private func authenticate(
+    reason: String, explicitly: Bool,
+    admission suppliedAdmission: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil
+  ) throws -> ReadContext {
+    let admission = suppliedAdmission ?? session.beginAuthentication()
     return try requests.withLock {
       do {
         try session.requireCurrent(admission)

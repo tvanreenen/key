@@ -21,14 +21,25 @@ struct V3RecoveryReadOnlyVaultRuntime: VaultReadServicing, VaultUXServicing, Sen
   }
 
   func unlock() throws {
-    try translated { _ = try unlockRuntime.unlock(reason: "Unlock the vault.") }
+    try translatingV3RecoveryRuntimeErrors {
+      _ = try unlockRuntime.unlock(reason: "Unlock the vault.")
+    }
   }
 
   func read(name: String, allowStale _: Bool) throws -> VaultReadValue {
     let name = try normalizedV3EntryName(name)
-    return try translated {
+    return try translatingV3RecoveryRuntimeErrors {
       let context = try unlockRuntime.authenticatedReadContext(
         reason: "Unlock the vault to read '\(name)'.")
+      return try read(name: name, context: context)
+    }
+  }
+
+  func read(name: String, context: V3RecoveryVaultUnlockRuntime.ReadContext) throws
+    -> VaultReadValue
+  {
+    try translatingV3RecoveryRuntimeErrors {
+      try context.revalidate()
       let plan = try planner.planCheckpointRead(
         named: name, entries: context.current.envelope.body.fields.entries,
         checkpoint: context.current.checkpoint)
@@ -42,9 +53,16 @@ struct V3RecoveryReadOnlyVaultRuntime: VaultReadServicing, VaultUXServicing, Sen
   }
 
   func list(allowStale: Bool) throws -> [String] {
-    try translated {
+    try translatingV3RecoveryRuntimeErrors {
       let context = try unlockRuntime.authenticatedReadContext(
         reason: "Unlock the vault to list saved entries.")
+      return try list(allowStale: allowStale, context: context)
+    }
+  }
+
+  func list(allowStale: Bool, context: V3RecoveryVaultUnlockRuntime.ReadContext) throws -> [String]
+  {
+    try translatingV3RecoveryRuntimeErrors {
       switch try validation(context) {
       case .ready: break
       case .incomplete:
@@ -60,9 +78,15 @@ struct V3RecoveryReadOnlyVaultRuntime: VaultReadServicing, VaultUXServicing, Sen
   }
 
   func status() throws -> VaultStatus {
-    try translated {
+    try translatingV3RecoveryRuntimeErrors {
       let context = try unlockRuntime.authenticatedReadContext(
         reason: "Unlock the vault to check its status.")
+      return try status(context: context)
+    }
+  }
+
+  func status(context: V3RecoveryVaultUnlockRuntime.ReadContext) throws -> VaultStatus {
+    try translatingV3RecoveryRuntimeErrors {
       let result = try validation(context)
       try context.revalidate()
       let count = context.current.envelope.body.fields.entries.count
@@ -112,9 +136,16 @@ struct V3RecoveryReadOnlyVaultRuntime: VaultReadServicing, VaultUXServicing, Sen
 
   func authorizeRead(name: String, allowStale _: Bool) throws {
     let name = try normalizedV3EntryName(name)
-    try translated {
+    try translatingV3RecoveryRuntimeErrors {
       let context = try unlockRuntime.authenticatedReadContext(
         reason: "Unlock the vault to verify '\(name)'.")
+      try authorizeRead(name: name, context: context)
+    }
+  }
+
+  func authorizeRead(name: String, context: V3RecoveryVaultUnlockRuntime.ReadContext) throws {
+    try translatingV3RecoveryRuntimeErrors {
+      try context.revalidate()
       _ = try planner.planCheckpointRead(
         named: name,
         entries: context.current.envelope.body.fields.entries,
@@ -159,41 +190,63 @@ struct V3RecoveryReadOnlyVaultRuntime: VaultReadServicing, VaultUXServicing, Sen
       })
   }
 
-  private func translated<T>(_ operation: () throws -> T) throws -> T {
-    do { return try operation() } catch let error as V3RecoveryVaultUnlockError {
-      switch error {
-      case .locked:
-        throw AppError.authFailed(
-          "The vault session was locked or authentication was cancelled. Unlock it to continue.")
-      case .temporaryUnavailable, .checkpointChanged: throw VaultUXServiceError.vaultIncomplete
-      case .deviceRevoked: throw VaultUXServiceError.deviceRevoked
-      case .identityUnavailable:
-        throw AppError.operationRefused(
-          "This Mac's vault credentials are unavailable. Use another enrolled Mac or a configured recovery method to restore access."
-        )
-      case .unsupportedProfile:
-        throw AppError.operationRefused(
-          "This vault profile is not supported by the recovery-profile runtime.")
-      case .mutationPending, .recoveryRequired: throw VaultUXServiceError.recoveryRequired
-      }
-    } catch is V3DeviceWrappedVaultKeySessionError {
-      throw AppError.authFailed(
-        "The vault session changed before the read completed. Unlock it to continue.")
-    } catch let error as V3AuthenticatedReadError {
-      switch error {
-      case .entryUnavailable, .authorityChanged: throw VaultUXServiceError.vaultIncomplete
-      case .invalidEntryObject, .entryObjectTooLarge: throw VaultUXServiceError.recoveryRequired
-      }
-    } catch is V3EncryptedEntryError {
-      throw VaultUXServiceError.recoveryRequired
-    }
-  }
-
   private func readOnlyError() -> AppError {
     .operationRefused("Recovery-profile writes are not composed through this read adapter.")
   }
 
   private func historyUnavailable() -> AppError {
     .operationRefused("Recovery-profile history review is not composed through this read adapter.")
+  }
+}
+
+/// Profile-specific UX translation shared by exact reads and their orchestrator.
+func translatingV3RecoveryRuntimeErrors<T>(_ operation: () throws -> T) throws -> T {
+  do { return try operation() } catch let error as V3RecoveryVaultUnlockError {
+    switch error {
+    case .locked:
+      throw AppError.authFailed(
+        "The vault session was locked or authentication was cancelled. Unlock it to continue.")
+    case .temporaryUnavailable, .checkpointChanged: throw VaultUXServiceError.vaultIncomplete
+    case .deviceRevoked: throw VaultUXServiceError.deviceRevoked
+    case .identityUnavailable:
+      throw AppError.operationRefused(
+        "This Mac's vault credentials are unavailable. Use another enrolled Mac or a configured recovery method to restore access."
+      )
+    case .unsupportedProfile:
+      throw AppError.operationRefused(
+        "This vault profile is not supported by the recovery-profile runtime.")
+    case .mutationPending, .recoveryRequired: throw VaultUXServiceError.recoveryRequired
+    }
+  } catch is V3DeviceWrappedVaultKeySessionError {
+    throw AppError.authFailed(
+      "The vault session changed before the operation completed. Unlock it to continue.")
+  } catch let error as V3AuthenticatedReadError {
+    switch error {
+    case .entryUnavailable, .authorityChanged: throw VaultUXServiceError.vaultIncomplete
+    case .invalidEntryObject, .entryObjectTooLarge: throw VaultUXServiceError.recoveryRequired
+    }
+  } catch is V3EncryptedEntryError {
+    throw VaultUXServiceError.recoveryRequired
+  } catch let error as V3RecoveryValidationError {
+    switch error {
+    case .sourceUnavailable, .entryUnavailable: throw VaultUXServiceError.vaultIncomplete
+    case .sourceChanged: throw VaultUXServiceError.expectedHeadsChanged
+    case .authorityConflict, .closedEpochBranch: throw VaultUXServiceError.securityConflict
+    case .contentConflict: throw VaultUXServiceError.catchUpContentConflict
+    default: throw VaultUXServiceError.recoveryRequired
+    }
+  } catch let error as V3RecoveryContentCatchUpError {
+    switch error {
+    case .checkpointChanged: throw VaultUXServiceError.expectedHeadsChanged
+    case .localMutationPending, .stepLimitExceeded: throw VaultUXServiceError.vaultIncomplete
+    case .epochTransitionRequired: throw VaultUXServiceError.recoveryRequired
+    }
+  } catch let error as V3RecoveryKeyTransitionCatchUpError {
+    switch error {
+    case .deviceRevoked: throw VaultUXServiceError.deviceRevoked
+    case .invalidDevice: throw VaultUXServiceError.recoveryRequired
+    }
+  } catch V3EnrollmentDeviceIdentityStoreError.authenticationCancelled {
+    throw AppError.authFailed("Authentication was cancelled. No automatic retry was attempted.")
   }
 }

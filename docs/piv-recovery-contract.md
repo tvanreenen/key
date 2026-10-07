@@ -573,9 +573,50 @@ plaintext is never returned under stale permission.
 Read authorization validates a selector against the authenticated floor; it
 does not open the entry or grant a reusable plaintext capability. The adapter
 refuses mutation and history methods because it has no publication or graph
-observation responsibility. It does not claim an empty conflict set. Product
-catch-up/read/session composition, pending-ceremony routing and the gated factory
-remain outstanding. No CLI, protocol, live dispatch or token operation changes.
+observation responsibility. It does not claim an empty conflict set. The internal
+composition below now surrounds it with catch-up and ordinary publication.
+Pending-ceremony routing and the gated factory remain outstanding. No CLI,
+protocol, live dispatch or token operation changes.
+
+### Implemented internal profile-3 runtime composition
+
+The [runtime](../Sources/KeyCore/V3RecoveryVaultRuntime.swift) combines existing
+unlock, catch-up, exact reads, ordinary publication and memory-session services.
+It is not installed by a shipping factory. Reads and catch-up run inside the
+helper's shared mutation owner. Mutation methods reuse the helper-supplied
+operation ID and direct owners, rather than nesting that queue. Mutation
+authorization only opens the local floor; publication independently catches up,
+reconciles and checks its source. Lock remains independent of the queue and
+native UI. Memory-session status does not read provider files or authenticate.
+
+Admission is captured before read serialization and carried into unlock and
+catch-up. Catch-up returns its exact floor and live ticket, including receipts
+from legitimate epoch installations. The unlock runtime continues that floor
+without a cold fallback. Final read/list/status return checks the same context,
+the observed manifest inventory and published bytes, then the context again.
+This last source check opens no historical key and requests no private operation;
+its closure retains ciphertext and manifest evidence, not old vault keys.
+It detects changes to the observed files, not files a provider never disclosed.
+
+Explicit stale permission admits content competition or transport incompleteness
+only at the unchanged authenticated admission floor. Missing files after any
+checkpoint advance cannot roll back to that floor. Invalidity, source changes,
+authority competition, revocation, budget violations, pending ownership, lock
+and unrelated session replacement do not grant stale success. Status distinguishes
+an incomplete graph or competing edits from ready state. Ordinary writes retain
+the existing automatic-merge behavior for compatible edits; unresolved conflicts
+require explicit, freshly validated choices. Metadata conflict list/show and
+helper-owned resolution are composed; conflict-value plaintext is still refused
+until its sealed profile-3 read plan is implemented.
+
+Any pending ordinary, registration or adoption ownership still blocks routine
+runtime admission. Existing services retain their exact reconciliation protocols,
+but dedicated pending-state routing is not yet composed here. If lock follows a
+durable publication, the saved bytes are not undone; the request's late success
+is refused. No automatic authentication retry, token administration, configuration
+change or source repair is added. Software operation counts do not qualify native
+prompt counts. Registration commands, gated product factories, integrated review
+and signed hardware qualification remain required before real-vault opt-in.
 
 ### Implemented reciprocal internal pending-work guards
 
