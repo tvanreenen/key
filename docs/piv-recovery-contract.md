@@ -474,6 +474,37 @@ and service leave scope. This is not native unlock or physical-token qualificati
 The conflict projection is serialized metadata inspection, not a concurrent-safe
 product read/status service. No shipping dispatch is enabled.
 
+### Implemented authenticated registration status
+
+The internal [registration status service](../Sources/KeyCore/V3RecoveryRegistrationStatus.swift)
+inspects an exact locally selected profile-3 checkpoint with its already
+authenticated helper key. It uses the existing registration repository and
+journal under the shared mutation owner. It has no token, private identity,
+agreement, configuration or checkpoint-writer dependency. It does not select a
+new provider head, perform catch-up, repair a session or clean up ownership.
+
+An authenticated complete current snapshot with no locally owned attempt is
+`unregistered` when its active roster is empty, or `registered` with the stored
+active recipient IDs. Registered describes authenticated stored coverage. It
+does not prove current possession, anchor presence, protected administration,
+PIN/touch enforcement, independent backup availability or provider freshness.
+Token absence does not change that stored status.
+
+An exact locally owned preparation takes precedence as `pending`. Before local
+commitment, its intent MAC and dual-authorized boundary are checked against the
+authenticated floor. After commitment, its exact candidate must be that floor.
+The result distinguishes activation awaiting finish from committed activation
+awaiting local cleanup. Neither result claims that the external write succeeded
+or that finish can complete. No candidate wrapper is opened for status.
+
+Checkpoint, ownership, bundle or source failures, competing mutation ownership,
+invalid authentication and changes during inspection yield `attention-required`,
+never an empty or protected roster. The service repeats exact source, local
+checkpoint, ownership and bundle checks before returning a positive status.
+Unowned provider bundles remain inert. Caller admission errors still propagate;
+the future product route must enforce connection, lock and deadline scope.
+This is not a shipping status command or profile-2 adoption path.
+
 ### Implemented reciprocal internal pending-work guards
 
 Registration now requires explicit ordinary-transaction and adoption ownership
