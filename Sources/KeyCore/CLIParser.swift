@@ -81,7 +81,7 @@ private struct KeyArguments: ParsableCommand {
                 Duplicate.self, Rename.self, Remove.self
             ]),
             CommandGroup(name: "Check and manage your vault", subcommands: [
-                Status.self, Conflict.self, Config.self, Migrate.self,
+                Status.self, Conflict.self, Config.self, Migrate.self, Recovery.self,
                 Unlock.self, Lock.self, Version.self
             ])
         ]
@@ -325,6 +325,81 @@ private struct KeyArguments: ParsableCommand {
                 }
             }
             var command: Command { .conflict(.resolve(choices)) }
+        }
+    }
+
+    struct Recovery: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "recovery", abstract: "Restore into a new vault or resume an exact saved attempt (not enabled yet).",
+            discussion: CLIHelp.recovery, subcommands: [Restore.self, Resume.self]
+        )
+
+        struct SelectionOptions: ParsableArguments {
+            @Option(name: .customLong("source"), help: "Existing source vault folder. Required exactly once.", completion: .directory)
+            var sources: [String]
+            @Option(name: .customLong("destination"), help: "New vault folder for restore, or the exact existing destination for resume. Required exactly once.", completion: .directory)
+            var destinations: [String]
+            @Option(name: .customLong("token"), help: "Exact connected token ID. Required exactly once; never automatically selected.")
+            var tokens: [String]
+            @Option(name: .customLong("recipient"), help: "Complete recovery recipient ID, not a certificate fingerprint. Required exactly once.")
+            var recipients: [String]
+
+            mutating func validate() throws {
+                guard sources.count == 1, destinations.count == 1,
+                      tokens.count == 1, recipients.count == 1 else {
+                    throw ValidationError("Provide --source, --destination, --token and --recipient exactly once each.")
+                }
+                for path in [sources[0], destinations[0]] {
+                    try validateDirectory(path)
+                    guard path.utf8.count <= 4_096 else {
+                        throw ValidationError("Recovery directory paths must not exceed 4096 UTF-8 bytes.")
+                    }
+                }
+                guard !tokens[0].isEmpty, tokens[0].utf8.count <= 1_024,
+                      !tokens[0].utf8.contains(0) else {
+                    throw ValidationError("Provide a nonempty token ID of at most 1024 UTF-8 bytes without NUL characters.")
+                }
+                guard (try? V3RecoveryRecipientID(rawValue: recipients[0])) != nil else {
+                    throw ValidationError("Provide the complete recovery recipient ID; prefixes and certificate fingerprints are not accepted.")
+                }
+            }
+        }
+
+        struct Restore: CLIRequest {
+            static let configuration = CommandConfiguration(
+                commandName: "restore", abstract: "Restore verified contents into a new vault on an unconfigured Mac.",
+                usage: "key recovery restore --source <directory> --destination <new-directory> --token <token-id> --recipient <recipient-id> --name <this-mac-name>",
+                discussion: CLIHelp.recoveryRestore
+            )
+            @OptionGroup var selection: SelectionOptions
+            @OptionGroup var identity: Share.IdentityOptions
+            mutating func validate() throws {
+                guard identity.names.count == 1, isValidV3DeviceDisplayName(identity.name) else {
+                    throw ValidationError("Provide a valid readable Mac name with --name.")
+                }
+            }
+            var command: Command {
+                .recovery(.restore(
+                    source: selection.sources[0], destination: selection.destinations[0],
+                    tokenID: selection.tokens[0], recipientID: selection.recipients[0],
+                    deviceName: identity.name
+                ))
+            }
+        }
+
+        struct Resume: CLIRequest {
+            static let configuration = CommandConfiguration(
+                commandName: "resume", abstract: "Continue only the exact locally saved restore attempt.",
+                usage: "key recovery resume --source <directory> --destination <original-destination> --token <token-id> --recipient <recipient-id>",
+                discussion: CLIHelp.recoveryResume
+            )
+            @OptionGroup var selection: SelectionOptions
+            var command: Command {
+                .recovery(.resume(
+                    source: selection.sources[0], destination: selection.destinations[0],
+                    tokenID: selection.tokens[0], recipientID: selection.recipients[0]
+                ))
+            }
         }
     }
 
