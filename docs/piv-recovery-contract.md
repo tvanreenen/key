@@ -505,6 +505,45 @@ Unowned provider bundles remain inert. Caller admission errors still propagate;
 the future product route must enforce connection, lock and deadline scope.
 This is not a shipping status command or profile-2 adoption path.
 
+### Implemented internal routine profile-3 unlock
+
+The [profile-3 unlock runtime](../Sources/KeyCore/V3RecoveryVaultUnlockRuntime.swift)
+opens only the manifest selected by this Mac's bounded local checkpoint. It
+reuses the existing native identity-loader interface, exact-manifest cache and
+in-memory Mac-key session. Its explicit recovery-profile codec rejects profile 2
+and unknown profiles before a private operation; no profile projection or
+provider-head discovery grants authority.
+
+Cold access verifies the exact manifest digest and active Mac identity, opens
+that Mac's profile-3 HPKE wrapper once, and authenticates the current manifest
+MAC and epoch capsule before installing a resident key. Warm access uses only a
+matching resident key and repeats manifest/capsule authentication. A mismatched
+resident session refuses rather than retrying authentication automatically.
+Neither path checks entry availability, advances a checkpoint, repairs pending
+work, opens historical keys or contacts a token. Returned floor metadata is not
+a complete snapshot or a current-provider-head claim. Entry reads, catch-up and
+status retain their own validation responsibilities.
+
+Ordinary-transaction, registration and adoption ownership stores are required.
+Any present record, including malformed bytes, blocks ordinary unlock; any read
+failure refuses. These are ordinary-runtime barriers, not an implementation of
+the separate authenticated registration/adoption reconciliation route. Pending
+ceremonies will need their dedicated scoped authentication path.
+
+Requests capture a session ticket before serialization. Explicit reauthentication
+atomically discards the prior key and replaces that still-current ticket inside
+the session store. Lock does not wait for the request mutex or native UI. Exact
+checkpoint, pending ownership and ticket checks surround identity access, unwrap,
+optional cache warming, installation and return. A lock, expiry or replacement
+invalidates late authentication. Failed access clears resident state. Cache-write
+failure alone does not undo verified authority; cache callbacks cannot bypass
+the final state checks. No private operation is retried.
+
+Software integration opens a real enrolled-Mac profile-3 floor, runs the existing
+rotation catch-up and ordinary mutation services, then locks and freshly opens
+the saved state. This is not native authentication qualification or a shipping
+runtime factory. Live Stable/Preview dispatch remains unchanged.
+
 ### Implemented reciprocal internal pending-work guards
 
 Registration now requires explicit ordinary-transaction and adoption ownership
