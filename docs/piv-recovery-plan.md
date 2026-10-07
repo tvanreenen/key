@@ -4837,3 +4837,20 @@ relaxed for a pass. This increment has not separately repeated Release or the
 product build; the integration checkpoint will run those on the combined source.
 Logs are ignored under `tmp/piv-recovery/2026-10-07-pending-runtime-debug.log`.
 No native operation, user-vault access, installation or push occurred.
+
+### 2026-10-07: configured registration protocol and host admission
+
+Configured setup now has public-only status, prepare, export-resume, finish and
+explicit adoption/resume requests. The default host still refuses them without
+an installed capability. Enabled requests share the existing bounded connection
+scope and exclusive host barrier, rather than a second setup queue. A
+checkpoint-changing attempt locks any composed runtime and requires restart even
+if its result is uncertain. Lock/disconnect cancellation rejects late success.
+The service protocol carries no native observation, private key or credential.
+
+Focused Debug passed 35 declarations across three suites in 10.904 seconds.
+Six new routing declarations exercise 28 cases, including protocol round trips,
+full-CLI-only access, invalid/disabled/unconfigured admission, ambiguous changes
+and disconnect. CLI syntax, concrete configured workflow and live gating remain
+the next increments. No native operation, installation or push occurred. Logs
+remain ignored under `tmp/piv-recovery/2026-10-07-registration-route-debug.log`.

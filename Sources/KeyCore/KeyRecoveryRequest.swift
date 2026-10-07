@@ -1,5 +1,54 @@
 import Foundation
 
+/// Configured-vault setup requests carry public selectors only. They never
+/// contain a PIN, management credential, vault key or native approval.
+public enum KeyRecoveryRegistrationRequest: Codable, Equatable, Sendable {
+  case status
+  case prepare(tokenID: String, recipientID: String)
+  case resumeExport(tokenID: String, recipientID: String)
+  case finish(tokenID: String, recipientID: String)
+  case adopt
+  case resumeAdoption(operationID: String)
+
+  var changesCheckpoint: Bool {
+    switch self {
+    case .finish, .adopt, .resumeAdoption: true
+    default: false
+    }
+  }
+
+  func validate() throws {
+    switch self {
+    case .status, .adopt: break
+    case .resumeAdoption(let operation):
+      guard (try? VaultTransactionOperationID(validating: operation)) != nil else {
+        throw AppError.operationRefused(
+          "Adoption resume requires the complete original operation ID.")
+      }
+    case .prepare(let token, let recipient), .resumeExport(let token, let recipient),
+      .finish(let token, let recipient):
+      guard !token.isEmpty, token.utf8.count <= 1_024,
+        !token.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
+        (try? V3RecoveryRecipientID(rawValue: recipient)) != nil
+      else {
+        throw AppError.operationRefused(
+          "Registration requires one complete token ID and its complete recovery recipient ID.")
+      }
+    }
+  }
+}
+
+/// Public setup output. Exported anchor bytes contain commitments, not secrets
+/// or approval. Only a later authenticated finish can activate registration.
+public enum KeyRecoveryRegistrationResult: Codable, Equatable, Sendable {
+  public enum State: String, Codable, Equatable, Sendable {
+    case unregistered, registered, pending, attentionRequired
+  }
+  case status(state: State, vaultID: String, recipients: [String], activationCommitted: Bool)
+  case export(operationID: String, vaultID: String, recipientID: String, anchor: String)
+  case completed(vaultID: String, manifestDigest: String, cleanupPending: Bool)
+}
+
 /// Public selectors and locations only. Credentials and recovered keys never
 /// cross the service protocol. A selector is not a native observation or consent.
 public enum KeyRecoveryRequest: Codable, Equatable, Sendable {
