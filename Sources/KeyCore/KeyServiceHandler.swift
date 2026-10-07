@@ -647,6 +647,8 @@ public final class KeyServiceHandler {
                 )
             case .shareInDirectory:
                 throw AppError.operationRefused("Directory-scoped enrollment must be dispatched by Key Agent's service host.")
+            case .recovery:
+                throw AppError.operationRefused("Recovery must be dispatched by Key Agent's service host.")
             case .list:
                 let entries = if let vaultReader {
                     try vaultReader.list(allowStale: false)
