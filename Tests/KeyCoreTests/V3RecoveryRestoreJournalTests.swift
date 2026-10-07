@@ -8,15 +8,15 @@ import Testing
 /// Real contained files and crypto; memory CAS only at the Keychain boundary.
 /// No native credential, real configuration, token or destination publication.
 struct V3RecoveryRestoreJournalTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Source = V3RecoveryContentMutationPublisherTests.Fixture
-  private typealias Ownership = V3RecoveryContentMutationPublisherTests.Ownership
-  private static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c5000"
+  typealias Core = V3RecoveryRegistrationTests
+  typealias Source = V3RecoveryContentMutationPublisherTests.Fixture
+  typealias Ownership = V3RecoveryContentMutationPublisherTests.Ownership
+  static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c5000"
   private static let transitionID = "018f4d38-7d5a-7b20-b0f1-97d6e96c5001"
   private static let ids = [
     "018f4d38-7d5a-7b20-b0f1-97d6e96c5002", "018f4d38-7d5a-7b20-b0f1-97d6e96c5003",
   ]
-  private static let key = Data(repeating: 0xB8, count: 32)
+  static let key = Data(repeating: 0xB8, count: 32)
   private enum Stop: Error { case interrupted }
 
   @Test(arguments: [false, true])
@@ -430,7 +430,7 @@ struct V3RecoveryRestoreJournalTests {
       if case .temporaryFileSynchronized(let path) = phase { try action(path) }
     }
   }
-  private struct Owner {
+  struct Owner {
     let wrapping = P256.KeyAgreement.PrivateKey()
     let identity: V3EnrollmentDeviceIdentity
     init() throws {
@@ -441,7 +441,7 @@ struct V3RecoveryRestoreJournalTests {
     }
   }
   @available(macOS 26.0, *)
-  private struct Fixture {
+  struct Fixture {
     let source: Source
     let base: URL
     let config: KeyConfigStore
@@ -532,7 +532,7 @@ struct V3RecoveryRestoreJournalTests {
       try? FileManager.default.removeItem(at: base)
     }
   }
-  private func files(_ root: URL) throws -> [String: Data] {
+  func files(_ root: URL) throws -> [String: Data] {
     let urls = try #require(
       FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey]))
     var result: [String: Data] = [:]
