@@ -292,6 +292,47 @@ struct V3RecoveryVaultRuntimeTests {
     #expect(f.loader.loads == loads && f.disk.receiver.unwraps == 1)
   }
 
+  @Test(arguments: [false, true], 0..<4)
+  func interruptedOrdinarySaveReconcilesBeforeReadWithoutANewAuthenticationHandOff(
+    cold: Bool, stage: Int
+  ) throws {
+    let f = try Fixture(cold: cold)
+    defer { f.disk.disk.remove() }
+    let phases: [V3ImmutableTransactionPhase] = [
+      .recoveryAnchorPrepared, .manifestStaged, .manifestPublished, .checkpointAdvanced,
+    ]
+    let candidate = try V3RecoveryContentMutationBuilder().build(
+      .edit(name: "fixture/secret", type: .secret, plaintext: "interrupted save"),
+      checkpoint: f.disk.floor.checkpoint, parent: f.disk.floor.envelope,
+      currentEntries: f.disk.initialEntries, vaultKey: f.disk.initialKey)
+    #expect(throws: Core.FixtureError.cancelled) {
+      try V3RecoveryContentMutationPublisher(
+        mutationOwner: f.owner, objectStore: f.disk.disk.store,
+        checkpointStore: f.disk.local, recoveryAnchorStore: f.disk.pending[0],
+        registrationAnchorStore: f.disk.pending[1], adoptionAnchorStore: f.disk.pending[2],
+        cache: f.disk.localCache, phaseObserver: Interrupt(phase: phases[stage])
+      ).publish(candidate, vaultKey: f.disk.initialKey)
+    }
+    #expect(f.disk.pending[0].value != nil)
+    let runtime = f.runtime()
+    let value = try runtime.read(name: "fixture/secret", allowStale: false)
+    #expect(
+      value.plaintext
+        == (stage == 0 ? "Software fixture secret e\u{301}\r\n" : "interrupted save"))
+    #expect(f.disk.pending.allSatisfy { $0.value == nil })
+    #expect(f.disk.receiver.unwraps == (cold ? 1 : 0))
+    #expect(try runtime.status().health == .ready)
+  }
+
+  private struct Interrupt: V3ImmutableTransactionPhaseObserving {
+    let phase: V3ImmutableTransactionPhase
+    func didReach(_ phase: V3ImmutableTransactionPhase, operationID _: VaultTransactionOperationID)
+      throws
+    {
+      if phase == self.phase { throw Core.FixtureError.cancelled }
+    }
+  }
+
   private struct Fixture: Sendable {
     let disk: Epochs.Fixture
     let loader: Loader
