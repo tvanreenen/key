@@ -1585,11 +1585,41 @@ Restart-persistent admission now checks the presence of either existing local
 restore ownership namespace. The in-memory guard is not durable recovery
 authority. Recovery dispatch and this inspector are supplied as one capability;
 the host cannot accept the dispatch hook without an ownership dependency.
-Stable and ordinary Preview live hosts keep that capability disabled. No CLI
-command, saved-attempt scan, replacement credential or cleanup is enabled here.
+Stable and ordinary Preview live hosts keep that capability disabled. Restore
+and resume now have CLI syntax and help, but no shipping recovery operation,
+saved-attempt scan, replacement credential or cleanup is enabled here.
 [Host tests](../Tests/KeyCoreTests/KeyRecoveryRoutingTests.swift) include actual
 restore-service cancellation but substitute native I/O and service composition;
 actual XPC interruptions and hardware acceptance remain unqualified.
+
+### Restore and resume CLI boundary
+
+The [parser](../Sources/KeyCore/CLIParser.swift) exposes `key recovery restore`
+and `key recovery resume`, both requiring exactly one `--source`,
+`--destination`, `--token` and complete `--recipient`. Initial restore also
+requires exactly one valid `--name`; resume refuses a replacement name. Repeated
+options, incomplete or malformed selectors, credentials and force/bypass flags
+are rejected before dispatch. The recipient ID is the existing recovery public
+key identifier, not the earlier feasibility certificate fingerprint.
+
+The [application](../Sources/KeyCore/KeyCLIApplication.swift) resolves both
+explicit paths against one captured working directory and validates the bounded
+absolute request before sending it. No configuration default, CLI credential
+collection, automatic retry, resume-to-restore fallback or local cleanup is
+introduced. The existing full-CLI XPC role and success shutdown handshake are
+unchanged. Failure or lost-reply guidance preserves all state and directs exact
+saved attempts to explicit resume; absent, incomplete or changed state still
+requires inspection. Help warns that live operations remain disabled and that
+the new vault does not inherit recovery registration.
+
+The [CLI tests](../Tests/KeyCoreTests/RecoveryCLITests.swift) compose the actual
+parser, application, host, workflow and restore service over real software
+crypto/files with substituted native keys and local pins. They cover initial
+completion, durable-preparation interruption, fresh-host exact resume and
+completed-attempt refusal without another agreement. They do not establish
+signed XPC/helper restart or native prompt behavior. Public read-only review
+needs its own nonmutating admission/response path; it cannot reuse restore's
+pending guard or requirement to select configuration.
 
 ### Restart ownership admission
 
@@ -2272,16 +2302,17 @@ service never automatically abandons it or abandons recoverable ownership.
 Encrypted preparation files remain inert for inspection, not discovery-based
 publication authority. No source/configuration/Keychain deletion is performed.
 
-No shipping composition, public command or real-vault opt-in is enabled.
+No shipping recovery composition or real-vault opt-in is enabled.
 Adoption alone does not claim recovery protection; that requires separate
 registration. Reciprocal pending-state barriers in ordinary product services,
 product integration of profile-3 writes/catch-up, lifecycle support, integrated
 review and distribution qualification remain required before real-vault opt-in.
 
-The proposed public workflow is a `recovery` command group for status,
+The proposed complete public workflow is a `recovery` command group for status,
 credential review, registration, recipient listing/removal, restore review,
-restore, and explicit resume. Names/options are reviewed with service fixtures
-before implementation; this is not a runnable command listing. No PIN, PUK,
+restore, and explicit resume. Restore/resume syntax and disabled-build help now
+exist; other commands remain proposed, not a runnable command listing.
+Names/options are reviewed with service fixtures before implementation. No PIN, PUK,
 management key, or raw vault key crosses CLI arguments or XPC. Destructive
 changes use exact-target review and opaque confirmation references.
 

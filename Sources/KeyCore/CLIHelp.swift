@@ -1,6 +1,36 @@
 /// Workflow explanations supplied to Argument Parser's generated help.
 /// Keep paragraphs unwrapped; the renderer owns wrapping and column alignment.
 enum CLIHelp {
+    static let recovery = """
+    Recovery is not enabled in Stable or ordinary Preview builds. These commands define the restore interface under development; they do not opt a real vault into recovery. Credential review and registration commands are not available yet.
+
+    When enabled, restore will require the complete source vault files and a previously registered hardware recovery key. It creates a separate vault on an unconfigured Mac; it never replaces the source or this Mac's selected vault. The new vault has fresh Mac access and no recovery key registered until separately registered.
+
+    Specify --source, --destination, --token and --recipient exactly once. Paths may be absolute or relative to the current directory; Key never takes them from existing configuration. The token ID selects a connected device. The complete recipient ID identifies its recovery public key, not its certificate fingerprint. Neither selector is a secret or an approval.
+
+    Key does not set up, reset or write to the hardware key. Enter its PIN only in the macOS dialog and physically touch the key when it flashes. Cancel unexpected prompts. Key does not automatically retry authentication or a failed restore.
+
+    After interruption or a lost reply, leave the source, destination, local records and configuration intact. Do not initialize, enroll, change vault-dir, delete state to force a retry or start another restore. See key recovery resume --help. The storage provider is responsible for delivering files; Key cannot prove it has supplied every newer file.
+    """
+
+    static let recoveryRestore = """
+    Not enabled in Stable or ordinary Preview builds. See key recovery --help for prerequisites and limits.
+
+    Provide --name for this Mac's readable name, plus explicit --source, --destination, --token and --recipient. The source and destination parent must already exist. The destination itself must be missing, even if an existing folder is empty. Source and destination must be separate; Key refuses overlapping folders and never adopts, replaces or erases an existing destination.
+
+    Successful restore authenticates the selected source contents and required history, then creates and selects a new vault. The source is unchanged. The helper restarts before ordinary use. Keep the source and hardware key until you have checked the new vault. Recovery protection is not inherited by the new vault.
+
+    If the command fails, times out or loses its reply, do not repeat restore automatically. Preserve all state and explicitly resume the exact attempt when possible. A failure before a complete saved preparation may require inspection instead of resume.
+    """
+
+    static let recoveryResume = """
+    Not enabled in Stable or ordinary Preview builds. Resume is not a new restore or a general repair command.
+
+    Provide the original --source, --destination, --token and complete --recipient. Do not supply a new Mac name. Key requires the exact locally owned attempt and existing folders, credentials, preparation and completion state. It never recreates missing state, adopts another attempt or falls back to restore. A completed attempt whose ownership records are cleared cannot be resumed again as proof of success.
+
+    If the helper reports that it is restarting, run key lock, then key status. Status alone does not prove completion or clear saved ownership. Resume explicitly when a saved attempt remains. If no complete preparation is available or resume refuses changed or missing state, stop and preserve it for inspection; do not delete records or folders to force a retry. No PIN or hardware operation is automatically retried.
+    """
+
     static let overview = """
     Use key init for a new vault, or key share to join one from another Mac. Run key <command> --help for options and examples.
 
