@@ -1462,9 +1462,9 @@ The destination wrapper still requires a Mac opening. Internal durable ownership
 and encrypted preparation, plus internal manifest-last publication, are
 implemented below, together with internal checkpoint installation and an ordinary
 runtime reopen, exact configuration selection/reconciliation and ordered ownership
-finalization. Native-bound service preparation is now implemented below; scoped
-completion, product resume and separate-process qualification remain. No product
-restore route is enabled.
+finalization. The native-bound service now composes complete initial restore and
+exact reauthenticated resume below. Product dispatch/barriers, separate-process
+and physical qualification remain. No product restore route is enabled.
 
 ### Implemented authenticated restore preparation service
 
@@ -1502,15 +1502,54 @@ boundary. Locks, cancellation, stale source/token state and uncertain credential
 creation leave exact durable evidence for investigation or later explicit
 completion. A reservation never authorizes generating replacement credentials;
 another prepare refuses before another native agreement or directory creation.
-This method publishes no destination objects, trust/cache, configuration or
-cleanup. It is not a proposed two-command product flow: initial full restore
-still needs completion under the same one-agreement source scope, followed by
-exact reauthenticated resume for interruptions.
+The internal `prepare` method publishes no destination objects, trust/cache,
+configuration or cleanup. It remains an isolated preparation entry point, not a
+proposed two-command product flow. Full `restore` now completes under the same
+one-agreement source scope; `resume` authenticates afresh for interruptions.
 
 [14 software declarations / 45 cases](../Tests/KeyCoreTests/V3RecoveryRestoreServiceTests.swift)
 exercise these boundaries with actual binding adapters, crypto, files and the
 mutation owner. Native I/O and local ownership storage alone are substituted.
 No hardware prompt count or real Secure Enclave acceptance is established here.
+
+### Implemented scoped restore completion and resume
+
+The service's initial `restore` composes the existing manifest-last publisher,
+insert-only trust installer, ordinary-runtime reopen, no-overwrite configuration
+selection and ordered finalizer inside the same authenticated source scope.
+Source/token observation, authentication generation, cancellation and deadline
+checks remain synchronous and nonescaping at private-operation admission,
+atomic publication boundaries and ownership removal. The report contains only
+operation/checkpoint identifiers, path and entry count. It cannot authorize a
+later operation or retain consent.
+
+Explicit `resume` requires exact device-local ownership before recovery
+agreement. It rejects incomplete reservation-only state, changed source
+selection, changed preparation, replaced locations and unrelated configuration.
+Complete bytes with a still-prepared pin can be verified and promoted; no new
+credential, random destination key, resealing or destination creation occurs.
+Resume independently reloads the saved Mac identity and opens the saved wrapper
+in a temporary session, which is invalidated before continuation.
+
+An unselected resume completes publication, trust and selection. If the exact
+configuration is already selected, resume requires the exact existing
+checkpoint/cache before authentication, skips publication/selection and runs
+fresh completion verification before cleanup. It does not repair trust or
+silently adopt later ordinary edits. Reservation removal precedes preparation
+removal. Preparation-only ownership can finish this half-completed cleanup;
+with neither pin remaining, resume reports no pending attempt rather than
+claiming retrospective success after a lost reply.
+
+[Nine software declarations / 83 cases](../Tests/KeyCoreTests/V3RecoveryRestoreCompletionServiceTests.swift)
+exercise initial restore, 21 interruption boundaries, cancellation/lock guards,
+late atomic-renaming guards, exact resume and existing-trust requirements. A
+freshly composed ordinary runtime reads, mutates and cold-reopens the restored
+vault without recovery-token availability or an injected restore key. This is
+a same-process test, not separate-process or physical acceptance. Initial
+restore uses one source agreement and five saved Mac-wrapper operations in
+these tests; Mac operation counts do not establish physical Touch ID prompts.
+Shipping host serialization, lock/disconnect invalidation, product dispatch and
+native acceptance remain unwired.
 
 ### Implemented restore locations and intent format
 

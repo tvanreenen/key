@@ -7,9 +7,9 @@ import Testing
 /// Actual native-binding adapters, crypto and contained preparation files.
 /// Software card/provider/Mac keys and memory ownership replace native I/O only.
 struct V3RecoveryRestoreServiceTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Native = V3RecoveryRegistrationServiceTests
-  private typealias Base = V3RecoveryRestoreJournalTests
+  typealias Core = V3RecoveryRegistrationTests
+  typealias Native = V3RecoveryRegistrationServiceTests
+  typealias Base = V3RecoveryRestoreJournalTests
   private enum Stop: Error { case interrupted }
   private static let phases: [V3RecoveryRestoreServicePhase] = [
     .sourceAuthenticated, .reservationDurable, .identitySaved, .savedWrapperVerified,
@@ -344,7 +344,7 @@ struct V3RecoveryRestoreServiceTests {
     }
   }
 
-  private final class Identities: V3DeviceWrappedGenesisIdentityManaging, @unchecked Sendable {
+  final class Identities: V3DeviceWrappedGenesisIdentityManaging, @unchecked Sendable {
     let creates = Core.Counter(), loads = Core.Counter()
     private(set) var saved: V3RecoveryRestorePublisherTests.Identity?
     var failure: Int?
@@ -389,7 +389,7 @@ struct V3RecoveryRestoreServiceTests {
 
   // Immutable config value; concurrent service calls share the real mutation
   // owner. Native fixture callbacks and storage have their own locking.
-  private struct Fixture: @unchecked Sendable {
+  struct Fixture: @unchecked Sendable {
     let source: V3RecoveryContentMutationPublisherTests.Fixture
     let base: URL, parent: URL, configRoot: URL
     let config: KeyConfigStore
@@ -402,6 +402,8 @@ struct V3RecoveryRestoreServiceTests {
     let owner: VaultTransactionMutationOwner
     let authentication = V3DeviceWrappedVaultKeySessionStore()
     let cancellation = PIVRecoveryCancellation()
+    let checkpoints: V3RecoveryContentMutationPublisherTests.Checkpoints
+    let cache: V3CheckpointManifestFilesystemCache
     var destination: URL { parent.appendingPathComponent("restored") }
     init(empty: Bool = false) throws {
       source = try .init(empty: empty)
@@ -413,6 +415,11 @@ struct V3RecoveryRestoreServiceTests {
       parent = base.appendingPathComponent("destinations")
       try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: false)
       parentHandle = try .init(opening: parent)
+      checkpoints = .init(Data())
+      checkpoints.value = nil
+      let cacheRoot = base.appendingPathComponent("cache")
+      try FileManager.default.createDirectory(at: cacheRoot, withIntermediateDirectories: false)
+      cache = .init(rootHandle: try .init(opening: cacheRoot))
       card = try Native.Card(publicKey: source.core.token.publicKey.x963Representation)
       card.anchor = source.anchor.canonicalBytes
       reader = .init(inventory: Native.Inventory(card: card), gate: PIVTokenOperationGate())
@@ -435,9 +442,10 @@ struct V3RecoveryRestoreServiceTests {
       observation: PIVRecoveryTokenObservation? = nil,
       observer: any V3RecoveryRestoreServicePhaseObserving = Observer(action: { _ in }),
       deadline: DispatchTime = .now() + .seconds(60)
-    ) throws -> V3RecoveryRestorePreparationReport {
+    ) throws -> V3RecoveryRestoreReport {
       try V3RecoveryRestoreService(
         configStore: config, journal: journal ?? self.journal(), identities: identities,
+        checkpoints: checkpoints, cache: cache,
         mutationOwner: owner, reader: reader, agreement: agreement, authentication: authentication,
         observer: observer
       ).prepare(
