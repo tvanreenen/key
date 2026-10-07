@@ -331,7 +331,7 @@ private struct KeyArguments: ParsableCommand {
     struct Recovery: ParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "recovery", abstract: "Review recovery inputs, restore or resume (not enabled yet).",
-            discussion: CLIHelp.recovery, subcommands: [Tokens.self, Credential.self, Register.self, Adopt.self, Review.self, Restore.self, Resume.self]
+            discussion: CLIHelp.recovery, subcommands: [Tokens.self, Credential.self, Register.self, Pending.self, Adopt.self, Rotate.self, Review.self, Restore.self, Resume.self]
         )
 
         struct Tokens: CLIRequest {
@@ -411,6 +411,23 @@ private struct KeyArguments: ParsableCommand {
                 }
             }
             var command: Command { .recoveryRegistration(operation.map { .resumeAdoption(operationID: $0) } ?? .adopt, exportPath: nil, json: false) }
+        }
+
+        struct Pending: CLIRequest {
+            static let configuration = CommandConfiguration(commandName: "pending", abstract: "List bounded device-local saved operation selectors without authenticating or changing them (gated).", discussion: "This reads this Mac's saved transaction, registration and adoption selectors only. It does not validate an intent, prove completion or authorize resume. Preserve all records after interruptions; multiple selectors require inspection. No Mac private-key or token operation is requested.")
+            @Flag(help: "Print machine-readable public selectors.") var json = false
+            var command: Command { .recoveryRegistration(.pending, exportPath: nil, json: json) }
+        }
+
+        struct Rotate: CLIRequest {
+            static let configuration = CommandConfiguration(commandName: "rotate", abstract: "Change the configured recovery-capable vault key without a token (gated).", discussion: CLIHelp.recoveryRotation)
+            @Option(name: .customLong("resume"), help: "Complete original locally owned rotation operation ID.") var operation: String?
+            mutating func validate() throws {
+                if let operation, (try? VaultTransactionOperationID(validating: operation)) == nil {
+                    throw ValidationError("Provide the complete original operation ID for --resume.")
+                }
+            }
+            var command: Command { .recoveryRotation(operation.map { .resume(operationID: $0) } ?? .rotate) }
         }
 
         struct Review: CLIRequest {

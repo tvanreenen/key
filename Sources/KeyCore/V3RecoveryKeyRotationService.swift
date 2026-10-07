@@ -19,6 +19,7 @@ struct V3RecoveryKeyRotationService: Sendable {
   private let cache: any V3CheckpointManifestCaching
   private let limits: V3ManifestRepositoryLimits
   private let phaseObserver: any V3ImmutableTransactionPhaseObserving
+  private let validateScope: @Sendable () throws -> Void
 
   init(
     vaultID: String, identity: Identity, session: V3DeviceWrappedVaultKeySessionStore,
@@ -29,7 +30,8 @@ struct V3RecoveryKeyRotationService: Sendable {
     adoptionAnchorStore: any V3ImmutableTransactionRecoveryAnchorStoring,
     cache: any V3CheckpointManifestCaching, limits: V3ManifestRepositoryLimits = .standard,
     phaseObserver: any V3ImmutableTransactionPhaseObserving =
-      V3NoopContentTransactionPhaseObserver()
+      V3NoopContentTransactionPhaseObserver(),
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) {
     self.vaultID = vaultID
     self.identity = identity
@@ -42,6 +44,7 @@ struct V3RecoveryKeyRotationService: Sendable {
     self.cache = cache
     self.limits = limits
     self.phaseObserver = phaseObserver
+    self.validateScope = validateScope
   }
 
   /// Authenticated review data only. This neither saves approval nor signs,
@@ -53,7 +56,9 @@ struct V3RecoveryKeyRotationService: Sendable {
   /// Resume exact ciphertext without signing or generating another epoch. Public
   /// preflight precedes each native operation; actual authority and both complete
   /// snapshots still authenticate before an uncommitted checkpoint can advance.
-  func recoverInterruptedRotation(operationID: VaultTransactionOperationID) throws
+  func recoverInterruptedRotation(
+    operationID: VaultTransactionOperationID, expectedAnchor: Data? = nil
+  ) throws
     -> V3ImmutableTransactionRecoveryOutcome
   {
     do {
@@ -61,7 +66,7 @@ struct V3RecoveryKeyRotationService: Sendable {
       let publisher = publisher(operationID)
       let state: V3ContentTransactionRecoveryState
       switch try publisher.prepareInterruptedTransaction(
-        vaultID: vaultID, expectedOwner: identity.publicIdentity)
+        vaultID: vaultID, expectedOwner: identity.publicIdentity, expectedAnchor: expectedAnchor)
       {
       case .finished(let outcome):
         if case .abandoned = outcome { session.invalidate() }
@@ -105,7 +110,8 @@ struct V3RecoveryKeyRotationService: Sendable {
       try recheckRecovery(state, checked: checked, publisher: publisher)
       let validator = V3RecoveryKeyRotationTransactionValidator(
         objectStore: store, registrationAnchorStore: registration, adoptionAnchorStore: adoption,
-        currentVaultKey: oldKey, expectedOwner: identity.publicIdentity, limits: limits)
+        currentVaultKey: oldKey, expectedOwner: identity.publicIdentity, limits: limits,
+        validateScope: validateScope)
       _ = try validator.validate(
         input(state), vaultKey: nextKey, alreadyCommitted: state.alreadyCommitted)
       try requireRecoveryState(state)
@@ -247,7 +253,7 @@ struct V3RecoveryKeyRotationService: Sendable {
       mutationOwner: DirectVaultTransactionMutationOwner(operationID: operationID),
       objectStore: store, checkpointStore: checkpoints, recoveryAnchorStore: ownership,
       registrationAnchorStore: registration, adoptionAnchorStore: adoption, cache: cache,
-      limits: limits, phaseObserver: phaseObserver)
+      limits: limits, phaseObserver: phaseObserver, validateScope: validateScope)
   }
 
   func rotate(
@@ -373,11 +379,13 @@ struct V3RecoveryKeyRotationService: Sendable {
     throw V3RecoveryKeyRotationError.invalidCandidate
   }
   private func requireCheckpoint(_ checkpoint: V3ManifestCheckpoint) throws {
+    try validateScope()
     guard try checkpoints.loadCheckpoint(vaultID: vaultID) == checkpoint.canonicalBytes else {
       throw V3ImmutableTransactionError.expectedHeadsChanged
     }
   }
   private func requireNoAuthorityWork() throws {
+    try validateScope()
     guard try registration.loadRecoveryAnchor(vaultID: vaultID) == nil,
       try adoption.loadRecoveryAnchor(vaultID: vaultID) == nil
     else { throw V3RecoveryContentPublicationError.otherMutationPending }
