@@ -2,15 +2,33 @@
 /// Keep paragraphs unwrapped; the renderer owns wrapping and column alignment.
 enum CLIHelp {
     static let recovery = """
-    Recovery is not enabled in Stable or ordinary Preview builds. These commands define the restore interface under development; they do not opt a real vault into recovery. Credential review and registration commands are not available yet.
+    Recovery is not enabled in Stable or ordinary Preview builds. These commands define the recovery interface under development; they do not opt a real vault into recovery. Registration commands are not available yet.
 
     When enabled, restore will require the complete source vault files and a previously registered hardware recovery key. It creates a separate vault on an unconfigured Mac; it never replaces the source or this Mac's selected vault. The new vault has fresh Mac access and no recovery key registered until separately registered.
 
-    Specify --source, --destination, --token and --recipient exactly once. Paths may be absolute or relative to the current directory; Key never takes them from existing configuration. The token ID selects a connected device. The complete recipient ID identifies its recovery public key, not its certificate fingerprint. Neither selector is a secret or an approval.
+    When enabled, key recovery tokens lists connected candidates without choosing one. Use key recovery review --source <directory> --token <token-id> for a public source/credential review and its complete recipient ID. Neither command requests PIN/touch, reads entry objects or saves a restore attempt. Review does not prove possession or restorable contents and is not approval to restore.
+
+    For restore/resume, specify --source, --destination, --token and --recipient exactly once. Paths may be absolute or relative to the current directory; Key never takes them from existing configuration. The token ID selects a connected device. The complete recipient ID identifies its recovery public key, not its certificate fingerprint. Neither selector is a secret or an approval.
 
     Key does not set up, reset or write to the hardware key. Enter its PIN only in the macOS dialog and physically touch the key when it flashes. Cancel unexpected prompts. Key does not automatically retry authentication or a failed restore.
 
     After interruption or a lost reply, leave the source, destination, local records and configuration intact. Do not initialize, enroll, change vault-dir, delete state to force a retry or start another restore. See key recovery resume --help. The storage provider is responsible for delivering files; Key cannot prove it has supplied every newer file.
+    """
+
+    static let recoveryTokens = """
+    Not enabled in Stable or ordinary Preview builds. List at most 64 public token candidates with exact token IDs and reader names. No candidate is automatically selected; no slot certificate, key metadata, anchor or private operation is read. An empty list is not proof of missing recovery protection.
+
+    Listing does not prove possession, compatibility, registration or restorable contents. Use the exact token ID with key recovery review --source <directory> --token <token-id>. Public observations may change if a key is removed or replaced; restore rechecks them independently. --json prints the same observations for scripts, not a readiness or approval signal.
+    """
+
+    static let recoveryReview = """
+    Not enabled in Stable or ordinary Preview builds. Provide --source and the exact --token from key recovery tokens once each. The source must already exist; Key never defaults to configured vault-dir. Review reads only the selected token's public P-256 credential, reported slot 9d policies and recognized recovery anchor, then checks bounded public history for a matching vault and one visible head.
+
+    The reported policy must be generated-on-token with PIN always and touch always. Public metadata is not attestation, possession proof or proof that PIN/touch will be enforced in a later operation. An absent or unrecognized anchor, incompatible policy, missing history, competing heads or changed observations is refused without fallback.
+
+    Review never requests PIN/touch, opens entry objects, creates a destination, reads local ownership records, saves a pending attempt or changes configuration. It can inspect public source state on a configured Mac or while local restore ownership remains. A listed entry count is not secret-content verification, a complete backup or proof of provider freshness. Only a later explicit restore can authenticate contents with the hardware key; it rechecks everything independently.
+
+    --json prints the same public observations, with public-observation-only assurance, not readiness or restore approval. No private credential or confirmation token is returned. Keep unexpected state intact; no automatic retry or cleanup occurs.
     """
 
     static let recoveryRestore = """
