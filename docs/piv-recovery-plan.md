@@ -98,7 +98,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
-| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; source-bound genesis, owned preparation, publication, insert-only checkpoint trust, fresh ordinary-runtime read, exact configuration selection/reconciliation and ordered ownership finalization implemented internally; native-bound preparation service added; scoped completion and product resume remain |
+| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; internal authenticated initial restore and exact resume now compose preparation, manifest-last publication, insert-only trust, ordinary-runtime reopening, configuration selection and ordered finalization; product dispatch/barriers, separate-process and physical acceptance remain |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
@@ -565,6 +565,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Sixth 811 configuration selection and reconciliation, 2026-10-07 | [Selection installer](../Sources/KeyCore/V3RecoveryRestoreSelectionInstaller.swift), [bound environment](../Sources/KeyCore/V3RecoveryRestoreEnvironment.swift) and [selection tests](../Tests/KeyCoreTests/V3RecoveryRestoreSelectionInstallerTests.swift) | Fresh trust/ordinary-access checks precede exact no-overwrite config publication. Explicit selected continuation requires matching config, existing exact trust and complete owned files. Both ownership records remain intact. No product caller, native qualification or ownership finalization. |
 | Seventh 811 ordered ownership finalization, 2026-10-07 | [Finalizer](../Sources/KeyCore/V3RecoveryRestoreFinalizer.swift), [journal completion reader](../Sources/KeyCore/V3RecoveryRestoreJournal.swift) and [finalization tests](../Tests/KeyCoreTests/V3RecoveryRestoreFinalizerTests.swift) | Fresh ordinary access and exact selected/source/trust/files precede reservation-first, preparation-last CAS removal. The remaining complete-bundle pin supports halfway continuation without another record or new format. No pins means no pending claim, not retrospective success. Encrypted files remain inert; no product caller or native qualification. |
 | Eighth 811 authenticated preparation service, 2026-10-07 | [Restore service](../Sources/KeyCore/V3RecoveryRestoreService.swift), [scoped journal](../Sources/KeyCore/V3RecoveryRestoreJournal.swift) and [service tests](../Tests/KeyCoreTests/V3RecoveryRestoreServiceTests.swift) | Reader-issued native observation and one recovery agreement authenticate the source before new-directory creation. Durable reservation precedes fresh Mac credentials; independent reload and wrapper opening precede encrypted preparation. Source/token, cancellation, deadline and authentication-generation checks span the call and record rename boundaries. Scoped completion, product dispatch/resume and native acceptance remain. |
+| Ninth 811 scoped completion and resume, 2026-10-07 | [Restore service](../Sources/KeyCore/V3RecoveryRestoreService.swift), [completion tests](../Tests/KeyCoreTests/V3RecoveryRestoreCompletionServiceTests.swift) and existing publication/trust/selection/finalization components | One source agreement spans initial restore through ordered cleanup. Explicit resume requires exact local ownership and fresh source authentication, never new credentials or replacement ciphertext. Selected resume verifies existing trust and only finalizes. Product dispatch/barriers, separate-process and physical acceptance remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -3975,3 +3976,94 @@ full initial restore must preserve one source agreement across its completion
 steps. Product host/CLI dispatch, separate-process ordinary reads and mutations,
 and physical acceptance still remain. No real token, vault or installed product
 was operated on by this increment.
+
+### Ninth 811 scoped completion and resume, 2026-10-07
+
+The [restore service](../Sources/KeyCore/V3RecoveryRestoreService.swift) now
+completes initial restore through the existing publisher, trust installer,
+configuration selector and finalizer inside its original authenticated source
+scope. Exactly one source recovery agreement spans preparation through cleanup.
+The shared mutation owner and reader's exclusive token lease remain held;
+source/token, authentication-generation, cancellation and deadline checks are
+passed synchronously into private-operation admission, atomic publication and
+ownership removal. No report or persisted field becomes saved approval.
+
+Two continuation designs were considered. Retaining an approval/session object
+would introduce another secret-owning lifecycle and require later callers to
+interpret its authority. Extending the existing synchronous source scope reuses
+the implemented components and keeps keys local to the call. This increment
+uses the latter without new durable formats. Configuration publication now uses
+the shared atomic writer's nonescaping callback instead of an escaping observer
+gate. Internal `prepare` remains available for isolated preparation checks, not
+as a proposed two-command initial restore flow.
+
+Explicit resume first checks exact local ownership, physical locations and
+public source selection. A reservation without complete preparation refuses
+before agreement or Mac credential creation. Complete preparation with a
+still-prepared pin can be verified and promoted, using its original bytes.
+Resume gets one fresh source agreement and independently reloads/opens the
+saved Mac wrapper, invalidating the temporary session before continuation. It
+never creates replacement credentials, chooses new identifiers or reencrypts
+the preparation. An unselected destination continues through publication and
+selection. An already selected destination requires exact existing trust/cache,
+skips those steps and only verifies/finalizes. Later ordinary edits are not
+silently adopted by this exact-genesis cleanup path.
+
+Ordered cleanup removes the reservation pin first and preparation pin last.
+The remaining preparation-only pin can finish exact selected cleanup. If both
+pins have already been cleared, resume reports no pending attempt before another
+private operation. A lost final reply is not retrospectively converted into a
+success claim; ordinary selected-vault status/access is a separate observation.
+Encrypted audit records remain intact after successful cleanup.
+
+The [completion suite](../Tests/KeyCoreTests/V3RecoveryRestoreCompletionServiceTests.swift)
+adds nine declarations / 83 cases. Actual adapters, crypto, contained files,
+ordinary runtimes and mutation owner are used; native I/O and local ownership/
+trust storage are substituted. It exercises empty/populated initial restore,
+21 interruption boundaries, 42 lock/cancellation cases, late entry/manifest/config
+rename guards, prepared-pin promotion, invalid public resume state, existing
+selected trust, later ordinary edits and rejected approvals. It also removes
+token availability, composes a fresh ordinary runtime from config/saved identity/
+trust, reads and mutates the result, then cold-reopens and reads the new entry.
+That proof is in one process; separate-process acceptance remains.
+
+Software initial restore performs five saved Mac-wrapper operations;
+unselected resume performs five and selected resume two. Each explicit call
+uses one source agreement regardless of entry/history count. Wrapper-operation
+counts do not qualify physical Touch ID prompts. Product host serialization,
+generation invalidation on lock/disconnect and native acceptance remain required.
+
+Verification:
+
+- Focused Debug passed 26 declarations across three suites in 95.557 seconds,
+  including initial full restore and existing preparation/selection regressions.
+  The optimized restore run passed 96 declarations across nine suites in
+  180.667 seconds, including all nine new declarations / 83 cases.
+- An initial integration failure exposed strict inventory being checked while
+  the atomic writer's own temporary file existed. The corrected rename guard
+  checks source scope and exact referenced entries before manifest publication;
+  strict inventory runs after atomic installation. No partial-file allowlist or
+  inventory relaxation was added. Initial compiler errors were corrected by
+  adjusting the private consume callback's lifetime and shared test fixture
+  visibility; authorization callbacks remain nonescaping and are not retained.
+- Full optimized suite passed 1,593 KeyCore declarations across 129 suites in
+  408.783 seconds, plus six canonical-JSON tests. The separately gated large
+  migration remained skipped. The final callback-formatting adjustment does
+  not change behavior. Final optimized recompilation and three declarations /
+  five smoke cases passed in 5.037 seconds, covering empty/populated restore,
+  exact prepared-pin resume and selected-resume trust refusal.
+- Unsigned universal Preview build and product-bundle isolation passed. Bundled
+  CLI help/version `0.2.0 (19)` and arm64/x86_64 slices for app, CLI and helper
+  passed. Nothing was signed, installed or published.
+- Strict default Swift-format lint passed for all nine changed/new Swift files.
+  Two mixed callback/trailing-closure style findings were corrected before the
+  final lint. Project plist syntax, 263 relative documentation targets and
+  `git diff --check` passed.
+
+Raw logs remain under ignored
+`tmp/piv-recovery/2026-10-07-restore-completion-*`.
+
+Next: product host/CLI restore and explicit resume dispatch, exclusive barriers
+against init/enrollment/configuration work, lock/disconnect invalidation, bounded
+request/status behavior, then separate-process and physical qualification. No
+real token, vault or installed product was operated on by this increment.

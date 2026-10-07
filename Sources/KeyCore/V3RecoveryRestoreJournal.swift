@@ -289,6 +289,16 @@ struct V3RecoveryRestoreJournal: Sendable {
     return state
   }
 
+  /// Public locally pinned resume preflight. Complete prepared bytes can be
+  /// verified/promoted later; preparation-only ownership still requires selected
+  /// finalization. No path discovery, credential creation or approval is implied.
+  func loadForCompletion(sourceVaultID: String) throws -> V3RecoveryRestorePending? {
+    if try reservations.loadRecoveryAnchor(vaultID: sourceVaultID) != nil {
+      return try loadPending(sourceVaultID: sourceVaultID)
+    }
+    return try loadFinalization(sourceVaultID: sourceVaultID)?.pending
+  }
+
   /// Revalidates retained records and current source/candidate even after the
   /// first pin was cleared. Never writes a file or rearms an ownership record.
   func confirmFinalization(
@@ -327,11 +337,14 @@ struct V3RecoveryRestoreJournal: Sendable {
 
   /// The higher-level finalizer must freshly verify selected config, actual
   /// published contents, trust/cache and ordinary access before each removal.
-  func clearFinalizationReservation(_ state: V3RecoveryRestoreFinalizationState) throws
+  func clearFinalizationReservation(
+    _ state: V3RecoveryRestoreFinalizationState, validateScope: () throws -> Void = {}
+  ) throws
     -> V3RecoveryRestoreFinalizationState
   {
     guard state.stage != .cleared else { throw V3RecoveryRestoreJournalError.invalidOwnership }
     try requireFinalizationOwnership(state)
+    try validateScope()
     if state.stage == .owned {
       let pin = state.pending.reservationOwnership
       try reservations.replaceRecoveryAnchor(
@@ -343,13 +356,16 @@ struct V3RecoveryRestoreJournal: Sendable {
     return next
   }
 
-  func clearFinalizationPreparation(_ state: V3RecoveryRestoreFinalizationState) throws
+  func clearFinalizationPreparation(
+    _ state: V3RecoveryRestoreFinalizationState, validateScope: () throws -> Void = {}
+  ) throws
     -> V3RecoveryRestoreFinalizationState
   {
     guard state.stage == .reservationCleared, let pin = state.pending.preparationOwnership else {
       throw V3RecoveryRestoreJournalError.invalidOwnership
     }
     try requireFinalizationOwnership(state)
+    try validateScope()
     try preparations.replaceRecoveryAnchor(
       nil, expectedAnchor: pin.canonicalBytes, vaultID: pin.vaultID)
     let next = V3RecoveryRestoreFinalizationState(pending: state.pending, stage: .cleared)

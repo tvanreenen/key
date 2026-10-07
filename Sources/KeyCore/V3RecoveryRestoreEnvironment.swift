@@ -240,7 +240,7 @@ struct V3RecoveryRestoreEnvironment: Sendable {
   /// selected environment verifies/synchronizes exact bytes without rewriting.
   func selectConfiguration(
     configStore: KeyConfigStore, vaultID: String,
-    beforePublication: @escaping @Sendable () throws -> Void,
+    beforePublication: () throws -> Void,
     writeObserver: any V3AtomicStagedObjectWriteObserving = V3NoopAtomicStagedObjectWriteObserver()
   ) throws -> Self {
     let root = try configStore.restoreCompletionRoot()
@@ -254,10 +254,11 @@ struct V3RecoveryRestoreEnvironment: Sendable {
         throw V3RecoveryRestoreError.configurationPresent
       }
     } else {
-      let gate = V3RestoreConfigurationWriteGate(
-        environment: self, validate: beforePublication, observer: writeObserver)
-      try V3AtomicStagedObjectWriter(rootHandle: configuration, observer: gate)
-        .install(bytes, at: "config.toml")
+      try V3AtomicStagedObjectWriter(rootHandle: configuration, observer: writeObserver)
+        .install(bytes, at: "config.toml") {
+          try requireCurrent(locations)
+          try beforePublication()
+        }
     }
     let selected = try Self(
       source: source, destination: destination, parent: destinationParent,
@@ -352,17 +353,5 @@ struct V3RecoveryRestoreEnvironment: Sendable {
       }
       throw V3RecoveryRestoreError.resourceLimit
     }
-  }
-}
-
-private struct V3RestoreConfigurationWriteGate: V3AtomicStagedObjectWriteObserving {
-  let environment: V3RecoveryRestoreEnvironment
-  let validate: @Sendable () throws -> Void
-  let observer: any V3AtomicStagedObjectWriteObserving
-
-  func didReach(_ phase: V3AtomicStagedObjectWritePhase) throws {
-    try observer.didReach(phase)
-    try environment.requireCurrent(environment.locations)
-    try validate()
   }
 }

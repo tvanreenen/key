@@ -28,12 +28,14 @@ struct V3RecoveryRestoreSelectionInstaller: Sendable {
   private let identities: any V3DeviceWrappedIdentityLoading
   private let observer: any V3RecoveryRestoreSelectionPhaseObserving
   private let writeObserver: any V3AtomicStagedObjectWriteObserving
+  private let trustObserver: any V3RecoveryRestoreTrustPhaseObserving
 
   init(
     journal: V3RecoveryRestoreJournal, checkpoints: any V3ManifestCheckpointStoring,
     cache: any V3CheckpointManifestCaching, identities: any V3DeviceWrappedIdentityLoading,
     observer: any V3RecoveryRestoreSelectionPhaseObserving = V3NoopRestoreSelectionObserver(),
-    writeObserver: any V3AtomicStagedObjectWriteObserving = V3NoopAtomicStagedObjectWriteObserver()
+    writeObserver: any V3AtomicStagedObjectWriteObserving = V3NoopAtomicStagedObjectWriteObserver(),
+    trustObserver: any V3RecoveryRestoreTrustPhaseObserving = V3NoopRestoreTrustObserver()
   ) {
     self.journal = journal
     self.checkpoints = checkpoints
@@ -41,13 +43,16 @@ struct V3RecoveryRestoreSelectionInstaller: Sendable {
     self.identities = identities
     self.observer = observer
     self.writeObserver = writeObserver
+    self.trustObserver = trustObserver
   }
 
   func select(
     sourceVaultID: String, snapshot: V3RecoveryVerifiedSnapshot, vaultKey: Data,
     source: VaultRootDirectoryHandle, destination: VaultRootDirectoryHandle,
-    parent: VaultRootDirectoryHandle, configStore: KeyConfigStore
+    parent: VaultRootDirectoryHandle, configStore: KeyConfigStore,
+    validateScope: () throws -> Void = {}
   ) throws -> V3RecoveryRestoreSelectionReport {
+    try validateScope()
     guard let pending = try journal.loadPending(sourceVaultID: sourceVaultID),
       let bundle = pending.preparation,
       pending.reservationOwnership.phase == .recoverable,
@@ -58,9 +63,12 @@ struct V3RecoveryRestoreSelectionInstaller: Sendable {
       expected: bundle.intent.locations, vaultID: bundle.intent.destinationCheckpoint.vaultID)
     let wasAlreadySelected = environment.hasSelectedConfiguration
     let trust = try V3RecoveryRestoreTrustInstaller(
-      journal: journal, checkpoints: checkpoints, cache: cache, identities: identities
+      journal: journal, checkpoints: checkpoints, cache: cache, identities: identities,
+      observer: trustObserver
     ).install(
-      sourceVaultID: sourceVaultID, snapshot: snapshot, environment: environment, vaultKey: vaultKey
+      sourceVaultID: sourceVaultID, snapshot: snapshot, environment: environment,
+      vaultKey: vaultKey,
+      validateScope: validateScope
     )
     let verification = Verification(
       journal: journal, checkpoints: checkpoints, cache: cache,
@@ -68,17 +76,23 @@ struct V3RecoveryRestoreSelectionInstaller: Sendable {
       pending: pending, environment: environment)
     try observer.didReach(.restoreVerified)
     try verification.requireCurrent()
+    try validateScope()
     let selected = try environment.selectConfiguration(
       configStore: configStore, vaultID: trust.checkpoint.vaultID,
-      beforePublication: { try verification.requireCurrent() }, writeObserver: writeObserver)
+      beforePublication: {
+        try verification.requireCurrent()
+        try validateScope()
+      }, writeObserver: writeObserver)
     let selectedVerification = Verification(
       journal: journal, checkpoints: checkpoints, cache: cache,
       sourceVaultID: sourceVaultID, snapshot: snapshot, vaultKey: vaultKey,
       pending: pending, environment: selected)
     try observer.didReach(.configurationSelected)
     try selectedVerification.requireCurrent()
+    try validateScope()
     try observer.didReach(.selectionConfirmed)
     try selectedVerification.requireCurrent()
+    try validateScope()
     return .init(trust: trust, wasAlreadySelected: wasAlreadySelected)
   }
 

@@ -46,8 +46,10 @@ struct V3RecoveryRestoreFinalizer: Sendable {
   func finalize(
     sourceVaultID: String, snapshot: V3RecoveryVerifiedSnapshot, vaultKey: Data,
     source: VaultRootDirectoryHandle, destination: VaultRootDirectoryHandle,
-    parent: VaultRootDirectoryHandle, configStore: KeyConfigStore
+    parent: VaultRootDirectoryHandle, configStore: KeyConfigStore,
+    validateScope: () throws -> Void = {}
   ) throws -> V3RecoveryRestoreFinalizationReport? {
+    try validateScope()
     guard var state = try journal.loadFinalization(sourceVaultID: sourceVaultID),
       let bundle = state.pending.preparation
     else { return nil }
@@ -66,6 +68,7 @@ struct V3RecoveryRestoreFinalizer: Sendable {
       else { throw V3RecoveryRestoreTrustError.cacheUnavailable }
     }
     func recheck(_ expected: V3RecoveryRestoreFinalizationState) throws {
+      try validateScope()
       try requireLocalTrust()
       guard
         try V3RecoveryRestorePublisher(journal: journal).confirmFinalization(
@@ -75,6 +78,7 @@ struct V3RecoveryRestoreFinalizer: Sendable {
       else { throw V3RecoveryRestoreTrustError.preparationUnavailable }
       try requireLocalTrust()
       try environment.requireCurrent(bundle.intent.locations)
+      try validateScope()
     }
     let initial = state
     try recheck(initial)
@@ -85,10 +89,10 @@ struct V3RecoveryRestoreFinalizer: Sendable {
     }
     try observer.didReach(.completionVerified)
     try recheck(state)
-    state = try journal.clearFinalizationReservation(state)
+    state = try journal.clearFinalizationReservation(state, validateScope: validateScope)
     try observer.didReach(.reservationCleared)
     try recheck(state)
-    state = try journal.clearFinalizationPreparation(state)
+    state = try journal.clearFinalizationPreparation(state, validateScope: validateScope)
     try observer.didReach(.preparationCleared)
     try recheck(state)
     try observer.didReach(.completionConfirmed)

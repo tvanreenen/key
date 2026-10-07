@@ -57,14 +57,19 @@ struct V3RecoveryRestorePublisher: Sendable {
   func publish(
     sourceVaultID: String, snapshot: V3RecoveryVerifiedSnapshot,
     environment: V3RecoveryRestoreEnvironment, vaultKey: Data,
-    identity: any V3DeviceWrappedVaultKeyUnwrapping
+    identity: any V3DeviceWrappedVaultKeyUnwrapping, validateScope: () throws -> Void = {}
   ) throws -> V3RecoveryRestorePublicationReport {
+    try validateScope()
     try environment.requireUnselectedConfiguration()
     let bundle = try journal.confirmPreparation(
       sourceVaultID: sourceVaultID, snapshot: snapshot, environment: environment,
-      vaultKey: vaultKey, expectedOwner: identity.publicIdentity)
+      vaultKey: vaultKey, expectedOwner: identity.publicIdentity, validateScope: validateScope)
     let store = V3FilesystemTransactionArtifactStore(
       rootHandle: environment.destination, writeObserver: writeObserver)
+    func recheck() throws {
+      try requireCurrent(bundle, snapshot: snapshot, environment: environment)
+      try validateScope()
+    }
     try observer.didReach(.preparationConfirmed)
     try requireCurrent(bundle, snapshot: snapshot, environment: environment)
     _ = try inventory(bundle, store: store)
@@ -74,12 +79,13 @@ struct V3RecoveryRestorePublisher: Sendable {
 
     let session = V3DeviceWrappedVaultKeySessionStore()
     defer { session.invalidate() }
+    try recheck()
     _ = try V3DeviceWrappedCheckpointUnlocker().unlock(
       checkpoint: bundle.intent.destinationCheckpoint,
       manifestData: bundle.manifest.canonicalBytes, identity: identity, session: session,
       reason: "Verify this Mac's access to the prepared restored vault.",
       validateBeforeSessionInstall: {
-        try requireCurrent(bundle, snapshot: snapshot, environment: environment)
+        try recheck()
         _ = try inventory(bundle, store: store)
       })
     guard
@@ -98,7 +104,9 @@ struct V3RecoveryRestorePublisher: Sendable {
         if !state.entries.contains(path) {
           // The complete encrypted bundle is already the durable staging area.
           // Reuse the atomic no-overwrite writer directly at the final address.
-          try store.writeStagedObject(entry.canonicalBytes, at: path)
+          try store.writeStagedObject(entry.canonicalBytes, at: path) {
+            try recheck()
+          }
         }
         try confirmEntry(entry, store: store)
         try observer.didReach(.entryPublished(index: index))
@@ -125,7 +133,15 @@ struct V3RecoveryRestorePublisher: Sendable {
       if !state.manifestPresent {
         try store.writeStagedObject(
           bundle.manifest.canonicalBytes,
-          at: manifestPath(for: bundle.intent.destinationCheckpoint.envelopeDigest))
+          at: manifestPath(for: bundle.intent.destinationCheckpoint.envelopeDigest)
+        ) {
+          try recheck()
+          // The writer's own temporary file is present here. Do not relax
+          // strict inventory to admit partial files; verify each exact entry
+          // now, then rerun strict inventory after the atomic install.
+          for entry in bundle.entries { try confirmEntry(entry, store: store) }
+          try recheck()
+        }
       }
       try observer.didReach(.manifestPublished)
     }
@@ -139,6 +155,7 @@ struct V3RecoveryRestorePublisher: Sendable {
     try requireCurrent(bundle, snapshot: snapshot, environment: environment)
     try confirmSnapshot(bundle, store: store)
     try requireCurrent(bundle, snapshot: snapshot, environment: environment)
+    try validateScope()
     return .init(
       checkpoint: bundle.intent.destinationCheckpoint, ownerDeviceID: bundle.intent.ownerDeviceID,
       entryCount: bundle.entries.count)
