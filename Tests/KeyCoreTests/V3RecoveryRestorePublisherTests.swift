@@ -7,10 +7,10 @@ import Testing
 /// Real contained publication, software wrapper opening and memory ownership.
 /// No real vault, token, native credential, checkpoint or config selection.
 struct V3RecoveryRestorePublisherTests {
-  private typealias Base = V3RecoveryRestoreJournalTests
+  typealias Base = V3RecoveryRestoreJournalTests
   @available(macOS 26.0, *)
   private typealias Fixture = Base.Fixture
-  private typealias Core = V3RecoveryRegistrationTests
+  typealias Core = V3RecoveryRegistrationTests
   private enum Stop: Error { case interrupted }
   private static let phases: [V3RecoveryRestorePublicationPhase] = [
     .preparationConfirmed, .deviceWrapperVerified, .entryPublished(index: 0),
@@ -417,7 +417,7 @@ struct V3RecoveryRestorePublisherTests {
       if case .temporaryFileSynchronized(let path) = phase { try action(path) }
     }
   }
-  private struct Identity: V3DeviceWrappedVaultKeyUnwrapping {
+  struct Identity: V3DeviceWrappedVaultKeyUnwrapping {
     let vaultID: String
     let publicIdentity: V3EnrollmentDeviceIdentity
     let wrapping: P256.KeyAgreement.PrivateKey
