@@ -8,6 +8,7 @@ enum V3RecoveryRestoreError: Error, Equatable {
   case locationChanged
   case overlappingDirectories
   case configurationPresent
+  case configurationRequired
   case resourceLimit
 }
 
