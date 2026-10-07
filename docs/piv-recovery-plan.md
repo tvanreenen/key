@@ -4901,3 +4901,26 @@ HPKE types and recipient-ID derivation; no guard was relaxed. Hardware/provider
 calls remain scripted; native policy and signed qualification are unverified.
 The Xcode source list includes the workflow. Live factory/gating is next; logs
 remain ignored under `tmp/piv-recovery/2026-10-07-registration-workflow-*`.
+
+### 2026-10-07: gated native factories and configured profile dispatch
+
+An explicit Preview-only bundle flag now installs review, configured setup and
+restore capabilities. Neither shipping plist contains it; Stable also refuses
+the flag if supplied. Ordinary profile-3 commands compose their dedicated runtime
+from the exact local checkpoint, not permanent-profile lifecycle services or a
+provider-selected head. Format dispatch checks bounded bytes and digest binding;
+normal unlock still establishes authentication. Configured setup rechecks the
+original root identity and selection before/after private calls and at service
+state guards. Cross-queue checks create a fresh filesystem reader rather than
+declaring the existing FileManager-bearing config store unchecked Sendable.
+
+Focused Debug passed 86 declarations across five suites in 3.993 seconds. New
+cases cover the default-off/Stable gate, invalid exact checkpoint binding and
+selection changes during Mac opening, with no new token request or activation.
+Compiler checks caught the non-Sendable config reader; the fresh-reader closure
+resolved it without relaxing concurrency checking. Initial test expectations
+were corrected to use existing unlock error mapping and prior public-read counts.
+Logs remain ignored under `tmp/piv-recovery/2026-10-07-gated-factory-*`.
+Combined Release and universal product verification are still pending. No native
+private operation, installation, shipping flag change or push occurred. A narrow
+token-free rotation route remains before the signed vertical-slice test.

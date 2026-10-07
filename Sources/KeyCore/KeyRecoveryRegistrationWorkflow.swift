@@ -18,6 +18,7 @@ struct KeyRecoveryRegistrationWorkflow: Sendable {
   let reader: PIVRecoveryTokenReader
   let agreement: PIVRecoveryAgreement
   let owner: any VaultTransactionMutationOwning
+  var validateLocation: @Sendable () throws -> Void = {}
 
   func handle(_ request: KeyRecoveryRegistrationRequest, scope: KeyRecoveryRequestScope) throws
     -> KeyServiceResponse
@@ -26,6 +27,7 @@ struct KeyRecoveryRegistrationWorkflow: Sendable {
       throw AppError.operationRefused("Recovery setup requires macOS 26 or later.")
     }
     try scope.requireCurrent()
+    try validateLocation()
     try request.validate()
     let kind: VaultTransactionMutationKind =
       switch request {
@@ -36,8 +38,13 @@ struct KeyRecoveryRegistrationWorkflow: Sendable {
       let direct = DirectVaultTransactionMutationOwner(operationID: context.operationID)
       let session = V3DeviceWrappedVaultKeySessionStore()
       defer { session.invalidate() }
-      let loader = ScopedLoader(base: identities, scope: scope)
-      let selected = try selectedCheckpointProfile()
+      let validate: @Sendable () throws -> Void = {
+        try scope.requireCurrent()
+        try validateLocation()
+      }
+      let loader = ScopedLoader(base: identities, scope: scope, validateLocation: validateLocation)
+      let selected = try v3SelectedCheckpointProfile(
+        vaultID: vaultID, checkpoints: checkpoints, source: store, cache: cache)
       let authentication: Authentication
       switch (request, selected.profile) {
       case (.adopt, .permanent), (.resumeAdoption, .permanent):
@@ -144,7 +151,7 @@ struct KeyRecoveryRegistrationWorkflow: Sendable {
             vaultID: vaultID, identity: identity, mutationOwner: direct, objectStore: store,
             checkpointStore: checkpoints, adoptionOwnershipStore: adoption,
             transactionOwnershipStore: transaction, registrationOwnershipStore: registration,
-            validateScope: scope.requireCurrent)
+            validateScope: validate)
           let commit: V3RecoveryAdoptionCommit
           if case .resumeAdoption(let operation) = request {
             commit = try service.resume(
@@ -160,7 +167,7 @@ struct KeyRecoveryRegistrationWorkflow: Sendable {
             vaultID: vaultID, identity: identity, mutationOwner: direct, objectStore: store,
             checkpointStore: checkpoints, registrationOwnershipStore: registration,
             transactionOwnershipStore: transaction, adoptionOwnershipStore: adoption,
-            reader: reader, agreement: agreement, validateScope: scope.requireCurrent)
+            reader: reader, agreement: agreement, validateScope: validate)
           if case .finish = request {
             let commit = try service.finish(
               observation: observation, currentVaultKey: authentication.key,
@@ -184,34 +191,10 @@ struct KeyRecoveryRegistrationWorkflow: Sendable {
       }
       try session.requireCurrent(authentication.ticket)
       try scope.requireCurrent()
+      try validateLocation()
       return .init(
         exitCode: EXIT_SUCCESS, value: nil, errorMessage: nil, recoveryRegistration: result)
     }
-  }
-
-  /// Parsing dispatches an exact local checkpoint; it does not authenticate it
-  /// or select a provider head. Both profiles' unlock services still do that.
-  func selectedCheckpointProfile() throws -> (
-    checkpoint: V3ManifestCheckpoint, profile: V3DeviceWrappedManifestProfile
-  ) {
-    guard let data = try checkpoints.loadCheckpoint(vaultID: vaultID), data.count <= 1_024,
-      let checkpoint = try? V3ManifestCheckpoint(canonicalBytes: data),
-      checkpoint.vaultID == vaultID
-    else { throw V3RecoveryVaultUnlockError.recoveryRequired }
-    let bytes: Data
-    if case .available(let cached) = try? cache.load(for: checkpoint) {
-      bytes = cached
-    } else {
-      bytes = try V3ExactTransitionRepository(source: store, limits: .standard).readManifest(
-        checkpoint.envelopeDigest)
-    }
-    guard bytes.count <= V3RecoveryManifestCodec.maximumBytes,
-      Data(SHA256.hash(data: bytes)) == checkpoint.envelopeDigest
-    else {
-      throw V3RecoveryVaultUnlockError.recoveryRequired
-    }
-    let container = try V3DeviceWrappedManifestEnvelopeCodec().parseContainer(bytes)
-    return (checkpoint, try V3RecoveryManifestCodec().decodeBody(container.manifestValue))
   }
 
   private struct Authentication {
@@ -264,37 +247,107 @@ struct KeyRecoveryRegistrationWorkflow: Sendable {
   private struct ScopedLoader: V3DeviceWrappedIdentityLoading {
     let base: any V3DeviceWrappedIdentityLoading
     let scope: KeyRecoveryRequestScope
+    let validateLocation: @Sendable () throws -> Void
     func loadDeviceIdentity(vaultID: String, reason: String) throws -> (
       any V3DeviceWrappedVaultKeyUnwrapping
     )? {
       try scope.requireCurrent()
+      try validateLocation()
       guard
         let identity = try base.loadDeviceIdentity(vaultID: vaultID, reason: reason)
           as? any V3EnrollmentMessageSigning & V3DeviceWrappedVaultKeyUnwrapping
       else { return nil }
       try scope.requireCurrent()
-      return ScopedIdentity(base: identity, scope: scope)
+      try validateLocation()
+      return ScopedIdentity(base: identity, scope: scope, validateLocation: validateLocation)
     }
   }
   private struct ScopedIdentity: V3EnrollmentMessageSigning, V3DeviceWrappedVaultKeyUnwrapping {
     let base: any V3EnrollmentMessageSigning & V3DeviceWrappedVaultKeyUnwrapping
     let scope: KeyRecoveryRequestScope
+    let validateLocation: @Sendable () throws -> Void
     var vaultID: String { base.vaultID }
     var publicIdentity: V3EnrollmentDeviceIdentity { base.publicIdentity }
     func signature(for input: Data, reason: String) throws -> Data {
       try scope.requireCurrent()
+      try validateLocation()
       let result = try base.signature(for: input, reason: reason)
       try scope.requireCurrent()
+      try validateLocation()
       return result
     }
     func unwrapDeviceWrappedVaultKey(
       _ ciphertext: V3HPKEWrappedVaultKey, context: V3VaultKeyHPKEContext, reason: String
     ) throws -> Data {
       try scope.requireCurrent()
+      try validateLocation()
       let result = try base.unwrapDeviceWrappedVaultKey(
         ciphertext, context: context, reason: reason)
       try scope.requireCurrent()
+      try validateLocation()
       return result
     }
+  }
+}
+
+/// Closed format dispatch from the exact bounded device-local checkpoint.
+/// This verifies its byte binding, not its MAC, snapshot or provider head.
+func v3SelectedCheckpointProfile(
+  vaultID: String, checkpoints: any V3ManifestCheckpointStoring,
+  source: any V3ImmutableObjectReading, cache: any V3CheckpointManifestCaching
+) throws -> (checkpoint: V3ManifestCheckpoint, profile: V3DeviceWrappedManifestProfile) {
+  guard let data = try checkpoints.loadCheckpoint(vaultID: vaultID), data.count <= 1_024,
+    let checkpoint = try? V3ManifestCheckpoint(canonicalBytes: data), checkpoint.vaultID == vaultID
+  else { throw V3RecoveryVaultUnlockError.recoveryRequired }
+  let bytes: Data
+  if case .available(let cached) = try? cache.load(for: checkpoint) {
+    bytes = cached
+  } else {
+    bytes = try V3ExactTransitionRepository(source: source, limits: .standard).readManifest(
+      checkpoint.envelopeDigest)
+  }
+  guard bytes.count <= V3RecoveryManifestCodec.maximumBytes,
+    Data(SHA256.hash(data: bytes)) == checkpoint.envelopeDigest
+  else {
+    throw V3RecoveryVaultUnlockError.recoveryRequired
+  }
+  let container = try V3DeviceWrappedManifestEnvelopeCodec().parseContainer(bytes)
+  let profile = try V3RecoveryManifestCodec().decodeBody(container.manifestValue)
+  guard try checkpoints.loadCheckpoint(vaultID: vaultID) == checkpoint.canonicalBytes else {
+    throw V3RecoveryVaultUnlockError.checkpointChanged
+  }
+  return (checkpoint, profile)
+}
+
+extension KeyRecoveryRegistrationWorkflow {
+  /// Constructs dependencies only. No key, token or vendor administration is
+  /// opened here. The host must supply its exact request scope to handle().
+  static func live(configStore: KeyConfigStore, configuration: RuntimeConfiguration) throws -> Self
+  {
+    let selected = try configStore.load()
+    guard case .v3(let vaultID) = selected.authority else {
+      throw AppError.operationRefused(
+        "Recovery setup requires an existing device-wrapped v3 vault. Migrate v2 separately first.")
+    }
+    let root = try VaultRootDirectoryHandle(opening: selected.vaultDirectoryURL)
+    let verifySelection = configStore.selectionValidator(expected: selected)
+    let reader = PIVRecoveryTokenReader.live()
+    return Self(
+      vaultID: vaultID, store: V3FilesystemTransactionArtifactStore(rootHandle: root),
+      checkpoints: V3ManifestCheckpointKeychainStore(configuration: configuration),
+      transaction: V3ImmutableTransactionRecoveryAnchorKeychainStore(configuration: configuration),
+      registration: V3ImmutableTransactionRecoveryAnchorKeychainStore(
+        configuration: configuration, namespace: .registration),
+      adoption: V3ImmutableTransactionRecoveryAnchorKeychainStore(
+        configuration: configuration, namespace: .adoption),
+      cache: try KeyServiceHandler.makeV3CheckpointManifestCache(keyConfiguration: selected),
+      identities: V3EnrollmentDeviceIdentityManager(
+        recordStore: V3EnrollmentDeviceKeyRecordKeychainStore(configuration: configuration),
+        keyOperations: V3SecureEnclaveEnrollmentDeviceKeyOperations()),
+      reader: reader, agreement: .live(reader: reader), owner: VaultTransactionMutationOwner(),
+      validateLocation: {
+        try root.requireConfiguredRootIdentity()
+        try verifySelection()
+      })
   }
 }
