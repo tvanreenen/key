@@ -748,12 +748,12 @@ struct V3RecoveryRegistrationServiceTests {
     func remove() { try? FileManager.default.removeItem(at: root) }
   }
 
-  private struct Inventory: PIVRecoveryTokenInventoryProviding {
+  struct Inventory: PIVRecoveryTokenInventoryProviding {
     let card: Card
     func connections(maximumCount _: Int) throws -> [any PIVRecoveryTokenConnection] { [card] }
   }
 
-  private final class Card: PIVRecoveryTokenConnection, @unchecked Sendable {
+  final class Card: PIVRecoveryTokenConnection, @unchecked Sendable {
     let tokenID = "registration-software-token"
     let readerSlotName = "registration-software-reader"
     let isValid = true
@@ -817,7 +817,7 @@ struct V3RecoveryRegistrationServiceTests {
     }
   }
 
-  private final class Provider: PIVRecoveryAgreementProviding, @unchecked Sendable {
+  final class Provider: PIVRecoveryAgreementProviding, @unchecked Sendable {
     let token: P256.KeyAgreement.PrivateKey
     let card: Card
     private let lock = NSLock()

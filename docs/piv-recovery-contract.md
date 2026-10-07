@@ -1462,8 +1462,55 @@ The destination wrapper still requires a Mac opening. Internal durable ownership
 and encrypted preparation, plus internal manifest-last publication, are
 implemented below, together with internal checkpoint installation and an ordinary
 runtime reopen, exact configuration selection/reconciliation and ordered ownership
-finalization. Native service orchestration, product resume and separate-process
-qualification remain. No product restore route is enabled.
+finalization. Native-bound service preparation is now implemented below; scoped
+completion, product resume and separate-process qualification remain. No product
+restore route is enabled.
+
+### Implemented authenticated restore preparation service
+
+The internal [restore service](../Sources/KeyCore/V3RecoveryRestoreService.swift)
+requires independently retained source/parent directory handles, an unconfigured
+Mac and an observation issued by its native public reader. It rejects a foreign
+reader observation, changed card/key/anchor, unrecognized anchor, weaker policy,
+wrong journal/config root or existing local attempt before requesting recovery
+agreement. Public source selection precedes the one-operation native adapter;
+the existing verifier then authenticates the complete current snapshot.
+
+A shared source mutation owner spans the request. The existing session's
+authentication-generation ticket, cancellation and deadline are checked before
+and after authentication and at subsequent admission boundaries. The ticket is
+only a race guard; no recovered key is installed in that store. After recovery
+agreement drains, a token-operation lease spans preparation. Rechecks verify
+the same native token observation and source contents; public card sessions
+close before Mac private operations. Source, destination and config observations
+are not globally atomic filesystem locks. The future host must serialize this
+work against init/enrollment/configured requests and invalidate the generation
+on lock or disconnect.
+
+The new folder is created only after source authentication. A complete public
+reservation is durably pinned before the service creates fresh Mac credentials.
+The service independently reloads the persisted identity and opens the prepared
+Mac wrapper, comparing the opened key before admitting complete encrypted
+preparation. Random destination key bytes and plaintext remain scoped memory;
+the temporary wrapper-proof session is invalidated before staging. The result
+contains operation/checkpoint identifiers, path and entry count, not saved
+approval, recovered secrets or publication authority.
+
+Journal scope callbacks are synchronous and nonescaping. They check before
+ownership transitions and at the synchronized no-overwrite record rename
+boundary. Locks, cancellation, stale source/token state and uncertain credential
+creation leave exact durable evidence for investigation or later explicit
+completion. A reservation never authorizes generating replacement credentials;
+another prepare refuses before another native agreement or directory creation.
+This method publishes no destination objects, trust/cache, configuration or
+cleanup. It is not a proposed two-command product flow: initial full restore
+still needs completion under the same one-agreement source scope, followed by
+exact reauthenticated resume for interruptions.
+
+[14 software declarations / 45 cases](../Tests/KeyCoreTests/V3RecoveryRestoreServiceTests.swift)
+exercise these boundaries with actual binding adapters, crypto, files and the
+mutation owner. Native I/O and local ownership storage alone are substituted.
+No hardware prompt count or real Secure Enclave acceptance is established here.
 
 ### Implemented restore locations and intent format
 
