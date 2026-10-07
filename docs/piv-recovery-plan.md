@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; internal authenticated initial restore and exact resume now compose preparation, manifest-last publication, insert-only trust, ordinary-runtime reopening, configuration selection and ordered finalization; product dispatch/barriers, separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; public token/source review and restore/resume CLI/protocol, gated host/connection lifecycle, restart ownership admission, native factories and internal profile-3 unlock/read/catch-up/write/session composition implemented; conflict-value reads, pending routing, registration commands, live factory and signed qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; public token/source review and restore/resume CLI/protocol, gated host/connection lifecycle, restart ownership admission, native factories and internal profile-3 unlock/read/catch-up/write/session/conflict-value composition implemented; pending routing, registration commands, live factory and signed qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -4758,3 +4758,57 @@ Verification for this increment:
   operation. Logs remain ignored under
   `tmp/piv-recovery/2026-10-07-recovery-runtime-*`; build products reuse
   `tmp/piv-recovery/registration-status-build`.
+
+### 2026-10-07: sealed profile-3 conflict-value reads
+
+The [shared planner](../Sources/KeyCore/V3ReadPlan.swift) now selects recovery
+conflict values from the [existing authenticated projection](../Sources/KeyCore/V3ConflictObservation.swift).
+A direct recovery-specific decryption callback was also considered. Reusing the
+sealed plan and existing executor keeps exact selection and final authority
+checks together, without another decryption path, public plan constructor or
+conversion into permanent-profile trust objects. Metadata and value reads share
+the same projection; conflict resolution keeps its existing validator.
+
+Conflict and version IDs are exact members of a fresh authenticated observation,
+not paths, arbitrary digest prefixes or reusable approval. A changed head set
+invalidates the displayed conflict ID. Deleted versions refuse plaintext rather
+than becoming missing versions or empty secrets. Linear and automatically
+mergeable histories provide no conflict selection.
+
+The [runtime](../Sources/KeyCore/V3RecoveryVaultRuntime.swift) reads under the
+existing helper mutation owner and session admission ticket. The executor
+authenticates the selected ciphertext, then the runtime reobserves the complete
+same-epoch graph and requires exact equality before returning a value. The outer
+runtime guard checks pending ownership, session and published source again.
+There is no stale fallback, new authentication hand-off, historical private-key
+opening, publication, token administration or shipping dispatch change.
+
+[Software conflict-read tests](../Tests/KeyCoreTests/V3RecoveryConflictReadTests.swift)
+publish real filesystem branches and exercise the production observer, sealed
+planner and entry cipher: secret/TOTP edits, destination collisions, rename/edit,
+deletion, selector membership, changed heads and late executor authority changes.
+[Runtime tests](../Tests/KeyCoreTests/V3RecoveryVaultRuntimeTests.swift) read the
+actual competing values and refuse queued lock, same-key session replacement,
+another published branch and each pending namespace without private unwrap.
+Native prompt behavior and signed hardware qualification are not established by
+these tests. `REC-812` remains in progress: pending routing, registration commands,
+the gated factory, integrated review and signed qualification remain.
+
+Verification for this increment:
+
+- Focused Debug passed 60 declarations across six suites in 57.472 seconds.
+  Expanded Release passed 125 declarations across ten suites in 63.248 seconds,
+  including shared read/UX, reconciliation, merge, catch-up and ordinary mutation
+  boundaries. Seven new declarations exercise 18 cases. The initial Debug build
+  caught a throwing expression inside a test macro; correcting its `try` placement
+  required no production change. The full suite was not repeated; the preceding
+  unlock increment records the applicable full Release baseline.
+- Unsigned universal Preview build, bundle isolation, compiled version
+  `0.2.0 (19)` and arm64/x86_64 app, CLI and helper slices passed. Strict formatting
+  of the edited two-space files, project plist syntax, 330 relative documentation
+  targets and diff whitespace passed. Existing four-space shared files retain
+  their baseline formatting. Routing-test Sendable and AppIntents metadata
+  warnings remain unchanged.
+- No install, signing, release, push, user-vault access or physical token operation.
+  Logs remain ignored under `tmp/piv-recovery/2026-10-07-recovery-conflict-read-*`;
+  build products reuse `tmp/piv-recovery/registration-status-build`.

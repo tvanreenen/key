@@ -606,8 +606,18 @@ and unrelated session replacement do not grant stale success. Status distinguish
 an incomplete graph or competing edits from ready state. Ordinary writes retain
 the existing automatic-merge behavior for compatible edits; unresolved conflicts
 require explicit, freshly validated choices. Metadata conflict list/show and
-helper-owned resolution are composed; conflict-value plaintext is still refused
-until its sealed profile-3 read plan is implemented.
+helper-owned resolution are composed. Conflict-value reads use the same fresh
+authenticated projection as metadata and resolution. Conflict/version IDs must
+match its exact membership; they are not file addresses or reusable approvals.
+A deletion has no plaintext and is distinct from an unknown version or an empty
+secret. Linear and automatically mergeable history do not invent conflicts.
+
+The sealed read plan binds the selected entry, exact checkpoint and complete
+head set. The existing executor authenticates its ciphertext and checks authority
+after opening it. The runtime reobserves the complete same-epoch graph and requires
+equality with the selection observation; then its outer read guard rechecks the
+session, pending ownership and published source. Conflict values have no stale
+fallback. These software checks request no additional private-key operation.
 
 Any pending ordinary, registration or adoption ownership still blocks routine
 runtime admission. Existing services retain their exact reconciliation protocols,
