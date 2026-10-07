@@ -106,6 +106,17 @@ struct V3RecoveryRestoreCandidateBuilder: Sendable {
     try revalidate(snapshot)
   }
 
+  /// Reconstitutes the verifier-only value from exact saved artifacts, never
+  /// resealing or generating a new wrapper. Full validation remains mandatory.
+  func validateAndBind(
+    _ publication: V3DeviceWrappedGenesisPublicationCandidate,
+    restoring snapshot: V3RecoveryVerifiedSnapshot, vaultKey: Data,
+    expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws -> V3RecoveryRestoreCandidate {
+    try validate(publication, restoring: snapshot, vaultKey: vaultKey, expectedOwner: expectedOwner)
+    return .init(snapshot: snapshot, publication: publication)
+  }
+
   private func revalidate(_ snapshot: V3RecoveryVerifiedSnapshot) throws {
     try verifier.revalidate(
       snapshot, boundAnchor: snapshot.selection.anchor,
