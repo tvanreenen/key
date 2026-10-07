@@ -981,6 +981,59 @@ struct V3RecoveryRegistrationServiceTests {
     #expect(f.ownership.value == nil && f.provider.requests == 0)
   }
 
+  @Test(arguments: [false, true])
+  func configuredSelectionChangedDuringOpeningCannotPrepareOrResume(resume: Bool) throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    if resume { _ = try f.prepare() }
+    let before = f.ownership.value
+    let changed = PIVRecoveryCancellation()
+    let publicSessions = f.card.publicSessions
+    f.core.owner.onUnwrap = { changed.cancel() }
+    var subject = try workflow(f)
+    subject.validateLocation = {
+      if changed.isCancelled { throw Core.FixtureError.cancelled }
+    }
+    let recipient = try V3RecoveryRecipientID.derive(publicKey: f.core.credential.publicKey)
+      .rawValue
+    let action: KeyRecoveryRegistrationRequest =
+      resume
+      ? .resumeExport(tokenID: f.card.tokenID, recipientID: recipient)
+      : .prepare(tokenID: f.card.tokenID, recipientID: recipient)
+    #expect(throws: V3RecoveryVaultUnlockError.recoveryRequired) {
+      try subject.handle(action, scope: requestScope())
+    }
+    #expect(f.ownership.value == before && f.checkpoints.value == f.core.checkpoint.canonicalBytes)
+    #expect(f.provider.requests == 0 && f.card.publicSessions == publicSessions)
+  }
+
+  @Test(arguments: 0..<3)
+  func checkpointProfileDispatchIsBoundToTheExactLocalSelection(invalid: Int) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let subject = try workflow(f)
+    let selected = try v3SelectedCheckpointProfile(
+      vaultID: Core.vaultID, checkpoints: f.checkpoints, source: f.store, cache: subject.cache)
+    #expect(selected.checkpoint == f.core.checkpoint)
+    guard case .recovery = selected.profile else {
+      Issue.record("Recovery fixture dispatched as a different profile")
+      return
+    }
+    if invalid == 0 {
+      f.checkpoints.value = nil
+    } else if invalid == 1 {
+      f.checkpoints.value = Data([0])
+    } else {
+      try Data("different manifest bytes".utf8).write(to: f.manifestURL(f.core.parent.digest))
+    }
+    #expect(throws: (any Error).self) {
+      try v3SelectedCheckpointProfile(
+        vaultID: Core.vaultID, checkpoints: f.checkpoints, source: f.store, cache: subject.cache)
+    }
+    #expect(f.core.owner.unwraps == 0 && f.provider.requests == 0)
+  }
+
   private func requestScope() -> KeyRecoveryRequestScope {
     .init(authentication: .init(), deadline: .now() + 90)
   }
