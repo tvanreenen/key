@@ -87,13 +87,18 @@ struct V3RecoveryRestoreJournal: Sendable {
         configuration: configuration, namespace: .restorePreparation))
   }
 
+  func requireConfigurationRoot(_ root: VaultRootDirectoryHandle) throws {
+    try V3RecoveryRestoreLocation(store.rootHandle).requireMatch(root)
+  }
+
   /// Must finish before any platform credential is created. No raw key or
   /// identity is needed. A returned reservation is not a restart permission.
   func reserve(
     environment: V3RecoveryRestoreEnvironment, snapshot: V3RecoveryVerifiedSnapshot,
     operationID: VaultTransactionOperationID, vaultID: String, transitionID: String,
-    entryIDs: [String]
+    entryIDs: [String], validateScope: () throws -> Void = {}
   ) throws -> V3RecoveryRestoreReservation {
+    try validateScope()
     guard snapshot.entries.count <= limits.maximumReferencedEntryObjects else {
       throw V3RecoveryRestoreError.resourceLimit
     }
@@ -107,13 +112,19 @@ struct V3RecoveryRestoreJournal: Sendable {
     else { throw V3RecoveryRestoreJournalError.attemptPending }
     try environment.beginReservation()
     let pin = try ownership(reservation, bytes: reservation.canonicalBytes, phase: .prepared)
+    try validateScope()
     try reservations.replaceRecoveryAnchor(
       pin.canonicalBytes, expectedAnchor: nil, vaultID: sourceID)
     try observer.didReach(.reservationPinned)
     try requirePins(reservation: pin, preparation: nil)
     try environment.requireSnapshot(snapshot)
     let path = reservationPath(operationID)
-    try store.writeStagedObject(reservation.canonicalBytes, at: path)
+    try store.writeStagedObject(reservation.canonicalBytes, at: path) {
+      try validateScope()
+      try requirePins(reservation: pin, preparation: nil)
+      try environment.requireCurrent(reservation.locations)
+      try environment.requireSnapshot(snapshot)
+    }
     try observer.didReach(.reservationWritten)
     try requirePins(reservation: pin, preparation: nil)
     try environment.requireSnapshot(snapshot)
@@ -121,6 +132,7 @@ struct V3RecoveryRestoreJournal: Sendable {
     let durable = try ownership(reservation, bytes: reservation.canonicalBytes, phase: .recoverable)
     try requirePins(reservation: pin, preparation: nil)
     try environment.requireSnapshot(snapshot)
+    try validateScope()
     try reservations.replaceRecoveryAnchor(
       durable.canonicalBytes, expectedAnchor: pin.canonicalBytes, vaultID: sourceID)
     try observer.didReach(.reservationDurable)
@@ -132,6 +144,7 @@ struct V3RecoveryRestoreJournal: Sendable {
           preparation: nil, preparationOwnership: nil)
     else { throw V3RecoveryRestoreJournalError.invalidRecord }
     try environment.requireSnapshot(snapshot)
+    try validateScope()
     return reservation
   }
 
@@ -141,8 +154,9 @@ struct V3RecoveryRestoreJournal: Sendable {
   func stage(
     _ candidate: V3RecoveryRestoreCandidate, reservation: V3RecoveryRestoreReservation,
     environment: V3RecoveryRestoreEnvironment, vaultKey: Data,
-    expectedOwner: V3EnrollmentDeviceIdentity
+    expectedOwner: V3EnrollmentDeviceIdentity, validateScope: () throws -> Void = {}
   ) throws -> V3RecoveryRestoreBundle {
+    try validateScope()
     try environment.requireUnselectedConfiguration()
     let sourceID = reservation.sourceAnchor.floor.vaultID
     let pending = try requirePending(sourceID)
@@ -162,16 +176,23 @@ struct V3RecoveryRestoreJournal: Sendable {
     try requirePins(reservation: pending.reservationOwnership, preparation: nil)
     try environment.requireSnapshot(candidate.snapshot)
     let pin = try ownership(reservation, bytes: bundle.canonicalBytes, phase: .prepared)
+    try validateScope()
     try preparations.replaceRecoveryAnchor(
       pin.canonicalBytes, expectedAnchor: nil, vaultID: sourceID)
     try observer.didReach(.preparationPinned)
     try requirePins(reservation: pending.reservationOwnership, preparation: pin)
     try environment.requireSnapshot(candidate.snapshot)
     try store.writeStagedObject(bundle.canonicalBytes, at: preparationPath(reservation.operationID))
+    {
+      try validateScope()
+      try requirePins(reservation: pending.reservationOwnership, preparation: pin)
+      try environment.requireCurrent(reservation.locations)
+      try environment.requireSnapshot(candidate.snapshot)
+    }
     try observer.didReach(.preparationWritten)
     return try confirmPreparation(
       sourceVaultID: sourceID, snapshot: candidate.snapshot, environment: environment,
-      vaultKey: vaultKey, expectedOwner: expectedOwner)
+      vaultKey: vaultKey, expectedOwner: expectedOwner, validateScope: validateScope)
   }
 
   /// Only trusted local pins select records. Source/destination paths from the
@@ -366,8 +387,9 @@ struct V3RecoveryRestoreJournal: Sendable {
   func confirmPreparation(
     sourceVaultID: String, snapshot: V3RecoveryVerifiedSnapshot,
     environment: V3RecoveryRestoreEnvironment, vaultKey: Data,
-    expectedOwner: V3EnrollmentDeviceIdentity
+    expectedOwner: V3EnrollmentDeviceIdentity, validateScope: () throws -> Void = {}
   ) throws -> V3RecoveryRestoreBundle {
+    try validateScope()
     let pending = try requirePending(sourceVaultID)
     let reservation = pending.reservation
     guard pending.reservationOwnership.phase == .recoverable,
@@ -392,6 +414,7 @@ struct V3RecoveryRestoreJournal: Sendable {
     try environment.requireSnapshot(snapshot)
     let durable = try ownership(reservation, bytes: bundle.canonicalBytes, phase: .recoverable)
     if pin.phase == .prepared {
+      try validateScope()
       try preparations.replaceRecoveryAnchor(
         durable.canonicalBytes, expectedAnchor: pin.canonicalBytes, vaultID: sourceVaultID)
     }
@@ -404,6 +427,7 @@ struct V3RecoveryRestoreJournal: Sendable {
           preparation: bundle, preparationOwnership: durable)
     else { throw V3RecoveryRestoreJournalError.invalidRecord }
     try environment.requireSnapshot(snapshot)
+    try validateScope()
     return bundle
   }
 

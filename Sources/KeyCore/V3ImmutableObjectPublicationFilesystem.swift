@@ -275,6 +275,15 @@ extension V3FilesystemTransactionArtifactStore {
         try stagedObjectWriter.install(data, at: path)
     }
 
+    /// Synchronous scoped admission, including the synchronized rename boundary.
+    /// The callback is never retained as durable approval.
+    func writeStagedObject(
+        _ data: Data, at path: String,
+        beforePublication: () throws -> Void
+    ) throws {
+        try stagedObjectWriter.install(data, at: path, beforePublication: beforePublication)
+    }
+
     private func publishStagedObject(
         _ data: Data,
         from stagingPath: String,
