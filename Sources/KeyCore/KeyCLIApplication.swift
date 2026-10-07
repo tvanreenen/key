@@ -85,6 +85,8 @@ public final class KeyCLIApplication {
             return try executeRecovery(request)
         case let .recoveryReview(request, json):
             return try executeRecoveryReview(request, json: json)
+        case let .recoveryRegistration(request, exportPath, json):
+            return try executeRecoveryRegistration(request, exportPath: exportPath, json: json)
         case .unlock:
             response = try transport.send(.unlock)
             return try handle(response, for: command)
@@ -154,7 +156,7 @@ public final class KeyCLIApplication {
             if let value = response.value {
                 io.writeStdout(formattedGetOutput(value))
             }
-        case .status, .conflict, .recoveryReview:
+        case .status, .conflict, .recoveryReview, .recoveryRegistration:
             break
         case .copy(name: _, allowStale: _), .add, .edit, .duplicate,
             .rename, .remove:
@@ -169,6 +171,8 @@ public final class KeyCLIApplication {
         switch request {
         case .tokens:
             resolved = .tokens
+        case .credential:
+            resolved = request
         case .source(let path, let token):
             let base = URL(fileURLWithPath: currentDirectory().path, isDirectory: true)
             resolved = .source(
@@ -184,6 +188,7 @@ public final class KeyCLIApplication {
         let result = try requiredServicePayload(response.recoveryReview, operation: "public recovery review")
         switch (resolved, result) {
         case (.tokens, .tokens): break
+        case let (.credential(token), .credential(credential)) where credential.token.tokenID == token: break
         case let (.source(path, token), .source(source))
             where source.path == path && source.token.tokenID == token: break
         default:
@@ -199,6 +204,8 @@ public final class KeyCLIApplication {
 
     private func writeRecoveryReview(_ result: KeyRecoveryReviewResult) {
         switch result {
+        case .credential(let credential):
+            io.writeStdout("Public recovery credential:\nToken ID: \(credential.token.tokenID)\nReader: \(credential.token.readerSlotName)\nRecipient ID: \(credential.recipientID)\nSlot: 9d; P-256; reported generated origin, PIN always, touch always.\nAnchor: \(credential.anchorState.rawValue)\nPublic observation only. This does not prove possession, protected administration or recovery readiness. No PIN/touch operation was requested.\n")
         case .tokens(let tokens):
             var lines = [tokens.isEmpty ? "No connected token candidates found." : "Public connected-token candidates:"]
             for token in tokens {
@@ -226,6 +233,82 @@ public final class KeyCLIApplication {
 
             """)
         }
+    }
+
+    private func executeRecoveryRegistration(
+        _ request: KeyRecoveryRegistrationRequest, exportPath: String?, json: Bool
+    ) throws -> Int32 {
+        try request.validate()
+        let confirmation: String?
+        switch request {
+        case .prepare: confirmation = "PREPARE"
+        case .finish: confirmation = "REGISTER"
+        case .adopt, .resumeAdoption: confirmation = "ADOPT"
+        case .status, .resumeExport: confirmation = nil
+        }
+        if let confirmation {
+            guard io.stdinIsTTY else {
+                throw AppError.operationRefused("Recovery setup requires an interactive terminal. No setup request was sent.")
+            }
+            io.writeStderr("Recovery setup is experimental and gated. Preserve a backup and coordinate Mac upgrades. Key never provisions or writes the token; its external administration must be secured separately. Preparation/export does not activate recovery.\n")
+            guard try io.readLine(prompt: "Type \(confirmation) to continue this explicit recovery setup step: ").trimmingCharacters(in: .whitespacesAndNewlines) == confirmation else {
+                throw AppError.operationRefused("Recovery setup cancelled. No request was sent.")
+            }
+        }
+        if case .finish = request {
+            io.writeStderr("If possession verification is reached, enter PIN only in the macOS dialog and physically touch the key when it flashes. Cancel unexpected prompts. No automatic retry is made.\n")
+        }
+        do {
+            let response = try transport.send(.recoveryRegistration(request))
+            guard response.exitCode == EXIT_SUCCESS else {
+                if let message = response.errorMessage { io.writeStderr(message + "\n") }
+                writeRegistrationFailureGuidance()
+                return response.exitCode
+            }
+            let result = try requiredServicePayload(response.recoveryRegistration, operation: "recovery registration")
+            switch (request, result) {
+            case (.status, .status(let state, let vaultID, let recipients, let committed)):
+                guard isValidV3UUID(vaultID), recipients.count <= 64,
+                      recipients.allSatisfy({ (try? V3RecoveryRecipientID(rawValue: $0)) != nil }) else {
+                    throw AppError.service("Invalid recovery registration status response.")
+                }
+                if json { try writeJSON(result) }
+                else { io.writeStdout("Recovery registration: \(state.rawValue)\nVault ID: \(vaultID)\nActive recipients: \(recipients.count)\nPending activation committed: \(committed)\nThis authenticates local registration state, not hardware qualification or provider freshness.\n") }
+                return state == .attentionRequired ? EXIT_FAILURE : EXIT_SUCCESS
+            case (.prepare(_, let expected), .export(let operation, let vault, let recipient, let encoded)),
+                 (.resumeExport(_, let expected), .export(let operation, let vault, let recipient, let encoded)):
+                guard let exportPath, recipient == expected, isValidV3UUID(vault),
+                      (try? VaultTransactionOperationID(validating: operation)) != nil,
+                      encoded.utf8.count <= 1_368, let bytes = Base64URL.decodeCanonical(encoded),
+                      let anchor = try? V3RecoveryAnchorCodec().parseCanonical(bytes),
+                      anchor.floor.vaultID == vault, anchor.recipientID.rawValue == recipient else {
+                    throw AppError.service("Invalid or mismatched recovery anchor export response.")
+                }
+                let base = URL(fileURLWithPath: currentDirectory().path, isDirectory: true)
+                let url = URL(fileURLWithPath: exportPath, relativeTo: base).standardizedFileURL
+                // Insert only: existing files and links are never replaced. If
+                // this fails, the locally owned preparation remains resumable.
+                try bytes.write(to: url, options: .withoutOverwriting)
+                io.writeStdout("Public anchor exported to '\(url.path)'.\nOperation ID: \(operation)\nRecipient ID: \(recipient)\nRecovery is not active. Use the documented vendor-tool procedure to install these exact bytes, then run recovery register finish with the same selectors.\n")
+                return EXIT_SUCCESS
+            case (.finish, .completed(let vault, let digest, let pending)),
+                 (.adopt, .completed(let vault, let digest, let pending)),
+                 (.resumeAdoption, .completed(let vault, let digest, let pending)):
+                guard isValidV3UUID(vault), Base64URL.decodeCanonical(digest)?.count == 32 else {
+                    throw AppError.service("Invalid recovery setup completion response.")
+                }
+                io.writeStdout("Recovery setup committed.\nVault ID: \(vault)\nManifest: \(digest)\nCleanup pending: \(pending)\nCheck registration status after the helper restarts. Format adoption alone does not register a recovery key.\n")
+                return EXIT_SUCCESS
+            default: throw AppError.service("Mismatched recovery setup response.")
+            }
+        } catch {
+            writeRegistrationFailureGuidance()
+            throw error
+        }
+    }
+
+    private func writeRegistrationFailureGuidance() {
+        io.writeStderr("Preserve token, vault files and local setup records. A failed or lost reply does not prove nothing committed. Do not create replacement setup or rewrite the token. Inspect status after restart; explicitly resume-export or finish the owned registration, or resume adoption with its original operation ID. Export failures require a new output filename, not a new preparation.\n")
     }
 
     private func executeRecovery(_ request: KeyRecoveryRequest) throws -> Int32 {

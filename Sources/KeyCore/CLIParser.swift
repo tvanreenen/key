@@ -331,7 +331,7 @@ private struct KeyArguments: ParsableCommand {
     struct Recovery: ParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "recovery", abstract: "Review recovery inputs, restore or resume (not enabled yet).",
-            discussion: CLIHelp.recovery, subcommands: [Tokens.self, Review.self, Restore.self, Resume.self]
+            discussion: CLIHelp.recovery, subcommands: [Tokens.self, Credential.self, Register.self, Adopt.self, Review.self, Restore.self, Resume.self]
         )
 
         struct Tokens: CLIRequest {
@@ -341,6 +341,76 @@ private struct KeyArguments: ParsableCommand {
             )
             @Flag(help: "Print machine-readable public observations.") var json = false
             var command: Command { .recoveryReview(.tokens, json: json) }
+        }
+
+        struct CredentialOptions: ParsableArguments {
+            @Option(name: .customLong("token"), help: "Complete explicitly selected connected token ID.") var tokens: [String]
+            @Option(name: .customLong("recipient"), help: "Complete recovery recipient ID from credential inspection.") var recipients: [String]
+            mutating func validate() throws {
+                guard tokens.count == 1, recipients.count == 1 else {
+                    throw ValidationError("Provide --token and --recipient exactly once each.")
+                }
+                do { try KeyRecoveryRegistrationRequest.prepare(tokenID: tokens[0], recipientID: recipients[0]).validate() }
+                catch { throw ValidationError(error.localizedDescription) }
+            }
+        }
+
+        struct ExportOptions: ParsableArguments {
+            @Option(name: .customLong("export-anchor"), help: "New public anchor file for external vendor-tool installation. Never overwritten.", completion: .file()) var paths: [String]
+            mutating func validate() throws {
+                guard paths.count == 1, !paths[0].isEmpty, paths[0].utf8.count <= 4_096, !paths[0].utf8.contains(0) else {
+                    throw ValidationError("Provide --export-anchor exactly once with a bounded new file path.")
+                }
+            }
+        }
+
+        struct Credential: CLIRequest {
+            static let configuration = CommandConfiguration(commandName: "credential", abstract: "Inspect one public recovery credential without requesting PIN/touch.", discussion: CLIHelp.recoveryCredential)
+            @Option(name: .customLong("token"), help: "Complete connected token ID. Required exactly once.") var tokens: [String]
+            @Flag(help: "Print machine-readable public observations.") var json = false
+            mutating func validate() throws {
+                guard tokens.count == 1 else { throw ValidationError("Provide --token exactly once.") }
+                do { try KeyRecoveryReviewRequest.credential(tokenID: tokens[0]).validate() }
+                catch { throw ValidationError(error.localizedDescription) }
+            }
+            var command: Command { .recoveryReview(.credential(tokenID: tokens[0]), json: json) }
+        }
+
+        struct Register: ParsableCommand {
+            static let configuration = CommandConfiguration(commandName: "register", abstract: "Inspect or explicitly register the configured vault (gated).", discussion: CLIHelp.recoveryRegistration, subcommands: [Status.self, Prepare.self, ResumeExport.self, Finish.self])
+            struct Status: CLIRequest {
+                static let configuration = CommandConfiguration(commandName: "status", abstract: "Authenticate configured recovery registration status without contacting a token.")
+                @Flag(help: "Print machine-readable registration status.") var json = false
+                var command: Command { .recoveryRegistration(.status, exportPath: nil, json: json) }
+            }
+            struct Prepare: CLIRequest {
+                static let configuration = CommandConfiguration(commandName: "prepare", abstract: "Prepare one registration and export its public anchor; does not activate recovery.")
+                @OptionGroup var credential: CredentialOptions
+                @OptionGroup var export: ExportOptions
+                var command: Command { .recoveryRegistration(.prepare(tokenID: credential.tokens[0], recipientID: credential.recipients[0]), exportPath: export.paths[0], json: false) }
+            }
+            struct ResumeExport: CLIRequest {
+                static let configuration = CommandConfiguration(commandName: "resume-export", abstract: "Export the exact locally owned registration again without creating a replacement.")
+                @OptionGroup var credential: CredentialOptions
+                @OptionGroup var export: ExportOptions
+                var command: Command { .recoveryRegistration(.resumeExport(tokenID: credential.tokens[0], recipientID: credential.recipients[0]), exportPath: export.paths[0], json: false) }
+            }
+            struct Finish: CLIRequest {
+                static let configuration = CommandConfiguration(commandName: "finish", abstract: "Verify the externally installed anchor and possession, then activate registration.")
+                @OptionGroup var credential: CredentialOptions
+                var command: Command { .recoveryRegistration(.finish(tokenID: credential.tokens[0], recipientID: credential.recipients[0]), exportPath: nil, json: false) }
+            }
+        }
+
+        struct Adopt: CLIRequest {
+            static let configuration = CommandConfiguration(commandName: "adopt", abstract: "Explicitly adopt the recovery-capable format, or resume its exact saved operation (gated).", discussion: CLIHelp.recoveryAdoption)
+            @Option(name: .customLong("resume"), help: "Complete original adoption operation ID; never substitutes a new attempt.") var operation: String?
+            mutating func validate() throws {
+                if let operation, (try? VaultTransactionOperationID(validating: operation)) == nil {
+                    throw ValidationError("Provide the complete original operation ID for --resume.")
+                }
+            }
+            var command: Command { .recoveryRegistration(operation.map { .resumeAdoption(operationID: $0) } ?? .adopt, exportPath: nil, json: false) }
         }
 
         struct Review: CLIRequest {

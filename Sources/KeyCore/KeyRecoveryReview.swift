@@ -4,11 +4,22 @@ import Foundation
 /// attempt, native observation or confirmation reference can be supplied.
 public enum KeyRecoveryReviewRequest: Codable, Equatable, Sendable {
   case tokens
+  case credential(tokenID: String)
   case source(path: String, tokenID: String)
 
   func validate() throws {
-    guard case .source(let path, let token) = self else { return }
-    guard path.hasPrefix("/"), path.utf8.count <= 4_096, !path.utf8.contains(0),
+    let path: String?
+    let token: String
+    switch self {
+    case .tokens: return
+    case .credential(let selected):
+      path = nil
+      token = selected
+    case .source(let selectedPath, let selectedToken):
+      path = selectedPath
+      token = selectedToken
+    }
+    guard path.map({ $0.hasPrefix("/") && $0.utf8.count <= 4_096 && !$0.utf8.contains(0) }) ?? true,
       !token.isEmpty, token.utf8.count <= 1_024,
       !token.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
     else {
@@ -45,7 +56,18 @@ public enum KeyRecoveryReviewResult: Codable, Equatable, Sendable {
     public let observedManifestCount: Int
   }
 
+  public struct Credential: Codable, Equatable, Sendable {
+    public enum AnchorState: String, Codable, Equatable, Sendable {
+      case absent, recognized, unrecognized
+    }
+    public let assurance: Assurance
+    public let token: Token
+    public let recipientID: String
+    public let anchorState: AnchorState
+  }
+
   case tokens([Token])
+  case credential(Credential)
   case source(Source)
 }
 
@@ -63,6 +85,26 @@ struct KeyRecoveryReviewWorkflow {
     try request.validate()
     let result: KeyRecoveryReviewResult
     switch request {
+    case .credential(let tokenID):
+      let candidates = try reader.candidates().filter { $0.tokenID == tokenID }
+      guard candidates.count == 1, let candidate = candidates.first else {
+        throw PIVRecoveryTokenError.invalidSelection
+      }
+      let observation = try reader.read(candidate)
+      try scope.requireCurrent()
+      try observation.keyMetadata.requireRecoveryPolicy()
+      try reader.revalidate(observation)
+      let state: KeyRecoveryReviewResult.Credential.AnchorState
+      switch observation.anchor {
+      case .absent: state = .absent
+      case .recognized: state = .recognized
+      case .unrecognized: state = .unrecognized
+      }
+      result = .credential(
+        .init(
+          assurance: .publicObservationOnly,
+          token: .init(tokenID: candidate.tokenID, readerSlotName: candidate.readerSlotName),
+          recipientID: observation.recipientID.rawValue, anchorState: state))
     case .tokens:
       let tokens = try reader.candidates().map {
         KeyRecoveryReviewResult.Token(tokenID: $0.tokenID, readerSlotName: $0.readerSlotName)

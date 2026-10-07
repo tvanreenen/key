@@ -2,7 +2,7 @@
 /// Keep paragraphs unwrapped; the renderer owns wrapping and column alignment.
 enum CLIHelp {
     static let recovery = """
-    Recovery is not enabled in Stable or ordinary Preview builds. These commands define the recovery interface under development; they do not opt a real vault into recovery. Registration commands are not available yet.
+    Recovery is not enabled in Stable or ordinary Preview builds. These commands define the guarded recovery interface under development; they do not opt a real vault into recovery.
 
     When enabled, restore will require the complete source vault files and a previously registered hardware recovery key. It creates a separate vault on an unconfigured Mac; it never replaces the source or this Mac's selected vault. The new vault has fresh Mac access and no recovery key registered until separately registered.
 
@@ -19,6 +19,26 @@ enum CLIHelp {
     Not enabled in Stable or ordinary Preview builds. List at most 64 public token candidates with exact token IDs and reader names. No candidate is automatically selected; no slot certificate, key metadata, anchor or private operation is read. An empty list is not proof of missing recovery protection.
 
     Listing does not prove possession, compatibility, registration or restorable contents. Use the exact token ID with key recovery review --source <directory> --token <token-id>. Public observations may change if a key is removed or replaced; restore rechecks them independently. --json prints the same observations for scripts, not a readiness or approval signal.
+    """
+
+    static let recoveryCredential = """
+    Gated public inspection of one explicitly selected token. Use the exact --token from recovery tokens. Reads the slot 9d credential, required reported P-256/generated/PIN-always/touch-always policy and anchor occupancy; returns the complete recipient ID even before registration. No PIN/touch, entry read, setup intent or token write is requested. Public metadata is not attestation or proof of possession, protected administration or recoverability.
+    """
+
+    static let recoveryRegistration = """
+    Not enabled in Stable or ordinary Preview builds. Use only disposable vaults in an explicitly enabled qualification build until review and signed hardware testing are complete. The configured vault must use the recovery-capable format; explicit adoption is separate.
+
+    Set up slot 9d externally with vendor tools: P-256 generated on the token, PIN always and touch always. Secure PIV administration separately and retain the required recovery/admin credentials safely. Key does not provision, reset or write the token and cannot infer protected administration from public key metadata.
+
+    Inspect recovery credential --token <token-id> for its complete recipient ID. Run register prepare with that --token, --recipient and --export-anchor <new-file>. Preparation creates one locally owned encrypted candidate and exports public commitments only. Install those exact bytes using the documented external vendor-tool procedure. Then register finish with the same token/recipient verifies the installed anchor and requests one possession operation before activation. Enter PIN only in the macOS dialog; touch the key when it flashes.
+
+    After a failed export or interruption, preserve all state. register resume-export exports the same locally owned candidate to a new file; it does not replace setup or rewrite the token. Explicit finish rechecks the original candidate or exact committed state. register status authenticates local registration state without contacting a token; it is not a hardware qualification or provider-freshness claim. Never delete records to force another attempt.
+    """
+
+    static let recoveryAdoption = """
+    Gated explicit format adoption, not registration or recovery. Preserve a backup and coordinate upgrades on every Mac before changing the format. Old clients must refuse the new profile. Adoption performs complete authenticated resealing and changes the selected checkpoint, but adds no token recipient. It never writes hardware or changes vault-dir.
+
+    Use --resume <complete-original-operation-id> only for the exact locally owned interrupted adoption. It never starts a replacement or adopts provider records. Preserve files and local records after interruption; do not delete ownership to retry. Check registration status after the helper restarts, then separately register a recovery key. This workflow requires an interactive terminal.
     """
 
     static let recoveryReview = """
