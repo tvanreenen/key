@@ -1459,9 +1459,49 @@ roster is inherited; the destination starts without recovery registration.
 cover ordinary rotation/edit-to-recovery composition, empty and populated inputs,
 changed sources, reused authority, mismatched objects and bounded resources.
 The destination wrapper still requires a Mac opening, and restore still needs
-native token/directory binding, exact config ownership, authenticated durable
-intent, manifest-last publication, explicit resume and fresh-process ordinary
+native token binding, durable destination/config ownership and encrypted
+preparation, manifest-last publication, explicit resume and fresh-process ordinary
 reopening before selection. No route, checkpoint write or selection is enabled.
+
+### Implemented restore locations and intent format
+
+The [filesystem environment](../Sources/KeyCore/V3RecoveryRestoreEnvironment.swift)
+creates only a missing final destination folder beneath an independently opened
+parent. It checks physical ancestry before creation, including symlinked
+ancestors, so the source and local configuration tree cannot contain the
+destination. Existing empty folders are refused, not adopted. The source,
+destination, destination parent and configuration root retain exact standardized
+paths and device/file identities. Later checks reject replaced folders or any
+configuration, including malformed files, directories and dangling symlinks.
+This initial path supports an unconfigured Mac only. The configuration directory
+must already exist; inspection never bootstraps it or overwrites a selection.
+
+The [restore intent format](../Sources/KeyCore/V3RecoveryRestoreIntent.swift) binds
+those locations, one operation ID, the source anchor/credential/head, a stable
+commitment to the observed public history/listing, and the destination genesis
+digest/key ID/owner. The exact genesis digest commits its roster, transition,
+wrapper and complete encrypted entry references. Record authentication uses
+HKDF-SHA256 and HMAC-SHA256 with a restore-only domain, keyed by the new
+destination vault key. It does not retain the source key. Canonical parsing
+requires exact fields, bounded bytes, canonical identifiers and paths; it does
+not authenticate the record or establish token provenance.
+
+Record construction revalidates the verifier-only snapshot through the retained
+source descriptor before and after authentication. A snapshot from an unrelated
+reader cannot be accepted solely because the caller supplied plausible paths.
+The saved anchor is still a binding, not a substitute for a fresh native token
+read during an actual recovery ceremony.
+
+This is a format and live location guard, not a durable journal or saved
+approval. There is no reservation before credential creation, complete encrypted
+preparation storage, checkpoint install, configuration selection or resume yet.
+Future resume must first establish local ownership of the exact saved preparation
+before opening its addressed Mac wrapper, then authenticate this record and
+reverify the source and complete destination contents. A matching MAC alone
+cannot authorize publication. Source/native binding, session-generation checks,
+explicit reauthentication and final no-overwrite configuration selection remain
+the restore owner's responsibilities. The checks observe filesystem state;
+they do not lock folders against concurrent external changes.
 
 ### Implemented native public reader
 
