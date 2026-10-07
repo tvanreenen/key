@@ -95,7 +95,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; profile-3 domain codecs, contexts, proof construction/checks, and fixtures implemented; final acceptance and integrated review remain |
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
-| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
+| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish, authenticated four-state status and reciprocal pending guards implemented; product composition, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; internal authenticated initial restore and exact resume now compose preparation, manifest-last publication, insert-only trust, ordinary-runtime reopening, configuration selection and ordered finalization; product dispatch/barriers, separate-process and physical acceptance remain |
@@ -4489,3 +4489,69 @@ Next: configured recovery registration/status composition and remaining commands
 with the ordinary profile-3 runtime and reciprocal barriers required before live
 opt-in. Signed two-Mac/XPC/native acceptance and a fresh independent review of
 product composition remain outstanding. `REC-812` is not complete.
+
+### 2026-10-07: authenticated registration status before configured composition
+
+The shipping factory still composes only profile 2. Installing registration there
+without profile-3 unlock, catch-up, session ownership and reciprocal barriers
+would bypass the existing runtime boundary. This increment instead implements
+the authenticated status service that configured registration will use.
+
+Putting status on the registration service was considered. That would make
+inspection depend on a private identity, token reader and agreement provider,
+although none should be used. The separate
+[status service](../Sources/KeyCore/V3RecoveryRegistrationStatus.swift) owns the
+inspection checks with only source/local-store dependencies and the existing
+mutation owner. It reuses the registration repository and journal rather than
+adding a second preparation parser or snapshot authenticator.
+
+Four distinct results are implemented: authenticated empty active roster,
+authenticated registered roster, exact locally owned pending registration, and
+attention required. Pending distinguishes pre-activation from an exact committed
+candidate with unfinished cleanup. A current-key-authenticated floor and complete
+current snapshot are required for positive results. Pre-commit pending inspection
+also authenticates the intent MAC and dual-authorized candidate boundary; it does
+not open the candidate key or claim readiness to finish. After commitment, the
+candidate must be the authenticated floor. No saved token approval is inferred.
+
+Exact source and checkpoint observations, ownership and the selected bundle are
+rechecked before return. Inaccessible/corrupt local records, incomplete source,
+invalid keys, competing ownership and changes during observation require attention
+rather than claiming absence of recovery protection. Unowned provider bundles are
+not adopted. Status cannot write, clean up, perform catch-up, contact a token,
+unwrap a Mac key or select configuration. Registered reports authenticated stored
+coverage, not current possession, token policy enforcement or provider freshness.
+
+The [existing registration-service fixture](../Tests/KeyCoreTests/V3RecoveryRegistrationServiceTests.swift)
+now exercises status over real codecs, crypto, journals and contained filesystem
+objects. Tests cover the external-write boundary without token reads, publication
+versus checkpoint commitment versus completed cleanup, incorrect current keys,
+missing/corrupt local records and entry bytes, competing/unavailable ownership,
+unowned bundles, a parsed but unauthenticated intent, and changing checkpoint,
+ownership, source and pending bundle. Counters check no token session, hardware
+agreement, private unwrap or bundle write occurs during inspection.
+
+No CLI/protocol/host route or live feature gate changes in this increment. The
+status caller still needs configured-runtime authentication and connection/lock
+scope; inspection results are not admission or mutation authority. `REC-808` and
+`REC-812` remain in progress. Next is the gated profile-3 configured runtime and
+registration command composition. Physical/signed acceptance and integrated AI
+review remain outstanding.
+
+Verification for this increment:
+
+- Initial focused Debug: 78 declarations across the registration service/domain
+  suites passed in 11.796 seconds. Final optimized regressions: 147 declarations
+  across six suites passed in 15.035 seconds, including the final nine new status
+  declarations and their 22 cases. The final run also covers public review,
+  host routing, content publication and adoption. The full suite was not rerun;
+  no shipping host/protocol/runtime dispatch changed.
+- Unsigned universal Preview build and product-bundle isolation passed. App,
+  CLI and helper contain arm64/x86_64 slices; the compiled version remains
+  `0.2.0 (19)`. No install, signing, publication or physical token operation.
+- Strict formatting, project plist syntax, 314 relative documentation targets
+  and `git diff --check` passed. The unchanged routing-test non-Sendable request
+  capture warning and build metadata extraction's missing AppIntents dependency
+  warning remain. Raw logs/build products are ignored
+  under `tmp/piv-recovery/2026-10-07-registration-status-*` and
+  `tmp/piv-recovery/registration-status-build`.
