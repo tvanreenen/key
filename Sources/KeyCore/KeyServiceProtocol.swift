@@ -51,6 +51,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     case share(KeyShareRequest)
     case shareInDirectory(request: KeyShareRequest, path: String)
     case recovery(KeyRecoveryRequest)
+    case recoveryReview(KeyRecoveryReviewRequest)
     case list
     case migrationPreflight
     case migrationApply
@@ -72,7 +73,7 @@ public enum KeyServiceRequest: Codable, Equatable {
             30
         case .unlock, .get, .getConflictValue, .migrationPreflight:
             120
-        case .recovery:
+        case .recovery, .recoveryReview:
             120
         case .list:
             30
@@ -110,6 +111,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case resolutions
         case shareRequest
         case recoveryRequest
+        case recoveryReviewRequest
     }
 
     private enum Kind: String, Codable {
@@ -124,6 +126,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case share
         case shareInDirectory
         case recovery
+        case recoveryReview
         case list
         case migrationPreflight
         case migrationApply
@@ -186,6 +189,8 @@ public enum KeyServiceRequest: Codable, Equatable {
             self = .list
         case .recovery:
             self = .recovery(try container.decode(KeyRecoveryRequest.self, forKey: .recoveryRequest))
+        case .recoveryReview:
+            self = .recoveryReview(try container.decode(KeyRecoveryReviewRequest.self, forKey: .recoveryReviewRequest))
         case .migrationPreflight:
             self = .migrationPreflight
         case .migrationApply:
@@ -244,6 +249,9 @@ public enum KeyServiceRequest: Codable, Equatable {
         case .recovery(let request):
             try container.encode(Kind.recovery, forKey: .kind)
             try container.encode(request, forKey: .recoveryRequest)
+        case .recoveryReview(let request):
+            try container.encode(Kind.recoveryReview, forKey: .kind)
+            try container.encode(request, forKey: .recoveryReviewRequest)
         case .unlock:
             try container.encode(Kind.unlock, forKey: .kind)
         case .lock:
@@ -406,6 +414,7 @@ public struct KeyServiceResponse: Codable, Equatable {
     public let deviceReplacementReview: V3VaultDeviceReplacementReview?
     public let conflicts: [VaultConflictSummary]?
     public let conflict: VaultConflictDetail?
+    public let recoveryReview: KeyRecoveryReviewResult?
 
     public init(
         exitCode: Int32,
@@ -418,7 +427,8 @@ public struct KeyServiceResponse: Codable, Equatable {
         deviceRevocationReview: V3VaultDeviceRevocationReview? = nil,
         deviceReplacementReview: V3VaultDeviceReplacementReview? = nil,
         conflicts: [VaultConflictSummary]? = nil,
-        conflict: VaultConflictDetail? = nil
+        conflict: VaultConflictDetail? = nil,
+        recoveryReview: KeyRecoveryReviewResult? = nil
     ) {
         self.exitCode = exitCode
         self.value = value
@@ -431,6 +441,7 @@ public struct KeyServiceResponse: Codable, Equatable {
         self.deviceReplacementReview = deviceReplacementReview
         self.conflicts = conflicts
         self.conflict = conflict
+        self.recoveryReview = recoveryReview
     }
 
     public static func success(
