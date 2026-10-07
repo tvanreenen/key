@@ -98,7 +98,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
-| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; source-bound fresh permanent-genesis preparation and full candidate validation implemented; destination/config ownership, authenticated intent, publication, resume and fresh-process reopening remain |
+| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; verified-source genesis preparation, live destination/config bindings and authenticated intent format implemented; durable ownership/encrypted journal, publication, resume and fresh-process reopening remain |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
@@ -558,6 +558,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Seventeenth 810 lifecycle integration checks, 2026-10-06 | [Two longer software sequences](../Tests/KeyCoreTests/V3RecoveryLifecycleIntegrationTests.swift) and the source self-review below | Independent Macs walk mixed five-/seven-epoch histories, reject the revoked Mac, take turns saving and retain recovery without Mac state or caches. Last-recipient removal explicitly ends recovery without ending ordinary access. Full unlocked regression and integration verification are recorded below; independent review and native/product acceptance remain. |
 | Eighteenth 810 independent lifecycle review and rotation fixes, 2026-10-06 | [Rotation activation guards](../Sources/KeyCore/V3RecoveryKeyRotationService.swift), [expanded regression cases](../Tests/KeyCoreTests/V3RecoveryKeyRotationServiceTests.swift) and the review disposition below | Two confirmed findings share the final rotation-activation boundary. Existing session-generation tickets reject same-key reauthentication; exact committed ownership rejects conflicting or unreadable pending work. Both reproduce before the fix and pass afterward; the reviewer rechecked both remedies. Native/product acceptance remains. |
 | First 811 restore candidate, 2026-10-07 | [Source-bound preparation and validation](../Sources/KeyCore/V3RecoveryRestoreCandidate.swift) and [six software declarations](../Tests/KeyCoreTests/V3RecoveryRestoreCandidateTests.swift) | Only a verified snapshot prepares a complete fresh permanent-profile genesis. Exact bytes/types, fresh namespace/device separation and bounded encrypted artifacts validate without source writes or another recovery agreement. Actual rotation/edit composition is covered. No durable restore ownership, publication, config selection or resume is enabled. |
+| Second 811 restore bindings and intent, 2026-10-07 | [Filesystem environment](../Sources/KeyCore/V3RecoveryRestoreEnvironment.swift), [authenticated record format](../Sources/KeyCore/V3RecoveryRestoreIntent.swift) and [contained software tests](../Tests/KeyCoreTests/V3RecoveryRestoreIntentTests.swift) | Checks physical source/destination/config separation before folder creation, retains exact paths and folder identities, and refuses any configuration. A bounded, purpose-separated MAC binds the source observation and destination genesis. No durable reservation, encrypted journal, credential creation, publication or resume is enabled. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -3400,3 +3401,83 @@ authenticated restore intent, then manifest-last publication, explicit resume
 without regenerated artifacts, and fresh ordinary Mac-bound reopening before
 selection. This increment changes no real vault, configuration, installed app or
 token and performs no hardware administration, push or release.
+
+### Second 811 live restore bindings and authenticated record, 2026-10-07
+
+This increment stays on local `codex/recovery-restore`, above the existing
+lifecycle layer. It implements the record format and initial live filesystem
+guards, not a durable journal or product restore route.
+
+The [restore environment](../Sources/KeyCore/V3RecoveryRestoreEnvironment.swift)
+owns the opened source, newly created destination, destination parent and local
+configuration root. It checks physical ancestry before creating the final folder,
+including a source reached through a symlinked ancestor. The new destination
+cannot be inside the source or configuration tree. Existing folders are refused,
+even when empty. Exact path bytes and physical identities are retained and
+rechecked around source observations and future durable transitions. Any config
+file, directory or dangling link blocks preparation. This initial path requires
+an unconfigured Mac and an existing local config directory; its read-only config
+accessor does not bootstrap paths or write a selection.
+
+The [intent](../Sources/KeyCore/V3RecoveryRestoreIntent.swift) binds one operation,
+those locations, the exact source anchor/credential/head, a stable commitment to
+the observed manifest inventory/history, and the new genesis digest/key ID/owner.
+The genesis digest already commits the complete entry references, transition and
+addressed wrapper. Its bounded canonical format uses a restore-only HKDF/HMAC
+domain and the destination vault key, with a key-ID check. No plaintext, raw key,
+PIN, administrator secret or saved approval is recorded. Construction rechecks
+the snapshot through the environment's retained source descriptor before and
+after record authentication. Parsing alone grants no authority.
+
+Architecture inspection compared reusing the registration intent/ownership
+semantics with a separate restore format over the existing persistence and crypto
+mechanisms. Registration authenticates an existing parent checkpoint and token
+registration; restore binds a different namespace, physical destination and
+currently absent configuration. Reusing its semantic record would obscure those
+requirements. Restore therefore keeps its own format while retaining canonical
+JSON, purpose-separated HKDF/HMAC, descriptor-relative source reads and the
+existing exclusive directory creator. No generic transaction-policy framework
+or new encryption format was introduced.
+
+Verification:
+
+- The initial focused Debug run passed 39 declarations in three suites. Two
+  further restore declarations and source-descriptor binding were then added.
+- Final focused Release passed 89 declarations in six suites: both restore
+  components, recovery history, initialization, config compatibility and the
+  existing permanent-genesis installer. Twelve new declarations exercise 40
+  cases over contained filesystem/software crypto. They cover incorrect keys,
+  changed/malformed/oversized records, a later source, folder replacement, config
+  arrival and refusal before directory creation. Inspection leaves a missing
+  config root missing. No token or native credential is used.
+- Full Release passed 1,515 KeyCore declarations in 122 suites and six canonical
+  JSON declarations in one suite. The separately gated large-migration
+  qualification remained skipped. This qualifies ordinary software regression
+  at this increment, not native or hardware restore behavior.
+- The final unsigned universal Preview build passed. App, CLI and helper each
+  contain arm64/x86_64 slices; product isolation and actual CLI help/version
+  checks passed. Nothing was installed.
+- Strict formatting passed for the three new Swift files. Whole-file formatting
+  of the touched legacy config source still reports its 61 existing diagnostics;
+  comparison against the parent found no changed diagnostic messages/counts.
+  Those unrelated lines were left intact. Project syntax, Git whitespace and
+  all 222 relative documentation targets passed.
+- Initial compilation corrected a missing throwing-call marker, the tests'
+  existing module-import convention and a software closure's Sendable captures.
+  Production validation was not relaxed. Self-review moved overlap refusal
+  before folder creation and bound record construction to actual source reads.
+
+Raw logs use `tmp/piv-recovery/2026-10-07-restore-intent-` and remain ignored.
+This is source self-review and software qualification, not fresh independent
+review, native provenance or physical recovery qualification. No implementation
+package is complete. No real vault, config, installed app or token was changed,
+and nothing was pushed or released.
+
+Next: reserve local ownership before platform credential creation and durably
+store the exact complete encrypted preparation. Only that owned preparation may
+support explicitly reauthenticated resume. Manifest-last publication, exact
+interruption reconciliation, checkpoint installation, fresh ordinary Mac-bound
+reopening and final no-overwrite config selection still remain. The current
+record alone cannot resume or publish, and a new attempt cannot adopt an existing
+empty destination. Source/native binding and session-generation checks must be
+carried through the future service; filesystem observations are not locks.

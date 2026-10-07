@@ -192,6 +192,16 @@ public struct KeyConfigStore {
 
     var initializationConfigFileURL: URL { configurationPaths().configFileURL }
 
+    /// Internal restore preparation only. Never replaces a configuration or
+    /// selects a vault. The caller retains this physical root for later checks.
+    func unconfiguredRestoreRoot() throws -> VaultRootDirectoryHandle {
+        try requireUnconfigured()
+        let paths = configurationPaths()
+        let root = try VaultRootDirectoryHandle(opening: paths.configDirectoryURL)
+        try requireUnconfigured()
+        return root
+    }
+
     /// Reserves this destination before any device identity is created. Records
     /// are local, contain no keys, and survive process failure. A later attempt
     /// at this path must be inspected, never silently initialized again.
