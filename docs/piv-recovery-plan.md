@@ -97,7 +97,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
-| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; durable publication/resume, owner sessions, exact comparison completion and joining first trust are implemented; reviewed revocation/removal retain exact initial review and last-recipient acknowledgment; remaining-Mac catch-up retains full reseal checks; fixed-source mixed coordination and reciprocal lifecycle/software recovery checks are implemented; independent review, user confirmation and shipping product/native acceptance remain |
+| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
@@ -494,12 +494,12 @@ history and fully authenticates the selected epoch and resealed snapshots before
 local trust advances. Mixed content/key-epoch coordination now composes those
 steps under one mutation owner, retaining the original observed history and exact
 session generation through a terminal result. Shipping cold-unlock/runtime/config
-activation, user confirmation and lifecycle integration review remain.
-Native public-read binding and
-scoped agreement are implemented but have not been physically qualified. Only
-the isolated capsule has a fresh independent AI review; the new components have
-combined software integration checks and source self-review, not a fresh
-independent review or product/hardware qualification.
+activation and user confirmation remain. Native public-read binding and scoped
+agreement are implemented but have not been physically qualified. The isolated
+capsule and internal lifecycle layer have fresh independent AI reviews. Lifecycle
+review found two initial-rotation activation gaps; their verified fixes and
+regressions are recorded below. This is not product/hardware qualification or an
+independent cryptographic assessment.
 
 ## Implementation evidence ledger
 
@@ -550,6 +550,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Fifteenth 810 remaining-Mac key-transition step, 2026-10-06 | [Bounded observation and guarded step](../Sources/KeyCore/V3RecoveryKeyTransitionCatchUpService.swift) and [24 software declarations](../Tests/KeyCoreTests/V3RecoveryKeyTransitionCatchUpTests.swift) | One continuing-Mac wrapper authenticates the selected new epoch and full old/new reseal before checkpoint CAS. Independent checkpoints, edits around several epochs, late joins, visible conflicts and source/session/pending races are exercised. Software recovery follows another Mac's save without Mac private state. Verification below; mixed coordination and integrated/native/product review remain. |
 | Sixteenth 810 mixed catch-up coordination, 2026-10-06 | [Concrete coordinator](../Sources/KeyCore/V3RecoveryCatchUpCoordinator.swift), [14 software declarations](../Tests/KeyCoreTests/V3RecoveryCatchUpCoordinatorTests.swift) and [atomic session receipts](../Sources/KeyCore/V3DeviceWrappedVaultKeySession.swift) | One mutation owner composes content/epoch steps from an exact unlocked floor. Original-source checks prevent a late old-floor sibling from disappearing; atomic installation receipts reject unrelated reauthentication between epochs. Committed prefixes survive failures without a current claim or automatic retry. Verification below; lifecycle integration review and shipping/native composition remain. |
 | Seventeenth 810 lifecycle integration checks, 2026-10-06 | [Two longer software sequences](../Tests/KeyCoreTests/V3RecoveryLifecycleIntegrationTests.swift) and the source self-review below | Independent Macs walk mixed five-/seven-epoch histories, reject the revoked Mac, take turns saving and retain recovery without Mac state or caches. Last-recipient removal explicitly ends recovery without ending ordinary access. Full unlocked regression and integration verification are recorded below; independent review and native/product acceptance remain. |
+| Eighteenth 810 independent lifecycle review and rotation fixes, 2026-10-06 | [Rotation activation guards](../Sources/KeyCore/V3RecoveryKeyRotationService.swift), [expanded regression cases](../Tests/KeyCoreTests/V3RecoveryKeyRotationServiceTests.swift) and the review disposition below | Two confirmed findings share the final rotation-activation boundary. Existing session-generation tickets reject same-key reauthentication; exact committed ownership rejects conflicting or unreadable pending work. Both reproduce before the fix and pass afterward; the reviewer rechecked both remedies. Native/product acceptance remains. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -3249,3 +3250,69 @@ confirmation UX, native prompt behavior and physical backup-token acceptance
 remain later work. No implementation package is marked complete, and no real
 vault/configuration, installed app, token operation/administration, push or release
 is involved in this test-and-evidence increment.
+
+### Eighteenth 810 independent lifecycle review and rotation fixes, 2026-10-06
+
+A fresh, read-only AI reviewer inspected `1d81575` against
+`codex/recovery-content`, including lifecycle policy/builders, publication and
+restart services, joining adoption, shared transaction changes, remaining-Mac
+catch-up and mixed coordination. The reviewer reported two P2 findings in initial
+rotation. Source inspection and contained software regressions confirmed both:
+
+- Lock followed by same-key reauthentication during signing or wrapper approval
+  was indistinguishable from the original session. Rotation now captures the
+  existing generation ticket before loading its key, checks it after base
+  validation and signing, and uses guarded atomic installation. Refusal before
+  publication preserves the separately reauthenticated session; refusal after
+  commitment locks rather than leaving a stale key.
+- Final activation checked registration/adoption ownership but not ordinary
+  pending work. It now requires either no ordinary pin or the exact recoverable
+  pin and matching intent for this committed rotation, before and after complete
+  snapshot authentication. Malformed, foreign, unreadable or mismatched ownership
+  refuses installation. Valid cleanup-failure pins remain allowed.
+
+These fixes reuse the authority-change service's existing mechanisms. They add no
+new protocol, token operation, persisted secret, retry or rollback path. The two
+findings are grouped in one local commit because both protect activation of the
+same committed rotation. Error handling preserves committed checkpoint trust
+and pending work. The independent reviewer rechecked the remedies and found no
+unresolved issue in that diff; it ran no tests and made no edits.
+
+Verification:
+
+- Six added parameter cases reproduced the gaps before production changes. The
+  focused 13-declaration Debug suite failed with 13 assertion issues across those
+  cases. The same suite passed after the fix, including all durable interruption
+  boundaries, cancellation, ordinary saving and valid cleanup-failure ownership.
+- A separate focused Release run passed all 15 rotation-service and lifecycle
+  integration declarations in two suites. It exercises the full mixed histories,
+  reciprocal saving and software recovery without Mac state, using the same
+  optimized binaries as the broad run.
+- Full Release attempted 1,497 KeyCore tests in 120 suites and failed with 65
+  assertion issues in five protected-storage suites: `CryptoAndStorageTests`,
+  `KeyServiceHandlerTests`, `SessionVaultKeyStoreTests`,
+  `V2MigrationPreflightTests` and `VaultTransactionMutationOwnerTests`.
+  All recovery and device-wrapped session suites passed within that run; the six
+  canonical-JSON tests also passed. Large-migration qualification remained skipped.
+  The console was observed locked before and during the run. Failures report
+  permission errors or downstream unsuccessful responses on unchanged
+  `EntryStore.save` code, which uses `.completeFileProtection`. This is consistent
+  with the locked-console condition, not a fresh full-suite pass. An unlocked
+  rerun remains necessary to settle that qualification; no protection/lock setting
+  was changed.
+- Unsigned universal Preview compilation passed, with arm64/x86_64 app, CLI and
+  helper slices. Product-bundle isolation and the real bundled CLI's help/version
+  checks passed. Nothing was installed or launched beyond those read-only CLI
+  commands.
+- Strict formatting of both Swift files, Git whitespace checks and all 210 local
+  documentation targets passed.
+
+Raw review output and test logs use `tmp/piv-recovery/2026-10-06-lifecycle-`
+and remain ignored. This review covers internal lifecycle code, not shipping
+dispatch, cold product unlock, restore, native storage/hardware qualification or
+provider withholding. No broader security certification is claimed.
+
+Next: new-vault restore orchestration (`REC-811`) in the next stack layer.
+User-confirmation/product integration and physical qualification remain later
+work. No implementation package is marked complete. This increment changes no
+real vault, configuration, installed app or token, and performs no push or release.

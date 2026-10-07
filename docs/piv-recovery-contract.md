@@ -606,16 +606,23 @@ neither generates a key nor signs or reserves work. Execution requires the revie
 checkpoint to remain exact and refuses any existing ordinary, rotation,
 registration or adoption work. It does not resume or replace that pending work.
 After Mac signing, source bytes, checkpoint, pending work and the old session are
-rechecked before the publisher's addressed local-wrapper verification. The existing
+rechecked before the publisher's addressed local-wrapper verification. The
+process-local session-generation ticket is captured before loading the base key
+and checked after base validation and signing. Lock followed by reauthentication
+with the same old key is a different session, not continued approval. The existing
 publisher still owns full old/new snapshot comparison, projected limits, source
 rechecks, durable intent and manifest-last/checkpoint-last publication.
 
 After successful publication, the service authenticates the committed current
-MAC/capsule and complete snapshot before replacing the live session. The
+MAC/capsule and complete snapshot before replacing the live session. Before and
+after that validation, ordinary ownership must be absent or bind this operation's
+exact committed rotation intent. Malformed, foreign, unreadable or mismatched
+ownership refuses activation. The
 [session store](../Sources/KeyCore/V3DeviceWrappedVaultKeySession.swift) owns an
-atomic exact-prior-key replacement check: a lock or expiry during publication
-cannot be undone by session installation. Returned commit data contains no raw
-key; raw keys remain scoped in memory and are never written into the intent.
+atomic generation-ticket installation check: lock, expiry or same-key
+reauthentication during publication cannot be undone by installation. Returned
+commit data contains no raw key; raw keys remain scoped in memory and are never
+written into the intent.
 
 An error does not imply that the checkpoint failed to advance. The service keeps
 the old session only if the checkpoint remains the exact reviewed checkpoint;
@@ -629,10 +636,13 @@ still needs its dedicated reconciliation route before another save.
 exercise actual random-key rotation and continued ordinary saving, all 14
 publication interruption points, checkpoint/cleanup failures, cancellation,
 invalid or changed sources, identity/session/pending barriers and post-commit
-refusal. [Five session declarations](../Tests/KeyCoreTests/V3DeviceWrappedVaultKeySessionTests.swift)
-exercise exact prior-epoch replacement, invalid keys, foreign vaults, locked or
-absent sessions and expiry. These use real epoch crypto and contained filesystem
-publication with software Mac identities, not physical prompt qualification.
+refusal, including same-key reauthentication during signing/wrapper verification
+and changed/unreadable post-commit ownership.
+[Session declarations](../Tests/KeyCoreTests/V3DeviceWrappedVaultKeySessionTests.swift)
+exercise exact prior-epoch replacement, generation tickets, invalid keys, foreign
+vaults, locked or absent sessions and expiry. These use real epoch crypto and
+contained filesystem publication with software Mac identities, not physical
+prompt qualification.
 The following internal restart path now opens addressed old/new wrappers and
 composes exact resume-to-session orchestration. Product confirmation/runtime
 dispatch and integrated review remain.
