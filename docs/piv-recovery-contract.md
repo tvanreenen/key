@@ -1551,6 +1551,43 @@ these tests; Mac operation counts do not establish physical Touch ID prompts.
 Shipping host serialization, lock/disconnect invalidation, product dispatch and
 native acceptance remain unwired.
 
+### Gated host and connection integration
+
+The [service request](../Sources/KeyCore/KeyRecoveryRequest.swift) now represents
+initial restore and explicit resume with bounded public locations, token ID and
+the existing recipient ID. It does not carry credentials, secrets, native
+observations or consent. Structural validation is not native binding. The
+future native composition must independently resolve the exact selector and
+invoke the restore service using the supplied host scope's authentication store,
+cancellation and deadline.
+
+The [host](../Sources/KeyCore/KeyServiceHost.swift) admits at most one pending or
+active recovery request through its existing exclusive barrier. Other recovery
+clients are refused immediately. Active recovery requires no configured handler.
+Lock invalidates the generation and cancels the scope before waiting on the host
+queue; an active-recovery lock can therefore reply while native UI still drains.
+The native gate is not released early and a late response cannot become success.
+The [helper](../Sources/KeyLaunchAgentHelper/main.swift) cancels scopes registered
+on an interrupted/invalidated connection, including later registration on that
+same closed connection, without cancelling another connection's scope.
+
+The client reply bound is 120 seconds; the host scope deadline is 90 seconds and
+includes queue waiting. These bounds do not promise immediate native termination.
+The utility role remains limited to status/lock. Recovery success requires an
+actual configuration and the existing post-reply helper shutdown handshake.
+Restart timeout guidance refuses a second initial restore.
+
+Once recovery enters, process-local uncertainty blocks competing setup and
+configuration changes; explicit resume remains available. Configuration present
+on any exit requires helper restart, even after an error or cancelled/lost reply.
+Restart-persistent admission against exact saved ownership is still required;
+this in-memory guard is not durable recovery authority. Stable and ordinary
+Preview live hosts keep the capability disabled. No CLI command, native service
+factory, saved-attempt scan, replacement credential or cleanup is added here.
+[Host tests](../Tests/KeyCoreTests/KeyRecoveryRoutingTests.swift) include actual
+restore-service cancellation but substitute native I/O and service composition;
+actual XPC interruptions and hardware acceptance remain unqualified.
+
 ### Implemented restore locations and intent format
 
 The [filesystem environment](../Sources/KeyCore/V3RecoveryRestoreEnvironment.swift)

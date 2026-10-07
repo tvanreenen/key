@@ -50,6 +50,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     case resolveConflicts([VaultConflictResolution])
     case share(KeyShareRequest)
     case shareInDirectory(request: KeyShareRequest, path: String)
+    case recovery(KeyRecoveryRequest)
     case list
     case migrationPreflight
     case migrationApply
@@ -71,6 +72,8 @@ public enum KeyServiceRequest: Codable, Equatable {
             30
         case .unlock, .get, .getConflictValue, .migrationPreflight:
             120
+        case .recovery:
+            120
         case .list:
             30
         case .initializeVault, .migrationApply, .share, .shareInDirectory, .setVaultDirectory, .setKeychainMode,
@@ -83,7 +86,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     /// Whether the XPC client must complete the post-reply shutdown handshake.
     public var requiresHelperShutdownAfterSuccess: Bool {
         switch self {
-        case .lock, .initializeVault, .setVaultDirectory, .migrationApply,
+        case .lock, .initializeVault, .setVaultDirectory, .migrationApply, .recovery,
             .share(.accept), .share(.replaceCurrentDevice), .shareInDirectory(.accept, _):
             true
         default:
@@ -106,6 +109,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case versionID
         case resolutions
         case shareRequest
+        case recoveryRequest
     }
 
     private enum Kind: String, Codable {
@@ -119,6 +123,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case resolveConflicts
         case share
         case shareInDirectory
+        case recovery
         case list
         case migrationPreflight
         case migrationApply
@@ -179,6 +184,8 @@ public enum KeyServiceRequest: Codable, Equatable {
             )
         case .list:
             self = .list
+        case .recovery:
+            self = .recovery(try container.decode(KeyRecoveryRequest.self, forKey: .recoveryRequest))
         case .migrationPreflight:
             self = .migrationPreflight
         case .migrationApply:
@@ -234,6 +241,9 @@ public enum KeyServiceRequest: Codable, Equatable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
+        case .recovery(let request):
+            try container.encode(Kind.recovery, forKey: .kind)
+            try container.encode(request, forKey: .recoveryRequest)
         case .unlock:
             try container.encode(Kind.unlock, forKey: .kind)
         case .lock:
