@@ -1,9 +1,30 @@
 import Foundation
 
+/// Explicit configured key change; no token selector or credential is involved.
+public enum KeyRecoveryRotationRequest: Codable, Equatable, Sendable {
+  case rotate
+  case resume(operationID: String)
+
+  func validate() throws {
+    if case .resume(let operation) = self,
+      (try? VaultTransactionOperationID(validating: operation)) == nil
+    {
+      throw AppError.operationRefused(
+        "Rotation resume requires the complete original operation ID.")
+    }
+  }
+}
+
+public enum KeyRecoveryRotationResult: Codable, Equatable, Sendable {
+  case completed(vaultID: String, manifestDigest: String, cleanupPending: Bool)
+  case abandoned(vaultID: String)
+}
+
 /// Configured-vault setup requests carry public selectors only. They never
 /// contain a PIN, management credential, vault key or native approval.
 public enum KeyRecoveryRegistrationRequest: Codable, Equatable, Sendable {
   case status
+  case pending
   case prepare(tokenID: String, recipientID: String)
   case resumeExport(tokenID: String, recipientID: String)
   case finish(tokenID: String, recipientID: String)
@@ -19,7 +40,7 @@ public enum KeyRecoveryRegistrationRequest: Codable, Equatable, Sendable {
 
   func validate() throws {
     switch self {
-    case .status, .adopt: break
+    case .status, .pending, .adopt: break
     case .resumeAdoption(let operation):
       guard (try? VaultTransactionOperationID(validating: operation)) != nil else {
         throw AppError.operationRefused(
@@ -41,12 +62,18 @@ public enum KeyRecoveryRegistrationRequest: Codable, Equatable, Sendable {
 /// Public setup output. Exported anchor bytes contain commitments, not secrets
 /// or approval. Only a later authenticated finish can activate registration.
 public enum KeyRecoveryRegistrationResult: Codable, Equatable, Sendable {
+  public struct PendingOperation: Codable, Equatable, Sendable {
+    public enum Namespace: String, Codable, Sendable { case transaction, registration, adoption }
+    public let namespace: Namespace
+    public let operationID: String
+  }
   public enum State: String, Codable, Equatable, Sendable {
     case unregistered, registered, pending, attentionRequired
   }
   case status(state: State, vaultID: String, recipients: [String], activationCommitted: Bool)
   case export(operationID: String, vaultID: String, recipientID: String, anchor: String)
   case completed(vaultID: String, manifestDigest: String, cleanupPending: Bool)
+  case pending(vaultID: String, operations: [PendingOperation])
 }
 
 /// Public selectors and locations only. Credentials and recovered keys never

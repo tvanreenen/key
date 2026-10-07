@@ -35,6 +35,32 @@ struct KeyRecoveryRegistrationWorkflow: Sendable {
       default: .registerRecoveryRecipient
       }
     return try owner.perform(kind) { context in
+      if case .pending = request {
+        let stores:
+          [(
+            KeyRecoveryRegistrationResult.PendingOperation.Namespace,
+            any V3ImmutableTransactionRecoveryAnchorStoring
+          )] = [
+            (.transaction, transaction), (.registration, registration), (.adoption, adoption),
+          ]
+        let bytes = try stores.map { try $0.1.loadRecoveryAnchor(vaultID: vaultID) }
+        let operations = try zip(stores, bytes).compactMap {
+          pair, bytes
+            -> KeyRecoveryRegistrationResult.PendingOperation? in
+          guard let bytes else { return nil }
+          guard bytes.count <= 1_024,
+            let anchor = try? V3ImmutableTransactionRecoveryAnchor(canonicalBytes: bytes),
+            anchor.vaultID == vaultID
+          else { throw V3RecoveryVaultUnlockError.mutationPending }
+          return .init(namespace: pair.0, operationID: anchor.operationID.rawValue)
+        }
+        try requireOwnership(transaction: bytes[0], registration: bytes[1], adoption: bytes[2])
+        try scope.requireCurrent()
+        try validateLocation()
+        return .init(
+          exitCode: EXIT_SUCCESS, value: nil, errorMessage: nil,
+          recoveryRegistration: .pending(vaultID: vaultID, operations: operations))
+      }
       let direct = DirectVaultTransactionMutationOwner(operationID: context.operationID)
       let session = V3DeviceWrappedVaultKeySessionStore()
       defer { session.invalidate() }
@@ -91,7 +117,7 @@ struct KeyRecoveryRegistrationWorkflow: Sendable {
             try registration.loadRecoveryAnchor(vaultID: vaultID) == nil ? nil : .registration
         case .resumeExport: namespace = .registration
         case .prepare: namespace = nil
-        case .adopt: preconditionFailure("Handled above")
+        case .adopt, .pending: preconditionFailure("Handled above")
         }
         if let namespace {
           let pending = try runtime.authenticatedPendingContext(
@@ -186,7 +212,7 @@ struct KeyRecoveryRegistrationWorkflow: Sendable {
               operationID: exported.operationID.rawValue, vaultID: vaultID,
               recipientID: exported.recipientID.rawValue, anchor: Base64URL.encode(exported.anchor))
           }
-        case .status: preconditionFailure("Handled above")
+        case .status, .pending: preconditionFailure("Handled above")
         }
       }
       try session.requireCurrent(authentication.ticket)
@@ -201,6 +227,134 @@ struct KeyRecoveryRegistrationWorkflow: Sendable {
     let key: Data
     let ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
   }
+
+  /// Configured key change shares location/scope admission, not registration
+  /// semantics. Its domain service cannot contact a recovery token.
+  func rotate(_ request: KeyRecoveryRotationRequest, scope: KeyRecoveryRequestScope) throws
+    -> KeyServiceResponse
+  {
+    guard #available(macOS 26.0, *) else {
+      throw AppError.operationRefused("Recovery-capable key rotation requires macOS 26 or later.")
+    }
+    try request.validate()
+    let validate: @Sendable () throws -> Void = {
+      try scope.requireCurrent()
+      try validateLocation()
+    }
+    try validate()
+    return try owner.perform(.rotateVaultKey) { context in
+      try validate()
+      let selected = try v3SelectedCheckpointProfile(
+        vaultID: vaultID, checkpoints: checkpoints, source: store, cache: cache)
+      guard case .recovery = selected.profile else {
+        throw AppError.operationRefused(
+          "This command requires the recovery-capable format; it does not adopt it.")
+      }
+      let pending: Data?
+      switch request {
+      case .rotate:
+        pending = nil
+        try requireOwnership(transaction: nil, registration: nil, adoption: nil)
+      case .resume(let operation):
+        pending = try transaction.loadRecoveryAnchor(vaultID: vaultID)
+        let anchor = try requireSelectedOwnership(pending, operation: operation)
+        guard
+          case .available(let bytes) = try store.readRecoveryIntent(
+            operationID: anchor.operationID,
+            maximumBytes: V3ImmutableTransactionRecoveryIntent.maximumBytes),
+          Data(SHA256.hash(data: bytes)) == anchor.intentDigest,
+          let intent = try? V3ImmutableTransactionRecoveryIntent(canonicalBytes: bytes),
+          intent.vaultID == vaultID, intent.operationID == anchor.operationID,
+          intent.kind == .rotateVaultKey
+        else {
+          throw AppError.operationRefused(
+            "The exact locally owned intent is not a readable key rotation. Preserve all records; no replacement or cleanup was authorized."
+          )
+        }
+        try requireOwnership(transaction: pending, registration: nil, adoption: nil)
+      }
+      let session = V3DeviceWrappedVaultKeySessionStore()
+      defer { session.invalidate() }
+      let loader = ScopedLoader(base: identities, scope: scope, validateLocation: validateLocation)
+      let runtime = V3RecoveryVaultUnlockRuntime(
+        vaultID: vaultID, checkpointStore: checkpoints, source: store, cache: cache,
+        identityLoader: loader, session: session, transactionOwnershipStore: transaction,
+        registrationOwnershipStore: registration, adoptionOwnershipStore: adoption)
+      let authenticated: V3ManifestCheckpoint
+      if pending != nil {
+        let current = try runtime.authenticatedPendingContext(
+          namespace: .transaction,
+          reason: "Authenticate this Mac's exact pending vault-key rotation.",
+          continuing: session.beginAuthentication())
+        authenticated = current.current.checkpoint
+        _ = try current.loadVaultKey()
+      } else {
+        let current = try runtime.authenticatedReadContext(
+          reason: "Authenticate an explicit vault-key rotation.")
+        authenticated = current.current.checkpoint
+        _ = try current.loadVaultKey(keyID: current.current.envelope.body.fields.keyID)
+      }
+      guard authenticated == selected.checkpoint else {
+        throw V3RecoveryVaultUnlockError.checkpointChanged
+      }
+      try validate()
+      guard
+        let identity = try loader.loadDeviceIdentity(
+          vaultID: vaultID, reason: "Use this Mac's vault-key rotation authority.")
+          as? any V3EnrollmentMessageSigning & V3DeviceWrappedVaultKeyUnwrapping
+      else {
+        throw V3RecoveryVaultUnlockError.identityUnavailable
+      }
+      let service = V3RecoveryKeyRotationService(
+        vaultID: vaultID, identity: identity, session: session, objectStore: store,
+        checkpointStore: checkpoints, recoveryAnchorStore: transaction,
+        registrationAnchorStore: registration, adoptionAnchorStore: adoption,
+        cache: cache, validateScope: validate)
+      let result: KeyRecoveryRotationResult
+      switch request {
+      case .rotate:
+        let commit = try service.rotate(
+          expectedCheckpoint: authenticated, operationID: context.operationID)
+        result = .completed(
+          vaultID: vaultID, manifestDigest: Base64URL.encode(commit.checkpoint.envelopeDigest),
+          cleanupPending: try transaction.loadRecoveryAnchor(vaultID: vaultID) != nil)
+      case .resume:
+        // The service selects the exact original pinned intent. This owner ID
+        // scopes serialization only and never substitutes new epoch work.
+        let outcome = try service.recoverInterruptedRotation(
+          operationID: context.operationID, expectedAnchor: pending)
+        switch outcome {
+        case .completed, .alreadyCompleted:
+          let selected = try v3SelectedCheckpointProfile(
+            vaultID: vaultID, checkpoints: checkpoints, source: store, cache: cache)
+          let envelope = try V3RecoveryManifestCodec().parseEnvelope(
+            V3ExactTransitionRepository(source: store, limits: .standard).readManifest(
+              selected.checkpoint.envelopeDigest))
+          try V3RecoveryEpochBoundary().verifyCurrentAuthentication(
+            envelope,
+            vaultKey: session.load(vaultID: vaultID, keyID: envelope.body.fields.keyID))
+          guard
+            try checkpoints.loadCheckpoint(vaultID: vaultID) == selected.checkpoint.canonicalBytes
+          else {
+            throw V3RecoveryVaultUnlockError.checkpointChanged
+          }
+          result = .completed(
+            vaultID: vaultID, manifestDigest: Base64URL.encode(selected.checkpoint.envelopeDigest),
+            cleanupPending: false)
+        case .abandoned: result = .abandoned(vaultID: vaultID)
+        case .nothingToRecover:
+          throw AppError.operationRefused(
+            "The selected rotation is no longer pending. Inspect status; no new rotation was started."
+          )
+        }
+      }
+      // A successful rotation installs a new local session generation inside
+      // the validated service. The independent host scope still rejects lock,
+      // disconnect, deadline or location changes; never capture fresh consent.
+      try validate()
+      return .init(exitCode: EXIT_SUCCESS, value: nil, errorMessage: nil, recoveryRotation: result)
+    }
+  }
   private func completed(_ checkpoint: V3ManifestCheckpoint, cleanup: Bool)
     -> KeyRecoveryRegistrationResult
   {
@@ -208,11 +362,15 @@ struct KeyRecoveryRegistrationWorkflow: Sendable {
       vaultID: vaultID, manifestDigest: Base64URL.encode(checkpoint.envelopeDigest),
       cleanupPending: cleanup)
   }
-  private func requireSelectedOwnership(_ bytes: Data?, operation: String) throws {
+  @discardableResult
+  private func requireSelectedOwnership(_ bytes: Data?, operation: String) throws
+    -> V3ImmutableTransactionRecoveryAnchor
+  {
     guard let bytes, bytes.count <= 1_024,
       let anchor = try? V3ImmutableTransactionRecoveryAnchor(canonicalBytes: bytes),
       anchor.vaultID == vaultID, anchor.operationID.rawValue == operation
     else { throw V3RecoveryAdoptionServiceError.ownershipChanged }
+    return anchor
   }
   private func requireOwnership(
     transaction expectedTransaction: Data?, registration expectedRegistration: Data?,

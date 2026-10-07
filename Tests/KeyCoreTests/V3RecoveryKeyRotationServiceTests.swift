@@ -307,6 +307,102 @@ struct V3RecoveryKeyRotationServiceTests {
     #expect(f.core.owner.signatures == 2 && f.core.owner.unwraps == 1)
   }
 
+  @Test(arguments: [false, true])
+  func configuredRotationResumesOnlyItsExactOriginalCiphertext(committed: Bool) throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    let local = try session(f)
+    #expect(throws: Stop.interrupted) {
+      try service(
+        f, session: local,
+        observer: Observer {
+          if $0 == (committed ? .checkpointAdvanced : .manifestStaged) { throw Stop.interrupted }
+        }
+      ).rotate(expectedCheckpoint: f.checkpoint, operationID: f.operationID)
+    }
+    let bytes = try #require(f.ownership.value)
+    let signatures = f.core.owner.signatures
+    let subject = configuredWorkflow(f)
+    #expect(throws: (any Error).self) {
+      try subject.rotate(
+        .resume(operationID: VaultTransactionOperationID().rawValue), scope: requestScope())
+    }
+    #expect(f.ownership.value == bytes && f.core.owner.signatures == signatures)
+    let response = try subject.rotate(
+      .resume(operationID: f.operationID.rawValue), scope: requestScope())
+    guard case .completed(let vault, let digest, false) = response.recoveryRotation else {
+      throw Stop.interrupted
+    }
+    #expect(vault == Core.vaultID && f.ownership.value == nil)
+    #expect(f.core.owner.signatures == signatures)
+    #expect(
+      f.checkpoints.value
+        == (try V3ManifestCheckpoint(
+          vaultID: vault,
+          envelopeDigest: #require(Base64URL.decodeCanonical(digest)))).canonicalBytes)
+  }
+
+  @Test func configuredCancellationDuringNewWrapperOpeningCannotReserveRotation() throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    let scope = requestScope()
+    f.core.owner.onUnwrap = {
+      if f.core.owner.unwraps == 2 { scope.cancellation.cancel() }
+    }
+    #expect(throws: (any Error).self) { try configuredWorkflow(f).rotate(.rotate, scope: scope) }
+    #expect(f.ownership.value == nil && f.checkpoints.value == f.checkpoint.canonicalBytes)
+    #expect(f.core.owner.unwraps == 2)
+  }
+
+  @Test(arguments: [false, true])
+  func cancelledRotationPublicationCannotAdvanceOrReportLateSuccess(afterCommit: Bool) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let scope = requestScope()
+    let local = try session(f)
+    let s = V3RecoveryKeyRotationService(
+      vaultID: Core.vaultID, identity: f.core.owner, session: local, objectStore: f.store,
+      checkpointStore: f.checkpoints, recoveryAnchorStore: f.ownership,
+      registrationAnchorStore: f.registration, adoptionAnchorStore: f.adoption, cache: f.cache,
+      phaseObserver: Observer {
+        if $0 == (afterCommit ? .checkpointAdvanced : .publishedManifestValidated) {
+          scope.cancellation.cancel()
+        }
+      }, validateScope: { try scope.requireCurrent() })
+    #expect(throws: (any Error).self) {
+      try s.rotate(expectedCheckpoint: f.checkpoint, operationID: f.operationID)
+    }
+    #expect((f.checkpoints.value != f.checkpoint.canonicalBytes) == afterCommit)
+    #expect(f.ownership.value != nil)
+    if afterCommit { #expect(!local.hasResidentKey) }
+  }
+
+  private func requestScope() -> KeyRecoveryRequestScope {
+    .init(authentication: .init(), deadline: .now() + 90)
+  }
+  private func configuredWorkflow(_ f: Fixture) -> KeyRecoveryRegistrationWorkflow {
+    let reader = PIVRecoveryTokenReader(inventory: NoTokens(), gate: .init())
+    return .init(
+      vaultID: Core.vaultID, store: f.store, checkpoints: f.checkpoints,
+      transaction: f.ownership, registration: f.registration, adoption: f.adoption,
+      cache: f.cache, identities: Loader(identity: f.core.owner), reader: reader,
+      agreement: .live(reader: reader), owner: VaultTransactionMutationOwner())
+  }
+  private struct Loader: V3DeviceWrappedIdentityLoading {
+    let identity: any V3DeviceWrappedVaultKeyUnwrapping
+    func loadDeviceIdentity(vaultID _: String, reason _: String) throws -> (
+      any V3DeviceWrappedVaultKeyUnwrapping
+    )? { identity }
+  }
+  private struct NoTokens: PIVRecoveryTokenInventoryProviding {
+    func connections(maximumCount _: Int) throws -> [any PIVRecoveryTokenConnection] {
+      Issue.record("Rotation must never contact a token")
+      return []
+    }
+  }
+
   private func session(_ f: Fixture) throws -> V3DeviceWrappedVaultKeySessionStore {
     let session = V3DeviceWrappedVaultKeySessionStore()
     try session.install(Core.nextKey, vaultID: Core.vaultID, keyID: f.parent.body.fields.keyID)
