@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; internal authenticated initial restore and exact resume now compose preparation, manifest-last publication, insert-only trust, ordinary-runtime reopening, configuration selection and ordered finalization; product dispatch/barriers, separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; public token/source review and restore/resume CLI/protocol, gated host/connection lifecycle, restart ownership admission, native factories and internal profile-3 Mac unlock implemented; remaining commands, live feature gating, profile-3 shipping runtime and signed qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; public token/source review and restore/resume CLI/protocol, gated host/connection lifecycle, restart ownership admission, native factories and internal profile-3 Mac unlock/read adapter implemented; catch-up composition, remaining commands, live feature gating, shipping runtime and signed qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -4641,3 +4641,54 @@ compare floor fields and use a well-shaped capsule with mismatched public/privat
 correspondence. No production validation was relaxed. Raw verification logs and
 build products remain ignored under `tmp/piv-recovery/2026-10-07-recovery-unlock-*`
 and `tmp/piv-recovery/registration-status-build`.
+
+### 2026-10-07: exact-checkpoint profile-3 read adapter
+
+The internal [read adapter](../Sources/KeyCore/V3RecoveryReadOnlyVaultRuntime.swift)
+reuses the existing planner, executor and bounded encrypted-closure validator.
+It owns profile-3 authentication and UX error translation, not graph selection
+or publication. A generic profile-switching read orchestrator was considered,
+but would broaden the existing permanent-profile trust boundary while product
+composition is still incomplete. A separate adapter preserves explicit profile
+ownership without duplicating cryptography, plans or object verification.
+
+Unlock now provides a typed process-local read context retaining the exact
+authentication ticket (the installation receipt on cold access). Key lookup and
+final plaintext/metadata release revalidate generation, checkpoint and all three
+pending namespaces. Reinstalling the same key cannot revive an older read.
+The context is neither persistent authority nor a key container. Existing
+floor-returning unlock methods remain available for their existing callers.
+
+Status checks encrypted closure availability, hash and shape/context, not every
+entry's AEAD or provider freshness. Reads independently authenticate the selected
+entry. Only an explicit stale list permits unavailable encrypted files; invalid
+files or budget violations refuse. History and mutation methods refuse instead
+of inventing empty history or writable support. Invalid selectors are rejected
+before identity access. Catch-up/stale-provider policy, ordinary write/session
+composition and pending ceremony routing remain separate product work.
+
+The [read tests](../Tests/KeyCoreTests/V3RecoveryReadOnlyVaultRuntimeTests.swift)
+use actual profile-3 publication, entry AEAD and contained filesystem storage,
+with software Mac keys and scripted late changes. They cover exact secret/TOTP
+reads, empty/missing names, malformed selectors, unavailable/invalid ciphertext,
+budgets, all pending namespaces, lock and same-key replacement, retained-context
+refusal, read-only/history refusal, and actual same-epoch save plus cold reopen.
+No live hook, CLI, feature gate or native operation changes; `REC-812` remains
+in progress.
+
+Verification for this increment:
+
+- Focused Debug passed 62 declarations across six read/unlock/session suites
+  in 8.442 seconds. The new suite has 12 declarations exercising 50 cases.
+- Expanded Release passed 170 declarations across 11 suites in 76.051 seconds,
+  adding ordinary mutation and concrete same-epoch, key-transition, merged and
+  coordinated catch-up coverage. The full suite was not repeated for this bounded
+  internal adapter; the preceding unlock increment records its full Release run.
+- Final unsigned universal Preview build, bundle isolation, compiled version
+  `0.2.0 (19)` and arm64/x86_64 app, CLI and helper slices passed. Formatting,
+  project plist syntax, 321 relative documentation targets and diff whitespace
+  checks passed. Existing routing-test Sendable and AppIntents metadata warnings
+  remain unchanged.
+- No install, signing, publishing, push, real-vault access or token operation.
+  Logs remain ignored under `tmp/piv-recovery/2026-10-07-recovery-read-*`; build
+  products reuse `tmp/piv-recovery/registration-status-build`.

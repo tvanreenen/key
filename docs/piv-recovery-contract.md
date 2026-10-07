@@ -544,6 +544,39 @@ rotation catch-up and ordinary mutation services, then locks and freshly opens
 the saved state. This is not native authentication qualification or a shipping
 runtime factory. Live Stable/Preview dispatch remains unchanged.
 
+### Implemented internal exact-checkpoint profile-3 reads
+
+The [read adapter](../Sources/KeyCore/V3RecoveryReadOnlyVaultRuntime.swift) uses
+the existing read planner, encrypted-entry executor and bounded encrypted-closure
+validator. It selects entries only from the authenticated local floor. It does
+not discover provider heads, advance authority, or grant provider-current status;
+catch-up and stale-provider policy must be composed by a surrounding runtime.
+
+Unlock returns an internal read context bound to its exact checkpoint and
+authentication-generation ticket. The context contains no key. Cold access
+retains the installation receipt, rather than capturing a new ticket after
+authentication; warm access retains its original ticket. Exact checkpoint,
+pending ownership and generation are checked before and after key lookup, and
+again after decryption before plaintext is returned. Lock, expiry or replacement
+invalidates this context even if the same key ID is installed again.
+
+Entry reads verify the pinned immutable object's digest, context and AEAD.
+Names are normalized and validated before authentication. List and status check
+the bounded encrypted closure, then revalidate the context before returning
+metadata. A ready status here means encrypted-object availability, digest and
+shape/context checks at that exact floor, not independent AEAD opening of every
+entry or proof that the provider supplied its newest state. Missing ciphertext
+allows a last-trusted names-only list only with explicit stale permission;
+invalid objects and exceeded budgets refuse even that list. Missing entry
+plaintext is never returned under stale permission.
+
+Read authorization validates a selector against the authenticated floor; it
+does not open the entry or grant a reusable plaintext capability. The adapter
+refuses mutation and history methods because it has no publication or graph
+observation responsibility. It does not claim an empty conflict set. Product
+catch-up/read/session composition, pending-ceremony routing and the gated factory
+remain outstanding. No CLI, protocol, live dispatch or token operation changes.
+
 ### Implemented reciprocal internal pending-work guards
 
 Registration now requires explicit ordinary-transaction and adoption ownership
