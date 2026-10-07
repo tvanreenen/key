@@ -1459,9 +1459,10 @@ roster is inherited; the destination starts without recovery registration.
 cover ordinary rotation/edit-to-recovery composition, empty and populated inputs,
 changed sources, reused authority, mismatched objects and bounded resources.
 The destination wrapper still requires a Mac opening. Internal durable ownership
-and encrypted preparation are implemented below; native token binding,
-manifest-last publication, product resume and fresh-process ordinary reopening
-before selection remain. No route, checkpoint write or selection is enabled.
+and encrypted preparation, plus internal manifest-last publication, are
+implemented below. Native service orchestration, product resume, checkpoint
+installation and fresh-process ordinary reopening before selection remain.
+No product route, checkpoint write or selection is enabled.
 
 ### Implemented restore locations and intent format
 
@@ -1548,13 +1549,64 @@ before and after the preparation becomes durable. A final reload checks that the
 records still match. These observations do not replace the future service's
 serialized mutation owner, current authentication scope or lock-generation checks.
 
-This increment has no private-key caller, cleanup, publication, checkpoint,
+The journal itself has no private-key caller, cleanup, publication, checkpoint,
 configuration selection or product resume route. Software tests use real
 disposable filesystem writes and software keys, including a fresh journal reader,
 independently opened handles and a new destination wrapper opening. They do not
 qualify a separate OS process, native credential provenance, the new Keychain
 namespaces or physical-token behavior. Interrupted partial reservations remain
 pending for later explicit reconciliation; they are not silently abandoned.
+
+### Implemented restore publication and exact reconciliation
+
+The internal [restore publisher](../Sources/KeyCore/V3RecoveryRestorePublisher.swift)
+accepts a fresh source snapshot, destination key and already loaded addressed Mac
+identity. It confirms the exact owned preparation and validates it under the
+publication limits before a private operation or destination write. The existing
+permanent-profile checkpoint unlocker opens the saved Mac wrapper once and checks
+the resulting key against the supplied destination key. Its validation session
+is scoped to the call and invalidated on success and failure. No platform
+credential is created, and no private operation is automatically retried.
+
+The complete encrypted preparation is already durable staging. Publication uses
+the existing contained no-overwrite atomic writer directly at the final immutable
+addresses, rather than creating another transaction namespace and later deleting
+it. Entries are installed, read back and synchronized before the genesis manifest
+becomes visible. Full existing genesis checks compare the published bytes with
+the freshly verified source contents. Live source/location bindings and both
+ownership records are rechecked across publication and before return.
+
+Destination inspection accepts only a subset of the exact owned object addresses
+before the manifest exists. Known empty parent directories left by an interrupted
+creation are allowed. Unknown files, extra entries or manifests, symlinks,
+malformed bytes and orphan `.partial` files stop the operation and remain
+untouched. Root and child listings are bounded and use fresh directory-open
+descriptions, not a reused directory cursor.
+
+A later explicit call validates the saved preparation and opens its addressed
+Mac wrapper again. It may install missing entries only while the manifest is
+absent. If the exact manifest is already present, every referenced entry must
+already exist with its exact prepared bytes; the publisher does not repair a
+committed snapshot. Existing exact objects are rechecked and synchronized, not
+resealed or replaced. Cancellation and other failures leave the owned preparation
+available for a separate explicit call, subject to the same fresh checks.
+
+The returned report identifies the published checkpoint, not permission to
+install local trust or select the vault. The publisher writes no checkpoint,
+manifest cache, configuration, token object or persistent key session and does
+not clear ownership. Product requests, native source/identity provenance,
+session-generation checks and serialized helper ownership still need service
+integration. Filesystem observations cannot lock out concurrent external changes;
+a detected change stops the operation without rolling back published objects.
+
+[Software tests](../Tests/KeyCoreTests/V3RecoveryRestorePublisherTests.swift) cover
+empty/populated publication, each observer boundary, interrupted atomic writes,
+explicit later reconciliation, cancellation, wrapper mismatch, source/config/pin
+changes, destination damage and bounds. They use real disposable files and
+software wrapper operations. They do not qualify native authentication, actual
+process termination, separate-process ordinary reopening, large-vault performance
+or real-token recovery. A process crash that leaves an unknown partial file is
+not claimed to be automatically resumable.
 
 ### Implemented native public reader
 
