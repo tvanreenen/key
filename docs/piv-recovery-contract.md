@@ -1557,9 +1557,10 @@ The [service request](../Sources/KeyCore/KeyRecoveryRequest.swift) now represent
 initial restore and explicit resume with bounded public locations, token ID and
 the existing recipient ID. It does not carry credentials, secrets, native
 observations or consent. Structural validation is not native binding. The
-future native composition must independently resolve the exact selector and
-invoke the restore service using the supplied host scope's authentication store,
-cancellation and deadline.
+native [workflow](../Sources/KeyCore/V3RecoveryRestoreWorkflow.swift) independently
+resolves the exact selector and invokes the restore service using the supplied
+host scope's authentication store, cancellation and deadline. Its live factory
+exists but is not installed in the shipping host.
 
 The [host](../Sources/KeyCore/KeyServiceHost.swift) admits at most one pending or
 active recovery request through its existing exclusive barrier. Other recovery
@@ -1585,8 +1586,7 @@ restore ownership namespace. The in-memory guard is not durable recovery
 authority. Recovery dispatch and this inspector are supplied as one capability;
 the host cannot accept the dispatch hook without an ownership dependency.
 Stable and ordinary Preview live hosts keep that capability disabled. No CLI
-command, native service factory, saved-attempt scan, replacement credential or
-cleanup is added here.
+command, saved-attempt scan, replacement credential or cleanup is enabled here.
 [Host tests](../Tests/KeyCoreTests/KeyRecoveryRoutingTests.swift) include actual
 restore-service cancellation but substitute native I/O and service composition;
 actual XPC interruptions and hardware acceptance remain unqualified.
@@ -1624,8 +1624,58 @@ and resume services across fresh host instances, with software crypto and native
 I/O substituted at the existing boundaries. Keychain status/query-shape tests
 substitute only the matching call. They do not establish signed Keychain access,
 actual helper-process restart, Secure Enclave behavior or physical prompt counts.
-The native factory must install the paired capability before enablement; live
-Stable and Preview remain unchanged and disabled.
+The shipping host must install the native factory's paired capability before
+enablement; live Stable and Preview remain unchanged and disabled.
+
+### Native restore composition boundary
+
+The [workflow](../Sources/KeyCore/V3RecoveryRestoreWorkflow.swift) opens source and
+destination-parent handles from the independently supplied request paths. Initial
+restore requires a missing final destination, including refusal of existing
+empty directories, files and links. Resume opens the existing destination. It
+resolves exactly one requested native token ID, reads only that candidate and
+requires the complete recipient ID, fixed recovery policy and recognized anchor.
+No automatic key selection, admin command, PIN value or saved observation is
+accepted. The existing service revalidates the reader-issued observation and
+source selection before its one fresh agreement.
+
+`KeyConfigStore` owns local metadata preparation. Initial restore may create
+`Library`, `Application Support`, the product directory and the checkpoint-cache
+directory below an existing home. Each component is a bounded retained-parent
+operation, with 0700 mode for newly created directories, parent synchronization,
+nofollow child resolution, descriptor-identity comparison and scope/path
+rechecks. Existing permissions and contents are not replaced. Physical ancestry
+reuses the restore environment's parent walk; a source/config overlap or a
+destination in the config tree is refused. A requested destination cannot double
+as a metadata component, even through an aliased parent or a case variant.
+Reserved metadata names are compared case-insensitively even on a case-sensitive
+filesystem.
+
+This local scaffolding may precede source-key authentication. No selected config,
+journal ownership, Mac credential or restored destination is created at this stage. A
+failure can leave those local directories in place for inspection; no rollback
+deletion is attempted. Vault creation and durable reservation still occur only
+inside the authenticated restore service. The scope is checked throughout local
+preparation and the exact host authentication/cancellation/deadline dependencies
+are passed to the service. Resume creates no metadata directory and refuses a
+missing config root, cache root, destination or parent before agreement.
+
+The live factory composes the existing public token reader, native agreement
+provider, local ownership stores, Secure Enclave device identity manager,
+checkpoint store and filesystem cache. Construction alone performs no native
+operation or filesystem mutation. The paired capability is per-workflow and is
+not a configured ordinary runtime. Successful output contains public restore
+metadata and warns that the new vault has no recovery registration. It does not
+carry a key session or authority from the source.
+
+[Workflow tests](../Tests/KeyCoreTests/V3RecoveryRestoreWorkflowTests.swift) use
+actual selectors, config/cache locations, restore/resume services and contained
+files with software native providers and memory Keychain storage. Ordinary
+access is independently reopened from the selected config, saved Mac identity
+and composed cache after recovery-token availability is removed. This does not
+qualify native selectors on a real token, signed Keychain/Secure Enclave access,
+actual process restart, XPC interruption or physical PIN/touch behavior. Live
+dispatch and CLI commands remain disabled until their separate rollout work.
 
 ### Implemented restore locations and intent format
 
@@ -1637,8 +1687,10 @@ destination. Existing empty folders are refused, not adopted. The source,
 destination, destination parent and configuration root retain exact standardized
 paths and device/file identities. Later checks reject replaced folders or any
 configuration, including malformed files, directories and dangling symlinks.
-This initial path supports an unconfigured Mac only. The configuration directory
-must already exist; inspection never bootstraps it or overwrites a selection.
+This initial path supports an unconfigured Mac only. The internal environment
+requires an existing configuration directory and never bootstraps it or
+overwrites a selection. The explicit workflow prepares local scaffolding for an
+initial restore; resume and inspection continue to require existing roots.
 
 The [restore intent format](../Sources/KeyCore/V3RecoveryRestoreIntent.swift) binds
 those locations, one operation ID, the source anchor/credential/head, a stable
