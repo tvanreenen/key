@@ -98,7 +98,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
-| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; source-bound genesis, owned preparation, publication, insert-only checkpoint trust and fresh ordinary-runtime read implemented internally; selection, completion reconciliation, service orchestration and product resume remain |
+| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; source-bound genesis, owned preparation, publication, insert-only checkpoint trust, fresh ordinary-runtime read and exact configuration selection/reconciliation implemented internally; ownership finalization, service orchestration and product resume remain |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
@@ -562,6 +562,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Third 811 owned encrypted preparation, 2026-10-07 | [Local journal](../Sources/KeyCore/V3RecoveryRestoreJournal.swift), [pre-credential reservation](../Sources/KeyCore/V3RecoveryRestoreReservation.swift), [encrypted bundle](../Sources/KeyCore/V3RecoveryRestoreBundle.swift) and [filesystem/software checks](../Tests/KeyCoreTests/V3RecoveryRestoreJournalTests.swift) | Two source-vault ownership pins reserve before credential creation and commit exact complete encrypted bytes. Explicit confirmation validates the saved preparation without resealing. Interrupted, changed or unavailable records remain owned and cannot be regenerated. No publication, private-key caller, product resume, checkpoint or config selection is enabled. |
 | Fourth 811 exact restore publication, 2026-10-07 | [Restore publisher](../Sources/KeyCore/V3RecoveryRestorePublisher.swift) and [contained publication/reconciliation checks](../Tests/KeyCoreTests/V3RecoveryRestorePublisherTests.swift) | Opens the saved addressed Mac wrapper once per explicit call, installs exact entries before the manifest and reconciles known prefixes without resealing. A present manifest requires a complete exact snapshot, never repair. Unexpected files/partials stop publication. No checkpoint, cache, config, ownership cleanup, product route or native qualification. |
 | Fifth 811 local trust and ordinary reopen, 2026-10-07 | [Trust installer](../Sources/KeyCore/V3RecoveryRestoreTrustInstaller.swift) and [software trust/reopen tests](../Tests/KeyCoreTests/V3RecoveryRestoreTrustInstallerTests.swift) | Rechecks complete published objects, verifies the persisted addressed wrapper, caches exact encrypted bytes and inserts only an absent checkpoint. A fresh empty session uses the ordinary identity loader/runtime to read every restored item. Matching interrupted trust is retained; different trust is refused. No config selection, ownership cleanup, product caller or native qualification. |
+| Sixth 811 configuration selection and reconciliation, 2026-10-07 | [Selection installer](../Sources/KeyCore/V3RecoveryRestoreSelectionInstaller.swift), [bound environment](../Sources/KeyCore/V3RecoveryRestoreEnvironment.swift) and [selection tests](../Tests/KeyCoreTests/V3RecoveryRestoreSelectionInstallerTests.swift) | Fresh trust/ordinary-access checks precede exact no-overwrite config publication. Explicit selected continuation requires matching config, existing exact trust and complete owned files. Both ownership records remain intact. No product caller, native qualification or ownership finalization. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -3755,3 +3756,64 @@ Those steps must recheck actual trust/files rather than treating this report as
 saved approval. Native source/identity/session-generation binding and serialized
 product restore/resume still need service integration. Configuration is not
 selected and ownership is not cleared by this increment.
+
+### Sixth 811 configuration selection and reconciliation, 2026-10-07
+
+The internal [selection installer](../Sources/KeyCore/V3RecoveryRestoreSelectionInstaller.swift)
+stays on local `codex/recovery-restore`. It loads the exact owned preparation,
+matches independently opened physical handles, and invokes the trust installer
+for fresh saved-identity access and ordinary-runtime verification. A prior report
+is not accepted as approval or completion evidence.
+
+Inspection compared the mutable config setter with the existing contained atomic
+writer. A setter could replace a competing selection; the atomic writer preserves
+it. Selection therefore publishes the normal local config without overwrite and
+checks the source, owned records, complete files, checkpoint and encrypted cache
+again at the synchronized temporary-file boundary and after publication.
+
+Keeping every environment strictly unconfigured would prevent reconciliation
+after a committed config write. A dedicated completion environment instead
+requires exact selected bytes and the intended vault ID. It never accepts a
+semantically similar or user-edited config. Existing exact checkpoint trust is
+required before credential access; config cannot recreate missing trust. The
+ordinary preparation/publication gates remain unconfigured-only. Selected retry
+repeats fresh trust/read verification and synchronizes config without rewriting.
+Failures retain committed config/trust and both ownership pins, with no rollback,
+repair, resealing, credential creation or private-operation retry.
+
+Verification:
+
+- Final Debug passed 11 declarations and 42 cases. Real filesystem cases cover
+  empty/populated selection, all three selection boundaries before/after config,
+  malformed/different/linked config, missing/different checkpoint, temporary-write
+  interruption, source/ownership/file changes, physical-root replacement and
+  selected-state damage. A separately constructed ordinary runtime uses only
+  the actual saved config, identity, checkpoint and cache to read every item.
+- Focused Release passed 116 declarations in ten suites covering restore,
+  config compatibility, initialization, genesis and unconfigured enrollment.
+- Full Release passed all 1,560 KeyCore declarations in 126 suites in 298.861
+  seconds, plus six canonical-JSON declarations in one suite. The separately
+  gated large migration remained skipped. No behavioral source change followed
+  the focused optimized build; the full run used `--skip-build --no-parallel`.
+- Unsigned universal Preview compilation, arm64/x86_64 app/CLI/helper slices,
+  bundle isolation, actual CLI help/version, strict formatting of six restore
+  Swift files, project syntax, Git whitespace and 246 relative documentation
+  targets passed. The existing config file's formatting convention is retained.
+- The first test compile rejected an incorrect fixture `Sendable` declaration;
+  callbacks now capture only their actual Sendable dependencies. The first Xcode
+  build caught a file-reference/build-reference typo, corrected before the
+  successful build. Self-review added the selected-config vault-ID guard and its
+  regression case. No production protection check was relaxed.
+
+Raw logs use `tmp/piv-recovery/2026-10-07-restore-selection-` and remain ignored.
+Tests use disposable config/files/cache, software identities and memory
+checkpoint/ownership stores. No real config/vault, native credential or token
+was changed. Native prompt counts, physical recovery, separate-process recovery,
+large-vault performance and fresh independent review remain unqualified. No
+implementation package is complete, and nothing was installed, pushed or released.
+
+Next: interruption-safe ownership finalization. Both pins and encrypted records
+remain deliberately intact; a selected report does not authorize deleting them.
+Later ordinary edits that advance the restored checkpoint are not adopted by
+this exact-genesis path. Native approval/session-generation binding, serialized
+service orchestration and product restore/resume remain.

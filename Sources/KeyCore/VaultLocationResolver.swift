@@ -202,6 +202,21 @@ public struct KeyConfigStore {
         return root
     }
 
+    /// Completion may inspect an existing selection, but never bootstrap or
+    /// replace it. The restore environment checks exact bytes through this root.
+    func restoreCompletionRoot() throws -> VaultRootDirectoryHandle {
+        try VaultRootDirectoryHandle(opening: configurationPaths().configDirectoryURL)
+    }
+
+    func restoredVaultConfigurationData(root: URL, vaultID: String) throws -> Data {
+        guard isValidV3UUID(vaultID) else {
+            throw AppError.invalidConfiguration("Key cannot configure a vault with an invalid ID.")
+        }
+        return configurationData(KeyConfigurationFile(
+            vaultDirectoryURL: root.standardizedFileURL, keychainMode: .local, vaultID: vaultID
+        ))
+    }
+
     /// Reserves this destination before any device identity is created. Records
     /// are local, contain no keys, and survive process failure. A later attempt
     /// at this path must be inspected, never silently initialized again.

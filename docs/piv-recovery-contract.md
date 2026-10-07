@@ -1461,8 +1461,9 @@ changed sources, reused authority, mismatched objects and bounded resources.
 The destination wrapper still requires a Mac opening. Internal durable ownership
 and encrypted preparation, plus internal manifest-last publication, are
 implemented below, together with internal checkpoint installation and an ordinary
-runtime reopen. Native service orchestration, product resume, separate-process
-qualification and configuration selection remain. No product restore route is enabled.
+runtime reopen and exact configuration selection/reconciliation. Ownership
+finalization, native service orchestration, product resume and separate-process
+qualification remain. No product restore route is enabled.
 
 ### Implemented restore locations and intent format
 
@@ -1498,9 +1499,10 @@ ownership and stores complete encrypted preparations. Product resume must first
 establish local ownership of the exact saved preparation before opening its
 addressed Mac wrapper, then authenticate this record and reverify the source and
 complete destination contents. A matching MAC alone cannot authorize publication.
-Source/native binding, session-generation checks, explicit reauthentication,
-checkpoint installation and final no-overwrite configuration selection remain
-the restore owner's responsibilities. The checks observe filesystem state;
+Internal components now install checkpoint trust and select configuration after
+ordinary reopening. Source/native binding, session-generation checks, explicit
+reauthentication and serialized composition remain the restore owner's
+responsibilities. The checks observe filesystem state;
 they do not lock folders against concurrent external changes.
 
 ### Implemented local restore reservation and encrypted preparation
@@ -1638,6 +1640,38 @@ are created, and no ownership is cleared. Current native authentication scope,
 session generation and helper serialization remain service responsibilities.
 Software tests use real files/cache and memory checkpoints; separate-process,
 Secure Enclave, large-vault and physical recovery qualification remain.
+
+### Implemented restore configuration selection and exact continuation
+
+The [selection installer](../Sources/KeyCore/V3RecoveryRestoreSelectionInstaller.swift)
+loads the locally owned preparation and independently supplied physical handles.
+It repeats trust installation and fresh ordinary-runtime verification rather
+than accepting a saved success report. Only then does the existing atomic
+no-overwrite writer publish the normal local configuration. The exact source,
+files, ownership, cache and checkpoint are checked again after the temporary
+config is synchronized, before publication, and after selection.
+
+An explicit later call can accept an already-selected config only when its bytes
+exactly match the intended destination path, vault ID and local mode. It requires
+existing exact checkpoint trust before loading credentials; config cannot
+reconstruct missing trust. The saved identity opens the wrapper again through
+new temporary sessions, and the actual complete snapshot is verified again.
+Selected configuration is synchronized without rewriting it. Even a formatting
+change is not normalized or overwritten by this continuation path.
+
+Ordinary preparation/reopening still requires absent config. A completion
+environment cannot stage or publish a restore again. Missing or damaged objects,
+different trust, changed source or replaced folders stop continuation. Committed
+config/trust are retained, not rolled back. Later ordinary edits that advance
+the restored checkpoint need separate reconciliation; this exact-genesis path
+does not adopt them as completed restore evidence.
+
+Both ownership pins and encrypted records remain intact. Their interruption-safe
+finalization, native approval/session binding, serialized service composition and
+product routing remain unimplemented. This component neither creates credentials
+nor accesses a token. Tests use disposable config files, software identities,
+memory checkpoints and the real filesystem cache/runtime, not native hardware or
+a separate OS process.
 
 ### Implemented native public reader
 

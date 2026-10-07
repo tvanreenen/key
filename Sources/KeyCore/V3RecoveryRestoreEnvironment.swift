@@ -94,10 +94,11 @@ struct V3RecoveryRestoreLocations: Equatable, Sendable {
   }
 }
 
-/// Retained filesystem authority for internal restore preparation. Capture
+/// Retained filesystem authority for internal restore. Capture
 /// accepts only a newly-created, empty destination and an unconfigured Mac.
 /// Creation makes only the requested final directory after checking its parent.
-/// No record, credential, checkpoint or configuration is written.
+/// Capture writes no record, credential, checkpoint or configuration. Explicit
+/// completion can select exact configuration after fresh trust/read checks.
 struct V3RecoveryRestoreEnvironment: Sendable {
   let locations: V3RecoveryRestoreLocations
   let destination: VaultRootDirectoryHandle
@@ -105,6 +106,11 @@ struct V3RecoveryRestoreEnvironment: Sendable {
   private let source: VaultRootDirectoryHandle
   private let configuration: VaultRootDirectoryHandle
   private let newDirectory: V3NewVaultDirectory?
+  private struct SelectedConfiguration: Sendable {
+    let vaultID: String
+    let bytes: Data
+  }
+  private let selectedConfiguration: SelectedConfiguration?
 
   static func create(
     source: VaultRootDirectoryHandle, in parent: VaultRootDirectoryHandle, name: String,
@@ -141,16 +147,37 @@ struct V3RecoveryRestoreEnvironment: Sendable {
     return environment
   }
 
+  /// Only explicit completion can accept an already-selected configuration.
+  /// The ID/locations must come from the locally owned preparation. No paths
+  /// from that record are opened here; all handles are supplied independently.
+  static func reopenForCompletion(
+    source: VaultRootDirectoryHandle, destination: VaultRootDirectoryHandle,
+    parent: VaultRootDirectoryHandle, configStore: KeyConfigStore,
+    expected: V3RecoveryRestoreLocations, vaultID: String
+  ) throws -> Self {
+    let root = try configStore.restoreCompletionRoot()
+    let bytes = try configStore.restoredVaultConfigurationData(
+      root: destination.rootURL, vaultID: vaultID)
+    let selected = try configurationPresent(root)
+    let environment = try Self(
+      source: source, destination: destination, parent: parent, configuration: root,
+      newDirectory: nil,
+      selectedConfiguration: selected ? .init(vaultID: vaultID, bytes: bytes) : nil)
+    try environment.requireCurrent(expected)
+    return environment
+  }
+
   private init(
     source: VaultRootDirectoryHandle, destination: VaultRootDirectoryHandle,
     parent: VaultRootDirectoryHandle, configuration: VaultRootDirectoryHandle,
-    newDirectory: V3NewVaultDirectory?
+    newDirectory: V3NewVaultDirectory?, selectedConfiguration: SelectedConfiguration? = nil
   ) throws {
     self.source = source
     self.destination = destination
     destinationParent = parent
     self.configuration = configuration
     self.newDirectory = newDirectory
+    self.selectedConfiguration = selectedConfiguration
     locations = .init(
       source: source, destination: destination,
       destinationParent: parent, configuration: configuration)
@@ -160,13 +187,14 @@ struct V3RecoveryRestoreEnvironment: Sendable {
   /// Shared single-use directory gate survives copies of this value. Resume
   /// cannot reserve again, even when the owned destination is still empty.
   func beginReservation() throws {
+    try requireUnselectedConfiguration()
     try requireCurrent(locations)
     guard let newDirectory else { throw V3RecoveryRestoreError.invalidIntent }
     try newDirectory.begin(for: destination.rootURL)
   }
 
   /// Call across approvals and before each durable transition. A parsed record
-  /// cannot substitute new paths, folders or an existing configuration.
+  /// cannot substitute new paths, folders or an unrelated configuration.
   func requireCurrent(_ expected: V3RecoveryRestoreLocations) throws {
     guard expected == locations else { throw V3RecoveryRestoreError.locationChanged }
     try expected.source.requireMatch(source)
@@ -180,12 +208,75 @@ struct V3RecoveryRestoreEnvironment: Sendable {
         throw V3RecoveryRestoreError.overlappingDirectories
       }
     }
-    try Self.requireAbsentConfiguration(configuration)
+    if let selectedConfiguration {
+      try requireExactConfiguration(selectedConfiguration.bytes)
+    } else {
+      try Self.requireAbsentConfiguration(configuration)
+    }
     // Parent walking is an observation, not a filesystem lock.
     try expected.source.requireMatch(source)
     try expected.destination.requireMatch(destination)
     try expected.destinationParent.requireMatch(destinationParent)
     try expected.configuration.requireMatch(configuration)
+  }
+
+  var hasSelectedConfiguration: Bool { selectedConfiguration != nil }
+
+  func requireSelectionMatches(vaultID: String) throws {
+    guard selectedConfiguration == nil || selectedConfiguration?.vaultID == vaultID else {
+      throw V3RecoveryRestoreError.configurationPresent
+    }
+  }
+
+  func requireUnselectedConfiguration() throws {
+    guard selectedConfiguration == nil else {
+      throw V3RecoveryRestoreError.configurationPresent
+    }
+    try Self.requireAbsentConfiguration(configuration)
+  }
+
+  /// Called only after fresh trust and ordinary-read verification. Retrying a
+  /// selected environment verifies/synchronizes exact bytes without rewriting.
+  func selectConfiguration(
+    configStore: KeyConfigStore, vaultID: String,
+    beforePublication: @escaping @Sendable () throws -> Void,
+    writeObserver: any V3AtomicStagedObjectWriteObserving = V3NoopAtomicStagedObjectWriteObserver()
+  ) throws -> Self {
+    let root = try configStore.restoreCompletionRoot()
+    try locations.configuration.requireMatch(root)
+    let bytes = try configStore.restoredVaultConfigurationData(
+      root: destination.rootURL, vaultID: vaultID)
+    try requireCurrent(locations)
+    try beforePublication()
+    if let selectedConfiguration {
+      guard selectedConfiguration.vaultID == vaultID, selectedConfiguration.bytes == bytes else {
+        throw V3RecoveryRestoreError.configurationPresent
+      }
+    } else {
+      let gate = V3RestoreConfigurationWriteGate(
+        environment: self, validate: beforePublication, observer: writeObserver)
+      try V3AtomicStagedObjectWriter(rootHandle: configuration, observer: gate)
+        .install(bytes, at: "config.toml")
+    }
+    let selected = try Self(
+      source: source, destination: destination, parent: destinationParent,
+      configuration: configuration, newDirectory: nil,
+      selectedConfiguration: .init(vaultID: vaultID, bytes: bytes))
+    try selected.requireCurrent(locations)
+    try V3FilesystemTransactionArtifactStore(rootHandle: configuration)
+      .confirmDurableRecoveryObject(bytes, at: "config.toml", directories: [])
+    try selected.requireCurrent(locations)
+    return selected
+  }
+
+  private func requireExactConfiguration(_ bytes: Data) throws {
+    guard
+      case .available(let observed) = try V3FilesystemTransactionArtifactStore(
+        rootHandle: configuration
+      ).readRecoveryObject(at: "config.toml", maximumBytes: bytes.count), observed == bytes
+    else {
+      throw V3RecoveryRestoreError.configurationPresent
+    }
   }
 
   /// The snapshot must still describe the retained source descriptor, not an
@@ -215,12 +306,18 @@ struct V3RecoveryRestoreEnvironment: Sendable {
   }
 
   private static func requireAbsentConfiguration(_ configuration: VaultRootDirectoryHandle) throws {
+    guard try !configurationPresent(configuration) else {
+      throw V3RecoveryRestoreError.configurationPresent
+    }
+  }
+
+  private static func configurationPresent(_ configuration: VaultRootDirectoryHandle) throws -> Bool
+  {
     try configuration.withFileDescriptor { descriptor in
       var metadata = stat()
-      guard fstatat(descriptor, "config.toml", &metadata, AT_SYMLINK_NOFOLLOW) != 0 else {
-        throw V3RecoveryRestoreError.configurationPresent
-      }
+      if fstatat(descriptor, "config.toml", &metadata, AT_SYMLINK_NOFOLLOW) == 0 { return true }
       guard errno == ENOENT else { throw V3RecoveryRestoreError.locationChanged }
+      return false
     }
   }
 
@@ -254,5 +351,17 @@ struct V3RecoveryRestoreEnvironment: Sendable {
       }
       throw V3RecoveryRestoreError.resourceLimit
     }
+  }
+}
+
+private struct V3RestoreConfigurationWriteGate: V3AtomicStagedObjectWriteObserving {
+  let environment: V3RecoveryRestoreEnvironment
+  let validate: @Sendable () throws -> Void
+  let observer: any V3AtomicStagedObjectWriteObserving
+
+  func didReach(_ phase: V3AtomicStagedObjectWritePhase) throws {
+    try observer.didReach(phase)
+    try environment.requireCurrent(environment.locations)
+    try validate()
   }
 }

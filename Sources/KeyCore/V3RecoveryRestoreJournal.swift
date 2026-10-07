@@ -131,6 +131,7 @@ struct V3RecoveryRestoreJournal: Sendable {
     environment: V3RecoveryRestoreEnvironment, vaultKey: Data,
     expectedOwner: V3EnrollmentDeviceIdentity
   ) throws -> V3RecoveryRestoreBundle {
+    try environment.requireUnselectedConfiguration()
     let sourceID = reservation.sourceAnchor.floor.vaultID
     let pending = try requirePending(sourceID)
     guard pending.reservation == reservation, pending.reservationOwnership.phase == .recoverable,

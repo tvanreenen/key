@@ -55,7 +55,12 @@ struct V3RecoveryRestoreTrustInstaller: Sendable {
       let saved = pending.preparation, pending.preparationOwnership?.phase == .recoverable
     else { throw V3RecoveryRestoreTrustError.preparationUnavailable }
     let checkpoint = saved.intent.destinationCheckpoint
+    try environment.requireSelectionMatches(vaultID: checkpoint.vaultID)
     let prior = try checkpoints.loadCheckpoint(vaultID: checkpoint.vaultID)
+    // Config cannot justify reconstructing missing trust after selection.
+    guard !environment.hasSelectedConfiguration || prior == checkpoint.canonicalBytes else {
+      throw V3RecoveryRestoreTrustError.conflictingCheckpoint
+    }
     guard prior == nil || prior == checkpoint.canonicalBytes else {
       throw V3RecoveryRestoreTrustError.conflictingCheckpoint
     }

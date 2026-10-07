@@ -59,6 +59,7 @@ struct V3RecoveryRestorePublisher: Sendable {
     environment: V3RecoveryRestoreEnvironment, vaultKey: Data,
     identity: any V3DeviceWrappedVaultKeyUnwrapping
   ) throws -> V3RecoveryRestorePublicationReport {
+    try environment.requireUnselectedConfiguration()
     let bundle = try journal.confirmPreparation(
       sourceVaultID: sourceVaultID, snapshot: snapshot, environment: environment,
       vaultKey: vaultKey, expectedOwner: identity.publicIdentity)
