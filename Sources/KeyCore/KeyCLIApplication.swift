@@ -87,6 +87,8 @@ public final class KeyCLIApplication {
             return try executeRecoveryReview(request, json: json)
         case let .recoveryRegistration(request, exportPath, json):
             return try executeRecoveryRegistration(request, exportPath: exportPath, json: json)
+        case let .recoveryRotation(request):
+            return try executeRecoveryRotation(request)
         case .unlock:
             response = try transport.send(.unlock)
             return try handle(response, for: command)
@@ -156,7 +158,7 @@ public final class KeyCLIApplication {
             if let value = response.value {
                 io.writeStdout(formattedGetOutput(value))
             }
-        case .status, .conflict, .recoveryReview, .recoveryRegistration:
+        case .status, .conflict, .recoveryReview, .recoveryRegistration, .recoveryRotation:
             break
         case .copy(name: _, allowStale: _), .add, .edit, .duplicate,
             .rename, .remove:
@@ -235,6 +237,46 @@ public final class KeyCLIApplication {
         }
     }
 
+    private func executeRecoveryRotation(_ request: KeyRecoveryRotationRequest) throws -> Int32 {
+        try request.validate()
+        guard io.stdinIsTTY else {
+            throw AppError.operationRefused("Explicit key rotation requires an interactive terminal. No request was sent.")
+        }
+        io.writeStderr("This gated operation changes the configured vault encryption key, preserving access. No hardware token is contacted. Preserve a backup; Mac authentication may be requested.\n")
+        guard try io.readLine(prompt: "Type ROTATE to continue: ").trimmingCharacters(in: .whitespacesAndNewlines) == "ROTATE" else {
+            throw AppError.operationRefused("Key rotation cancelled. No request was sent.")
+        }
+        do {
+            let response = try transport.send(.recoveryRotation(request))
+            guard response.exitCode == EXIT_SUCCESS else {
+                if let message = response.errorMessage { io.writeStderr(message + "\n") }
+                writeRotationFailureGuidance()
+                return response.exitCode
+            }
+            let result = try requiredServicePayload(response.recoveryRotation, operation: "vault-key rotation")
+            switch result {
+            case .completed(let vault, let digest, let pending):
+                guard isValidV3UUID(vault), Base64URL.decodeCanonical(digest)?.count == 32 else {
+                    throw AppError.service("Invalid key rotation completion response.")
+                }
+                io.writeStdout("Vault-key rotation committed.\nVault ID: \(vault)\nManifest: \(digest)\nCleanup pending: \(pending)\nInspect status after helper restart. No token operation was requested.\n")
+            case .abandoned(let vault):
+                guard case .resume = request, isValidV3UUID(vault) else {
+                    throw AppError.service("Invalid key rotation abandonment response.")
+                }
+                io.writeStdout("The exact incomplete rotation was abandoned safely. No replacement rotation was started. Inspect status after helper restart.\n")
+            }
+            return EXIT_SUCCESS
+        } catch {
+            writeRotationFailureGuidance()
+            throw error
+        }
+    }
+
+    private func writeRotationFailureGuidance() {
+        io.writeStderr("A failed or lost reply does not prove rotation failed to commit. Preserve vault files and local ownership; inspect status and recovery pending after restart, then explicitly resume the original pinned operation. Do not delete state or request a replacement rotation. No automatic retry was made.\n")
+    }
+
     private func executeRecoveryRegistration(
         _ request: KeyRecoveryRegistrationRequest, exportPath: String?, json: Bool
     ) throws -> Int32 {
@@ -244,7 +286,7 @@ public final class KeyCLIApplication {
         case .prepare: confirmation = "PREPARE"
         case .finish: confirmation = "REGISTER"
         case .adopt, .resumeAdoption: confirmation = "ADOPT"
-        case .status, .resumeExport: confirmation = nil
+        case .status, .pending, .resumeExport: confirmation = nil
         }
         if let confirmation {
             guard io.stdinIsTTY else {
@@ -267,6 +309,19 @@ public final class KeyCLIApplication {
             }
             let result = try requiredServicePayload(response.recoveryRegistration, operation: "recovery registration")
             switch (request, result) {
+            case (.pending, .pending(let vault, let operations)):
+                guard isValidV3UUID(vault), operations.count <= 3,
+                      Set(operations.map(\.namespace)).count == operations.count,
+                      operations.allSatisfy({ (try? VaultTransactionOperationID(validating: $0.operationID)) != nil }) else {
+                    throw AppError.service("Invalid saved recovery selector response.")
+                }
+                if json { try writeJSON(result) }
+                else {
+                    io.writeStdout("Vault ID: \(vault)\n")
+                    for operation in operations { io.writeStdout("\(operation.namespace.rawValue): \(operation.operationID)\n") }
+                    io.writeStdout("Saved selectors: \(operations.count). Public local ownership only, not validated intent, completion or approval. Preserve all records; ambiguous selectors require inspection.\n")
+                }
+                return EXIT_SUCCESS
             case (.status, .status(let state, let vaultID, let recipients, let committed)):
                 guard isValidV3UUID(vaultID), recipients.count <= 64,
                       recipients.allSatisfy({ (try? V3RecoveryRecipientID(rawValue: $0)) != nil }) else {
@@ -308,7 +363,7 @@ public final class KeyCLIApplication {
     }
 
     private func writeRegistrationFailureGuidance() {
-        io.writeStderr("Preserve token, vault files and local setup records. A failed or lost reply does not prove nothing committed. Do not create replacement setup or rewrite the token. Inspect status after restart; explicitly resume-export or finish the owned registration, or resume adoption with its original operation ID. Export failures require a new output filename, not a new preparation.\n")
+        io.writeStderr("Preserve token, vault files and local setup records. A failed or lost reply does not prove nothing committed. Do not create replacement setup or rewrite the token. Inspect status and recovery pending after restart; explicitly resume-export or finish the owned registration, or resume adoption with its original operation ID. Export failures require a new output filename, not a new preparation.\n")
     }
 
     private func executeRecovery(_ request: KeyRecoveryRequest) throws -> Int32 {

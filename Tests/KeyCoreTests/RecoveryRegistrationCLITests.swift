@@ -108,6 +108,62 @@ struct RecoveryRegistrationCLITests {
     #expect(io.stdout.contains("attentionRequired"))
   }
 
+  @Test(arguments: [false, true])
+  func rotationRequiresConsentAndTransportsNoTokenSelector(resume: Bool) throws {
+    let operation = VaultTransactionOperationID().rawValue
+    let action: KeyRecoveryRotationRequest = resume ? .resume(operationID: operation) : .rotate
+    let input = ["recovery", "rotate"] + (resume ? ["--resume", operation] : [])
+    #expect(try CLIParser.parse(arguments: input) == .recoveryRotation(action))
+    let io = MemoryIO(stdinIsTTY: true, lineInput: "ROTATE", secureInput: "must-not-read")
+    let transport = MemoryTransport { _ in
+      .init(
+        exitCode: EXIT_SUCCESS, value: nil, errorMessage: nil,
+        recoveryRotation: .completed(
+          vaultID: Self.vault,
+          manifestDigest: Base64URL.encode(Data(repeating: 8, count: 32)), cleanupPending: false))
+    }
+    #expect(
+      KeyCLIApplication(transport: transport, io: io, clipboard: MemoryClipboard()).run(
+        arguments: input) == EXIT_SUCCESS)
+    #expect(transport.requests == [.recoveryRotation(action)])
+    #expect(io.stdout.contains("No token operation") && !io.stdout.contains("must-not-read"))
+    let cancelled = MemoryTransport { _ in
+      Issue.record("Cancelled rotation dispatched")
+      return .success()
+    }
+    #expect(
+      KeyCLIApplication(
+        transport: cancelled,
+        io: MemoryIO(stdinIsTTY: true, lineInput: "wrong"), clipboard: MemoryClipboard()
+      ).run(arguments: input) != EXIT_SUCCESS)
+    #expect(cancelled.requests.isEmpty)
+    #expect(throws: AppError.self) { try CLIParser.parse(arguments: input + ["--token", "key"]) }
+    #expect(throws: AppError.self) {
+      try CLIParser.parse(arguments: ["recovery", "rotate", "--resume", "prefix"])
+    }
+  }
+
+  @Test func pendingSelectorsNeedNoApprovalAndReportOriginalOperationIDs() throws {
+    #expect(
+      try CLIParser.parse(arguments: ["recovery", "pending", "--json"])
+        == .recoveryRegistration(.pending, exportPath: nil, json: true))
+    let operation = VaultTransactionOperationID().rawValue
+    let transport = MemoryTransport { _ in
+      .init(
+        exitCode: EXIT_SUCCESS, value: nil, errorMessage: nil,
+        recoveryRegistration: .pending(
+          vaultID: Self.vault,
+          operations: [.init(namespace: .adoption, operationID: operation)]))
+    }
+    let io = MemoryIO(
+      stdinIsTTY: false, onReadLine: { Issue.record("Pending must not ask approval") })
+    #expect(
+      KeyCLIApplication(transport: transport, io: io, clipboard: MemoryClipboard())
+        .run(arguments: ["recovery", "pending"]) == EXIT_SUCCESS)
+    #expect(io.stdout.contains(operation) && io.stdout.contains("not validated intent"))
+    #expect(transport.requests == [.recoveryRegistration(.pending)])
+  }
+
   private func arguments(resume: Bool = false) -> [String] {
     [
       "recovery", "register", resume ? "resume-export" : "prepare", "--token", "token",

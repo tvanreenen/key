@@ -53,6 +53,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     case recovery(KeyRecoveryRequest)
     case recoveryReview(KeyRecoveryReviewRequest)
     case recoveryRegistration(KeyRecoveryRegistrationRequest)
+    case recoveryRotation(KeyRecoveryRotationRequest)
     case list
     case migrationPreflight
     case migrationApply
@@ -74,7 +75,7 @@ public enum KeyServiceRequest: Codable, Equatable {
             30
         case .unlock, .get, .getConflictValue, .migrationPreflight:
             120
-        case .recovery, .recoveryReview, .recoveryRegistration:
+        case .recovery, .recoveryReview, .recoveryRegistration, .recoveryRotation:
             120
         case .list:
             30
@@ -89,7 +90,7 @@ public enum KeyServiceRequest: Codable, Equatable {
     public var requiresHelperShutdownAfterSuccess: Bool {
         if case .recoveryRegistration(let action) = self { return action.changesCheckpoint }
         return switch self {
-        case .lock, .initializeVault, .setVaultDirectory, .migrationApply, .recovery,
+        case .lock, .initializeVault, .setVaultDirectory, .migrationApply, .recovery, .recoveryRotation,
             .share(.accept), .share(.replaceCurrentDevice), .shareInDirectory(.accept, _):
             true
         default:
@@ -115,6 +116,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case recoveryRequest
         case recoveryReviewRequest
         case recoveryRegistrationRequest
+        case recoveryRotationRequest
     }
 
     private enum Kind: String, Codable {
@@ -131,6 +133,7 @@ public enum KeyServiceRequest: Codable, Equatable {
         case recovery
         case recoveryReview
         case recoveryRegistration
+        case recoveryRotation
         case list
         case migrationPreflight
         case migrationApply
@@ -197,6 +200,8 @@ public enum KeyServiceRequest: Codable, Equatable {
             self = .recoveryReview(try container.decode(KeyRecoveryReviewRequest.self, forKey: .recoveryReviewRequest))
         case .recoveryRegistration:
             self = .recoveryRegistration(try container.decode(KeyRecoveryRegistrationRequest.self, forKey: .recoveryRegistrationRequest))
+        case .recoveryRotation:
+            self = .recoveryRotation(try container.decode(KeyRecoveryRotationRequest.self, forKey: .recoveryRotationRequest))
         case .migrationPreflight:
             self = .migrationPreflight
         case .migrationApply:
@@ -261,6 +266,9 @@ public enum KeyServiceRequest: Codable, Equatable {
         case .recoveryRegistration(let request):
             try container.encode(Kind.recoveryRegistration, forKey: .kind)
             try container.encode(request, forKey: .recoveryRegistrationRequest)
+        case .recoveryRotation(let request):
+            try container.encode(Kind.recoveryRotation, forKey: .kind)
+            try container.encode(request, forKey: .recoveryRotationRequest)
         case .unlock:
             try container.encode(Kind.unlock, forKey: .kind)
         case .lock:
@@ -425,6 +433,7 @@ public struct KeyServiceResponse: Codable, Equatable {
     public let conflict: VaultConflictDetail?
     public let recoveryReview: KeyRecoveryReviewResult?
     public let recoveryRegistration: KeyRecoveryRegistrationResult?
+    public let recoveryRotation: KeyRecoveryRotationResult?
 
     public init(
         exitCode: Int32,
@@ -439,7 +448,8 @@ public struct KeyServiceResponse: Codable, Equatable {
         conflicts: [VaultConflictSummary]? = nil,
         conflict: VaultConflictDetail? = nil,
         recoveryReview: KeyRecoveryReviewResult? = nil,
-        recoveryRegistration: KeyRecoveryRegistrationResult? = nil
+        recoveryRegistration: KeyRecoveryRegistrationResult? = nil,
+        recoveryRotation: KeyRecoveryRotationResult? = nil
     ) {
         self.exitCode = exitCode
         self.value = value
@@ -454,6 +464,7 @@ public struct KeyServiceResponse: Codable, Equatable {
         self.conflict = conflict
         self.recoveryReview = recoveryReview
         self.recoveryRegistration = recoveryRegistration
+        self.recoveryRotation = recoveryRotation
     }
 
     public static func success(

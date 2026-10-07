@@ -942,6 +942,45 @@ struct V3RecoveryRegistrationServiceTests {
     #expect(try runtime.status().health == .ready)
     #expect(f.provider.requests == 1)
     #expect(Base64URL.decodeCanonical(digest)?.count == 32)
+    try runtime.edit(
+      name: "fixture/secret", secret: "edited before rotation", type: .secret,
+      operationID: .init())
+    runtime.lock()
+    let rotated = try workflow.rotate(.rotate, scope: requestScope())
+    guard case .completed(_, let rotationDigest, false) = rotated.recoveryRotation else {
+      throw Core.FixtureError.cancelled
+    }
+    #expect(f.provider.requests == 1)
+    let reopened = V3RecoveryVaultRuntime(
+      vaultID: Core.vaultID, objectStore: f.store, checkpointStore: f.checkpoints,
+      transactionOwnershipStore: f.transactions, registrationOwnershipStore: f.ownership,
+      adoptionOwnershipStore: f.adoption, cache: workflow.cache,
+      identityLoader: WorkflowLoader(identity: f.core.owner), session: .init(),
+      mutationOwner: f.mutationOwner)
+    #expect(
+      try reopened.read(name: "fixture/secret", allowStale: false).plaintext
+        == "edited before rotation")
+    try reopened.add(
+      name: "after/rotation", secret: "new value", type: .secret, operationID: .init())
+    reopened.lock()
+    let bound = try V3RecoveryAnchorCodec().parseCanonical(anchor)
+    let selection = try V3RecoveryHistorySelector(source: f.store).select(
+      anchor: bound, credentialPublicKey: f.core.token.publicKey.x963Representation)
+    let calls = Core.Counter()
+    let receiver = try PIVHPKEReceiver(publicBytes: f.core.token.publicKey.x963Representation) {
+      peer in
+      calls.increment()
+      return try f.core.token.sharedSecretFromKeyAgreement(
+        with: P256.KeyAgreement.PublicKey(x963Representation: peer)
+      ).withUnsafeBytes { Data($0) }
+    }
+    let snapshot = try V3RecoverySnapshotVerifier(source: f.store).open(
+      selection, boundAnchor: bound, receiver: receiver)
+    #expect(
+      snapshot.entries.first { $0.name == "fixture/secret" }?.plaintext == "edited before rotation")
+    #expect(snapshot.entries.first { $0.name == "after/rotation" }?.plaintext == "new value")
+    #expect(calls.value == 1 && f.provider.requests == 1)
+    #expect(Base64URL.decodeCanonical(rotationDigest)?.count == 32)
   }
 
   @Test(arguments: [false, true])
@@ -1032,6 +1071,43 @@ struct V3RecoveryRegistrationServiceTests {
         vaultID: Core.vaultID, checkpoints: f.checkpoints, source: f.store, cache: subject.cache)
     }
     #expect(f.core.owner.unwraps == 0 && f.provider.requests == 0)
+  }
+
+  @Test(arguments: 0..<3)
+  func pendingSelectorsAreBoundedReadOnlyAndDoNotNeedPrivateAuthentication(variant: Int) throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    let subject = try workflow(f)
+    let exported = try variant == 0 ? nil : f.prepare()
+    if variant == 2 {
+      try f.ownership.replaceRecoveryAnchor(
+        Data([0]), expectedAnchor: f.ownership.value, vaultID: Core.vaultID)
+    }
+    let before = f.ownership.value
+    let sessions = f.card.publicSessions
+    let signatures = f.core.owner.signatures
+    f.checkpoints.value = nil
+    f.core.owner.cancelUnwrap = true
+    if variant == 2 {
+      #expect(throws: (any Error).self) { try subject.handle(.pending, scope: requestScope()) }
+    } else {
+      let response = try subject.handle(.pending, scope: requestScope())
+      guard case .pending(let vault, let operations) = response.recoveryRegistration else {
+        throw Core.FixtureError.cancelled
+      }
+      #expect(vault == Core.vaultID && operations.count == (variant == 0 ? 0 : 1))
+      if let exported {
+        #expect(
+          operations == [
+            .init(namespace: .registration, operationID: exported.operationID.rawValue)
+          ])
+      }
+    }
+    #expect(f.ownership.value == before && f.card.publicSessions == sessions)
+    #expect(
+      f.core.owner.signatures == signatures && f.core.owner.unwraps == 0 && f.provider.requests == 0
+    )
   }
 
   private func requestScope() -> KeyRecoveryRequestScope {

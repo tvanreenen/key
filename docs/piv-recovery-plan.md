@@ -95,11 +95,11 @@ are the implementation packages, not new names for already completed probes.
 | `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; profile-3 domain codecs, contexts, proof construction/checks, and fixtures implemented; final acceptance and integrated review remain |
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
-| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish, authenticated four-state status and reciprocal pending guards implemented; product composition, shipping-runtime barriers and physical qualification remain |
+| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; domain prepare/resume/finish/status, configured workflow, CLI, gated factory and reciprocal pending barriers implemented; integrated review and signed physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
-| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; internal authenticated initial restore and exact resume now compose preparation, manifest-last publication, insert-only trust, ordinary-runtime reopening, configuration selection and ordered finalization; product dispatch/barriers, separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; public token/source review and restore/resume CLI/protocol, gated host/connection lifecycle, restart ownership admission, native factories and internal profile-3 unlock/read/catch-up/write/session/conflict-value composition implemented; pending routing, registration commands, live factory and signed qualification remain |
+| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; domain restore/resume, insert-only trust, ordinary reopening, configuration selection, ordered finalization and gated product dispatch/barriers implemented; integrated review, separate-process and physical acceptance remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Integration implemented for review/testing: public credential/source review, registration/adoption/status/pending/rotation/restore/resume commands, scoped host barriers/restart, exact pending routing and gated profile-3 ordinary runtime; combined verification and signed two-Mac qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -427,12 +427,13 @@ hardware operation, real-vault activation, merge or release.
 - **Real-vault ready:** 813/814 pass and explicit adoption in 815 is qualified.
 - **Full completion:** 815's Stable artifact is released and verified.
 
-The latest increment is bounded read-only public token/source review under
-`REC-812`, after restore/resume CLI dispatch, native restore composition and
-complete internal authenticated restore and exact resume under `REC-811`. Remaining
-command dispatch, live feature gating and shipping
-profile-3 integration remain, alongside final platform, lifecycle and release
-acceptance. The ledger below records each component's scope and evidence. The
+The current integration checkpoint includes gated configured registration,
+adoption, token-free rotation, exact pending selectors, restore/resume and the
+ordinary profile-3 runtime. Combined automated verification, implementation
+review and the signed two-Mac vertical slice establish the next acceptance
+checkpoint. This does not complete backup-token/lifecycle/platform/release
+qualification or enable real-vault use. The ledger below records each component's
+scope and evidence. The
 [contract](piv-recovery-contract.md) describes the
 experimental dual-authorization direction and its reduced historical replay
 promise. The capsule, recipient roster, recovery contexts/wrappers, containing
@@ -4924,3 +4925,66 @@ Logs remain ignored under `tmp/piv-recovery/2026-10-07-gated-factory-*`.
 Combined Release and universal product verification are still pending. No native
 private operation, installation, shipping flag change or push occurred. A narrow
 token-free rotation route remains before the signed vertical-slice test.
+
+### 2026-10-07: token-free configured rotation and saved-operation discovery
+
+`recovery rotate` now uses the existing unchanged-roster rotation service, not
+registration semantics or token operations. Its separate public request carries
+only an optional exact original operation ID. The configured host shares its
+exclusive admission and retires the old runtime even after ambiguous failure.
+The service and transaction validator retain connection, location, generation
+and deadline checks through publication. Resume pins the original anchor at
+service admission, rather than selecting replacement work after authentication.
+Successful key installation may change the temporary local session generation;
+the independent host scope remains exact until the reply.
+
+`recovery pending` reads at most three bounded device-local anchors and prints
+their original operation IDs without private authentication or provider scans.
+It remains available when the checkpoint cannot be read. These public selectors
+are not validated intents, readiness or approval. Missing/malformed intents and
+ambiguous ownership remain preserved for inspection, not forced cleanup.
+
+Sharing configured admission was compared with adding rotation to the permanent
+profile sharing services. Separate requests plus the established rotation domain
+service keep format-specific authority checks and token exclusion explicit. The
+pending-selector command closes a practical interruption gap: an operation ID
+must be discoverable even when the initial reply was lost.
+
+Focused Debug passed 117 declarations across six suites in 8.962 seconds. The
+configured test performs registration, ordinary edits, token-free rotation,
+cold reopening and complete snapshot recovery with one software agreement. New
+cases exercise exact uncommitted/committed resume, wrong operation IDs, native
+wrapper cancellation, cancellation before/after checkpoint commitment, host
+retirement, disconnected late replies, CLI consent and public pending discovery.
+One fixture compile correction supplied the existing token exclusion gate.
+No token inventory or private operation occurs in rotation fixtures. Combined
+Release/build checks and signed native prompt qualification remain next. Logs
+are ignored under `tmp/piv-recovery/2026-10-07-rotation-route-*` and
+`tmp/piv-recovery/2026-10-07-configured-recovery-debug-final.log`.
+
+#### Review and signed-test handoff
+
+1. Review the configured host/runtime dispatch, exact pending ownership and
+   completion/restart semantics against the contract. Broader profile-3 device
+   enrollment/revocation/replacement and recipient-removal product routes remain
+   separate lifecycle acceptance work; permanent-profile services are refused.
+2. Produce an explicitly enabled, signed Preview release-configuration candidate
+   with `KeyExperimentalRecoveryEnabled` set to a plist boolean in its relevant
+   bundles before signing. Shipping plists are unchanged. Record exact hashes,
+   identity and namespace isolation before installing; do not alter the real
+   vault, installed product or hardware under implementation-test authorization.
+3. On disposable data, use ordinary init plus explicit recovery adoption, public
+   credential inspection, prepare/export, separate owner-run vendor import of
+   the exact public anchor, then finish. Key has no token writer. Secure external
+   administration independently; no PIN/PUK/management credential enters CLI/XPC.
+4. Remove the token. Edit, rotate and reopen through ordinary product commands.
+   Copy the complete source vault to an unconfigured second Mac. Restore with
+   one approved token operation, remove it, then read/edit/lock/reopen normally.
+   Do not transfer the original Mac identity or local preparation records.
+5. Exercise explicit interruption/resume and record observed prompt counts,
+   cancellation and unchanged unrelated state. Do not infer PIN/touch policy
+   enforcement from software fixtures. Missing files/provider freshness remain
+   the user's delivery responsibility.
+
+Reaching this handoff is not completion of `REC-813` through `REC-815`, nor
+authorization to publish or enable real-vault recovery.

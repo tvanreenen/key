@@ -1,6 +1,6 @@
 import Foundation
 
-/// Internal profile-3 composition, not a shipping factory. Reads/catch-up use
+/// Profile-3 composition, gated off in shipping builds. Reads/catch-up use
 /// the helper's mutation owner. Mutation methods run inside that same owner and
 /// reuse the supplied operation ID, so they never nest its serialization queue.
 struct V3RecoveryVaultRuntime:

@@ -41,6 +41,12 @@ enum CLIHelp {
     Use --resume <complete-original-operation-id> only for the exact locally owned interrupted adoption. It never starts a replacement or adopts provider records. Preserve files and local records after interruption; do not delete ownership to retry. Check registration status after the helper restarts, then separately register a recovery key. This workflow requires an interactive terminal.
     """
 
+    static let recoveryRotation = """
+    Gated, explicit vault-key rotation for an already recovery-capable configured vault. This changes the encryption key and reseals the complete current contents while preserving device access and recovery recipients. It does not provision, read, write or authenticate a hardware token. Mac authentication is still required; native prompt counts await signed qualification.
+
+    Type ROTATE in an interactive terminal. After an interrupted or lost reply, preserve vault files and device-local ownership. Inspect status and recovery pending after helper restart. Use --resume <complete-original-operation-id> only for a readable locally pinned rotation, never to start replacement work. A missing intent requires inspection, not deletion or another rotation. No automatic retry is performed.
+    """
+
     static let recoveryReview = """
     Not enabled in Stable or ordinary Preview builds. Provide --source and the exact --token from key recovery tokens once each. The source must already exist; Key never defaults to configured vault-dir. Review reads only the selected token's public P-256 credential, reported slot 9d policies and recognized recovery anchor, then checks bounded public history for a matching vault and one visible head.
 

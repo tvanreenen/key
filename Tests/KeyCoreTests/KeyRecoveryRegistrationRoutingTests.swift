@@ -6,7 +6,7 @@ import Testing
 struct KeyRecoveryRegistrationRoutingTests {
   private static let recipient = Base64URL.encode(Data(repeating: 7, count: 32))
   private static let requests: [KeyRecoveryRegistrationRequest] = [
-    .status, .prepare(tokenID: "token", recipientID: recipient),
+    .status, .pending, .prepare(tokenID: "token", recipientID: recipient),
     .resumeExport(tokenID: "token", recipientID: recipient),
     .finish(tokenID: "token", recipientID: recipient), .adopt,
     .resumeAdoption(operationID: VaultTransactionOperationID().rawValue),
@@ -147,6 +147,60 @@ struct KeyRecoveryRegistrationRoutingTests {
     #expect(host.handle(.list).exitCode == EXIT_SUCCESS)
     #expect(host.handle(.recoveryRegistration(.status)).exitCode != EXIT_SUCCESS)
     #expect(events.values == ["normal", "lock"])
+  }
+
+  @Test(arguments: [
+    KeyRecoveryRotationRequest.rotate, .resume(operationID: VaultTransactionOperationID().rawValue),
+  ])
+  func rotationRoundTripsAndRetiresRuntimeEvenOnAmbiguousFailure(action: KeyRecoveryRotationRequest)
+    throws
+  {
+    let request = KeyServiceRequest.recoveryRotation(action)
+    #expect(
+      try JSONDecoder().decode(KeyServiceRequest.self, from: JSONEncoder().encode(request))
+        == request)
+    #expect(request.responseTimeoutSeconds == 120 && request.requiresHelperShutdownAfterSuccess)
+    #expect(
+      KeyXPCClientRole.fullCLI.authorizes(request)
+        && !KeyXPCClientRole.utilityStatus.authorizes(request))
+    let disabled = KeyServiceHost(
+      hasConfiguration: {
+        Issue.record("Disabled rotation read config")
+        return true
+      },
+      makeHandler: { { _ in .success() } }, initialize: { _ in "" })
+    #expect(disabled.handle(request).errorMessage?.contains("not enabled") == true)
+    let events = Events()
+    let host = KeyServiceHost(
+      hasConfiguration: { true },
+      makeHandler: {
+        { request in
+          events.values.append(request == .lock ? "lock" : "normal")
+          return .success()
+        }
+      }, initialize: { _ in "" },
+      rotateRecovery: { _, scope in
+        try scope.requireCurrent()
+        events.values.append("rotate")
+        return .failure("Uncertain completion")
+      })
+    #expect(host.handle(.list).exitCode == EXIT_SUCCESS)
+    #expect(host.handle(request).exitCode != EXIT_SUCCESS)
+    #expect(events.values == ["normal", "lock", "rotate"])
+    #expect(host.handle(.list).errorMessage?.contains("restarting") == true)
+  }
+
+  @Test func disconnectedRotationCannotReturnLateSuccess() {
+    let connection = KeyServiceConnection()
+    let host = KeyServiceHost(
+      hasConfiguration: { true }, makeHandler: { { _ in .success() } },
+      initialize: { _ in "" },
+      rotateRecovery: { _, _ in
+        connection.invalidate()
+        return .success("late")
+      })
+    #expect(
+      host.handle(.recoveryRotation(.rotate), connection: connection).exitCode != EXIT_SUCCESS)
   }
 
   private final class Events: @unchecked Sendable {
