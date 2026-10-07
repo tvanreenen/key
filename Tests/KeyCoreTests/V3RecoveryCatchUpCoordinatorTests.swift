@@ -258,6 +258,106 @@ struct V3RecoveryCatchUpCoordinatorTests {
     #expect(!f.session.hasResidentKey)
   }
 
+  @Test func continuationReceiptTracksRealEpochInstallationsWithoutRevivingAdmission() throws {
+    let f = try Fixture()
+    defer { f.disk.remove() }
+    _ = try f.publish(.rotation)
+    _ = try f.publish(.rotation)
+    let admission = f.session.beginAuthentication()
+    let result = try service(f).catchUp(from: f.floor, continuing: admission, allowStale: false)
+    guard case .verified(.current(let floor, _)) = result.selection else {
+      throw Publication.Stop.interrupted
+    }
+    #expect(floor.envelope == f.parent && f.receiver.unwraps == 2)
+    try f.session.requireCurrent(result.ticket)
+    #expect(throws: V3DeviceWrappedVaultKeySessionError.unavailable) {
+      try f.session.requireCurrent(admission)
+    }
+  }
+
+  @Test(arguments: 0..<3)
+  func continuedReadSourceGuardDetectsLateFilesWithoutPrivateOpening(change: Int) throws {
+    let f = try Fixture()
+    defer { f.disk.remove() }
+    try f.edit("saved contents")
+    let result = try service(f).catchUp(
+      from: f.floor,
+      continuing: f.session.beginAuthentication(), allowStale: false)
+    try result.revalidatePublishedSource()
+    switch change {
+    case 0: try f.branchFromFloor()
+    case 1: try FileManager.default.removeItem(at: f.disk.manifestURL(f.parent.digest))
+    default:
+      let entry = try #require(f.entries.values.first { $0.context.name == "fixture/secret" })
+      try FileManager.default.removeItem(at: f.disk.entryURL(entry))
+    }
+    #expect(throws: (any Error).self) { try result.revalidatePublishedSource() }
+    #expect(f.receiver.unwraps == 0)
+    try f.session.requireCurrent(result.ticket)
+  }
+
+  @Test func queueWaitCannotAdoptAnUnrelatedSameKeyReauthentication() throws {
+    let f = try Fixture()
+    defer { f.disk.remove() }
+    let owner = AdmissionOwner(before: {
+      f.session.invalidate()
+      try f.unlock()
+    })
+    #expect(throws: V3DeviceWrappedVaultKeySessionError.unavailable) {
+      try service(f, owner: owner).catchUp(from: f.floor)
+    }
+    #expect(f.receiver.unwraps == 0 && !f.session.hasResidentKey)
+    #expect(f.local.value == f.floor.checkpoint.canonicalBytes)
+  }
+
+  @Test(arguments: [false, true])
+  func transportFallbackStillRequiresExactAuthenticatedFloor(mismatched: Bool) throws {
+    let f = try Fixture()
+    defer { f.disk.remove() }
+    let source = UnavailableListing(base: f.disk.store)
+    if mismatched { try f.edit("not the locally selected envelope") }
+    let floor =
+      mismatched
+      ? V3RecoveryContentCommit(checkpoint: f.floor.checkpoint, envelope: f.parent) : f.floor
+    let admission = f.session.beginAuthentication()
+    if mismatched {
+      #expect(throws: V3RecoveryValidationError.invalidObject) {
+        try service(f, source: source).catchUp(from: floor, continuing: admission, allowStale: true)
+      }
+      #expect(!f.session.hasResidentKey)
+    } else {
+      let result = try service(f, source: source).catchUp(
+        from: floor, continuing: admission, allowStale: true)
+      guard case .incomplete(let selected) = result.selection else {
+        throw Publication.Stop.interrupted
+      }
+      #expect(selected.envelope == floor.envelope && f.session.hasResidentKey)
+      try f.session.requireCurrent(result.ticket)
+    }
+    #expect(f.receiver.unwraps == 0 && f.local.value == f.floor.checkpoint.canonicalBytes)
+  }
+
+  @Test func missingFilesAfterCommittedAdvanceCannotFallBackToOriginalFloor() throws {
+    let f = try Fixture()
+    defer { f.disk.remove() }
+    try f.edit("first edit")
+    let first = f.parent
+    try f.edit("later edit")
+    let removed = try #require(f.entries.values.first { $0.context.name == "fixture/secret" })
+    let checkpoints = Checkpoints(f.local) {
+      try FileManager.default.removeItem(at: f.disk.entryURL(removed))
+    }
+    #expect(throws: (any Error).self) {
+      try service(f, checkpoints: checkpoints).catchUp(
+        from: f.floor, continuing: f.session.beginAuthentication(), allowStale: true)
+    }
+    #expect(
+      f.local.value
+        == (try V3ManifestCheckpoint(vaultID: Core.vaultID, envelopeDigest: first.digest)
+          .canonicalBytes))
+    #expect(!f.session.hasResidentKey && f.receiver.unwraps == 0)
+  }
+
   private func current(_ outcome: V3RecoveryCatchUpCoordinatorOutcome) throws
     -> (V3RecoveryContentCommit, V3RecoveryCatchUpProgress)
   {
@@ -294,6 +394,35 @@ struct V3RecoveryCatchUpCoordinatorTests {
         calls.increment()
         return try mutation(context)
       }
+    }
+  }
+
+  private struct AdmissionOwner: VaultTransactionMutationOwning {
+    let base = VaultTransactionMutationOwner()
+    let before: @Sendable () throws -> Void
+    func perform<Result>(
+      _ kind: VaultTransactionMutationKind,
+      _ operation: (VaultTransactionMutationContext) throws -> Result
+    ) throws -> Result {
+      try base.perform(kind) { context in
+        try before()
+        return try operation(context)
+      }
+    }
+  }
+
+  private struct UnavailableListing: V3ImmutableObjectReading {
+    let base: any V3ImmutableObjectReading
+    func manifestDigests(maximumCount _: Int) throws -> V3RepositoryDirectoryListing {
+      .unavailable
+    }
+    func readManifest(digest: Data, maximumBytes: Int) throws -> V3RepositoryObjectRead {
+      try base.readManifest(digest: digest, maximumBytes: maximumBytes)
+    }
+    func readEntry(entryID: String, digest: Data, maximumBytes: Int) throws
+      -> V3RepositoryObjectRead
+    {
+      try base.readEntry(entryID: entryID, digest: digest, maximumBytes: maximumBytes)
     }
   }
 

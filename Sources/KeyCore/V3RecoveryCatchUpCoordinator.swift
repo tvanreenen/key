@@ -14,6 +14,27 @@ enum V3RecoveryCatchUpCoordinatorOutcome: Sendable {
     V3RecoveryContentCommit, manifestDigests: [Data], progress: V3RecoveryCatchUpProgress)
 }
 
+/// A process-local continuation, not persisted authority or reusable consent.
+struct V3RecoveryCatchUpSessionResult: Sendable {
+  enum Selection: Sendable {
+    case verified(V3RecoveryCatchUpCoordinatorOutcome)
+    case incomplete(V3RecoveryContentCommit)
+  }
+  let selection: Selection
+  let ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  // Exact observed ciphertext/manifest bytes only; no old vault key is retained.
+  let revalidatePublishedSource: @Sendable () throws -> Void
+
+  fileprivate init(
+    selection: Selection, ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket,
+    revalidatePublishedSource: @escaping @Sendable () throws -> Void = {}
+  ) {
+    self.selection = selection
+    self.ticket = ticket
+    self.revalidatePublishedSource = revalidatePublishedSource
+  }
+}
+
 /// Coordinates ordinary catch-up from an exact unlocked Mac floor. One mutation
 /// owner surrounds concrete existing steps; their direct owners reuse its ID
 /// without nesting the serial queue. A fixed, fully observed source is checked
@@ -76,9 +97,22 @@ struct V3RecoveryCatchUpCoordinator: Sendable {
   }
 
   func catchUp(from floor: V3RecoveryContentCommit) throws -> V3RecoveryCatchUpCoordinatorOutcome {
+    let result = try catchUp(
+      from: floor, continuing: session.beginAuthentication(), allowStale: false)
+    guard case .verified(let outcome) = result.selection else {
+      throw V3RecoveryValidationError.sourceUnavailable
+    }
+    return outcome
+  }
+
+  func catchUp(
+    from floor: V3RecoveryContentCommit,
+    continuing admission: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket,
+    allowStale: Bool
+  ) throws -> V3RecoveryCatchUpSessionResult {
     try mutationOwner.perform(.catchUpVault) { context in
       do {
-        var ticket = session.beginAuthentication()
+        var ticket = admission
         try requireState(floor.checkpoint, ticket: ticket)
         guard identity.vaultID == floor.checkpoint.vaultID,
           floor.envelope.body.fields.devices.contains(
@@ -88,6 +122,12 @@ struct V3RecoveryCatchUpCoordinator: Sendable {
         // No old key or plaintext snapshot is persisted or installed again.
         let originalKey = try session.load(
           vaultID: floor.checkpoint.vaultID, keyID: floor.envelope.body.fields.keyID)
+        guard floor.envelope.digest == floor.checkpoint.envelopeDigest,
+          floor.envelope.body.fields.vaultID == floor.checkpoint.vaultID
+        else { throw V3RecoveryValidationError.invalidObject }
+        // Transport fallback still requires an authenticated exact local floor.
+        try V3RecoveryEpochBoundary().verifyCurrentAuthentication(
+          floor.envelope, vaultKey: originalKey)
         let original = try observe(from: floor, key: originalKey)
         let direct = DirectVaultTransactionMutationOwner(operationID: context.operationID)
         let content = V3RecoverySameEpochCatchUpService(
@@ -109,7 +149,9 @@ struct V3RecoveryCatchUpCoordinator: Sendable {
           let progress = V3RecoveryCatchUpProgress(
             contentManifestCount: contentCount, keyEpochCount: epochCount)
           if original.heads.count > 1 {
-            return .contentConflict(current, manifestDigests: original.heads, progress: progress)
+            return verified(
+              .contentConflict(current, manifestDigests: original.heads, progress: progress),
+              observed: original, ticket: ticket)
           }
           guard let headDigest = original.heads.first, let head = original.envelope(headDigest)
           else { throw V3RecoveryValidationError.invalidTransition }
@@ -117,7 +159,10 @@ struct V3RecoveryCatchUpCoordinator: Sendable {
             head.body.fields.devices.contains(
               .init(identity: identity.publicIdentity, status: .active))
           else { throw V3RecoveryKeyTransitionCatchUpError.deviceRevoked }
-          if current.envelope.digest == headDigest { return .current(current, progress: progress) }
+          if current.envelope.digest == headDigest {
+            return verified(
+              .current(current, progress: progress), observed: original, ticket: ticket)
+          }
           guard progress.totalStepCount < maximumStepCount else {
             throw V3RecoveryContentCatchUpError.stepLimitExceeded
           }
@@ -144,10 +189,74 @@ struct V3RecoveryCatchUpCoordinator: Sendable {
           try requireState(current.checkpoint, ticket: ticket)
         }
       } catch {
+        // Only transport incompleteness at the unchanged admission floor may
+        // preserve stale access. Partial advances, locks and replacements fail
+        // these exact checks; invalidity/source changes never enter this path.
+        if allowStale, let validation = error as? V3RecoveryValidationError,
+          validation == .sourceUnavailable || validation == .entryUnavailable
+        {
+          do {
+            try requireState(floor.checkpoint, ticket: admission)
+            return .init(selection: .incomplete(floor), ticket: admission)
+          } catch {
+            session.invalidate()
+            throw error
+          }
+        }
         session.invalidate()
         throw error
       }
     }
+  }
+
+  private func verified(
+    _ outcome: V3RecoveryCatchUpCoordinatorOutcome, observed: Observation,
+    ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  ) -> V3RecoveryCatchUpSessionResult {
+    .init(
+      selection: .verified(outcome), ticket: ticket,
+      revalidatePublishedSource: { try requirePublishedSource(observed) })
+  }
+
+  /// Recheck already-verified immutable bytes, not another cryptographic history
+  /// walk. Inventory is checked on both sides so additions during reads refuse.
+  private func requirePublishedSource(_ observed: Observation) throws {
+    let digests: [Data]
+    let count: Int
+    let manifests: [Data: Data]
+    let entries: [V3EntryObjectKey: V3EncryptedEntry]
+    switch observed {
+    case .content(let value):
+      digests = value.listedDigests
+      count = value.listedObjectCount
+      manifests = value.observedManifestBytes
+      entries = value.entryObjects
+    case .epochs(let value):
+      digests = value.listedDigests
+      count = value.listedObjectCount
+      manifests = value.manifestBytes
+      entries = value.entries
+    }
+    func requireInventory() throws {
+      guard
+        case .available(let listed, let objectCount) = try source.manifestDigests(
+          maximumCount: limits.maximumManifestObjects),
+        objectCount == count, listed.count == digests.count, Set(listed) == Set(digests)
+      else { throw V3RecoveryValidationError.sourceChanged }
+    }
+    try requireInventory()
+    let repository = V3ExactTransitionRepository(source: source, limits: limits)
+    for (digest, bytes) in manifests {
+      guard try repository.readManifest(digest) == bytes else {
+        throw V3RecoveryValidationError.sourceChanged
+      }
+    }
+    for (address, entry) in entries {
+      guard try repository.readEntry(address) == entry.canonicalBytes else {
+        throw V3RecoveryValidationError.sourceChanged
+      }
+    }
+    try requireInventory()
   }
 
   private func observe(from floor: V3RecoveryContentCommit, key: Data) throws -> Observation {
