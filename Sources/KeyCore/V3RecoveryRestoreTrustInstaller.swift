@@ -123,6 +123,33 @@ struct V3RecoveryRestoreTrustInstaller: Sendable {
     try recheck(checkpoint.canonicalBytes, requireCache: true)
     validation.invalidate()
 
+    try V3RecoveryRestoreOrdinaryReopener(
+      checkpoints: checkpoints, cache: cache, identities: identities
+    ).verify(bundle: bundle, snapshot: snapshot, environment: environment, vaultKey: vaultKey) {
+      try recheck(checkpoint.canonicalBytes, requireCache: true)
+    }
+    try observer.didReach(.ordinaryReopenVerified)
+    try recheck(checkpoint.canonicalBytes, requireCache: true)
+    return .init(
+      checkpoint: checkpoint, ownerDeviceID: bundle.intent.ownerDeviceID,
+      entryCount: snapshot.entries.count)
+  }
+}
+
+/// Shared ordinary-access proof for first trust and selected finalization.
+/// The caller's recheck spans the independent private operation and item reads.
+struct V3RecoveryRestoreOrdinaryReopener: Sendable {
+  let checkpoints: any V3ManifestCheckpointStoring
+  let cache: any V3CheckpointManifestCaching
+  let identities: any V3DeviceWrappedIdentityLoading
+
+  func verify(
+    bundle: V3RecoveryRestoreBundle, snapshot: V3RecoveryVerifiedSnapshot,
+    environment: V3RecoveryRestoreEnvironment, vaultKey: Data,
+    recheck: () throws -> Void
+  ) throws {
+    let checkpoint = bundle.intent.destinationCheckpoint
+    try recheck()
     // No prepared key is injected into this new session. The ordinary runtime
     // must independently load the identity and open the published Mac wrapper.
     let session = V3DeviceWrappedVaultKeySessionStore()
@@ -133,7 +160,7 @@ struct V3RecoveryRestoreTrustInstaller: Sendable {
       identityLoader: identities, session: session)
     let runtime = V3DeviceWrappedReadOnlyVaultRuntime(source: source, unlockRuntime: unlock)
     try runtime.unlock()
-    try recheck(checkpoint.canonicalBytes, requireCache: true)
+    try recheck()
     let expected = snapshot.entries.sorted {
       Data($0.name.utf8).lexicographicallyPrecedes(Data($1.name.utf8))
     }
@@ -148,10 +175,6 @@ struct V3RecoveryRestoreTrustInstaller: Sendable {
         throw V3RecoveryRestoreTrustError.reopenMismatch
       }
     }
-    try observer.didReach(.ordinaryReopenVerified)
-    try recheck(checkpoint.canonicalBytes, requireCache: true)
-    return .init(
-      checkpoint: checkpoint, ownerDeviceID: bundle.intent.ownerDeviceID, entryCount: expected.count
-    )
+    try recheck()
   }
 }

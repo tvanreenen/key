@@ -1461,8 +1461,8 @@ changed sources, reused authority, mismatched objects and bounded resources.
 The destination wrapper still requires a Mac opening. Internal durable ownership
 and encrypted preparation, plus internal manifest-last publication, are
 implemented below, together with internal checkpoint installation and an ordinary
-runtime reopen and exact configuration selection/reconciliation. Ownership
-finalization, native service orchestration, product resume and separate-process
+runtime reopen, exact configuration selection/reconciliation and ordered ownership
+finalization. Native service orchestration, product resume and separate-process
 qualification remain. No product restore route is enabled.
 
 ### Implemented restore locations and intent format
@@ -1666,12 +1666,47 @@ config/trust are retained, not rolled back. Later ordinary edits that advance
 the restored checkpoint need separate reconciliation; this exact-genesis path
 does not adopt them as completed restore evidence.
 
-Both ownership pins and encrypted records remain intact. Their interruption-safe
-finalization, native approval/session binding, serialized service composition and
-product routing remain unimplemented. This component neither creates credentials
+This selection component retains both ownership pins and encrypted records.
+The separate finalizer below can retire exact selected ownership. Native
+approval/session binding, serialized service composition and product routing
+remain unimplemented. This component neither creates credentials
 nor accesses a token. Tests use disposable config files, software identities,
 memory checkpoints and the real filesystem cache/runtime, not native hardware or
 a separate OS process.
+
+### Implemented selected restore ownership finalization
+
+The [finalizer](../Sources/KeyCore/V3RecoveryRestoreFinalizer.swift) loads only
+locally pinned restore state. It requires exact selected config, the existing
+destination checkpoint/cache, matching source observation and complete published
+files. A new empty ordinary-runtime session independently loads the saved Mac
+identity, opens its wrapper once and compares all restored item names, types and
+plaintext bytes. It does not inject the prepared key. The temporary session is
+invalidated on every exit; native authentication prompt counts are unqualified.
+
+Only then does the journal clear the exact reservation pin, recheck all state,
+and clear the exact preparation pin. Both removals use the existing store's
+compare-and-replace contract. Clearing preparation first would leave no local
+digest for the complete bundle. Reservation-first leaves that digest intact,
+so a dedicated finalization reader can verify the same bundle after interruption.
+Every original reservation field is retained in that pinned bundle; reconstructing
+those public bytes must exactly match the existing reservation file. No file,
+credential, key or ownership record is regenerated or rearmed.
+
+Preparation-only ownership is never accepted by normal preparation, publication,
+trust insertion or config selection. Completion checks still require selected
+config and existing exact trust. Changes, unavailable state and ambiguous errors
+stop further cleanup without retry or rollback. Final checks cover the actual
+source, config, files, cache/checkpoint and expected absence of both pins before
+returning success. The cleared state exists only in the current scoped call.
+
+After both pins are absent, a later call returns only "no locally owned pending
+attempt" without loading leftover files or credentials. It does not claim that
+an old operation succeeded. If the final reply was lost, ordinary configured-vault
+status is the appropriate subsequent check. Encrypted records remain inert audit
+evidence; config, credentials, checkpoint and vault/source files are not deleted.
+No new namespace or persisted format is introduced. Native scope/session binding,
+host serialization, product restore/resume and separate-process acceptance remain.
 
 ### Implemented native public reader
 

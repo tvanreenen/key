@@ -59,6 +59,21 @@ struct V3RecoveryRestoreReservation: Equatable, Sendable {
     }
   }
 
+  /// A locally pinned complete bundle retains every reservation field. Used
+  /// only to verify the original record after completion cleared its first pin.
+  init(pinnedBundle bundle: V3RecoveryRestoreBundle) throws {
+    let intent = bundle.intent
+    try self.init(
+      operationID: intent.operationID, locations: intent.locations,
+      sourceAnchor: intent.sourceAnchor, sourcePublicKey: intent.sourcePublicKey,
+      sourceHeadDigest: intent.sourceHeadDigest,
+      sourceObservationDigest: intent.sourceObservationDigest,
+      vaultID: intent.destinationCheckpoint.vaultID,
+      transitionID: bundle.manifest.body.authorityTransitionID,
+      entryIDs: bundle.manifest.body.entries.map(\.entryID))
+    try requireBundle(bundle)
+  }
+
   init(canonicalBytes: Data) throws {
     guard canonicalBytes.count <= Self.maximumBytes else {
       throw V3RecoveryRestoreError.resourceLimit

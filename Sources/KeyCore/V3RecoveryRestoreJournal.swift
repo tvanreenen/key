@@ -36,10 +36,22 @@ struct V3RecoveryRestorePending: Equatable, Sendable {
   let preparationOwnership: V3ImmutableTransactionRecoveryAnchor?
 }
 
+enum V3RecoveryRestoreFinalizationStage: Equatable, Sendable {
+  case owned, reservationCleared, cleared
+}
+
+/// The complete preparation pin survives the first cleanup step. `cleared`
+/// exists only within the current authenticated call, never as disk authority.
+struct V3RecoveryRestoreFinalizationState: Equatable, Sendable {
+  let pending: V3RecoveryRestorePending
+  let stage: V3RecoveryRestoreFinalizationStage
+}
+
 /// Local-only restore journal over existing atomic contained filesystem writes
 /// and two dedicated non-synchronizing ownership stores, keyed by SOURCE vault.
-/// One attempt per source per Mac; no scans, cleanup, publication, credential
+/// One attempt per source per Mac; no scans, publication, credential
 /// creation or automatic regeneration. Caller serializes the entire ceremony.
+/// Explicit selected completion can clear exact pins; files remain inert.
 struct V3RecoveryRestoreJournal: Sendable {
   private let store: V3FilesystemTransactionArtifactStore
   private let reservations: any V3ImmutableTransactionRecoveryAnchorStoring
@@ -209,6 +221,143 @@ struct V3RecoveryRestoreJournal: Sendable {
     return .init(
       reservation: reservation, reservationOwnership: pin,
       preparation: bundle, preparationOwnership: preparationPin)
+  }
+
+  /// Preparation-only ownership is admissible ONLY for selected finalization,
+  /// not normal preparation, publication, trust insertion or config selection.
+  /// No pins means no discovery and no retrospective completion claim.
+  func loadFinalization(sourceVaultID: String) throws -> V3RecoveryRestoreFinalizationState? {
+    guard isValidV3UUID(sourceVaultID) else { throw V3RecoveryRestoreJournalError.invalidOwnership }
+    if try reservations.loadRecoveryAnchor(vaultID: sourceVaultID) != nil {
+      guard let pending = try loadPending(sourceVaultID: sourceVaultID),
+        pending.reservationOwnership.phase == .recoverable,
+        pending.preparationOwnership?.phase == .recoverable, pending.preparation != nil
+      else { throw V3RecoveryRestoreJournalError.recordUnavailable }
+      return .init(pending: pending, stage: .owned)
+    }
+    guard let bytes = try preparations.loadRecoveryAnchor(vaultID: sourceVaultID) else {
+      try requireNoOwnership(sourceVaultID: sourceVaultID)
+      return nil
+    }
+    let pin = try decodePin(bytes, sourceVaultID: sourceVaultID)
+    guard pin.phase == .recoverable else { throw V3RecoveryRestoreJournalError.invalidOwnership }
+    let raw = try read(
+      preparationPath(pin.operationID),
+      maximumBytes: V3RecoveryRestoreBundle.maximumBytes(limits: limits))
+    guard Data(SHA256.hash(data: raw)) == pin.intentDigest else {
+      throw V3RecoveryRestoreJournalError.invalidRecord
+    }
+    let bundle = try V3RecoveryRestoreBundle(canonicalBytes: raw, limits: limits)
+    let reservation = try V3RecoveryRestoreReservation(pinnedBundle: bundle)
+    guard reservation.operationID == pin.operationID,
+      reservation.sourceAnchor.floor.vaultID == sourceVaultID
+    else { throw V3RecoveryRestoreJournalError.invalidRecord }
+    try reservation.locations.configuration.requireMatch(store.rootHandle)
+    guard
+      try read(
+        reservationPath(pin.operationID), maximumBytes: V3RecoveryRestoreReservation.maximumBytes
+      ) == reservation.canonicalBytes
+    else { throw V3RecoveryRestoreJournalError.invalidRecord }
+    let original = try ownership(
+      reservation, bytes: reservation.canonicalBytes, phase: .recoverable)
+    let state = V3RecoveryRestoreFinalizationState(
+      pending: .init(
+        reservation: reservation, reservationOwnership: original,
+        preparation: bundle, preparationOwnership: pin), stage: .reservationCleared)
+    try requireFinalizationOwnership(state)
+    return state
+  }
+
+  /// Revalidates retained records and current source/candidate even after the
+  /// first pin was cleared. Never writes a file or rearms an ownership record.
+  func confirmFinalization(
+    _ state: V3RecoveryRestoreFinalizationState, snapshot: V3RecoveryVerifiedSnapshot,
+    environment: V3RecoveryRestoreEnvironment, vaultKey: Data,
+    expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws -> V3RecoveryRestoreBundle {
+    let pending = state.pending
+    guard let bundle = pending.preparation,
+      pending.reservationOwnership.phase == .recoverable,
+      pending.preparationOwnership?.phase == .recoverable,
+      environment.hasSelectedConfiguration
+    else { throw V3RecoveryRestoreJournalError.invalidOwnership }
+    try requireFinalizationOwnership(state)
+    try environment.requireSelectionMatches(vaultID: bundle.intent.destinationCheckpoint.vaultID)
+    try environment.requireCurrent(pending.reservation.locations)
+    try pending.reservation.requireBundle(bundle)
+    try pending.reservation.requireSnapshot(snapshot)
+    try bundle.intent.authenticate(destinationVaultKey: vaultKey)
+    let candidate = try environment.validateCandidate(
+      bundle.publication(restoring: snapshot), restoring: snapshot, vaultKey: vaultKey,
+      expectedOwner: expectedOwner, limits: limits)
+    try bundle.intent.requireCandidate(candidate)
+    try confirm(
+      pending.reservation.canonicalBytes,
+      at: reservationPath(pending.reservation.operationID),
+      operationID: pending.reservation.operationID)
+    try confirm(
+      bundle.canonicalBytes,
+      at: preparationPath(pending.reservation.operationID),
+      operationID: pending.reservation.operationID)
+    try requireFinalizationOwnership(state)
+    try environment.requireSnapshot(snapshot)
+    return bundle
+  }
+
+  /// The higher-level finalizer must freshly verify selected config, actual
+  /// published contents, trust/cache and ordinary access before each removal.
+  func clearFinalizationReservation(_ state: V3RecoveryRestoreFinalizationState) throws
+    -> V3RecoveryRestoreFinalizationState
+  {
+    guard state.stage != .cleared else { throw V3RecoveryRestoreJournalError.invalidOwnership }
+    try requireFinalizationOwnership(state)
+    if state.stage == .owned {
+      let pin = state.pending.reservationOwnership
+      try reservations.replaceRecoveryAnchor(
+        nil, expectedAnchor: pin.canonicalBytes, vaultID: pin.vaultID)
+    }
+    let next = V3RecoveryRestoreFinalizationState(
+      pending: state.pending, stage: .reservationCleared)
+    try requireFinalizationOwnership(next)
+    return next
+  }
+
+  func clearFinalizationPreparation(_ state: V3RecoveryRestoreFinalizationState) throws
+    -> V3RecoveryRestoreFinalizationState
+  {
+    guard state.stage == .reservationCleared, let pin = state.pending.preparationOwnership else {
+      throw V3RecoveryRestoreJournalError.invalidOwnership
+    }
+    try requireFinalizationOwnership(state)
+    try preparations.replaceRecoveryAnchor(
+      nil, expectedAnchor: pin.canonicalBytes, vaultID: pin.vaultID)
+    let next = V3RecoveryRestoreFinalizationState(pending: state.pending, stage: .cleared)
+    try requireFinalizationOwnership(next)
+    return next
+  }
+
+  private func requireFinalizationOwnership(_ state: V3RecoveryRestoreFinalizationState) throws {
+    let pending = state.pending
+    guard let preparation = pending.preparation, let pin = pending.preparationOwnership,
+      pin.phase == .recoverable, pending.reservationOwnership.phase == .recoverable,
+      pin.vaultID == pending.reservation.sourceAnchor.floor.vaultID,
+      pin.vaultID == pending.reservationOwnership.vaultID,
+      pin.operationID == pending.reservation.operationID,
+      pending.reservationOwnership.operationID == pin.operationID,
+      pin.intentDigest == Data(SHA256.hash(data: preparation.canonicalBytes)),
+      pending.reservationOwnership.intentDigest
+        == Data(SHA256.hash(data: pending.reservation.canonicalBytes)),
+      try reservations.loadRecoveryAnchor(vaultID: pin.vaultID)
+        == (state.stage == .owned ? pending.reservationOwnership.canonicalBytes : nil),
+      try preparations.loadRecoveryAnchor(vaultID: pin.vaultID)
+        == (state.stage == .cleared ? nil : pin.canonicalBytes)
+    else { throw V3RecoveryRestoreJournalError.ownershipChanged }
+  }
+
+  private func requireNoOwnership(sourceVaultID: String) throws {
+    guard try reservations.loadRecoveryAnchor(vaultID: sourceVaultID) == nil,
+      try preparations.loadRecoveryAnchor(vaultID: sourceVaultID) == nil
+    else { throw V3RecoveryRestoreJournalError.ownershipChanged }
   }
 
   /// Caller supplies freshly authenticated source snapshot and destination key.

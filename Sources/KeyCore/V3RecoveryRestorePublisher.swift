@@ -182,6 +182,31 @@ struct V3RecoveryRestorePublisher: Sendable {
     return bundle
   }
 
+  /// Selected completion can retain only the complete preparation pin. This
+  /// path still verifies exact published inventory without repairing anything.
+  func confirmFinalization(
+    _ state: V3RecoveryRestoreFinalizationState, snapshot: V3RecoveryVerifiedSnapshot,
+    environment: V3RecoveryRestoreEnvironment, vaultKey: Data,
+    expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws -> V3RecoveryRestoreBundle {
+    let bundle = try journal.confirmFinalization(
+      state, snapshot: snapshot,
+      environment: environment, vaultKey: vaultKey, expectedOwner: expectedOwner)
+    let store = V3FilesystemTransactionArtifactStore(rootHandle: environment.destination)
+    try confirmSnapshot(bundle, store: store)
+    _ = try environment.validateCandidate(
+      bundle.publication(restoring: snapshot),
+      restoring: snapshot, vaultKey: vaultKey, expectedOwner: expectedOwner, limits: limits)
+    _ = try journal.confirmFinalization(
+      state, snapshot: snapshot,
+      environment: environment, vaultKey: vaultKey, expectedOwner: expectedOwner)
+    try confirmSnapshot(bundle, store: store)
+    _ = try journal.confirmFinalization(
+      state, snapshot: snapshot,
+      environment: environment, vaultKey: vaultKey, expectedOwner: expectedOwner)
+    return bundle
+  }
+
   private struct Inventory {
     let entries: Set<String>
     let manifestPresent: Bool
