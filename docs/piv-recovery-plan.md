@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; internal authenticated initial restore and exact resume now compose preparation, manifest-last publication, insert-only trust, ordinary-runtime reopening, configuration selection and ordered finalization; product dispatch/barriers, separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; public token/source review and restore/resume CLI/protocol, gated host/connection lifecycle, restart ownership admission and native factories implemented; remaining commands, live feature gating, profile-3 shipping runtime and signed qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; public token/source review and restore/resume CLI/protocol, gated host/connection lifecycle, restart ownership admission, native factories and internal profile-3 Mac unlock implemented; remaining commands, live feature gating, profile-3 shipping runtime and signed qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -4555,3 +4555,89 @@ Verification for this increment:
   warning remain. Raw logs/build products are ignored
   under `tmp/piv-recovery/2026-10-07-registration-status-*` and
   `tmp/piv-recovery/registration-status-build`.
+
+### 2026-10-07: routine profile-3 Mac unlock and cancellable reauthentication
+
+The existing shipping unlock runtime binds its trusted-envelope type and HPKE
+context to profile 2. Extending it with a recovery-profile variant would make
+every permanent-profile state-loader/catch-up caller branch on that variant.
+The internal [profile-3 runtime](../Sources/KeyCore/V3RecoveryVaultUnlockRuntime.swift)
+instead returns the existing profile-3 floor type and reuses the current
+identity-loader interface, checkpoint cache and in-memory session. It does not
+project a recovery manifest into profile 2 or install a second key store.
+
+Only exact bytes selected by a bounded device-local checkpoint can be opened.
+Permanent and unknown profiles, unavailable or substituted bytes, missing or
+unfamiliar identity and revoked-device metadata refuse before private unwrap.
+Cold access performs one Mac wrapper opening and checks key identity, manifest
+MAC and encrypted epoch-capsule/private-public correspondence. Warm access uses
+only the matching resident key and repeats current authentication. It does not
+load identity or open another wrapper. A mismatched warm key refuses without
+automatic authentication retry. These operation counts are software evidence,
+not measured native prompt counts.
+
+Explicit unlock clears any earlier key before identity access. A new atomic
+session operation requires the request's still-current admission ticket before
+clearing the key and issuing its replacement ticket. Separate invalidate and
+ticket-capture calls were rejected because a lock in between could be treated
+as fresh approval. Runtime lock remains independent of request serialization,
+so it can invalidate an outstanding authentication while native UI is active.
+Checkpoint, pending ownership and generation checks surround private work,
+optional cache warming, session installation and return. Failures clear the
+session and do not retry. Exact cache bytes improve availability but grant no
+authority; a cache write failure is best effort, while a lock during that call
+still invalidates the result.
+
+All three ordinary/registration/adoption ownership stores are mandatory.
+Present or unreadable ownership blocks this ordinary unlock path. No marker is
+parsed as consent, cleared or reconciled. Registration/adoption pending-state
+authentication remains a separate product-composition task; their services must
+not use a normal-runtime admission result to bypass their own exact guards.
+
+The new [unlock tests](../Tests/KeyCoreTests/V3RecoveryVaultUnlockRuntimeTests.swift)
+use real profile-3 publication, HPKE, capsule and contained filesystem fixtures.
+Seventeen declarations exercise 39 cases, including cache/provider transport,
+cold/warm access, explicit reauthentication, malformed/local/source/profile and
+identity refusal, every pending namespace, revoked-device refusal, invalid MAC
+and capsule correspondence, cancellation/private failures, and late changes
+during identity access, unwrap, cache warming and after installation. Two new
+[session declarations](../Tests/KeyCoreTests/V3DeviceWrappedVaultKeySessionTests.swift)
+exercise five cases of atomic key clearing and stale/foreign admission refusal.
+A concrete enrolled-Mac test unlocks, catches up through an actual rotation,
+saves through the ordinary mutation service, locks and reopens the saved floor;
+the complete current snapshot is then authenticated by the existing repository.
+
+This runtime authenticates only the selected manifest/capsule, not entry
+availability or provider-current contents. It never advances a checkpoint,
+discovers a provider head, catches up, administers a token or selects configuration.
+Read/UX composition, catch-up serialization, pending-ceremony routing, registration
+commands and the gated shipping factory remain to be composed. No live hook,
+protocol, CLI route or feature gate changes. Signed/native qualification and
+integrated independent review remain outstanding; `REC-812` is not complete.
+
+Verification for the unlock increment:
+
+- Expanded Debug: 108 declarations across six suites passed in 69.384 seconds.
+  This includes permanent-profile unlock, shared sessions, registration, concrete
+  catch-up and the new unlock cases. After removing a redundant profile decode
+  already enforced by the existing codec, final-source full Release passed:
+  1,679 KeyCore declarations across 135 suites in 438.805 seconds, plus six
+  canonical-JSON declarations. The separately gated large-migration test remains
+  skipped as before.
+- Final unsigned universal Preview build, product-bundle isolation, compiled
+  version `0.2.0 (19)` and arm64/x86_64 slices for app, CLI and helper passed.
+  No install, signing, publication, push, user-vault access or physical token
+  operation was performed.
+- Strict formatting for the new runtime/tests and session tests, project plist
+  syntax, 318 relative documentation targets and `git diff --check` passed.
+  The unchanged routing-test non-Sendable request capture and missing AppIntents
+  metadata dependency warnings remain.
+
+Initial verification caught two test compilation errors: a throwing property
+initializer and an equality assertion on a non-Equatable floor type. A capsule
+fixture also failed the cipher's key/context guard before reaching runtime
+validation. The tests now initialize the fixture in its throwing initializer,
+compare floor fields and use a well-shaped capsule with mismatched public/private
+correspondence. No production validation was relaxed. Raw verification logs and
+build products remain ignored under `tmp/piv-recovery/2026-10-07-recovery-unlock-*`
+and `tmp/piv-recovery/registration-status-build`.
