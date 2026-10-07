@@ -16,18 +16,21 @@ final class V3RecoveryVaultUnlockRuntime: @unchecked Sendable {
     let current: V3RecoveryContentCommit
     private let runtime: V3RecoveryVaultUnlockRuntime
     private let ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+    private let pending: PendingSelection?
 
     fileprivate init(
       current: V3RecoveryContentCommit, runtime: V3RecoveryVaultUnlockRuntime,
-      ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+      ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket,
+      pending: PendingSelection? = nil
     ) {
       self.current = current
       self.runtime = runtime
       self.ticket = ticket
+      self.pending = pending
     }
 
     func revalidate() throws {
-      try runtime.requireState(current.checkpoint, ticket: ticket)
+      try runtime.requireState(current.checkpoint, ticket: ticket, pending: pending)
     }
 
     func authenticationTicket() throws -> V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket {
@@ -44,6 +47,30 @@ final class V3RecoveryVaultUnlockRuntime: @unchecked Sendable {
       try revalidate()
       return key
     }
+  }
+
+  /// Cannot be passed to an ordinary reader. Exact local ownership permits
+  /// authentication of the floor, not publication or access to pending values.
+  struct PendingContext: Sendable {
+    let anchor: V3ImmutableTransactionRecoveryAnchor
+    private let context: ReadContext
+    var current: V3RecoveryContentCommit { context.current }
+    fileprivate init(anchor: V3ImmutableTransactionRecoveryAnchor, context: ReadContext) {
+      self.anchor = anchor
+      self.context = context
+    }
+    func revalidate() throws { try context.revalidate() }
+    func authenticationTicket() throws -> V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket {
+      try context.authenticationTicket()
+    }
+    func loadVaultKey() throws -> Data {
+      try context.loadVaultKey(keyID: current.envelope.body.fields.keyID)
+    }
+  }
+
+  fileprivate struct PendingSelection: Sendable {
+    let index: Int
+    let anchor: V3ImmutableTransactionRecoveryAnchor
   }
 
   private let vaultID: String
@@ -99,6 +126,37 @@ final class V3RecoveryVaultUnlockRuntime: @unchecked Sendable {
     try authenticate(reason: reason, explicitly: explicitly, admission: admission)
   }
 
+  /// Only a bounded device-local record selects this path. No shared intent
+  /// scan, caller-supplied exemption or cold retry after a cancelled admission.
+  func authenticatedPendingContext(
+    namespace: V3RecoveryOwnershipNamespace, reason: String, explicitly: Bool = false,
+    continuing admission: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  ) throws -> PendingContext {
+    do {
+      try session.requireCurrent(admission)
+      let index: Int
+      switch namespace {
+      case .transaction: index = 0
+      case .registration: index = 1
+      case .adoption: index = 2
+      default: throw V3RecoveryVaultUnlockError.recoveryRequired
+      }
+      guard let bytes = try ownership[index].loadRecoveryAnchor(vaultID: vaultID),
+        bytes.count <= 1_024,
+        let anchor = try? V3ImmutableTransactionRecoveryAnchor(canonicalBytes: bytes),
+        anchor.vaultID == vaultID
+      else { throw V3RecoveryVaultUnlockError.recoveryRequired }
+      let selected = PendingSelection(index: index, anchor: anchor)
+      try requireOwnership(selected)
+      let context = try authenticate(
+        reason: reason, explicitly: explicitly, admission: admission, pending: selected)
+      return .init(anchor: anchor, context: context)
+    } catch {
+      session.invalidate()
+      throw error
+    }
+  }
+
   /// Continue a coordinator's exact committed floor and installation receipt.
   /// No cold fallback or new private operation is permitted at this hand-off.
   func continuedReadContext(
@@ -121,7 +179,8 @@ final class V3RecoveryVaultUnlockRuntime: @unchecked Sendable {
 
   private func authenticate(
     reason: String, explicitly: Bool,
-    admission suppliedAdmission: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil
+    admission suppliedAdmission: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil,
+    pending: PendingSelection? = nil
   ) throws -> ReadContext {
     let admission = suppliedAdmission ?? session.beginAuthentication()
     return try requests.withLock {
@@ -130,27 +189,27 @@ final class V3RecoveryVaultUnlockRuntime: @unchecked Sendable {
         let ticket =
           try explicitly
           ? session.beginFreshAuthentication(continuing: admission) : admission
-        try requireNoPending()
+        try requireOwnership(pending)
         let checkpoint = try loadCheckpoint()
         let loaded = try loadManifest(checkpoint)
         let envelope = try parse(loaded.bytes, checkpoint: checkpoint)
-        try requireState(checkpoint, ticket: ticket)
+        try requireState(checkpoint, ticket: ticket, pending: pending)
 
         if !explicitly, session.hasResidentKey {
           let key = try session.load(vaultID: vaultID, keyID: envelope.body.fields.keyID)
           try V3RecoveryEpochBoundary().verifyCurrentAuthentication(envelope, vaultKey: key)
-          try requireState(checkpoint, ticket: ticket)
+          try requireState(checkpoint, ticket: ticket, pending: pending)
           if loaded.shouldCache { try? cache.store(loaded.bytes, for: checkpoint) }
-          try requireState(checkpoint, ticket: ticket)
+          try requireState(checkpoint, ticket: ticket, pending: pending)
           return .init(
             current: .init(checkpoint: checkpoint, envelope: envelope), runtime: self,
-            ticket: ticket)
+            ticket: ticket, pending: pending)
         }
 
         guard !reason.isEmpty else { throw V3RecoveryVaultUnlockError.recoveryRequired }
         guard let identity = try identities.loadDeviceIdentity(vaultID: vaultID, reason: reason)
         else { throw V3RecoveryVaultUnlockError.identityUnavailable }
-        try requireState(checkpoint, ticket: ticket)
+        try requireState(checkpoint, ticket: ticket, pending: pending)
         guard identity.vaultID == vaultID,
           let device = envelope.body.fields.devices.first(where: {
             $0.identity.deviceID == identity.publicIdentity.deviceID
@@ -167,15 +226,15 @@ final class V3RecoveryVaultUnlockRuntime: @unchecked Sendable {
           context: envelope.body.deviceContext(recipientDeviceID: device.identity.deviceID),
           reason: reason)
         try V3RecoveryEpochBoundary().verifyCurrentAuthentication(envelope, vaultKey: key)
-        try requireState(checkpoint, ticket: ticket)
+        try requireState(checkpoint, ticket: ticket, pending: pending)
         if loaded.shouldCache { try? cache.store(loaded.bytes, for: checkpoint) }
-        try requireState(checkpoint, ticket: ticket)
+        try requireState(checkpoint, ticket: ticket, pending: pending)
         let installed = try session.install(
           key, vaultID: vaultID, keyID: envelope.body.fields.keyID, authenticationTicket: ticket)
-        try requireState(checkpoint, ticket: installed)
+        try requireState(checkpoint, ticket: installed, pending: pending)
         return .init(
           current: .init(checkpoint: checkpoint, envelope: envelope), runtime: self,
-          ticket: installed)
+          ticket: installed, pending: pending)
       } catch {
         session.invalidate()
         switch error {
@@ -229,20 +288,24 @@ final class V3RecoveryVaultUnlockRuntime: @unchecked Sendable {
 
   private func requireState(
     _ checkpoint: V3ManifestCheckpoint,
-    ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+    ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket,
+    pending: PendingSelection? = nil
   ) throws {
     try session.requireCurrent(ticket)
-    try requireNoPending()
+    try requireOwnership(pending)
     guard try loadCheckpoint() == checkpoint else {
       throw V3RecoveryVaultUnlockError.checkpointChanged
     }
-    try requireNoPending()
+    try requireOwnership(pending)
     try session.requireCurrent(ticket)
   }
 
-  private func requireNoPending() throws {
-    for store in ownership where try store.loadRecoveryAnchor(vaultID: vaultID) != nil {
-      throw V3RecoveryVaultUnlockError.mutationPending
+  private func requireOwnership(_ pending: PendingSelection?) throws {
+    for (index, store) in ownership.enumerated() {
+      let expected = pending?.index == index ? pending?.anchor.canonicalBytes : nil
+      guard try store.loadRecoveryAnchor(vaultID: vaultID) == expected else {
+        throw V3RecoveryVaultUnlockError.mutationPending
+      }
     }
   }
 }

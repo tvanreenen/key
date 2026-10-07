@@ -4812,3 +4812,28 @@ Verification for this increment:
 - No install, signing, release, push, user-vault access or physical token operation.
   Logs remain ignored under `tmp/piv-recovery/2026-10-07-recovery-conflict-read-*`;
   build products reuse `tmp/piv-recovery/registration-status-build`.
+
+### 2026-10-07: exact pending authentication and ordinary-save routing
+
+The unlock runtime now returns a separate pending context, selected only by one
+bounded device-local ownership record. Its exact bytes, checkpoint and session
+ticket remain guarded; other ownership namespaces must stay empty. It cannot be
+used by an ordinary reader. Relaxing the routine no-pending guard was considered
+and rejected because it would let read admission bypass unfinished publication.
+The typed context confines that exception to reconciliation.
+
+The runtime now routes ordinary interrupted saves through the existing
+content/merge recovery kernel, then continues normal unlock/catch-up with the same
+session receipt. It does not scan provider intents, create replacement work,
+reopen historical keys or retry authentication. Registration/adoption still need
+explicit product routes; authority-changing transaction recovery is not routed
+through the content validator.
+
+Focused Debug passed 54 declarations across three suites in 63.934 seconds.
+Five new declarations exercise 23 cases: exact namespaces, malformed/ambiguous
+selection, late state changes, cancelled admission, and real interrupted saves
+at four publication phases with warm/cold sessions. No production guard was
+relaxed for a pass. This increment has not separately repeated Release or the
+product build; the integration checkpoint will run those on the combined source.
+Logs are ignored under `tmp/piv-recovery/2026-10-07-pending-runtime-debug.log`.
+No native operation, user-vault access, installation or push occurred.

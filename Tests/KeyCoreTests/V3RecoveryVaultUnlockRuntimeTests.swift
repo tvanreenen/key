@@ -345,6 +345,88 @@ struct V3RecoveryVaultUnlockRuntimeTests {
       checkpoint: reopened.checkpoint, currentVaultKey: key)
   }
 
+  @Test(arguments: 0..<3)
+  func exactPendingNamespaceAuthenticatesOnlyTheFloorAndCannotGrantRoutineReads(index: Int)
+    throws
+  {
+    let f = try Fixture()
+    defer { f.disk.remove() }
+    let anchor = try pendingAnchor()
+    f.pending[index].value = anchor.canonicalBytes
+    let runtime = f.runtime()
+    let namespace: V3RecoveryOwnershipNamespace = [.transaction, .registration, .adoption][index]
+    let pending = try runtime.authenticatedPendingContext(
+      namespace: namespace, reason: "Authenticate software pending floor",
+      continuing: f.session.beginAuthentication())
+    #expect(pending.anchor == anchor && pending.current.checkpoint == f.disk.checkpoint)
+    #expect(try pending.loadVaultKey() == Core.nextKey)
+    #expect(f.disk.core.owner.unwraps == 1 && f.source.entryReads == 0 && f.source.listings == 0)
+    #expect(throws: V3RecoveryVaultUnlockError.mutationPending) {
+      try runtime.authenticatedReadContext(reason: "Routine reads stay blocked")
+    }
+    #expect(f.pending[index].value == anchor.canonicalBytes)
+  }
+
+  @Test(arguments: 0..<6)
+  func malformedAmbiguousOrUnsupportedPendingSelectionRefusesBeforeIdentity(variant: Int) throws {
+    let f = try Fixture()
+    defer { f.disk.remove() }
+    f.pending[0].value = try pendingAnchor().canonicalBytes
+    var namespace = V3RecoveryOwnershipNamespace.transaction
+    switch variant {
+    case 0: f.pending[0].value = nil
+    case 1: f.pending[0].value = Data([1])
+    case 2: f.pending[0].value = Data(repeating: 0, count: 1_025)
+    case 3: f.pending[1].value = try pendingAnchor().canonicalBytes
+    case 4: f.pending[2].fails = true
+    default: namespace = .restorePreparation
+    }
+    #expect(throws: (any Error).self) {
+      try f.runtime().authenticatedPendingContext(
+        namespace: namespace, reason: "Refuse software pending selection",
+        continuing: f.session.beginAuthentication())
+    }
+    #expect(f.loader.loads == 0 && f.disk.core.owner.unwraps == 0 && !f.session.hasResidentKey)
+  }
+
+  @Test(arguments: 0..<5)
+  func pendingContextRejectsLateOwnershipCheckpointAndSessionChanges(change: Int) throws {
+    let f = try Fixture()
+    defer { f.disk.remove() }
+    f.pending[1].value = try pendingAnchor().canonicalBytes
+    let context = try f.runtime().authenticatedPendingContext(
+      namespace: .registration, reason: "Software pending context",
+      continuing: f.session.beginAuthentication())
+    switch change {
+    case 0: f.pending[1].value = nil
+    case 1: f.pending[1].value = try pendingAnchor().canonicalBytes
+    case 2: f.pending[0].value = try pendingAnchor().canonicalBytes
+    case 3: f.disk.checkpoints.value = f.disk.core.checkpoint.canonicalBytes
+    default: f.session.invalidate()
+    }
+    #expect(throws: (any Error).self) { try context.loadVaultKey() }
+    #expect(f.disk.core.owner.unwraps == 1)
+  }
+
+  @Test func cancelledPendingAdmissionNeverReauthenticates() throws {
+    let f = try Fixture()
+    defer { f.disk.remove() }
+    f.pending[0].value = try pendingAnchor().canonicalBytes
+    let admission = f.session.beginAuthentication()
+    f.session.invalidate()
+    #expect(throws: (any Error).self) {
+      try f.runtime().authenticatedPendingContext(
+        namespace: .transaction, reason: "Cancelled pending authentication", continuing: admission)
+    }
+    #expect(f.loader.loads == 0 && f.disk.core.owner.unwraps == 0)
+  }
+
+  private func pendingAnchor() throws -> V3ImmutableTransactionRecoveryAnchor {
+    try .init(
+      operationID: .init(), vaultID: Core.vaultID,
+      intentDigest: Data(repeating: 0x42, count: 32), phase: .recoverable)
+  }
+
   private struct Fixture: Sendable {
     let disk: Publication.Fixture
     let session = V3DeviceWrappedVaultKeySessionStore()
