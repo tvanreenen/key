@@ -189,9 +189,37 @@ struct V3RecoveryVaultRuntime:
     return detail
   }
   func conflictValue(id: String, versionID: String) throws -> String {
-    // Profile-3 conflict plaintext needs its own sealed read plan. Do not
-    // project a recovery envelope into the permanent-profile trust model.
-    try reader.conflictValue(id: id, versionID: versionID)
+    try withRead { prepared, _ in
+      let context = prepared.context
+      let observer = V3RecoverySameEpochRepositoryObserver(source: store, limits: limits)
+      let observed = try observer.observe(
+        from: context.current,
+        vaultKey: context.loadVaultKey(keyID: context.current.envelope.body.fields.keyID))
+      try context.revalidate()
+      let plan = try V3AuthenticatedReadPlanner().planRecoveryConflictRead(
+        conflictID: id, versionID: versionID, observed: observed)
+      return try V3AuthenticatedReadExecutor(
+        source: store, maximumEntryBytes: limits.maximumEntryBytes,
+        vaultKeyProvider: { try context.loadVaultKey(keyID: $0) },
+        authorityValidator: .init(
+          currentStateProvider: { checkpoint in
+            guard checkpoint == context.current.checkpoint else {
+              throw V3AuthenticatedReadError.authorityChanged
+            }
+            try context.revalidate()
+            let fresh = try observer.observe(
+              from: context.current,
+              vaultKey: context.loadVaultKey(keyID: context.current.envelope.body.fields.keyID))
+            guard fresh == observed else { throw V3AuthenticatedReadError.authorityChanged }
+            try context.revalidate()
+            return .init(
+              checkpoint: fresh.checkpoint,
+              heads: try fresh.heads.map {
+                try V3VaultHead(vaultID: fresh.checkpoint.vaultID, envelopeDigest: $0)
+              })
+          }, checkpointProvider: { _ in throw V3AuthenticatedReadError.authorityChanged })
+      ).execute(plan)
+    }
   }
   func resolve(_ resolutions: [VaultConflictResolution]) throws {
     throw AppError.operationRefused(

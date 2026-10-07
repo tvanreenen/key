@@ -142,6 +142,27 @@ struct V3AuthenticatedReadPlanner: Sendable {
         )
     }
 
+    /// IDs are resolved afresh inside the authenticated profile-3 conflict
+    /// projection, never interpreted as object addresses or old approval.
+    func planRecoveryConflictRead(
+        conflictID: String, versionID: String,
+        observed: V3RecoverySameEpochObservation
+    ) throws -> V3AuthenticatedReadPlan {
+        guard let snapshot = try V3ConflictObservationBuilder().build(observed),
+            let selection = snapshot.selections[conflictID]
+        else { throw VaultUXServiceError.conflictNotFound }
+        guard let stored = selection.versions[versionID] else {
+            throw VaultUXServiceError.conflictVersionNotFound
+        }
+        guard let entry = stored else {
+            throw AppError.operationRefused(
+                "That authenticated version deleted the entry and has no secret value to read.")
+        }
+        return try V3AuthenticatedReadPlan(
+            authority: .current(.init(checkpoint: observed.checkpoint, heads: snapshot.expectedHeads)),
+            vaultID: observed.checkpoint.vaultID, entry: entry)
+    }
+
     private func effectiveReadState(
         allowStale: Bool,
         classification: V3VaultRepositoryClassification,

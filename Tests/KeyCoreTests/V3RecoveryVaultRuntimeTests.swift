@@ -79,9 +79,10 @@ struct V3RecoveryVaultRuntimeTests {
     let conflict = try #require(runtime.conflicts().first)
     let detail = try runtime.conflict(id: conflict.id)
     #expect(detail.versions.count == 2)
-    #expect(throws: AppError.self) {
-      try runtime.conflictValue(id: conflict.id, versionID: detail.versions[0].id)
+    let values = try detail.versions.map {
+      try runtime.conflictValue(id: conflict.id, versionID: $0.id)
     }
+    #expect(Set(values) == ["competing edit", "late old-epoch branch"])
     #expect(throws: VaultUXServiceError.contentConflict) {
       try f.owner.perform(.editEntry) { scope in
         try runtime.edit(
@@ -119,6 +120,32 @@ struct V3RecoveryVaultRuntimeTests {
     #expect(try runtime.read(name: "fixture/totp", allowStale: false).plaintext == "MZXW6YTBOI")
     #expect(try runtime.read(name: "local/after-merge", allowStale: false).plaintext == "saved")
     #expect(f.disk.receiver.unwraps == 0 && f.disk.pending.allSatisfy { $0.value == nil })
+  }
+
+  @Test(arguments: 0..<6)
+  func conflictValueDoesNotReuseAnOldReviewAfterQueuedChanges(change: Int) throws {
+    let f = try Fixture()
+    defer { f.disk.disk.remove() }
+    try f.disk.edit("first branch")
+    try f.disk.branchFromFloor()
+    let runtime = f.runtime()
+    let detail = try #require(runtime.conflicts().first)
+    let version = try #require(runtime.conflict(id: detail.id).versions.first)
+    f.owner.onEnter = {
+      switch change {
+      case 0: runtime.lock()
+      case 1:
+        try f.disk.session.install(
+          f.disk.initialKey, vaultID: Core.vaultID, keyID: f.disk.floor.envelope.body.fields.keyID)
+      case 2: try f.disk.branchFromFloor()
+      default: f.disk.pending[change - 3].value = Data([1])
+      }
+    }
+    #expect(throws: (any Error).self) {
+      try runtime.conflictValue(id: detail.id, versionID: version.id)
+    }
+    #expect(
+      f.disk.receiver.unwraps == 0 && f.disk.local.value == f.disk.floor.checkpoint.canonicalBytes)
   }
 
   @Test(arguments: [false, true])
