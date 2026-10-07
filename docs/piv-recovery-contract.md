@@ -1574,19 +1574,19 @@ same closed connection, without cancelling another connection's scope.
 
 The client reply bound is 120 seconds; the host scope deadline is 90 seconds and
 includes queue waiting. These bounds do not promise immediate native termination.
-The utility role remains limited to status/lock. Recovery success requires an
+The utility role remains limited to status/lock. Restore/resume success requires an
 actual configuration and the existing post-reply helper shutdown handshake.
 Restart timeout guidance refuses a second initial restore.
 
-Once recovery enters, process-local uncertainty blocks competing setup and
+Once restore/resume enters, process-local uncertainty blocks competing setup and
 configuration changes; explicit resume remains available. Configuration present
 on any exit requires helper restart, even after an error or cancelled/lost reply.
 Restart-persistent admission now checks the presence of either existing local
 restore ownership namespace. The in-memory guard is not durable recovery
 authority. Recovery dispatch and this inspector are supplied as one capability;
 the host cannot accept the dispatch hook without an ownership dependency.
-Stable and ordinary Preview live hosts keep that capability disabled. Restore
-and resume now have CLI syntax and help, but no shipping recovery operation,
+Stable and ordinary Preview live hosts keep that capability disabled. Public
+token/source review and restore/resume now have CLI syntax and help, but no shipping recovery operation,
 saved-attempt scan, replacement credential or cleanup is enabled here.
 [Host tests](../Tests/KeyCoreTests/KeyRecoveryRoutingTests.swift) include actual
 restore-service cancellation but substitute native I/O and service composition;
@@ -1617,9 +1617,47 @@ parser, application, host, workflow and restore service over real software
 crypto/files with substituted native keys and local pins. They cover initial
 completion, durable-preparation interruption, fresh-host exact resume and
 completed-attempt refusal without another agreement. They do not establish
-signed XPC/helper restart or native prompt behavior. Public read-only review
-needs its own nonmutating admission/response path; it cannot reuse restore's
+signed XPC/helper restart or native prompt behavior. Public read-only review now
+has its own nonmutating admission/response path; it does not reuse restore's
 pending guard or requirement to select configuration.
+
+### Public token/source review
+
+The [read-only wire request and workflow](../Sources/KeyCore/KeyRecoveryReview.swift)
+expose token inventory and explicit source review separately from restore.
+`key recovery tokens [--json]` lists at most 64 public candidates without choosing
+one or opening a credential. `key recovery review --source <directory> --token
+<token-id> [--json]` requires an existing independently opened source and exactly
+one selected token. No destination, private credential or approval is accepted.
+
+Source review requires the existing reported generated/PIN-always/touch-always
+policy and a recognized key-bound anchor, then reuses the public history selector.
+It compares repeated public token/source observations, preserves resource limits
+and checks path identity, cancellation, generation and deadline around filesystem
+reads. Its source adapter refuses all entry-object reads. No agreement, Keychain,
+local ownership, Mac-key, config or mutation dependency is present.
+
+The result contains only public identifiers/policy, the observed public head and
+unverified entry/manifest counts. JSON source reports explicitly carry
+`public-observation-only` assurance; human output makes the same limits clear.
+Review proves neither possession, protected token administration, PIN/touch
+enforcement, restorable contents nor provider freshness. It never supplies a
+confirmation reference or saves consent, so restore independently rechecks its
+selectors and source before fresh private authentication.
+
+The host shares at-most-one admission and the existing bounded connection/lock
+scope with restore, but review does not mark or clear pending state, inspect
+ownership, select configuration or authorize helper shutdown. It runs as a
+concurrent read, allowing lock to reach an active configured runtime; setup/config
+barriers wait for it to finish. Public review can inspect a source on a configured
+Mac or while saved-attempt ownership remains, without granting ordinary runtime
+or setup authority. No live hook is installed in Stable/ordinary Preview.
+The full-CLI role is required; utility access remains status/lock-only.
+
+[Review tests](../Tests/KeyCoreTests/KeyRecoveryReviewTests.swift) include real
+public selector/filesystem/CLI composition and asynchronous host ordering over
+software token fixtures. They do not qualify physical card behavior, actual XPC
+disconnect, signed helper distribution or protected administration.
 
 ### Restart ownership admission
 
@@ -2310,8 +2348,9 @@ review and distribution qualification remain required before real-vault opt-in.
 
 The proposed complete public workflow is a `recovery` command group for status,
 credential review, registration, recipient listing/removal, restore review,
-restore, and explicit resume. Restore/resume syntax and disabled-build help now
-exist; other commands remain proposed, not a runnable command listing.
+restore, and explicit resume. Token listing, public source review and
+restore/resume syntax and disabled-build help now exist; other commands remain
+proposed, not a runnable command listing.
 Names/options are reviewed with service fixtures before implementation. No PIN, PUK,
 management key, or raw vault key crosses CLI arguments or XPC. Destructive
 changes use exact-target review and opaque confirmation references.

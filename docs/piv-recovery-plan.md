@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; internal authenticated initial restore and exact resume now compose preparation, manifest-last publication, insert-only trust, ordinary-runtime reopening, configuration selection and ordered finalization; product dispatch/barriers, separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; restore/resume CLI and protocol, gated host/connection lifecycle, restart ownership admission and native restore factory implemented; public review, remaining commands, live feature gating, profile-3 shipping runtime and signed qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; public token/source review and restore/resume CLI/protocol, gated host/connection lifecycle, restart ownership admission and native factories implemented; remaining commands, live feature gating, profile-3 shipping runtime and signed qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -427,9 +427,9 @@ hardware operation, real-vault activation, merge or release.
 - **Real-vault ready:** 813/814 pass and explicit adoption in 815 is qualified.
 - **Full completion:** 815's Stable artifact is released and verified.
 
-The latest increment is restore/resume CLI dispatch and interruption guidance
-under `REC-812`, after native restore composition and complete internal
-authenticated restore and exact resume under `REC-811`. Public review, remaining
+The latest increment is bounded read-only public token/source review under
+`REC-812`, after restore/resume CLI dispatch, native restore composition and
+complete internal authenticated restore and exact resume under `REC-811`. Remaining
 command dispatch, live feature gating and shipping
 profile-3 integration remain, alongside final platform, lifecycle and release
 acceptance. The ledger below records each component's scope and evidence. The
@@ -570,6 +570,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Second 812 restart ownership admission, 2026-10-07 | [Local ownership queries](../Sources/KeyCore/V3ImmutableTransactionRecoveryAnchor.swift), [paired capability](../Sources/KeyCore/KeyRecoveryRequest.swift), [host](../Sources/KeyCore/KeyServiceHost.swift) and [ownership tests](../Tests/KeyCoreTests/KeyRecoveryOwnershipTests.swift) | Recovery capability requires an ownership inspector. Either existing restore pin or an uncertain query refuses competing setup and cold selected-runtime composition. Explicit resume still validates exact source-bound state; presence grants no authority. No new marker or file scan. Live products remain disabled; native composition and signed Keychain acceptance remain. |
 | Third 812 native restore composition, 2026-10-07 | [Workflow/factory](../Sources/KeyCore/V3RecoveryRestoreWorkflow.swift), [local metadata roots](../Sources/KeyCore/VaultLocationResolver.swift), [physical containment](../Sources/KeyCore/V3RecoveryRestoreEnvironment.swift) and [workflow tests](../Tests/KeyCoreTests/V3RecoveryRestoreWorkflowTests.swift) | Exact public selectors resolve through the native reader before local scaffolding. The factory pairs ownership, journal pins, Mac identity, checkpoint/cache and one scoped agreement with the actual restore service. Fresh-Mac metadata creation is bounded; resume never recreates missing directories. Live Stable/Preview remain disabled and no CLI is added. Native product acceptance and actual XPC/hardware behavior remain unqualified. |
 | Fourth 812 restore/resume CLI, 2026-10-07 | [Parser](../Sources/KeyCore/CLIParser.swift), [application](../Sources/KeyCore/KeyCLIApplication.swift), [help](../Sources/KeyCore/CLIHelp.swift) and [CLI software tests](../Tests/KeyCoreTests/RecoveryCLITests.swift) | Explicit selectors and paths dispatch through the existing guarded request, never configuration defaults or CLI credentials. Actual software CLI/host/workflow/service composition covers completion, saved-preparation interruption, fresh-host exact resume and completed-attempt refusal. Live Stable/Preview still refuse before state creation; public review, other commands, shipping profile-3 composition and signed/native qualification remain. |
+| Fifth 812 public review, 2026-10-07 | [Closed request/result/workflow](../Sources/KeyCore/KeyRecoveryReview.swift), [host admission](../Sources/KeyCore/KeyServiceHost.swift), [CLI](../Sources/KeyCore/KeyCLIApplication.swift) and [review tests](../Tests/KeyCoreTests/KeyRecoveryReviewTests.swift) | Bounded token listing never selects or reads a credential; explicit source review reuses public history selection and revalidates token, source and scope. No entry read, PIN/touch, private agreement, Keychain, saved-attempt change or configuration selection. Shared exclusion/cancellation keeps restore exclusive and review read-only; configured lock still runs. Live products stay disabled; other commands, runtime composition and signed/native qualification remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -4409,3 +4410,82 @@ commands and gated shipping profile-3 composition. Live operations stay disabled
 signed two-Mac/XPC/native acceptance remains unqualified. This is source
 self-review and software composition, not a new independent security review or
 completion of `REC-812`.
+
+### Fifth 812 component: public token/source review, 2026-10-07
+
+The [closed public-read workflow](../Sources/KeyCore/KeyRecoveryReview.swift)
+implements bounded token inventory and explicit source review. The CLI now has
+`key recovery tokens [--json]` and
+`key recovery review --source <directory> --token <token-id> [--json]`.
+Both shipping products still refuse before filesystem/card access. Listing
+returns at most 64 exact token IDs/reader names and never chooses a candidate or
+opens its slot. Source review reads only the explicitly selected token's public
+credential, reported policy and recognized anchor. It reuses the bounded public
+history selector, repeats token/source observations and checks scope/path
+identity around every filesystem read.
+
+The workflow has no config, journal, ownership, Mac-key or agreement dependency.
+Its source adapter refuses entry reads. Human output labels entry counts as
+unverified and quotes control characters in the source path. JSON source results
+carry `public-observation-only` assurance. Neither output establishes possession,
+protected administration, PIN/touch enforcement, complete/restorable contents or
+provider freshness. There is no readiness, private credential or confirmation
+reference. Review is not saved approval; later restore reads everything again.
+
+Adding review to the existing restore enum was considered, but would make the
+restore-only pending guard, configuration-selection requirement and shutdown
+handshake depend on another semantic variant. The new read-only wire request and
+optional result keep that boundary explicit. Existing request encodings are
+unchanged; older responses still decode without the optional result. An older
+helper refuses the new request kind during decode rather than falling back.
+
+The host reuses one bounded connection/lock scope and at-most-one admission for
+both operations. Restore retains its exclusive barrier. Review uses a concurrent
+read, so ordinary lock still reaches an already configured runtime while public
+callbacks drain. Setup/config barriers wait for review. Review never sets or
+clears process-local or durable pending ownership and does not require or compose
+configuration. Public source observations can therefore be reviewed while an
+attempt needs attention, without authorizing setup or ordinary runtime access.
+Both live hooks remain uninstalled; future restore installation still requires
+the paired durable ownership inspector. Utility XPC stays status/lock-only.
+
+The [15 new declarations](../Tests/KeyCoreTests/KeyRecoveryReviewTests.swift)
+exercise 44 parameter cases plus CLI refusal variants inside cases. Actual
+CLI/host/reader/history/filesystem composition uses software token fixtures.
+Missing entry files still yield only public observations, not protection claims.
+Tests cover exact selectors/policy/anchor/history refusal, token/path/scope changes,
+human path quoting and JSON assurance, configured/pending inspection, no new or
+cleared ownership, lock/disconnect late-result refusal, mutual exclusion and
+setup-barrier ordering. Live Stable/Preview construction remains a no-I/O smoke
+check; no physical token or native lifecycle qualification is added.
+
+Verification on the final source:
+
+- Focused Debug: 183 declarations across 9 suites passed in 58.063 seconds.
+  This covers the new review path plus CLI/help, restore workflow, ownership,
+  connection/lock admission and XPC role/lifecycle regressions.
+- Full Release: 1,651 KeyCore declarations across 134 suites passed in
+  462.524 seconds, plus 6 canonical-JSON declarations. The separately gated
+  large-migration case remains skipped as before.
+- Final unsigned universal Preview build passed. Product-bundle isolation,
+  actual compiled token/review help, version `0.2.0 (19)` and arm64/x86_64
+  slices for app, CLI and helper passed. Nothing was signed, installed or
+  published, and no physical token operation was requested.
+- Strict default formatting passed for the new workflow/request/result and
+  review tests. Existing four-space sources retain their conventions. Project
+  plist syntax, 311 relative documentation targets and `git diff --check`
+  passed. The unchanged routing-test non-Sendable request capture warning is
+  still reported; build metadata extraction also reports its usual missing
+  AppIntents dependency warning.
+
+The first test pass caught a test-only configuration-read assertion that also
+fired during the intentionally subsequent init; it now counts reads and proves
+none occur during review. An optional-Bool assertion failed compilation and was
+corrected before final verification. No production behavior was weakened to
+make these tests pass. Raw logs and compiled help remain under ignored
+`tmp/piv-recovery/2026-10-07-recovery-review-*`.
+
+Next: configured recovery registration/status composition and remaining commands,
+with the ordinary profile-3 runtime and reciprocal barriers required before live
+opt-in. Signed two-Mac/XPC/native acceptance and a fresh independent review of
+product composition remain outstanding. `REC-812` is not complete.

@@ -83,6 +83,8 @@ public final class KeyCLIApplication {
             return try executeShareCommand(shareCommand, vaultDirectory: vaultDirectory)
         case let .recovery(request):
             return try executeRecovery(request)
+        case let .recoveryReview(request, json):
+            return try executeRecoveryReview(request, json: json)
         case .unlock:
             response = try transport.send(.unlock)
             return try handle(response, for: command)
@@ -152,7 +154,7 @@ public final class KeyCLIApplication {
             if let value = response.value {
                 io.writeStdout(formattedGetOutput(value))
             }
-        case .status, .conflict:
+        case .status, .conflict, .recoveryReview:
             break
         case .copy(name: _, allowStale: _), .add, .edit, .duplicate,
             .rename, .remove:
@@ -160,6 +162,70 @@ public final class KeyCLIApplication {
         }
 
         return response.exitCode
+    }
+
+    private func executeRecoveryReview(_ request: KeyRecoveryReviewRequest, json: Bool) throws -> Int32 {
+        let resolved: KeyRecoveryReviewRequest
+        switch request {
+        case .tokens:
+            resolved = .tokens
+        case .source(let path, let token):
+            let base = URL(fileURLWithPath: currentDirectory().path, isDirectory: true)
+            resolved = .source(
+                path: URL(fileURLWithPath: path, isDirectory: true, relativeTo: base).standardizedFileURL.path,
+                tokenID: token
+            )
+        }
+        try resolved.validate()
+        let response = try transport.send(.recoveryReview(resolved))
+        guard response.exitCode == EXIT_SUCCESS else {
+            return try handle(response, for: .recoveryReview(resolved, json: json))
+        }
+        let result = try requiredServicePayload(response.recoveryReview, operation: "public recovery review")
+        switch (resolved, result) {
+        case (.tokens, .tokens): break
+        case let (.source(path, token), .source(source))
+            where source.path == path && source.token.tokenID == token: break
+        default:
+            throw AppError.service("Key service returned a mismatched public recovery review response.")
+        }
+        if json {
+            try writeJSON(result)
+        } else {
+            writeRecoveryReview(result)
+        }
+        return response.exitCode
+    }
+
+    private func writeRecoveryReview(_ result: KeyRecoveryReviewResult) {
+        switch result {
+        case .tokens(let tokens):
+            var lines = [tokens.isEmpty ? "No connected token candidates found." : "Public connected-token candidates:"]
+            for token in tokens {
+                lines.append("Token ID: \(token.tokenID)")
+                lines.append("  Reader: \(token.readerSlotName)")
+            }
+            lines.append("Listing does not select a key or read its recovery credential, prove possession or establish recovery protection.")
+            io.writeStdout(lines.joined(separator: "\n") + "\n")
+        case .source(let source):
+            io.writeStdout("""
+            Public recovery source review:
+            Source: \(String(reflecting: source.path))
+            Token ID: \(source.token.tokenID)
+            Reader: \(source.token.readerSlotName)
+            Recipient ID: \(source.recipientID)
+            Slot: 9d; P-256; reported PIN \(source.reportedPINPolicy), touch \(source.reportedTouchPolicy), origin \(source.reportedKeyOrigin).
+            Vault ID: \(source.vaultID)
+            Registration ID: \(source.registrationID)
+            Registration manifest: \(source.registrationManifestDigest)
+            Observed head: \(source.observedHeadDigest)
+            Listed entries (not content-verified): \(source.listedEntryCount)
+            Observed manifests: \(source.observedManifestCount)
+            Public history checks passed for the files observed. No entry objects were opened.
+            This does not prove possession, protected token administration, PIN/touch enforcement, restorable contents or provider freshness. No saved attempt or restore approval was created.
+
+            """)
+        }
     }
 
     private func executeRecovery(_ request: KeyRecoveryRequest) throws -> Int32 {

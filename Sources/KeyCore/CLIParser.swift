@@ -330,9 +330,43 @@ private struct KeyArguments: ParsableCommand {
 
     struct Recovery: ParsableCommand {
         static let configuration = CommandConfiguration(
-            commandName: "recovery", abstract: "Restore into a new vault or resume an exact saved attempt (not enabled yet).",
-            discussion: CLIHelp.recovery, subcommands: [Restore.self, Resume.self]
+            commandName: "recovery", abstract: "Review recovery inputs, restore or resume (not enabled yet).",
+            discussion: CLIHelp.recovery, subcommands: [Tokens.self, Review.self, Restore.self, Resume.self]
         )
+
+        struct Tokens: CLIRequest {
+            static let configuration = CommandConfiguration(
+                commandName: "tokens", abstract: "List public connected-token selectors without choosing one.",
+                discussion: CLIHelp.recoveryTokens
+            )
+            @Flag(help: "Print machine-readable public observations.") var json = false
+            var command: Command { .recoveryReview(.tokens, json: json) }
+        }
+
+        struct Review: CLIRequest {
+            static let configuration = CommandConfiguration(
+                commandName: "review", abstract: "Review public source history with one explicitly selected token.",
+                usage: "key recovery review --source <directory> --token <token-id> [--json]",
+                discussion: CLIHelp.recoveryReview
+            )
+            @Option(name: .customLong("source"), help: "Existing source vault folder. Required exactly once.", completion: .directory)
+            var sources: [String]
+            @Option(name: .customLong("token"), help: "Complete token ID from key recovery tokens. Required exactly once.")
+            var tokens: [String]
+            @Flag(help: "Print machine-readable public observations.") var json = false
+            mutating func validate() throws {
+                guard sources.count == 1, tokens.count == 1 else {
+                    throw ValidationError("Provide --source and --token exactly once each.")
+                }
+                try validateDirectory(sources[0])
+                guard sources[0].utf8.count <= 4_096,
+                      !tokens[0].isEmpty, tokens[0].utf8.count <= 1_024,
+                      !tokens[0].unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
+                    throw ValidationError("Provide a bounded source path and complete token ID without control characters.")
+                }
+            }
+            var command: Command { .recoveryReview(.source(path: sources[0], tokenID: tokens[0]), json: json) }
+        }
 
         struct SelectionOptions: ParsableArguments {
             @Option(name: .customLong("source"), help: "Existing source vault folder. Required exactly once.", completion: .directory)

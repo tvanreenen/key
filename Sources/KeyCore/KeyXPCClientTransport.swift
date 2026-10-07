@@ -218,6 +218,7 @@ private extension KeyServiceRequest {
         case .resolveConflicts: "conflict resolve"
         case .share, .shareInDirectory: "device sharing"
         case .recovery: "vault recovery"
+        case .recoveryReview: "public recovery review"
         case .list: "list"
         case .migrationPreflight: "migration preflight"
         case .migrationApply: "migration"
