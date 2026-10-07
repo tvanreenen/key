@@ -81,6 +81,8 @@ public final class KeyCLIApplication {
             return try executeConflictCommand(conflictCommand)
         case let .share(shareCommand, vaultDirectory):
             return try executeShareCommand(shareCommand, vaultDirectory: vaultDirectory)
+        case let .recovery(request):
+            return try executeRecovery(request)
         case .unlock:
             response = try transport.send(.unlock)
             return try handle(response, for: command)
@@ -141,7 +143,7 @@ public final class KeyCLIApplication {
             break
         case .config:
             break
-        case .initializeVault, .migrationPreflight, .migrationApply, .share,
+        case .initializeVault, .migrationPreflight, .migrationApply, .share, .recovery,
             .unlock, .lock, .list:
             if let value = response.value, !value.isEmpty {
                 io.writeStdout(value)
@@ -158,6 +160,43 @@ public final class KeyCLIApplication {
         }
 
         return response.exitCode
+    }
+
+    private func executeRecovery(_ request: KeyRecoveryRequest) throws -> Int32 {
+        // Resolve both explicit paths against one captured working directory.
+        // Configuration and provider files cannot supply a missing selector.
+        let base = URL(fileURLWithPath: currentDirectory().path, isDirectory: true)
+        func path(_ value: String) -> String {
+            URL(fileURLWithPath: value, isDirectory: true, relativeTo: base).standardizedFileURL.path
+        }
+        let resolved: KeyRecoveryRequest
+        switch request {
+        case .restore(let source, let destination, let token, let recipient, let name):
+            resolved = .restore(
+                source: path(source), destination: path(destination), tokenID: token,
+                recipientID: recipient, deviceName: name
+            )
+        case .resume(let source, let destination, let token, let recipient):
+            resolved = .resume(
+                source: path(source), destination: path(destination), tokenID: token,
+                recipientID: recipient
+            )
+        }
+        try resolved.validate()
+        io.writeStderr("If source authentication is reached, Key requests one source-key hardware operation. Enter PIN only in the macOS dialog; physically touch the key when it flashes. Cancel unexpected prompts. No automatic retry will be made.\n")
+        do {
+            let response = try transport.send(.recovery(resolved))
+            let result = try handle(response, for: .recovery(resolved))
+            if result != EXIT_SUCCESS { writeRecoveryFailureGuidance() }
+            return result
+        } catch {
+            writeRecoveryFailureGuidance()
+            throw error
+        }
+    }
+
+    private func writeRecoveryFailureGuidance() {
+        io.writeStderr("Leave source, destination, local records and configuration intact. Do not start another restore or delete state to retry. A failed or lost reply does not establish whether selection completed. Use `key recovery resume` with the exact original selectors if a saved attempt remains; if resume refuses, preserve state for inspection. See `key recovery resume --help`.\n")
     }
 
     private func executeShareCommand(
