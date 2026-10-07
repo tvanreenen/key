@@ -75,6 +75,7 @@ enum VaultTransactionMutationKind: String, Codable, Sendable {
     case adoptRecoveryProfile
     case catchUpVault
     case recoverInterruptedTransaction
+    case restoreVault
 }
 
 struct VaultTransactionMutationContext: Equatable, Sendable {

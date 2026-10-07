@@ -176,7 +176,7 @@ struct V3EntryMutationPolicy: Sendable {
     case .removeEntry: permitted = added.isEmpty && updated.isEmpty && removed.count == 1
     case .resolveConflict, .mergeHeads, .migrateToV3, .enrollDevice, .revokeDevice, .rotateVaultKey,
       .registerRecoveryRecipient, .removeRecoveryRecipient, .adoptRecoveryProfile, .catchUpVault,
-      .recoverInterruptedTransaction:
+      .recoverInterruptedTransaction, .restoreVault:
       permitted = false
     }
     guard permitted else { throw V3ImmutableTransactionError.invalidAncestryProof }

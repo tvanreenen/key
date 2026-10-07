@@ -33,7 +33,11 @@ struct V3AtomicStagedObjectWriter: Sendable {
         self.observer = observer
     }
 
-    func install(_ data: Data, at path: String) throws {
+    func install(
+        _ data: Data, at path: String,
+        beforePublication: () throws -> Void = {}
+    ) throws {
+        try beforePublication()
         try rootHandle.withCreatedParentDescriptor(at: path) {
             parentDescriptor, name in
             let (temporaryName, descriptor) = try openTemporaryFile(
@@ -70,6 +74,7 @@ struct V3AtomicStagedObjectWriter: Sendable {
             )
 
             while true {
+                try beforePublication()
                 // SAFETY: both names are validated terminal components in the
                 // same retained directory. `RENAME_EXCL` makes the complete,
                 // synchronized bytes visible without overwriting an existing

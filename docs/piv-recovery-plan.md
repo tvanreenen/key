@@ -98,7 +98,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
-| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; source-bound genesis, owned preparation, publication, insert-only checkpoint trust, fresh ordinary-runtime read, exact configuration selection/reconciliation and ordered ownership finalization implemented internally; service orchestration and product resume remain |
+| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; source-bound genesis, owned preparation, publication, insert-only checkpoint trust, fresh ordinary-runtime read, exact configuration selection/reconciliation and ordered ownership finalization implemented internally; native-bound preparation service added; scoped completion and product resume remain |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
@@ -564,6 +564,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Fifth 811 local trust and ordinary reopen, 2026-10-07 | [Trust installer](../Sources/KeyCore/V3RecoveryRestoreTrustInstaller.swift) and [software trust/reopen tests](../Tests/KeyCoreTests/V3RecoveryRestoreTrustInstallerTests.swift) | Rechecks complete published objects, verifies the persisted addressed wrapper, caches exact encrypted bytes and inserts only an absent checkpoint. A fresh empty session uses the ordinary identity loader/runtime to read every restored item. Matching interrupted trust is retained; different trust is refused. No config selection, ownership cleanup, product caller or native qualification. |
 | Sixth 811 configuration selection and reconciliation, 2026-10-07 | [Selection installer](../Sources/KeyCore/V3RecoveryRestoreSelectionInstaller.swift), [bound environment](../Sources/KeyCore/V3RecoveryRestoreEnvironment.swift) and [selection tests](../Tests/KeyCoreTests/V3RecoveryRestoreSelectionInstallerTests.swift) | Fresh trust/ordinary-access checks precede exact no-overwrite config publication. Explicit selected continuation requires matching config, existing exact trust and complete owned files. Both ownership records remain intact. No product caller, native qualification or ownership finalization. |
 | Seventh 811 ordered ownership finalization, 2026-10-07 | [Finalizer](../Sources/KeyCore/V3RecoveryRestoreFinalizer.swift), [journal completion reader](../Sources/KeyCore/V3RecoveryRestoreJournal.swift) and [finalization tests](../Tests/KeyCoreTests/V3RecoveryRestoreFinalizerTests.swift) | Fresh ordinary access and exact selected/source/trust/files precede reservation-first, preparation-last CAS removal. The remaining complete-bundle pin supports halfway continuation without another record or new format. No pins means no pending claim, not retrospective success. Encrypted files remain inert; no product caller or native qualification. |
+| Eighth 811 authenticated preparation service, 2026-10-07 | [Restore service](../Sources/KeyCore/V3RecoveryRestoreService.swift), [scoped journal](../Sources/KeyCore/V3RecoveryRestoreJournal.swift) and [service tests](../Tests/KeyCoreTests/V3RecoveryRestoreServiceTests.swift) | Reader-issued native observation and one recovery agreement authenticate the source before new-directory creation. Durable reservation precedes fresh Mac credentials; independent reload and wrapper opening precede encrypted preparation. Source/token, cancellation, deadline and authentication-generation checks span the call and record rename boundaries. Scoped completion, product dispatch/resume and native acceptance remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -3882,3 +3883,95 @@ and finalization under the native source/identity/session-generation scope and
 host serialization. Product restore/resume, separate-process ordinary access and
 physical acceptance remain. Later ordinary edits are not silently adopted by the
 exact-genesis cleanup path.
+
+### Eighth 811 authenticated preparation service, 2026-10-07
+
+The internal [restore service](../Sources/KeyCore/V3RecoveryRestoreService.swift)
+now connects the native public reader and one-operation agreement adapter to
+the permanent-genesis builder, existing Mac identity manager and owned journal.
+It accepts independently opened source/parent handles and a reader-issued
+observation, not caller-supplied recovered plaintext or a saved approval flag.
+Public preflight checks the exact journal/config root, unconfigured selection,
+credential policy, recognized token anchor and absence of prior ownership.
+The source selector and complete current-snapshot verifier run through the real
+adapter with exactly one software-provider agreement in the tests.
+
+One shared source mutation owner spans the request. The service captures the
+existing authentication-generation ticket before queue admission; lock,
+replacement, cancellation or deadline expiry prevents later admission. After
+the hardware operation drains, an exclusive token lease spans preparation.
+Rechecks reread the same card/key/anchor and verify the exact source observation,
+with public sessions closed before Mac private operations. This does not freeze
+external filesystem or token changes; checks surround the admitted operations.
+Product host serialization and lock/disconnect invalidation still need wiring.
+
+Only a freshly authenticated source can create the requested new final folder.
+Fresh vault, transition and entry IDs are pinned in a durable reservation before
+creating any Mac credential. The service independently reloads the saved
+identity, checks its namespace/public identity, creates a random destination
+key, and opens the new Mac wrapper through the existing checkpoint unlocker.
+The recovered source key is not needed for any destination wrapper. The
+temporary destination session is invalidated before encrypted preparation is
+staged; no key is installed in the supplied authentication-generation store.
+The returned report contains identifiers, destination path and entry count only.
+
+The journal accepts a synchronous, nonescaping scope check for reservation,
+staging and preparation confirmation. The existing atomic writer now admits
+such a check before writing and immediately before each rename attempt, after
+the synchronized-temporary-file observer. Unrelated callers retain their
+existing behavior. Incomplete or ambiguously saved state stays owned and intact;
+another prepare request refuses before another agreement, directory or identity.
+No automatic retries, replacement artifacts, token writes or cleanup are added.
+
+Two service designs were considered against native provenance, secret lifetime,
+interruption ownership and existing module boundaries. A separate retained
+recovery-key session would introduce another secret-owning lifecycle and make
+later components depend on a saved-session capability. Composing the existing
+native reader/agreement in one synchronous scope keeps source plaintext and
+the destination key local to the call, with the established generation ticket
+as a race guard rather than evidence of consent. This increment uses that
+composition without changing a persisted format or the shipping host.
+
+The [service suite](../Tests/KeyCoreTests/V3RecoveryRestoreServiceTests.swift)
+has 14 declarations / 45 cases. It uses actual adapters, codecs, cryptography,
+contained files and the real mutation owner; only native card/provider/Mac keys
+and device-local ownership storage are replaced. Cases cover empty/populated
+sources, native observation provenance, cancellation and locks, late record
+rename rejection, ownership-advance guards, uncertain credential save/reload,
+source/token change during Mac approval, interrupted replies, journal-root
+mismatch and competing requests. Existing native fixture code is reused.
+
+Verification:
+
+- Initial focused Debug: 12 service declarations / 38 cases passed in
+  7.467 seconds, before adding observation-provenance and interrupted-reply
+  cases. The final optimized run passed 190 declarations across 15 suites in
+  123.050 seconds, including all 14 service declarations / 45 cases, restore
+  primitives, reader/agreement adapters, transaction ownership and config/init
+  regressions. Initial compile errors for a non-Sendable config value and the
+  exhaustive content-policy switch were corrected without changing config
+  ownership or permitting restore as a content edit.
+- Full optimized suite: 1,584 KeyCore declarations across 128 suites passed in
+  337.015 seconds; six canonical-JSON tests also passed. The separately gated
+  large migration was skipped, unchanged. This run reused the final optimized
+  binaries; no source changed afterward.
+- Unsigned universal Preview build succeeded. Product-bundle isolation,
+  bundled CLI help/version `0.2.0 (19)` and arm64/x86_64 slices for the app,
+  CLI and helper passed. Nothing was signed, installed or published.
+- Strict default Swift-format lint passed for five changed/new Swift files.
+  The same lint reports existing four-space/style findings in the three older
+  writer/store/mutation-owner files; comparison against HEAD confirmed the
+  non-indentation findings predate this change. Their established formatting
+  was preserved instead of bulk rewriting them. Project plist syntax,
+  258 relative documentation targets and `git diff --check` passed.
+
+Raw logs remain under ignored
+`tmp/piv-recovery/2026-10-07-restore-service-*`.
+
+Next: extend this same service scope through existing publication, trust/reopen,
+selection and finalization, plus exact freshly authenticated resume. The
+internal prepare method is not a user-facing two-command approval design;
+full initial restore must preserve one source agreement across its completion
+steps. Product host/CLI dispatch, separate-process ordinary reads and mutations,
+and physical acceptance still remain. No real token, vault or installed product
+was operated on by this increment.
