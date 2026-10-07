@@ -273,6 +273,7 @@ struct V3RecoveryKeyRotationService: Sendable {
       try requireCheckpoint(expectedCheckpoint)
       let fresh = try objects.observe(
         checkpoint: expectedCheckpoint, expectedBase: base.commit.envelope.canonicalBytes)
+      try session.requireCurrent(base.ticket)
       guard fresh == base.source,
         try session.load(vaultID: vaultID, keyID: base.commit.envelope.body.fields.keyID)
           == base.key
@@ -282,18 +283,16 @@ struct V3RecoveryKeyRotationService: Sendable {
         candidate, currentVaultKey: base.key, nextVaultKey: nextKey, identity: identity,
         reason: "Verify this Mac can open the changed vault encryption key.")
 
-      try requireNoAuthorityWork()
-      try requireCheckpoint(commit.checkpoint)
+      try requireCommittedState(commit, previous: expectedCheckpoint, operationID: operationID)
       try V3RecoveryEpochBoundary().verifyCurrentAuthentication(commit.envelope, vaultKey: nextKey)
       let current = try objects.observe(
         checkpoint: commit.checkpoint, expectedBase: commit.envelope.canonicalBytes)
       _ = try V3EntrySnapshotValidator(limits: limits).plaintexts(
         fields: commit.envelope.body.fields, entries: current.entries, vaultKey: nextKey)
-      try requireNoAuthorityWork()
-      try requireCheckpoint(commit.checkpoint)
-      try session.replace(
+      try requireCommittedState(commit, previous: expectedCheckpoint, operationID: operationID)
+      try session.install(
         nextKey, vaultID: vaultID, keyID: commit.envelope.body.fields.keyID,
-        expectedKeyID: base.commit.envelope.body.fields.keyID)
+        authenticationTicket: base.ticket)
       return commit
     } catch {
       // Failure is not proof that commitment failed. Retain the old session only
@@ -310,6 +309,7 @@ struct V3RecoveryKeyRotationService: Sendable {
     let commit: V3RecoveryKeyRotationCommit
     let key: Data
     let source: V3ExactTransitionRepositoryState
+    let ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
   }
   private var objects: V3ExactTransitionRepository { .init(source: store, limits: limits) }
 
@@ -326,6 +326,7 @@ struct V3RecoveryKeyRotationService: Sendable {
       envelope.body.fields.devices.contains(
         .init(identity: identity.publicIdentity, status: .active))
     else { throw V3RecoveryKeyRotationError.invalidOwner }
+    let ticket = session.beginAuthentication()
     let key = try session.load(vaultID: vaultID, keyID: envelope.body.fields.keyID)
     try V3RecoveryContentMutationValidator(limits: limits).validateParent(
       envelope, checkpoint: checkpoint, vaultKey: key)
@@ -334,8 +335,34 @@ struct V3RecoveryKeyRotationService: Sendable {
       fields: envelope.body.fields, entries: source.entries, vaultKey: key)
     try requireNoPending()
     try requireCheckpoint(checkpoint)
+    try session.requireCurrent(ticket)
     return .init(
-      commit: .init(checkpoint: checkpoint, envelope: envelope), key: key, source: source)
+      commit: .init(checkpoint: checkpoint, envelope: envelope), key: key, source: source,
+      ticket: ticket)
+  }
+
+  private func requireCommittedState(
+    _ commit: V3RecoveryKeyRotationCommit, previous: V3ManifestCheckpoint,
+    operationID: VaultTransactionOperationID
+  ) throws {
+    try requireNoAuthorityWork()
+    try requireCheckpoint(commit.checkpoint)
+    if let bytes = try ownership.loadRecoveryAnchor(vaultID: vaultID) {
+      // Best-effort cleanup may retain only this exact committed rotation.
+      guard bytes.count <= 1_024,
+        let anchor = try? V3ImmutableTransactionRecoveryAnchor(canonicalBytes: bytes),
+        anchor.vaultID == vaultID, anchor.operationID == operationID, anchor.phase == .recoverable,
+        case .available(let data) = try store.readRecoveryIntent(
+          operationID: operationID, maximumBytes: V3ImmutableTransactionRecoveryIntent.maximumBytes),
+        Data(SHA256.hash(data: data)) == anchor.intentDigest,
+        let intent = try? V3ImmutableTransactionRecoveryIntent(canonicalBytes: data),
+        intent.operationID == operationID, intent.vaultID == vaultID,
+        intent.kind == .rotateVaultKey,
+        intent.expectedCheckpoint == previous, intent.expectedHeads == [previous.envelopeDigest],
+        intent.candidateManifestDigest == commit.envelope.digest,
+        intent.enrollmentTranscriptDigest == nil, intent.recoveryMergeResolutions == nil
+      else { throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: vaultID) }
+    }
   }
 
   private func freshKey(excluding currentID: V3VaultKeyID) throws -> Data {

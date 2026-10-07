@@ -185,7 +185,7 @@ struct V3RecoveryKeyRotationServiceTests {
     #expect(!session.hasResidentKey && f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0..<6)
   func changesDuringSigningRefuseBeforeWrapperVerificationOrReservation(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -197,7 +197,10 @@ struct V3RecoveryKeyRotationServiceTests {
       case 1: f.registration.value = Data([1])
       case 2: f.adoption.value = Data([1])
       case 3: f.checkpoints.value = Data([1])
-      default: session.invalidate()
+      case 4: session.invalidate()
+      default:
+        session.invalidate()
+        try session.install(Core.nextKey, vaultID: Core.vaultID, keyID: f.parent.body.fields.keyID)
       }
     }
     #expect(throws: (any Error).self) {
@@ -205,14 +208,24 @@ struct V3RecoveryKeyRotationServiceTests {
         expectedCheckpoint: f.checkpoint, operationID: f.operationID)
     }
     #expect(f.ownership.value == nil && f.core.owner.signatures == 2 && f.core.owner.unwraps == 0)
-    if variant >= 3 { #expect(!session.hasResidentKey) }
+    if variant == 3 || variant == 4 { #expect(!session.hasResidentKey) }
+    if variant == 5 {
+      #expect(
+        try session.load(vaultID: Core.vaultID, keyID: f.parent.body.fields.keyID) == Core.nextKey)
+    }
   }
 
-  @Test func lockDuringWrapperVerificationCannotBeUndoneByCommittedSessionSwitch() throws {
+  @Test(arguments: [false, true])
+  func lockOrSameKeyReauthenticationDuringWrapperCannotBeUndone(reinstall: Bool) throws {
     let f = try Fixture()
     defer { f.remove() }
     let session = try session(f)
-    f.core.owner.onUnwrap = { session.invalidate() }
+    f.core.owner.onUnwrap = {
+      session.invalidate()
+      if reinstall {
+        try session.install(Core.nextKey, vaultID: Core.vaultID, keyID: f.parent.body.fields.keyID)
+      }
+    }
     #expect(throws: V3DeviceWrappedVaultKeySessionError.unavailable) {
       try service(f, session: session).rotate(
         expectedCheckpoint: f.checkpoint, operationID: f.operationID)
@@ -255,21 +268,34 @@ struct V3RecoveryKeyRotationServiceTests {
     #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0 && f.ownership.value == nil)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0..<8)
   func changedStateAfterCommitRefusesSessionSwitchWithoutRollback(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
     let session = try session(f)
+    let ownership = ReadFailureOwnership(base: f.ownership)
     let branch = try f.build(.remove(name: "fixture/totp"))
     let s = service(
-      f, session: session,
+      f, session: session, ownership: ownership,
       observer: Observer {
         if $0 == .cleanupCompleted {
           switch variant {
           case 0: f.registration.value = Data([1])
           case 1: f.adoption.value = Data([1])
           case 2: try f.seed(branch.envelope, entries: branch.stagedEntries)
-          default: f.checkpoints.value = nil
+          case 3: f.checkpoints.value = nil
+          case 4: f.ownership.value = Data([1])
+          case 5:
+            f.ownership.value = try V3ImmutableTransactionRecoveryAnchor(
+              operationID: .init(), vaultID: Core.vaultID,
+              intentDigest: Data(repeating: 1, count: 32), phase: .recoverable
+            ).canonicalBytes
+          case 6: ownership.rejectReads = true
+          default:
+            f.ownership.value = try V3ImmutableTransactionRecoveryAnchor(
+              operationID: f.operationID, vaultID: Core.vaultID,
+              intentDigest: Data(repeating: 1, count: 32), phase: .recoverable
+            ).canonicalBytes
           }
         }
       })
@@ -277,7 +303,8 @@ struct V3RecoveryKeyRotationServiceTests {
       try s.rotate(expectedCheckpoint: f.checkpoint, operationID: f.operationID)
     }
     #expect(f.checkpoints.value != f.checkpoint.canonicalBytes && !session.hasResidentKey)
-    #expect(f.ownership.value == nil && f.core.owner.signatures == 2 && f.core.owner.unwraps == 1)
+    #expect((f.ownership.value != nil) == (variant == 4 || variant == 5 || variant == 7))
+    #expect(f.core.owner.signatures == 2 && f.core.owner.unwraps == 1)
   }
 
   private func session(_ f: Fixture) throws -> V3DeviceWrappedVaultKeySessionStore {
@@ -288,12 +315,14 @@ struct V3RecoveryKeyRotationServiceTests {
   private func service(
     _ f: Fixture, session: V3DeviceWrappedVaultKeySessionStore,
     identity: V3RecoveryKeyRotationService.Identity? = nil,
+    ownership: (any V3ImmutableTransactionRecoveryAnchorStoring)? = nil,
     limits: V3ManifestRepositoryLimits = .standard,
     observer: any V3ImmutableTransactionPhaseObserving = V3NoopContentTransactionPhaseObserver()
   ) -> V3RecoveryKeyRotationService {
     .init(
       vaultID: Core.vaultID, identity: identity ?? f.core.owner, session: session,
-      objectStore: f.store, checkpointStore: f.checkpoints, recoveryAnchorStore: f.ownership,
+      objectStore: f.store, checkpointStore: f.checkpoints,
+      recoveryAnchorStore: ownership ?? f.ownership,
       registrationAnchorStore: f.registration, adoptionAnchorStore: f.adoption, cache: f.cache,
       limits: limits, phaseObserver: observer)
   }
@@ -332,6 +361,25 @@ struct V3RecoveryKeyRotationServiceTests {
       _ wrappedKey: V3HPKEWrappedVaultKey, context: V3VaultKeyHPKEContext, reason: String
     ) throws -> Data {
       try base.unwrapDeviceWrappedVaultKey(wrappedKey, context: context, reason: reason)
+    }
+  }
+  private final class ReadFailureOwnership: V3ImmutableTransactionRecoveryAnchorStoring,
+    @unchecked Sendable
+  {
+    let base: Publication.Ownership
+    private let lock = NSLock()
+    private var failing = false
+    var rejectReads: Bool {
+      get { lock.withLock { failing } }
+      set { lock.withLock { failing = newValue } }
+    }
+    init(base: Publication.Ownership) { self.base = base }
+    func loadRecoveryAnchor(vaultID: String) throws -> Data? {
+      if rejectReads { throw Stop.interrupted }
+      return try base.loadRecoveryAnchor(vaultID: vaultID)
+    }
+    func replaceRecoveryAnchor(_ anchor: Data?, expectedAnchor: Data?, vaultID: String) throws {
+      try base.replaceRecoveryAnchor(anchor, expectedAnchor: expectedAnchor, vaultID: vaultID)
     }
   }
 }
