@@ -6,9 +6,9 @@ import Testing
 /// Real disposable config/publication/cache and ordinary runtime. Software
 /// identities and memory checkpoint/ownership replace only native boundaries.
 struct V3RecoveryRestoreSelectionInstallerTests {
-  private typealias Base = V3RecoveryRestoreJournalTests
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Identity = V3RecoveryRestorePublisherTests.Identity
+  typealias Base = V3RecoveryRestoreJournalTests
+  typealias Core = V3RecoveryRegistrationTests
+  typealias Identity = V3RecoveryRestorePublisherTests.Identity
   private enum Stop: Error { case interrupted }
   private static let phases: [V3RecoveryRestoreSelectionPhase] = [
     .restoreVerified, .configurationSelected, .selectionConfirmed,
@@ -335,7 +335,7 @@ struct V3RecoveryRestoreSelectionInstallerTests {
     let action: @Sendable () throws -> Void
     func didReach(_: V3AtomicStagedObjectWritePhase) throws { try action() }
   }
-  private struct Loader: V3DeviceWrappedIdentityLoading {
+  struct Loader: V3DeviceWrappedIdentityLoading {
     let identity: Identity
     let calls = Core.Counter()
     func loadDeviceIdentity(vaultID: String, reason _: String) throws -> (
@@ -346,7 +346,7 @@ struct V3RecoveryRestoreSelectionInstallerTests {
     }
   }
   @available(macOS 26.0, *)
-  private struct Harness {
+  struct Harness {
     let f: Base.Fixture
     let bundle: V3RecoveryRestoreBundle
     let identity: Identity
