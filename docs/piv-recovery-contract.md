@@ -1460,9 +1460,9 @@ cover ordinary rotation/edit-to-recovery composition, empty and populated inputs
 changed sources, reused authority, mismatched objects and bounded resources.
 The destination wrapper still requires a Mac opening. Internal durable ownership
 and encrypted preparation, plus internal manifest-last publication, are
-implemented below. Native service orchestration, product resume, checkpoint
-installation and fresh-process ordinary reopening before selection remain.
-No product route, checkpoint write or selection is enabled.
+implemented below, together with internal checkpoint installation and an ordinary
+runtime reopen. Native service orchestration, product resume, separate-process
+qualification and configuration selection remain. No product restore route is enabled.
 
 ### Implemented restore locations and intent format
 
@@ -1607,6 +1607,37 @@ software wrapper operations. They do not qualify native authentication, actual
 process termination, separate-process ordinary reopening, large-vault performance
 or real-token recovery. A process crash that leaves an unknown partial file is
 not claimed to be automatically resumable.
+
+### Implemented restore trust and ordinary-runtime reopening
+
+The [trust installer](../Sources/KeyCore/V3RecoveryRestoreTrustInstaller.swift)
+rechecks complete published objects through the publisher's non-repairing
+confirmation path. A previous publication report is not authority. Missing or
+altered files stop the operation before a wrapper opening or checkpoint insert.
+Only an absent checkpoint can be inserted. An existing exact checkpoint supports
+explicit continuation; malformed or different trust is never replaced.
+
+The existing identity loader reconstructs the addressed Mac identity. Its saved
+wrapper must open to the prepared key before first trust. Exact encrypted manifest
+bytes are cached with the existing filesystem cache, then the absent checkpoint
+is inserted using the existing store's compare-and-replace boundary. Failures
+retain any committed exact trust and ownership rather than rolling it back.
+
+The validation session is cleared. A new empty session and ordinary permanent
+read runtime load the identity again and independently open the published wrapper.
+Every item name, type and plaintext byte is compared with the scoped recovered
+snapshot. The prepared key is never injected into that ordinary session. Both
+temporary sessions are invalidated on exit. These two Mac-wrapper operations are
+software-qualified calls, not a guarantee about native authentication prompts.
+This component makes no recovery-token operation.
+
+Source, locations, saved records, checkpoint and exact cache bytes are rechecked
+across durable steps and final reopening. The report is not saved consent or
+configuration selection. No configuration or token is written, no credentials
+are created, and no ownership is cleared. Current native authentication scope,
+session generation and helper serialization remain service responsibilities.
+Software tests use real files/cache and memory checkpoints; separate-process,
+Secure Enclave, large-vault and physical recovery qualification remain.
 
 ### Implemented native public reader
 

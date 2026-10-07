@@ -159,6 +159,28 @@ struct V3RecoveryRestorePublisher: Sendable {
     try environment.requireSnapshot(snapshot)
   }
 
+  /// Trust installation must recheck the actual complete published snapshot,
+  /// not rely on a prior report. This path cannot install or repair objects.
+  func confirmPublished(
+    sourceVaultID: String, snapshot: V3RecoveryVerifiedSnapshot,
+    environment: V3RecoveryRestoreEnvironment, vaultKey: Data,
+    expectedOwner: V3EnrollmentDeviceIdentity
+  ) throws -> V3RecoveryRestoreBundle {
+    let bundle = try journal.confirmPreparation(
+      sourceVaultID: sourceVaultID, snapshot: snapshot, environment: environment,
+      vaultKey: vaultKey, expectedOwner: expectedOwner)
+    let store = V3FilesystemTransactionArtifactStore(rootHandle: environment.destination)
+    try requireCurrent(bundle, snapshot: snapshot, environment: environment)
+    try confirmSnapshot(bundle, store: store)
+    _ = try environment.validateCandidate(
+      bundle.publication(restoring: snapshot), restoring: snapshot, vaultKey: vaultKey,
+      expectedOwner: expectedOwner, limits: limits)
+    try requireCurrent(bundle, snapshot: snapshot, environment: environment)
+    try confirmSnapshot(bundle, store: store)
+    try requireCurrent(bundle, snapshot: snapshot, environment: environment)
+    return bundle
+  }
+
   private struct Inventory {
     let entries: Set<String>
     let manifestPresent: Bool
