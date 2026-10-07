@@ -1437,6 +1437,32 @@ lifetimes do not guarantee zeroization. No plaintext persistence or resume
 format is implemented. Software callback counts and disposable filesystem tests
 do not qualify hardware prompts, protected administration, or a complete restore.
 
+### Implemented restore candidate preparation
+
+The [internal restore candidate](../Sources/KeyCore/V3RecoveryRestoreCandidate.swift)
+accepts the verifier-only complete snapshot, not caller-supplied plaintext or an
+archive diagnostic. It rechecks exact source observations and reuses permanent
+genesis construction. Its future owner must supply fresh random identifiers/key
+material and new platform Mac credentials; preparation neither generates nor
+persists them. Selected source namespace/entry/transition IDs and device/recipient
+public keys cannot be reused as destination authority.
+
+The output contains scoped in-memory plaintext and encrypted candidate objects,
+not a durable intent or permission to publish. Independent validation reparses
+the permanent envelope and checks its digest/MAC, exact one-Mac roster/wrapper,
+complete encrypted snapshot, limits, revision-one entries and source-byte/type
+equality. Unicode-equivalent but byte-different secrets are not interchangeable.
+The source is rechecked afterward. No source ancestry, epoch capsule or recovery
+roster is inherited; the destination starts without recovery registration.
+
+[Six software declarations](../Tests/KeyCoreTests/V3RecoveryRestoreCandidateTests.swift)
+cover ordinary rotation/edit-to-recovery composition, empty and populated inputs,
+changed sources, reused authority, mismatched objects and bounded resources.
+The destination wrapper still requires a Mac opening, and restore still needs
+native token/directory binding, exact config ownership, authenticated durable
+intent, manifest-last publication, explicit resume and fresh-process ordinary
+reopening before selection. No route, checkpoint write or selection is enabled.
+
 ### Implemented native public reader
 
 The [internal reader](../Sources/KeyCore/PIVRecoveryTokenReader.swift) replaces the

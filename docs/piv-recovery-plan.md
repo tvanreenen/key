@@ -98,7 +98,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
-| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
+| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; source-bound fresh permanent-genesis preparation and full candidate validation implemented; destination/config ownership, authenticated intent, publication, resume and fresh-process reopening remain |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
@@ -501,6 +501,12 @@ review found two initial-rotation activation gaps; their verified fixes and
 regressions are recorded below. This is not product/hardware qualification or an
 independent cryptographic assessment.
 
+Restore now has source-bound preparation from the verifier-only snapshot type,
+reusing permanent genesis and complete entry validation. It produces no durable
+state or selection authority. The destination/configuration reservation, scoped
+authenticated intent, publication and reauthenticated resume remain to implement
+before a restore route can be enabled.
+
 ## Implementation evidence ledger
 
 No implementation package `REC-804` through `REC-815` is complete yet.
@@ -551,6 +557,7 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Sixteenth 810 mixed catch-up coordination, 2026-10-06 | [Concrete coordinator](../Sources/KeyCore/V3RecoveryCatchUpCoordinator.swift), [14 software declarations](../Tests/KeyCoreTests/V3RecoveryCatchUpCoordinatorTests.swift) and [atomic session receipts](../Sources/KeyCore/V3DeviceWrappedVaultKeySession.swift) | One mutation owner composes content/epoch steps from an exact unlocked floor. Original-source checks prevent a late old-floor sibling from disappearing; atomic installation receipts reject unrelated reauthentication between epochs. Committed prefixes survive failures without a current claim or automatic retry. Verification below; lifecycle integration review and shipping/native composition remain. |
 | Seventeenth 810 lifecycle integration checks, 2026-10-06 | [Two longer software sequences](../Tests/KeyCoreTests/V3RecoveryLifecycleIntegrationTests.swift) and the source self-review below | Independent Macs walk mixed five-/seven-epoch histories, reject the revoked Mac, take turns saving and retain recovery without Mac state or caches. Last-recipient removal explicitly ends recovery without ending ordinary access. Full unlocked regression and integration verification are recorded below; independent review and native/product acceptance remain. |
 | Eighteenth 810 independent lifecycle review and rotation fixes, 2026-10-06 | [Rotation activation guards](../Sources/KeyCore/V3RecoveryKeyRotationService.swift), [expanded regression cases](../Tests/KeyCoreTests/V3RecoveryKeyRotationServiceTests.swift) and the review disposition below | Two confirmed findings share the final rotation-activation boundary. Existing session-generation tickets reject same-key reauthentication; exact committed ownership rejects conflicting or unreadable pending work. Both reproduce before the fix and pass afterward; the reviewer rechecked both remedies. Native/product acceptance remains. |
+| First 811 restore candidate, 2026-10-07 | [Source-bound preparation and validation](../Sources/KeyCore/V3RecoveryRestoreCandidate.swift) and [six software declarations](../Tests/KeyCoreTests/V3RecoveryRestoreCandidateTests.swift) | Only a verified snapshot prepares a complete fresh permanent-profile genesis. Exact bytes/types, fresh namespace/device separation and bounded encrypted artifacts validate without source writes or another recovery agreement. Actual rotation/edit composition is covered. No durable restore ownership, publication, config selection or resume is enabled. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -3316,3 +3323,80 @@ Next: new-vault restore orchestration (`REC-811`) in the next stack layer.
 User-confirmation/product integration and physical qualification remain later
 work. No implementation package is marked complete. This increment changes no
 real vault, configuration, installed app or token, and performs no push or release.
+
+### First 811 source-bound restore candidate, 2026-10-07
+
+The new local `codex/recovery-restore` layer starts at lifecycle commit `ce63290`,
+using `gh stack add`. It is above `codex/recovery-lifecycle` in the existing stack;
+no hosted PR was created or changed, and nothing was pushed.
+
+The [candidate component](../Sources/KeyCore/V3RecoveryRestoreCandidate.swift)
+accepts only a `V3RecoveryVerifiedSnapshot`, which the complete snapshot verifier
+alone can construct. It rechecks the exact observed source, then reuses the
+permanent genesis builder with new vault/transition/entry identifiers and an
+explicit new Mac identity. It rejects reuse of the selected source's namespace,
+entry/transition identifiers and device/recipient public keys. Randomness and
+identity creation remain the future restore owner's responsibility; this domain
+component does not prove entropy or create platform credentials.
+
+Independent candidate validation parses the permanent envelope, verifies its
+digest and MAC, requires one new active Mac and its addressed wrapper, checks
+every encrypted entry against the manifest, and compares exact plaintext/name
+bytes and types with the verified source. New entry revisions start at one.
+Byte comparison does not treat canonically equivalent Unicode secrets as the
+same bytes. Complete source state is checked again after crypto validation.
+No source roster, signing capsule, recovery recipients or ancestry becomes the
+new vault's authority. Its ordinary wrapper still needs an actual addressed Mac
+opening before checkpoint trust or configuration selection.
+
+Architecture inspection compared adding a restore mode to the existing genesis
+installer with restore-owned orchestration over shared domain crypto. The existing
+installer removes staging on errors and cannot resume exact artifacts. Restore
+will therefore own its journal and destination/configuration barriers while
+reusing the existing builder, entry validator and ordinary runtime. This increment
+implements preparation/validation only, not another crypto or publication kernel.
+
+Verification:
+
+- Focused Debug passed 35 declarations in three suites: restore candidates,
+  recovery history/snapshot verification and permanent genesis construction.
+  Six restore declarations exercise 28 cases, including an empty
+  verified snapshot, reused source identifiers/keys, altered contents/artifacts,
+  Unicode byte differences, changed source and resource bounds.
+- Focused Release passed 50 declarations in five suites: the same three suites
+  plus initial rotation and reciprocal lifecycle integration. All checks use
+  contained filesystem/software crypto, without native or token prompts.
+- The console initially reported locked. A final query returned no usable flag;
+  no unlocked state was inferred from its absence. The five storage suites that
+  failed in the preceding increment then passed all 68 declarations in a direct
+  optimized rerun, including the exact mutation-owner handler regression.
+- The subsequent full optimized rerun passed 1,503 KeyCore declarations in 121
+  suites and six canonical-JSON declarations in one suite, including protected
+  storage, the rotation fixes and the new restore component. The separately gated
+  large-migration qualification remained skipped. This supersedes the preceding
+  locked-console full-Release failure for ordinary regression qualification at
+  this revision; it does not qualify native restore or hardware behavior.
+- The added sequence performs actual key-rotation and ordinary-edit publication,
+  clears its Mac session, then prepares the latest recovered secret and TOTP
+  contents. One software recovery agreement suffices; preparation makes no
+  additional source-Mac private call or source write. No token is involved.
+- Unsigned universal Preview compilation passed. App, CLI and helper each have
+  arm64/x86_64 slices; product-bundle isolation and the real CLI's help/version
+  checks passed. Nothing was installed.
+- Initial test compilation corrected an existing edit-request argument label;
+  test limit construction was also corrected to satisfy repository preconditions.
+  No production validation was relaxed.
+- Strict formatting of both Swift files, project syntax, Git whitespace checks
+  and all 215 local documentation targets passed. No lock or protection setting
+  was changed.
+
+Raw logs use `tmp/piv-recovery/2026-10-07-restore-candidate-` and remain ignored.
+This is source self-review and software composition evidence, not fresh independent
+review, native provenance or physical recovery qualification. No implementation
+package is complete and no product restore command is enabled.
+
+Next in this layer: exact destination/configuration ownership and scoped
+authenticated restore intent, then manifest-last publication, explicit resume
+without regenerated artifacts, and fresh ordinary Mac-bound reopening before
+selection. This increment changes no real vault, configuration, installed app or
+token and performs no hardware administration, push or release.
