@@ -4854,3 +4854,22 @@ full-CLI-only access, invalid/disabled/unconfigured admission, ambiguous changes
 and disconnect. CLI syntax, concrete configured workflow and live gating remain
 the next increments. No native operation, installation or push occurred. Logs
 remain ignored under `tmp/piv-recovery/2026-10-07-registration-route-debug.log`.
+
+### 2026-10-07: registration CLI and public credential inspection
+
+The CLI now describes configured registration status, prepare/export,
+resume-export, finish and explicit adoption/resume. Preparation, finish and
+adoption require typed interactive confirmation; no PIN, management-key or
+force option exists. Public credential inspection returns the complete recipient
+ID and anchor occupancy before registration without private work. Export checks
+the bounded response and exact credential binding, then creates a new file only.
+Failure guidance preserves pending state and forbids replacement preparation.
+
+Focused Debug passed 101 declarations across five suites in 30.376 seconds.
+Six new declarations exercise 12 cases plus parser rejection loops. A first run
+caught a base-directory URL ambiguity: exports could resolve one folder too
+high when an injected directory URL lacked a trailing slash. Normalizing the
+directory base fixed it; exact-byte, existing-file and symlink cases now pass.
+The public fixture file from that failed run was moved to ignored temp evidence.
+No existing file was overwritten. Concrete configured workflow and live gating
+remain next. Logs are ignored under `tmp/piv-recovery/2026-10-07-registration-cli-*`.
