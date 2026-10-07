@@ -161,6 +161,19 @@ public struct KeyConfigStore {
         .operationRefused("No vault is configured on this Mac. To create a new vault, run `key init [directory]`. To join one from another Mac, run `key help share` for instructions. Do not use init for an existing vault.")
     }
 
+    /// A fresh filesystem reader for cross-queue selection checks. Capture only
+    /// immutable identity/path values, not this store's FileManager instance.
+    func selectionValidator(expected: KeyConfiguration) -> @Sendable () throws -> Void {
+        let home = homeDirectoryURL
+        let product = productIdentity
+        return {
+            let reader = KeyConfigStore(productIdentity: product, fileManager: FileManager(), homeDirectoryURL: home)
+            guard try reader.load() == expected else {
+                throw AppError.operationRefused("Configured vault selection changed during recovery setup. Preserve the saved attempt; no replacement was authorized.")
+            }
+        }
+    }
+
     private func requireExistingVaultDirectory(_ url: URL) throws {
         do {
             _ = try VaultRootDirectoryHandle(opening: url)

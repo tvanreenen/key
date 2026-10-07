@@ -76,7 +76,18 @@ public final class KeyServiceHost {
                 keyStore.invalidate()
             },
             configuredDirectory: { try configStore.load().vaultDirectoryURL },
-            enroll: { request, path in try enrollment.handle(request, path: path) }
+            enroll: { request, path in try enrollment.handle(request, path: path) },
+            recovery: runtimeConfiguration.experimentalRecoveryEnabled
+                ? V3RecoveryRestoreWorkflow.live(configStore: configStore, runtimeConfiguration: runtimeConfiguration).capability : nil,
+            reviewRecovery: runtimeConfiguration.experimentalRecoveryEnabled
+                ? { request, scope in try KeyRecoveryReviewWorkflow.live().handle(request, scope: scope) } : nil,
+            registerRecovery: runtimeConfiguration.experimentalRecoveryEnabled
+                ? { request, scope in
+                    try scope.requireCurrent()
+                    let workflow = try KeyRecoveryRegistrationWorkflow.live(configStore: configStore, configuration: runtimeConfiguration)
+                    try scope.requireCurrent()
+                    return try workflow.handle(request, scope: scope)
+                } : nil
         )
     }
 

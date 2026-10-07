@@ -4,6 +4,14 @@ import Testing
 
 struct KeyProductIdentityTests {
     @Test
+    func recoveryRequiresAnExplicitPreviewBuildGate() {
+        #expect(!RuntimeConfiguration(productIdentity: .stable).experimentalRecoveryEnabled)
+        #expect(!RuntimeConfiguration(productIdentity: .preview).experimentalRecoveryEnabled)
+        #expect(!RuntimeConfiguration(productIdentity: .stable, experimentalRecoveryEnabled: true).experimentalRecoveryEnabled)
+        #expect(RuntimeConfiguration(productIdentity: .preview, experimentalRecoveryEnabled: true).experimentalRecoveryEnabled)
+    }
+
+    @Test
     func stableIdentityPreservesTheShippingProduct() {
         let identity = KeyProductIdentity.stable
 
