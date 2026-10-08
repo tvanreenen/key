@@ -44,6 +44,10 @@
 		D63B00000000000000000002 /* V3RecoveryRestoreWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D63B00000000000000000001 /* V3RecoveryRestoreWorkflow.swift */; };
 		D63C00000000000000000002 /* KeyRecoveryReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = D63C00000000000000000001 /* KeyRecoveryReview.swift */; };
 		D63D00000000000000000002 /* V3RecoveryRegistrationStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = D63D00000000000000000001 /* V3RecoveryRegistrationStatus.swift */; };
+		D63E00000000000000000002 /* V3RecoveryVaultUnlockRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = D63E00000000000000000001 /* V3RecoveryVaultUnlockRuntime.swift */; };
+		D63F00000000000000000002 /* V3RecoveryReadOnlyVaultRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = D63F00000000000000000001 /* V3RecoveryReadOnlyVaultRuntime.swift */; };
+		D64000000000000000000002 /* V3RecoveryVaultRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = D64000000000000000000001 /* V3RecoveryVaultRuntime.swift */; };
+		D64100000000000000000002 /* KeyRecoveryRegistrationWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D64100000000000000000001 /* KeyRecoveryRegistrationWorkflow.swift */; };
 		D60600000000000000000002 /* V3RecoveryManifestGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60600000000000000000001 /* V3RecoveryManifestGraph.swift */; };
 		D60500000000000000000082 /* V3RecoveryContentMutationPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60500000000000000000081 /* V3RecoveryContentMutationPublisher.swift */; };
 		D60500000000000000000072 /* V3ContentTransactionPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60500000000000000000071 /* V3ContentTransactionPublisher.swift */; };
@@ -296,6 +300,10 @@
 		D63B00000000000000000001 /* V3RecoveryRestoreWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryRestoreWorkflow.swift; sourceTree = "<group>"; };
 		D63C00000000000000000001 /* KeyRecoveryReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyRecoveryReview.swift; sourceTree = "<group>"; };
 		D63D00000000000000000001 /* V3RecoveryRegistrationStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryRegistrationStatus.swift; sourceTree = "<group>"; };
+		D63E00000000000000000001 /* V3RecoveryVaultUnlockRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryVaultUnlockRuntime.swift; sourceTree = "<group>"; };
+		D63F00000000000000000001 /* V3RecoveryReadOnlyVaultRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryReadOnlyVaultRuntime.swift; sourceTree = "<group>"; };
+		D64000000000000000000001 /* V3RecoveryVaultRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryVaultRuntime.swift; sourceTree = "<group>"; };
+		D64100000000000000000001 /* KeyRecoveryRegistrationWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyRecoveryRegistrationWorkflow.swift; sourceTree = "<group>"; };
 		D60600000000000000000001 /* V3RecoveryManifestGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryManifestGraph.swift; sourceTree = "<group>"; };
 		D60500000000000000000081 /* V3RecoveryContentMutationPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryContentMutationPublisher.swift; sourceTree = "<group>"; };
 		D60500000000000000000071 /* V3ContentTransactionPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ContentTransactionPublisher.swift; sourceTree = "<group>"; };
@@ -683,6 +691,10 @@
 				D63B00000000000000000001 /* V3RecoveryRestoreWorkflow.swift */,
 				D63C00000000000000000001 /* KeyRecoveryReview.swift */,
 				D63D00000000000000000001 /* V3RecoveryRegistrationStatus.swift */,
+				D63E00000000000000000001 /* V3RecoveryVaultUnlockRuntime.swift */,
+				D63F00000000000000000001 /* V3RecoveryReadOnlyVaultRuntime.swift */,
+				D64000000000000000000001 /* V3RecoveryVaultRuntime.swift */,
+				D64100000000000000000001 /* KeyRecoveryRegistrationWorkflow.swift */,
 				D60500000000000000000001 /* V3RecoveryContentMutation.swift */,
 				D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */,
 				D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */,
@@ -1184,6 +1196,10 @@
 				D63B00000000000000000002 /* V3RecoveryRestoreWorkflow.swift in Sources */,
 				D63C00000000000000000002 /* KeyRecoveryReview.swift in Sources */,
 				D63D00000000000000000002 /* V3RecoveryRegistrationStatus.swift in Sources */,
+				D63E00000000000000000002 /* V3RecoveryVaultUnlockRuntime.swift in Sources */,
+				D63F00000000000000000002 /* V3RecoveryReadOnlyVaultRuntime.swift in Sources */,
+				D64000000000000000000002 /* V3RecoveryVaultRuntime.swift in Sources */,
+				D64100000000000000000002 /* KeyRecoveryRegistrationWorkflow.swift in Sources */,
 				D60500000000000000000002 /* V3RecoveryContentMutation.swift in Sources */,
 				D53100000000000000000002 /* V3DeviceWrappedRevocationTransitionValidation.swift in Sources */,
 				D53200000000000000000002 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift in Sources */,

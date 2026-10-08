@@ -97,6 +97,20 @@ final class V3DeviceWrappedVaultKeySessionStore: @unchecked Sendable {
         try requireTicketLocked(ticket)
     }
 
+    /// Start explicit reauthentication without letting a lock while this request
+    /// waited for serialization become a new authentication grant. Clearing the
+    /// prior key and capturing its replacement ticket share one critical section.
+    func beginFreshAuthentication(
+        continuing ticket: AuthenticationTicket
+    ) throws -> AuthenticationTicket {
+        lock.lock()
+        defer { lock.unlock() }
+        try requireTicketLocked(ticket)
+        authenticationGeneration += 1
+        clearLocked()
+        return AuthenticationTicket(storeID: storeID, generation: authenticationGeneration)
+    }
+
     /// Install a newly authenticated key without undoing a lock during the UI.
     /// The caller must authenticate exact committed authority before invoking it.
     @discardableResult

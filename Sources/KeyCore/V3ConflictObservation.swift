@@ -3,6 +3,23 @@ import Foundation
 
 /// Projects authenticated reconciliation conflicts into CLI-safe metadata.
 struct V3ConflictObservationBuilder: Sendable {
+    /// Recovery-profile projection from a complete observer-authenticated DAG.
+    /// A nil result means no logical conflict, not a missing or invalid graph.
+    func build(_ observed: V3RecoverySameEpochObservation) throws -> V3VaultUXSnapshot? {
+        switch try V3RecoveryManifestReconciler().reconcile(observed) {
+        case .contentConflict(let report):
+            guard let floor = observed.envelopes[observed.checkpoint.envelopeDigest] else {
+                throw V3ManifestReconciliationError.invalidAncestryProof
+            }
+            return build(
+                report, entries: .lastTrusted(floor.body.fields.entries.count),
+                trustedVersionID: nil, trustedHeadDigest: observed.checkpoint.envelopeDigest,
+                trustedEntries: Set(floor.body.fields.entries))
+        case .noMergeRequired, .automaticMerge: return nil
+        case .historyConflict: throw VaultUXServiceError.recoveryRequired
+        }
+    }
+
     func build(
         _ report: V3ContentConflictReport,
         entries: VaultEntrySummary,

@@ -458,6 +458,29 @@ struct KeyRecoveryReviewTests {
     }
   }
 
+  @Test(arguments: 0..<3)
+  func credentialInspectionReportsOccupancyWithoutPrivateWorkOrVaultReads(occupancy: Int) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    if occupancy == 0 { f.card.anchor = nil }
+    if occupancy == 2 { f.card.anchor = Data([1]) }
+    let response = try KeyRecoveryReviewWorkflow(reader: f.reader).handle(
+      .credential(tokenID: f.card.tokenID), scope: scope())
+    guard case .credential(let credential) = response.recoveryReview else {
+      Issue.record("Expected public credential report")
+      return
+    }
+    let states: [KeyRecoveryReviewResult.Credential.AnchorState] = [
+      .absent, .recognized, .unrecognized,
+    ]
+    #expect(credential.anchorState == states[occupancy])
+    #expect(credential.recipientID == f.source.anchor.recipientID.rawValue)
+    #expect(credential.assurance == .publicObservationOnly)
+    #expect(f.provider.requests == 0 && f.identities.creates.value == 0)
+    #expect(
+      f.reservations.value == nil && f.preparations.value == nil && f.checkpoints.value == nil)
+  }
+
   private func request(_ f: Fixture) -> KeyRecoveryReviewRequest {
     .source(path: f.source.root.path, tokenID: f.card.tokenID)
   }

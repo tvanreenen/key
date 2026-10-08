@@ -66,6 +66,21 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
     }
   }
 
+  /// Reuse the existing publication kernel for the exact local content intent.
+  /// The runtime authenticates its floor under that same ownership first.
+  func reconcilePendingContent(
+    operationID: VaultTransactionOperationID, vaultKey: Data, expectedAnchor: Data
+  ) throws {
+    try translated {
+      try requireNoAuthorityWork()
+      guard try ownership.loadRecoveryAnchor(vaultID: vaultID) == expectedAnchor else {
+        throw VaultUXServiceError.expectedHeadsChanged
+      }
+      try resumePinned(operationID, key: vaultKey)
+      try requireNoPending()
+    }
+  }
+
   func edit(
     name: String, secret: String, type: SecretEntryType, operationID: VaultTransactionOperationID
   )
@@ -121,16 +136,7 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
   func conflicts(operationID: VaultTransactionOperationID) throws -> [VaultConflictDetail] {
     try translated {
       let base = try prepareObserved(operationID)
-      switch try V3RecoveryManifestReconciler().reconcile(base.observed) {
-      case .contentConflict(let report):
-        return V3ConflictObservationBuilder().build(
-          report, entries: .lastTrusted(base.current.envelope.body.fields.entries.count),
-          trustedVersionID: nil, trustedHeadDigest: base.current.checkpoint.envelopeDigest,
-          trustedEntries: Set(base.current.envelope.body.fields.entries)
-        ).conflicts
-      case .noMergeRequired, .automaticMerge: return []
-      case .historyConflict: throw VaultUXServiceError.recoveryRequired
-      }
+      return try V3ConflictObservationBuilder().build(base.observed)?.conflicts ?? []
     }
   }
 

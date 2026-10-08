@@ -14,6 +14,40 @@ struct V3DeviceWrappedVaultKeySessionTests {
     get throws { try V3VaultKeyID.derive(vaultKey: Self.nextKey, vaultID: Self.vaultID) }
   }
 
+  @Test(arguments: [false, true])
+  func freshAuthenticationAtomicallyClearsThePriorKeyAndReplacesItsTicket(installed: Bool) throws {
+    let s = installed ? try session() : V3DeviceWrappedVaultKeySessionStore()
+    let admitted = s.beginAuthentication()
+    let fresh = try s.beginFreshAuthentication(continuing: admitted)
+    #expect(!s.hasResidentKey && !s.sessionStatus().isUnlocked)
+    #expect(throws: V3DeviceWrappedVaultKeySessionError.unavailable) {
+      try s.requireCurrent(admitted)
+    }
+    try s.install(Self.nextKey, vaultID: Self.vaultID, keyID: nextID, authenticationTicket: fresh)
+    #expect(try s.load(vaultID: Self.vaultID, keyID: nextID) == Self.nextKey)
+  }
+
+  @Test(arguments: 0..<3)
+  func staleOrForeignAdmissionCannotStartFreshAuthenticationOrClearNewAuthority(variant: Int) throws
+  {
+    let s = try session()
+    let admitted =
+      variant == 2
+      ? V3DeviceWrappedVaultKeySessionStore().beginAuthentication() : s.beginAuthentication()
+    if variant == 0 { s.invalidate() }
+    if variant == 1 { try s.install(Self.nextKey, vaultID: Self.vaultID, keyID: nextID) }
+    #expect(throws: V3DeviceWrappedVaultKeySessionError.unavailable) {
+      try s.beginFreshAuthentication(continuing: admitted)
+    }
+    if variant == 1 {
+      #expect(try s.load(vaultID: Self.vaultID, keyID: nextID) == Self.nextKey)
+    } else if variant == 2 {
+      #expect(try s.load(vaultID: Self.vaultID, keyID: oldID) == Self.oldKey)
+    } else {
+      #expect(!s.hasResidentKey)
+    }
+  }
+
   @Test func liveSessionCanSwitchOnlyFromItsExactPriorEpoch() throws {
     let s = try session()
     try s.replace(Self.nextKey, vaultID: Self.vaultID, keyID: nextID, expectedKeyID: oldID)
