@@ -98,7 +98,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
-| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | Planned |
+| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; internal authenticated initial restore and exact resume now compose preparation, manifest-last publication, insert-only trust, ordinary-runtime reopening, configuration selection and ordered finalization; product dispatch/barriers, separate-process and physical acceptance remain |
 | `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
@@ -501,6 +501,12 @@ review found two initial-rotation activation gaps; their verified fixes and
 regressions are recorded below. This is not product/hardware qualification or an
 independent cryptographic assessment.
 
+Restore now has source-bound preparation from the verifier-only snapshot type,
+reusing permanent genesis and complete entry validation. It produces no durable
+state or selection authority. The destination/configuration reservation, scoped
+authenticated intent, publication and reauthenticated resume remain to implement
+before a restore route can be enabled.
+
 ## Implementation evidence ledger
 
 No implementation package `REC-804` through `REC-815` is complete yet.
@@ -551,6 +557,15 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Sixteenth 810 mixed catch-up coordination, 2026-10-06 | [Concrete coordinator](../Sources/KeyCore/V3RecoveryCatchUpCoordinator.swift), [14 software declarations](../Tests/KeyCoreTests/V3RecoveryCatchUpCoordinatorTests.swift) and [atomic session receipts](../Sources/KeyCore/V3DeviceWrappedVaultKeySession.swift) | One mutation owner composes content/epoch steps from an exact unlocked floor. Original-source checks prevent a late old-floor sibling from disappearing; atomic installation receipts reject unrelated reauthentication between epochs. Committed prefixes survive failures without a current claim or automatic retry. Verification below; lifecycle integration review and shipping/native composition remain. |
 | Seventeenth 810 lifecycle integration checks, 2026-10-06 | [Two longer software sequences](../Tests/KeyCoreTests/V3RecoveryLifecycleIntegrationTests.swift) and the source self-review below | Independent Macs walk mixed five-/seven-epoch histories, reject the revoked Mac, take turns saving and retain recovery without Mac state or caches. Last-recipient removal explicitly ends recovery without ending ordinary access. Full unlocked regression and integration verification are recorded below; independent review and native/product acceptance remain. |
 | Eighteenth 810 independent lifecycle review and rotation fixes, 2026-10-06 | [Rotation activation guards](../Sources/KeyCore/V3RecoveryKeyRotationService.swift), [expanded regression cases](../Tests/KeyCoreTests/V3RecoveryKeyRotationServiceTests.swift) and the review disposition below | Two confirmed findings share the final rotation-activation boundary. Existing session-generation tickets reject same-key reauthentication; exact committed ownership rejects conflicting or unreadable pending work. Both reproduce before the fix and pass afterward; the reviewer rechecked both remedies. Native/product acceptance remains. |
+| First 811 restore candidate, 2026-10-07 | [Source-bound preparation and validation](../Sources/KeyCore/V3RecoveryRestoreCandidate.swift) and [six software declarations](../Tests/KeyCoreTests/V3RecoveryRestoreCandidateTests.swift) | Only a verified snapshot prepares a complete fresh permanent-profile genesis. Exact bytes/types, fresh namespace/device separation and bounded encrypted artifacts validate without source writes or another recovery agreement. Actual rotation/edit composition is covered. No durable restore ownership, publication, config selection or resume is enabled. |
+| Second 811 restore bindings and intent, 2026-10-07 | [Filesystem environment](../Sources/KeyCore/V3RecoveryRestoreEnvironment.swift), [authenticated record format](../Sources/KeyCore/V3RecoveryRestoreIntent.swift) and [contained software tests](../Tests/KeyCoreTests/V3RecoveryRestoreIntentTests.swift) | Checks physical source/destination/config separation before folder creation, retains exact paths and folder identities, and refuses any configuration. A bounded, purpose-separated MAC binds the source observation and destination genesis. No durable reservation, encrypted journal, credential creation, publication or resume is enabled. |
+| Third 811 owned encrypted preparation, 2026-10-07 | [Local journal](../Sources/KeyCore/V3RecoveryRestoreJournal.swift), [pre-credential reservation](../Sources/KeyCore/V3RecoveryRestoreReservation.swift), [encrypted bundle](../Sources/KeyCore/V3RecoveryRestoreBundle.swift) and [filesystem/software checks](../Tests/KeyCoreTests/V3RecoveryRestoreJournalTests.swift) | Two source-vault ownership pins reserve before credential creation and commit exact complete encrypted bytes. Explicit confirmation validates the saved preparation without resealing. Interrupted, changed or unavailable records remain owned and cannot be regenerated. No publication, private-key caller, product resume, checkpoint or config selection is enabled. |
+| Fourth 811 exact restore publication, 2026-10-07 | [Restore publisher](../Sources/KeyCore/V3RecoveryRestorePublisher.swift) and [contained publication/reconciliation checks](../Tests/KeyCoreTests/V3RecoveryRestorePublisherTests.swift) | Opens the saved addressed Mac wrapper once per explicit call, installs exact entries before the manifest and reconciles known prefixes without resealing. A present manifest requires a complete exact snapshot, never repair. Unexpected files/partials stop publication. No checkpoint, cache, config, ownership cleanup, product route or native qualification. |
+| Fifth 811 local trust and ordinary reopen, 2026-10-07 | [Trust installer](../Sources/KeyCore/V3RecoveryRestoreTrustInstaller.swift) and [software trust/reopen tests](../Tests/KeyCoreTests/V3RecoveryRestoreTrustInstallerTests.swift) | Rechecks complete published objects, verifies the persisted addressed wrapper, caches exact encrypted bytes and inserts only an absent checkpoint. A fresh empty session uses the ordinary identity loader/runtime to read every restored item. Matching interrupted trust is retained; different trust is refused. No config selection, ownership cleanup, product caller or native qualification. |
+| Sixth 811 configuration selection and reconciliation, 2026-10-07 | [Selection installer](../Sources/KeyCore/V3RecoveryRestoreSelectionInstaller.swift), [bound environment](../Sources/KeyCore/V3RecoveryRestoreEnvironment.swift) and [selection tests](../Tests/KeyCoreTests/V3RecoveryRestoreSelectionInstallerTests.swift) | Fresh trust/ordinary-access checks precede exact no-overwrite config publication. Explicit selected continuation requires matching config, existing exact trust and complete owned files. Both ownership records remain intact. No product caller, native qualification or ownership finalization. |
+| Seventh 811 ordered ownership finalization, 2026-10-07 | [Finalizer](../Sources/KeyCore/V3RecoveryRestoreFinalizer.swift), [journal completion reader](../Sources/KeyCore/V3RecoveryRestoreJournal.swift) and [finalization tests](../Tests/KeyCoreTests/V3RecoveryRestoreFinalizerTests.swift) | Fresh ordinary access and exact selected/source/trust/files precede reservation-first, preparation-last CAS removal. The remaining complete-bundle pin supports halfway continuation without another record or new format. No pins means no pending claim, not retrospective success. Encrypted files remain inert; no product caller or native qualification. |
+| Eighth 811 authenticated preparation service, 2026-10-07 | [Restore service](../Sources/KeyCore/V3RecoveryRestoreService.swift), [scoped journal](../Sources/KeyCore/V3RecoveryRestoreJournal.swift) and [service tests](../Tests/KeyCoreTests/V3RecoveryRestoreServiceTests.swift) | Reader-issued native observation and one recovery agreement authenticate the source before new-directory creation. Durable reservation precedes fresh Mac credentials; independent reload and wrapper opening precede encrypted preparation. Source/token, cancellation, deadline and authentication-generation checks span the call and record rename boundaries. Scoped completion, product dispatch/resume and native acceptance remain. |
+| Ninth 811 scoped completion and resume, 2026-10-07 | [Restore service](../Sources/KeyCore/V3RecoveryRestoreService.swift), [completion tests](../Tests/KeyCoreTests/V3RecoveryRestoreCompletionServiceTests.swift) and existing publication/trust/selection/finalization components | One source agreement spans initial restore through ordered cleanup. Explicit resume requires exact local ownership and fresh source authentication, never new credentials or replacement ciphertext. Selected resume verifies existing trust and only finalizes. Product dispatch/barriers, separate-process and physical acceptance remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -3316,3 +3331,739 @@ Next: new-vault restore orchestration (`REC-811`) in the next stack layer.
 User-confirmation/product integration and physical qualification remain later
 work. No implementation package is marked complete. This increment changes no
 real vault, configuration, installed app or token, and performs no push or release.
+
+### First 811 source-bound restore candidate, 2026-10-07
+
+The new local `codex/recovery-restore` layer starts at lifecycle commit `ce63290`,
+using `gh stack add`. It is above `codex/recovery-lifecycle` in the existing stack;
+no hosted PR was created or changed, and nothing was pushed.
+
+The [candidate component](../Sources/KeyCore/V3RecoveryRestoreCandidate.swift)
+accepts only a `V3RecoveryVerifiedSnapshot`, which the complete snapshot verifier
+alone can construct. It rechecks the exact observed source, then reuses the
+permanent genesis builder with new vault/transition/entry identifiers and an
+explicit new Mac identity. It rejects reuse of the selected source's namespace,
+entry/transition identifiers and device/recipient public keys. Randomness and
+identity creation remain the future restore owner's responsibility; this domain
+component does not prove entropy or create platform credentials.
+
+Independent candidate validation parses the permanent envelope, verifies its
+digest and MAC, requires one new active Mac and its addressed wrapper, checks
+every encrypted entry against the manifest, and compares exact plaintext/name
+bytes and types with the verified source. New entry revisions start at one.
+Byte comparison does not treat canonically equivalent Unicode secrets as the
+same bytes. Complete source state is checked again after crypto validation.
+No source roster, signing capsule, recovery recipients or ancestry becomes the
+new vault's authority. Its ordinary wrapper still needs an actual addressed Mac
+opening before checkpoint trust or configuration selection.
+
+Architecture inspection compared adding a restore mode to the existing genesis
+installer with restore-owned orchestration over shared domain crypto. The existing
+installer removes staging on errors and cannot resume exact artifacts. Restore
+will therefore own its journal and destination/configuration barriers while
+reusing the existing builder, entry validator and ordinary runtime. This increment
+implements preparation/validation only, not another crypto or publication kernel.
+
+Verification:
+
+- Focused Debug passed 35 declarations in three suites: restore candidates,
+  recovery history/snapshot verification and permanent genesis construction.
+  Six restore declarations exercise 28 cases, including an empty
+  verified snapshot, reused source identifiers/keys, altered contents/artifacts,
+  Unicode byte differences, changed source and resource bounds.
+- Focused Release passed 50 declarations in five suites: the same three suites
+  plus initial rotation and reciprocal lifecycle integration. All checks use
+  contained filesystem/software crypto, without native or token prompts.
+- The console initially reported locked. A final query returned no usable flag;
+  no unlocked state was inferred from its absence. The five storage suites that
+  failed in the preceding increment then passed all 68 declarations in a direct
+  optimized rerun, including the exact mutation-owner handler regression.
+- The subsequent full optimized rerun passed 1,503 KeyCore declarations in 121
+  suites and six canonical-JSON declarations in one suite, including protected
+  storage, the rotation fixes and the new restore component. The separately gated
+  large-migration qualification remained skipped. This supersedes the preceding
+  locked-console full-Release failure for ordinary regression qualification at
+  this revision; it does not qualify native restore or hardware behavior.
+- The added sequence performs actual key-rotation and ordinary-edit publication,
+  clears its Mac session, then prepares the latest recovered secret and TOTP
+  contents. One software recovery agreement suffices; preparation makes no
+  additional source-Mac private call or source write. No token is involved.
+- Unsigned universal Preview compilation passed. App, CLI and helper each have
+  arm64/x86_64 slices; product-bundle isolation and the real CLI's help/version
+  checks passed. Nothing was installed.
+- Initial test compilation corrected an existing edit-request argument label;
+  test limit construction was also corrected to satisfy repository preconditions.
+  No production validation was relaxed.
+- Strict formatting of both Swift files, project syntax, Git whitespace checks
+  and all 215 local documentation targets passed. No lock or protection setting
+  was changed.
+
+Raw logs use `tmp/piv-recovery/2026-10-07-restore-candidate-` and remain ignored.
+This is source self-review and software composition evidence, not fresh independent
+review, native provenance or physical recovery qualification. No implementation
+package is complete and no product restore command is enabled.
+
+Next in this layer: exact destination/configuration ownership and scoped
+authenticated restore intent, then manifest-last publication, explicit resume
+without regenerated artifacts, and fresh ordinary Mac-bound reopening before
+selection. This increment changes no real vault, configuration, installed app or
+token and performs no hardware administration, push or release.
+
+### Second 811 live restore bindings and authenticated record, 2026-10-07
+
+This increment stays on local `codex/recovery-restore`, above the existing
+lifecycle layer. It implements the record format and initial live filesystem
+guards, not a durable journal or product restore route.
+
+The [restore environment](../Sources/KeyCore/V3RecoveryRestoreEnvironment.swift)
+owns the opened source, newly created destination, destination parent and local
+configuration root. It checks physical ancestry before creating the final folder,
+including a source reached through a symlinked ancestor. The new destination
+cannot be inside the source or configuration tree. Existing folders are refused,
+even when empty. Exact path bytes and physical identities are retained and
+rechecked around source observations and future durable transitions. Any config
+file, directory or dangling link blocks preparation. This initial path requires
+an unconfigured Mac and an existing local config directory; its read-only config
+accessor does not bootstrap paths or write a selection.
+
+The [intent](../Sources/KeyCore/V3RecoveryRestoreIntent.swift) binds one operation,
+those locations, the exact source anchor/credential/head, a stable commitment to
+the observed manifest inventory/history, and the new genesis digest/key ID/owner.
+The genesis digest already commits the complete entry references, transition and
+addressed wrapper. Its bounded canonical format uses a restore-only HKDF/HMAC
+domain and the destination vault key, with a key-ID check. No plaintext, raw key,
+PIN, administrator secret or saved approval is recorded. Construction rechecks
+the snapshot through the environment's retained source descriptor before and
+after record authentication. Parsing alone grants no authority.
+
+Architecture inspection compared reusing the registration intent/ownership
+semantics with a separate restore format over the existing persistence and crypto
+mechanisms. Registration authenticates an existing parent checkpoint and token
+registration; restore binds a different namespace, physical destination and
+currently absent configuration. Reusing its semantic record would obscure those
+requirements. Restore therefore keeps its own format while retaining canonical
+JSON, purpose-separated HKDF/HMAC, descriptor-relative source reads and the
+existing exclusive directory creator. No generic transaction-policy framework
+or new encryption format was introduced.
+
+Verification:
+
+- The initial focused Debug run passed 39 declarations in three suites. Two
+  further restore declarations and source-descriptor binding were then added.
+- Final focused Release passed 89 declarations in six suites: both restore
+  components, recovery history, initialization, config compatibility and the
+  existing permanent-genesis installer. Twelve new declarations exercise 40
+  cases over contained filesystem/software crypto. They cover incorrect keys,
+  changed/malformed/oversized records, a later source, folder replacement, config
+  arrival and refusal before directory creation. Inspection leaves a missing
+  config root missing. No token or native credential is used.
+- Full Release passed 1,515 KeyCore declarations in 122 suites and six canonical
+  JSON declarations in one suite. The separately gated large-migration
+  qualification remained skipped. This qualifies ordinary software regression
+  at this increment, not native or hardware restore behavior.
+- The final unsigned universal Preview build passed. App, CLI and helper each
+  contain arm64/x86_64 slices; product isolation and actual CLI help/version
+  checks passed. Nothing was installed.
+- Strict formatting passed for the three new Swift files. Whole-file formatting
+  of the touched legacy config source still reports its 61 existing diagnostics;
+  comparison against the parent found no changed diagnostic messages/counts.
+  Those unrelated lines were left intact. Project syntax, Git whitespace and
+  all 222 relative documentation targets passed.
+- Initial compilation corrected a missing throwing-call marker, the tests'
+  existing module-import convention and a software closure's Sendable captures.
+  Production validation was not relaxed. Self-review moved overlap refusal
+  before folder creation and bound record construction to actual source reads.
+
+Raw logs use `tmp/piv-recovery/2026-10-07-restore-intent-` and remain ignored.
+This is source self-review and software qualification, not fresh independent
+review, native provenance or physical recovery qualification. No implementation
+package is complete. No real vault, config, installed app or token was changed,
+and nothing was pushed or released.
+
+Next: reserve local ownership before platform credential creation and durably
+store the exact complete encrypted preparation. Only that owned preparation may
+support explicitly reauthenticated resume. Manifest-last publication, exact
+interruption reconciliation, checkpoint installation, fresh ordinary Mac-bound
+reopening and final no-overwrite config selection still remain. The current
+record alone cannot resume or publish, and a new attempt cannot adopt an existing
+empty destination. Source/native binding and session-generation checks must be
+carried through the future service; filesystem observations are not locks.
+
+### Third 811 durable local reservation and encrypted preparation, 2026-10-07
+
+This increment stays on local `codex/recovery-restore`. It adds internal
+persistence and explicit software confirmation of a complete owned preparation.
+It does not enable a product restore command or publish destination objects.
+
+The [journal](../Sources/KeyCore/V3RecoveryRestoreJournal.swift) uses two dedicated
+ownership namespaces, both keyed by the source vault ID. The first pins the
+exact [reservation](../Sources/KeyCore/V3RecoveryRestoreReservation.swift) before
+any platform credential is created. That public record binds the source
+anchor/point/head/observed history, source/destination/config locations and fresh
+vault/transition/entry IDs. Returning it requires contained atomic installation,
+exact readback, file/directory synchronization and source/pin revalidation. The
+existing single-use new-directory gate now spans environment copies; a reopened
+environment cannot reserve again. Its immutable handles and lock-protected
+single mutable field support the retained Sendable environment.
+
+The second pin commits the exact complete
+[encrypted bundle](../Sources/KeyCore/V3RecoveryRestoreBundle.swift) before its
+file is written. It contains the authenticated intent, genesis envelope and all
+encrypted entries, not plaintext, raw keys or approval. Both records live under
+the local configuration root at `v3-restore-attempts/<operationID>/`, outside the
+source and destination vaults. The existing ownership store is non-synchronizing
+and device-only. Its format and ordinary transaction, registration and adoption
+namespaces remain unchanged.
+
+Inspection compared adding restore-specific phases to the shared ownership
+anchor with two namespaces using its existing format. A reservation exists before
+there is a credential; a complete encrypted preparation has a different digest
+and failure boundary. Separate pins represent both without changing every
+existing ownership decoder or hiding record-type policy inside a generic phase
+machine. The journal reuses the existing contained atomic writer, exact durable
+readback, source verifier and full genesis validation. It introduces no new
+encryption algorithm or general transaction framework.
+
+Only locally pinned operation IDs select files. The journal checks each complete
+record against its ownership digest before returning candidate wrapper bytes.
+Files without a pin are inert, and JSON paths are never opened as authority.
+Missing, changed, oversized, symlinked or uncontained records stop the operation.
+An incomplete reservation cannot recreate credentials or silently regenerate
+preparation. There is no cleanup or abandonment implementation yet.
+
+Explicit confirmation receives a freshly verified source snapshot, destination
+key and expected owner. It authenticates the intent and reconstructs validation
+input from the saved ciphertext plus scoped source plaintext, with no encryption,
+randomness or wrapper generation. Existing full checks authenticate the genesis
+and every entry and compare every restored plaintext/type/name. Live locations,
+source observation, both pins and both saved files are checked across the durable
+transition, including a final exact reload. A source that changes during
+validation cannot advance an unready preparation pin.
+
+Verification:
+
+- Focused Debug passed 93 declarations in five suites. After adding the final
+  reserved-ID and budget checks, the complete new journal suite passed its 13
+  declarations and 45 cases in Debug.
+- Final focused Release passed 113 declarations in six suites, including all
+  restore components, initialization, registration and the existing permanent
+  genesis installer.
+- Full Release passed 1,528 KeyCore declarations in 123 suites and six canonical
+  JSON declarations in one suite. The separately gated large-migration
+  qualification remained skipped. Protected-storage regression checks passed;
+  this is not native restore or hardware qualification.
+- New cases cover empty/populated preparation; all seven durable journal
+  boundaries; interruptions during both real atomic file writes; fresh-reader
+  confirmation after a destination software-wrapper opening; wrong keys/owners;
+  source changes; folder replacement; config arrival; ownership/file changes
+  during final validation; missing, oversized and symlinked files; inert unowned
+  records; exact reserved IDs; resource refusal before consumption; and bounded
+  public bundle parsing without an authentication claim. No ciphertext or
+  platform credential is regenerated during confirmation.
+- Unsigned universal Preview compilation passed. App, CLI and helper each
+  contain arm64/x86_64 slices; product isolation and actual CLI help/version
+  checks passed. Nothing was installed.
+- Strict formatting passed for the seven restore Swift files. The two touched
+  legacy sources retain their 66 existing whole-file diagnostics; comparison
+  against the parent found no changed diagnostic messages/counts. Project syntax,
+  Git whitespace and all 232 relative documentation targets passed.
+- Initial compilation corrected the fixture's ownership type, a limit argument
+  name and nested throwing-call markers. Preservation assertions were corrected
+  to compare each exact record's bytes directly. Production validation was not
+  relaxed. Self-review added final reloads of both records and retained the
+  existing single-use directory gate rather than adding another mutable gate.
+
+Raw logs use `tmp/piv-recovery/2026-10-07-restore-journal-` and remain ignored.
+This is source self-review and software composition evidence, not fresh
+independent review, native credential provenance, separate-process recovery or
+physical-token qualification. The tests replace only the Keychain ownership
+boundary with the existing compare-and-replace fixture and use real disposable
+filesystem/crypto operations. The new live Keychain namespaces are not accessed.
+No implementation package is complete. No real vault, config, installed app or
+token was changed, and nothing was pushed or released.
+
+Next: manifest-last publication of this exact owned preparation and explicit
+interruption reconciliation, followed by checkpoint installation, fresh ordinary
+Mac-bound reopening and final no-overwrite configuration selection. Native
+credential creation/opening and source/token/session-generation binding still
+need the serialized service owner. The current confirmation operation does not
+provide those approvals or make its returned bundle permission to publish.
+
+### Fourth 811 manifest-last publication and exact reconciliation, 2026-10-07
+
+This increment stays on local `codex/recovery-restore`. The internal
+[publisher](../Sources/KeyCore/V3RecoveryRestorePublisher.swift) publishes a
+complete, locally owned encrypted preparation. It does not install checkpoints,
+cache manifests, select configuration or expose a product restore command.
+
+Publication first confirms the saved preparation, revalidates the actual source
+and checks the candidate under publication limits. It then uses the existing
+permanent-profile checkpoint unlocker to open the saved addressed Mac wrapper
+once and compare the resulting key with the supplied destination key. The
+validation session is scoped to the call and invalidated on every exit. A later
+explicit publication call must open the same saved wrapper again; it never
+creates credentials or repeats encryption.
+
+Inspection compared calling the existing genesis installer with a separate
+restore publisher. The installer generates vault/key/device state, assumes a
+single-use first attempt, and proceeds through trust installation and selection.
+Those responsibilities do not fit a saved, source-bound restore preparation or
+an explicitly resumed attempt. Restore therefore retains its own narrow
+publisher, using the existing full candidate checks and wrapper opener.
+
+The complete encrypted preparation is already durable staging. Duplicating it
+under `.transactions` would add another set of crash artifacts and cleanup
+ownership. Instead, the publisher uses the existing contained atomic
+no-overwrite writer directly at each final content address. Entry bytes and
+directories are synchronized and read back before the genesis manifest is
+installed. The saved manifest and every ciphertext must match the owned bundle
+exactly. Full genesis validation rechecks names, types, plaintext bytes, roster,
+key ID and authenticated content against the fresh source snapshot.
+
+Before a manifest exists, destination inspection permits only exact known object
+addresses and known empty parent folders left by interrupted creation. It rejects
+unrelated root files, extra entry IDs, extra object versions, foreign manifests,
+symlinks, malformed bytes and orphan partial files. No unknown object is removed.
+Directory listings use fresh open descriptions and bounded counts. Published
+entries can be reconciled from the same bundle, with no new nonce, wrapper, ID or
+credential. If the manifest already exists, all exact entries must already be
+present; damaged committed snapshots are refused, not repaired.
+
+Source observations, live source/destination/config identities, local ownership
+and saved record bytes are rechecked across wrapper opening and publication.
+Detected changes stop the attempt and leave its preparation and published objects
+in place. These are observations, not filesystem locks. The future helper owner
+must still serialize callers and bind the operation to current authentication
+and session generation.
+
+The publication report identifies a checkpoint to be considered by later trust
+installation. It is not saved approval or a reason to clear ownership. There is
+no checkpoint/cache/config write or persistent session installation in this
+publisher. The token and original Mac credentials are not publication dependencies;
+the caller supplies its already verified source snapshot and the new Mac identity.
+
+Verification:
+
+- Initial focused Debug passed 42 declarations in four restore suites. After
+  adding empty-vault boundaries, interrupted-parent-folder cases and separate
+  explicit continuation after authentication failure, the final Debug publisher
+  suite passed all 13 declarations and 60 cases.
+- Final focused Release passed 126 declarations in seven suites, including the
+  restore components, initialization, registration and the existing permanent
+  genesis installer.
+- Full Release passed 1,541 KeyCore declarations in 124 suites and six canonical
+  JSON declarations in one suite. The separately gated large-migration
+  qualification remained skipped. Protected-storage regression checks passed.
+- Publication cases cover exact empty/populated objects, every reachable
+  observer boundary, interruption inside both real atomic installation paths,
+  explicit fresh-reader reconciliation, no automatic private retry, incorrect
+  identities/keys and cancellation. Record, ownership, source, config and folder
+  changes across wrapper opening and final validation stop the operation.
+  Unknown objects and symlinks refuse before wrapper opening. A published
+  manifest with damaged/missing entries refuses without repair or replacement.
+- Unsigned universal Preview compilation passed. App, CLI and helper each
+  contain arm64/x86_64 slices; product isolation and actual CLI help/version
+  checks passed. Nothing was installed.
+- Strict formatting of all three touched Swift files, project syntax, Git
+  whitespace and all 237 relative documentation targets passed.
+- Initial compilation corrected the repository's already encoded entry-digest
+  type and test availability/throwing-expression annotations. Self-review added
+  publication-limit validation before the private operation and complete-entry
+  checks immediately before manifest installation. Production protections were
+  not relaxed.
+
+Raw logs use `tmp/piv-recovery/2026-10-07-restore-publication-` and remain ignored.
+This is source self-review and filesystem/software-wrapper evidence, not fresh
+independent review or native authentication qualification. Tests replace the
+Keychain boundary with existing memory ownership and use the real atomic writer
+and real software HPKE. They reuse the previous journal fixture rather than
+duplicating setup or introducing a test-only production adapter. Actual process
+termination, a later OS process, large-vault performance and physical recovery
+remain unqualified. A crash that leaves an orphan partial file is not promised
+automatic continuation; it stops for inspection without deletion. No
+implementation package is complete. No real vault, config, installed app or token
+was changed, and nothing was pushed or released.
+
+Next: exact checkpoint installation and a fresh ordinary Mac-bound reopen,
+followed by no-overwrite configuration selection and completed-state ownership
+reconciliation. Native source/key/session binding, credential creation and product
+restore/resume still need the serialized service owner. No selection should rely
+only on the report returned by this publisher.
+
+### Fifth 811 insert-only trust and fresh ordinary-runtime read, 2026-10-07
+
+The internal [trust installer](../Sources/KeyCore/V3RecoveryRestoreTrustInstaller.swift)
+stays on local `codex/recovery-restore`. It rechecks the complete owned published
+snapshot without repairing files. Missing, changed or unknown objects cannot
+justify local trust. Only an absent checkpoint is inserted; an existing exact
+checkpoint supports explicit continuation, and different/malformed trust is refused.
+
+The addressed saved identity is loaded through the existing identity boundary.
+Its wrapper is verified before checkpoint insertion. Exact encrypted manifest
+bytes are stored using the existing filesystem cache. Source/location/ownership,
+record, checkpoint and cache checks span the durable boundaries; failures retain
+exact committed trust rather than deleting or replacing it.
+
+Inspection compared reopening with a preseeded preparation session against an
+empty ordinary-runtime session. Preseeding would prove file/crypto consistency
+but not independent access through the saved Mac identity. The installer instead
+clears validation state, creates an empty session and uses the ordinary identity
+loader, unlock runtime and read runtime. It opens the published wrapper and
+checks every item name/type/plaintext byte against the recovered snapshot.
+Both temporary sessions are invalidated on exit. This requires two software Mac
+wrapper calls within trust completion, independent of entry count, and no token
+operation. Native authentication prompt counts are not qualified.
+
+Verification:
+
+- Final focused Release passed 134 declarations in eight suites. The new trust
+  suite's eight declarations cover 26 cases, including every trust boundary,
+  conflicting/malformed checkpoints, cache/CAS failure, failed initial identity
+  access, failed fresh reopening and changed source/config/ownership/files.
+- Final focused Debug passed all eight trust declarations and 26 cases. Empty
+  and populated snapshots open through a new ordinary runtime/session, with two
+  addressed software-wrapper calls and no original Mac private operation.
+- The full Release run failed with 65 issues across 1,549 KeyCore declarations
+  in 125 suites. Existing protected-storage writes were denied while the console
+  was locked, confirmed by `CGSSessionScreenIsLocked=Yes`. The new trust suite
+  passed within that run; six canonical-JSON declarations also passed. The
+  separately gated large migration remained skipped. This failed run is retained
+  as verification history, not ordinary regression qualification.
+- The subsequent full Release rerun passed all 1,549 KeyCore declarations in
+  125 suites in 250.320 seconds, plus six canonical-JSON declarations in one
+  suite. It used the same optimized binaries with `--skip-build --no-parallel`.
+  The separately gated large migration remained skipped. This pass qualifies
+  the ordinary software regression scope, not native or hardware recovery.
+- Unsigned universal Preview compilation, arm64/x86_64 slices for app/CLI/helper,
+  product isolation, actual CLI help/version, strict formatting of four touched
+  Swift files, project syntax, Git whitespace and 241 local documentation targets
+  passed. Nothing was installed.
+- Initial compilation corrected throwing-call and shared-fixture visibility
+  annotations. One failure fixture cancelled the first wrapper when it intended
+  a missing identity on the second load; that test was corrected and rerun.
+  Production protection checks were not relaxed. The passing full rerun resolved
+  the regression gate before the local commit.
+
+Raw logs use `tmp/piv-recovery/2026-10-07-restore-trust-` and remain ignored. Tests
+use real contained files and the real filesystem cache, with memory checkpoint
+ownership and software identities. No native Keychain checkpoint, Secure Enclave
+credential or token is accessed by the new cases. This is source self-review and
+same-process ordinary-runtime composition, not fresh independent review,
+separate-process recovery or native authentication qualification. Large-vault
+performance and physical recovery remain unqualified. No implementation package
+is complete. No real vault, config, installed app or token was changed, and
+nothing was pushed or released.
+
+Next: no-overwrite configuration selection and completed-state reconciliation.
+Those steps must recheck actual trust/files rather than treating this report as
+saved approval. Native source/identity/session-generation binding and serialized
+product restore/resume still need service integration. Configuration is not
+selected and ownership is not cleared by this increment.
+
+### Sixth 811 configuration selection and reconciliation, 2026-10-07
+
+The internal [selection installer](../Sources/KeyCore/V3RecoveryRestoreSelectionInstaller.swift)
+stays on local `codex/recovery-restore`. It loads the exact owned preparation,
+matches independently opened physical handles, and invokes the trust installer
+for fresh saved-identity access and ordinary-runtime verification. A prior report
+is not accepted as approval or completion evidence.
+
+Inspection compared the mutable config setter with the existing contained atomic
+writer. A setter could replace a competing selection; the atomic writer preserves
+it. Selection therefore publishes the normal local config without overwrite and
+checks the source, owned records, complete files, checkpoint and encrypted cache
+again at the synchronized temporary-file boundary and after publication.
+
+Keeping every environment strictly unconfigured would prevent reconciliation
+after a committed config write. A dedicated completion environment instead
+requires exact selected bytes and the intended vault ID. It never accepts a
+semantically similar or user-edited config. Existing exact checkpoint trust is
+required before credential access; config cannot recreate missing trust. The
+ordinary preparation/publication gates remain unconfigured-only. Selected retry
+repeats fresh trust/read verification and synchronizes config without rewriting.
+Failures retain committed config/trust and both ownership pins, with no rollback,
+repair, resealing, credential creation or private-operation retry.
+
+Verification:
+
+- Final Debug passed 11 declarations and 42 cases. Real filesystem cases cover
+  empty/populated selection, all three selection boundaries before/after config,
+  malformed/different/linked config, missing/different checkpoint, temporary-write
+  interruption, source/ownership/file changes, physical-root replacement and
+  selected-state damage. A separately constructed ordinary runtime uses only
+  the actual saved config, identity, checkpoint and cache to read every item.
+- Focused Release passed 116 declarations in ten suites covering restore,
+  config compatibility, initialization, genesis and unconfigured enrollment.
+- Full Release passed all 1,560 KeyCore declarations in 126 suites in 298.861
+  seconds, plus six canonical-JSON declarations in one suite. The separately
+  gated large migration remained skipped. No behavioral source change followed
+  the focused optimized build; the full run used `--skip-build --no-parallel`.
+- Unsigned universal Preview compilation, arm64/x86_64 app/CLI/helper slices,
+  bundle isolation, actual CLI help/version, strict formatting of six restore
+  Swift files, project syntax, Git whitespace and 246 relative documentation
+  targets passed. The existing config file's formatting convention is retained.
+- The first test compile rejected an incorrect fixture `Sendable` declaration;
+  callbacks now capture only their actual Sendable dependencies. The first Xcode
+  build caught a file-reference/build-reference typo, corrected before the
+  successful build. Self-review added the selected-config vault-ID guard and its
+  regression case. No production protection check was relaxed.
+
+Raw logs use `tmp/piv-recovery/2026-10-07-restore-selection-` and remain ignored.
+Tests use disposable config/files/cache, software identities and memory
+checkpoint/ownership stores. No real config/vault, native credential or token
+was changed. Native prompt counts, physical recovery, separate-process recovery,
+large-vault performance and fresh independent review remain unqualified. No
+implementation package is complete, and nothing was installed, pushed or released.
+
+Next: interruption-safe ownership finalization. Both pins and encrypted records
+remain deliberately intact; a selected report does not authorize deleting them.
+Later ordinary edits that advance the restored checkpoint are not adopted by
+this exact-genesis path. Native approval/session-generation binding, serialized
+service orchestration and product restore/resume remain.
+
+### Seventh 811 ordered ownership finalization, 2026-10-07
+
+The internal [finalizer](../Sources/KeyCore/V3RecoveryRestoreFinalizer.swift)
+stays on local `codex/recovery-restore`. It verifies the actual selected config,
+existing exact checkpoint/cache, complete owned published files and freshly
+scoped source snapshot. The shared ordinary reopener loads the saved Mac identity
+into a new empty session, opens its wrapper once, compares every restored item
+and invalidates the temporary session. No prepared key is injected and no token
+operation is requested by this component.
+
+Inspection compared the two possible removal orders. Preparation-first loses
+the local digest of the complete encrypted bundle. Reservation-first retains it,
+so the journal can verify that same bundle and reconstruct every original public
+reservation field solely to compare it with the retained record. This supports
+halfway continuation without a third marker, another namespace, a new format or
+restoring a removed pin. Normal pending/preparation/publication/selection readers
+still refuse preparation-only ownership. The finalization reader does not grant
+approval; selected config, existing trust and fresh ordinary access remain required.
+
+Exact reservation CAS removal precedes another complete state check, then exact
+preparation CAS removal. Changes or ambiguous errors stop further work without
+retry or rollback. Final checks also require both pins absent before success is
+returned. If the final reply is lost, a later call returns only "no locally owned
+pending attempt", not a retrospective success claim from unowned files. Ordinary
+configured-vault status remains a separate check. Encrypted journal files remain
+inert audit evidence; no filesystem object, config, credential, source or
+destination checkpoint is deleted.
+
+Verification:
+
+- Debug passed ten finalization declarations and 40 cases. Empty/populated
+  snapshots, every boundary, before/after-application CAS errors, cancelled or
+  unavailable fresh identity, conflicting config/trust, damaged/missing records,
+  changed source and halfway ownership substitution are covered. Calls after
+  final clearance load no file or identity and make no success claim.
+- Earlier Debug restore regression passed 32 declarations in three suites after
+  sharing the ordinary reopener. The first new test compile required availability
+  and throwing-call annotations; those were corrected before the passing run.
+- Final focused Release passed 101 declarations in nine suites covering restore,
+  initialization and config compatibility. Full Release passed all 1,570 KeyCore
+  declarations in 127 suites in 336.911 seconds, plus six canonical-JSON
+  declarations in one suite. The separately gated large migration remained
+  skipped. No source changed after the focused optimized build; the full run
+  used `--skip-build --no-parallel`.
+- Unsigned universal Preview compilation, app/CLI/helper arm64/x86_64 slices,
+  bundle isolation and actual CLI help/version passed. Strict formatting of eight
+  touched Swift files, project syntax, Git whitespace and 251 relative
+  documentation targets passed. Nothing was installed.
+
+Raw logs use `tmp/piv-recovery/2026-10-07-restore-finalization-` and remain ignored.
+The tests use real disposable files/cache/runtime, software identities and memory
+checkpoint/ownership stores, including an applied-then-failed CAS boundary. They
+do not qualify native Keychain removal, authentication prompt counts, hardware,
+separate-process recovery, large-vault performance or a fresh independent review.
+No real vault, configuration, credential or token was changed. No implementation
+package is complete, and nothing was pushed or released.
+
+Next: authenticated restore service orchestration. It must compose existing
+reservation, saved-credential preparation, publication, trust/reopen, selection
+and finalization under the native source/identity/session-generation scope and
+host serialization. Product restore/resume, separate-process ordinary access and
+physical acceptance remain. Later ordinary edits are not silently adopted by the
+exact-genesis cleanup path.
+
+### Eighth 811 authenticated preparation service, 2026-10-07
+
+The internal [restore service](../Sources/KeyCore/V3RecoveryRestoreService.swift)
+now connects the native public reader and one-operation agreement adapter to
+the permanent-genesis builder, existing Mac identity manager and owned journal.
+It accepts independently opened source/parent handles and a reader-issued
+observation, not caller-supplied recovered plaintext or a saved approval flag.
+Public preflight checks the exact journal/config root, unconfigured selection,
+credential policy, recognized token anchor and absence of prior ownership.
+The source selector and complete current-snapshot verifier run through the real
+adapter with exactly one software-provider agreement in the tests.
+
+One shared source mutation owner spans the request. The service captures the
+existing authentication-generation ticket before queue admission; lock,
+replacement, cancellation or deadline expiry prevents later admission. After
+the hardware operation drains, an exclusive token lease spans preparation.
+Rechecks reread the same card/key/anchor and verify the exact source observation,
+with public sessions closed before Mac private operations. This does not freeze
+external filesystem or token changes; checks surround the admitted operations.
+Product host serialization and lock/disconnect invalidation still need wiring.
+
+Only a freshly authenticated source can create the requested new final folder.
+Fresh vault, transition and entry IDs are pinned in a durable reservation before
+creating any Mac credential. The service independently reloads the saved
+identity, checks its namespace/public identity, creates a random destination
+key, and opens the new Mac wrapper through the existing checkpoint unlocker.
+The recovered source key is not needed for any destination wrapper. The
+temporary destination session is invalidated before encrypted preparation is
+staged; no key is installed in the supplied authentication-generation store.
+The returned report contains identifiers, destination path and entry count only.
+
+The journal accepts a synchronous, nonescaping scope check for reservation,
+staging and preparation confirmation. The existing atomic writer now admits
+such a check before writing and immediately before each rename attempt, after
+the synchronized-temporary-file observer. Unrelated callers retain their
+existing behavior. Incomplete or ambiguously saved state stays owned and intact;
+another prepare request refuses before another agreement, directory or identity.
+No automatic retries, replacement artifacts, token writes or cleanup are added.
+
+Two service designs were considered against native provenance, secret lifetime,
+interruption ownership and existing module boundaries. A separate retained
+recovery-key session would introduce another secret-owning lifecycle and make
+later components depend on a saved-session capability. Composing the existing
+native reader/agreement in one synchronous scope keeps source plaintext and
+the destination key local to the call, with the established generation ticket
+as a race guard rather than evidence of consent. This increment uses that
+composition without changing a persisted format or the shipping host.
+
+The [service suite](../Tests/KeyCoreTests/V3RecoveryRestoreServiceTests.swift)
+has 14 declarations / 45 cases. It uses actual adapters, codecs, cryptography,
+contained files and the real mutation owner; only native card/provider/Mac keys
+and device-local ownership storage are replaced. Cases cover empty/populated
+sources, native observation provenance, cancellation and locks, late record
+rename rejection, ownership-advance guards, uncertain credential save/reload,
+source/token change during Mac approval, interrupted replies, journal-root
+mismatch and competing requests. Existing native fixture code is reused.
+
+Verification:
+
+- Initial focused Debug: 12 service declarations / 38 cases passed in
+  7.467 seconds, before adding observation-provenance and interrupted-reply
+  cases. The final optimized run passed 190 declarations across 15 suites in
+  123.050 seconds, including all 14 service declarations / 45 cases, restore
+  primitives, reader/agreement adapters, transaction ownership and config/init
+  regressions. Initial compile errors for a non-Sendable config value and the
+  exhaustive content-policy switch were corrected without changing config
+  ownership or permitting restore as a content edit.
+- Full optimized suite: 1,584 KeyCore declarations across 128 suites passed in
+  337.015 seconds; six canonical-JSON tests also passed. The separately gated
+  large migration was skipped, unchanged. This run reused the final optimized
+  binaries; no source changed afterward.
+- Unsigned universal Preview build succeeded. Product-bundle isolation,
+  bundled CLI help/version `0.2.0 (19)` and arm64/x86_64 slices for the app,
+  CLI and helper passed. Nothing was signed, installed or published.
+- Strict default Swift-format lint passed for five changed/new Swift files.
+  The same lint reports existing four-space/style findings in the three older
+  writer/store/mutation-owner files; comparison against HEAD confirmed the
+  non-indentation findings predate this change. Their established formatting
+  was preserved instead of bulk rewriting them. Project plist syntax,
+  258 relative documentation targets and `git diff --check` passed.
+
+Raw logs remain under ignored
+`tmp/piv-recovery/2026-10-07-restore-service-*`.
+
+Next: extend this same service scope through existing publication, trust/reopen,
+selection and finalization, plus exact freshly authenticated resume. The
+internal prepare method is not a user-facing two-command approval design;
+full initial restore must preserve one source agreement across its completion
+steps. Product host/CLI dispatch, separate-process ordinary reads and mutations,
+and physical acceptance still remain. No real token, vault or installed product
+was operated on by this increment.
+
+### Ninth 811 scoped completion and resume, 2026-10-07
+
+The [restore service](../Sources/KeyCore/V3RecoveryRestoreService.swift) now
+completes initial restore through the existing publisher, trust installer,
+configuration selector and finalizer inside its original authenticated source
+scope. Exactly one source recovery agreement spans preparation through cleanup.
+The shared mutation owner and reader's exclusive token lease remain held;
+source/token, authentication-generation, cancellation and deadline checks are
+passed synchronously into private-operation admission, atomic publication and
+ownership removal. No report or persisted field becomes saved approval.
+
+Two continuation designs were considered. Retaining an approval/session object
+would introduce another secret-owning lifecycle and require later callers to
+interpret its authority. Extending the existing synchronous source scope reuses
+the implemented components and keeps keys local to the call. This increment
+uses the latter without new durable formats. Configuration publication now uses
+the shared atomic writer's nonescaping callback instead of an escaping observer
+gate. Internal `prepare` remains available for isolated preparation checks, not
+as a proposed two-command initial restore flow.
+
+Explicit resume first checks exact local ownership, physical locations and
+public source selection. A reservation without complete preparation refuses
+before agreement or Mac credential creation. Complete preparation with a
+still-prepared pin can be verified and promoted, using its original bytes.
+Resume gets one fresh source agreement and independently reloads/opens the
+saved Mac wrapper, invalidating the temporary session before continuation. It
+never creates replacement credentials, chooses new identifiers or reencrypts
+the preparation. An unselected destination continues through publication and
+selection. An already selected destination requires exact existing trust/cache,
+skips those steps and only verifies/finalizes. Later ordinary edits are not
+silently adopted by this exact-genesis cleanup path.
+
+Ordered cleanup removes the reservation pin first and preparation pin last.
+The remaining preparation-only pin can finish exact selected cleanup. If both
+pins have already been cleared, resume reports no pending attempt before another
+private operation. A lost final reply is not retrospectively converted into a
+success claim; ordinary selected-vault status/access is a separate observation.
+Encrypted audit records remain intact after successful cleanup.
+
+The [completion suite](../Tests/KeyCoreTests/V3RecoveryRestoreCompletionServiceTests.swift)
+adds nine declarations / 83 cases. Actual adapters, crypto, contained files,
+ordinary runtimes and mutation owner are used; native I/O and local ownership/
+trust storage are substituted. It exercises empty/populated initial restore,
+21 interruption boundaries, 42 lock/cancellation cases, late entry/manifest/config
+rename guards, prepared-pin promotion, invalid public resume state, existing
+selected trust, later ordinary edits and rejected approvals. It also removes
+token availability, composes a fresh ordinary runtime from config/saved identity/
+trust, reads and mutates the result, then cold-reopens and reads the new entry.
+That proof is in one process; separate-process acceptance remains.
+
+Software initial restore performs five saved Mac-wrapper operations;
+unselected resume performs five and selected resume two. Each explicit call
+uses one source agreement regardless of entry/history count. Wrapper-operation
+counts do not qualify physical Touch ID prompts. Product host serialization,
+generation invalidation on lock/disconnect and native acceptance remain required.
+
+Verification:
+
+- Focused Debug passed 26 declarations across three suites in 95.557 seconds,
+  including initial full restore and existing preparation/selection regressions.
+  The optimized restore run passed 96 declarations across nine suites in
+  180.667 seconds, including all nine new declarations / 83 cases.
+- An initial integration failure exposed strict inventory being checked while
+  the atomic writer's own temporary file existed. The corrected rename guard
+  checks source scope and exact referenced entries before manifest publication;
+  strict inventory runs after atomic installation. No partial-file allowlist or
+  inventory relaxation was added. Initial compiler errors were corrected by
+  adjusting the private consume callback's lifetime and shared test fixture
+  visibility; authorization callbacks remain nonescaping and are not retained.
+- Full optimized suite passed 1,593 KeyCore declarations across 129 suites in
+  408.783 seconds, plus six canonical-JSON tests. The separately gated large
+  migration remained skipped. The final callback-formatting adjustment does
+  not change behavior. Final optimized recompilation and three declarations /
+  five smoke cases passed in 5.037 seconds, covering empty/populated restore,
+  exact prepared-pin resume and selected-resume trust refusal.
+- Unsigned universal Preview build and product-bundle isolation passed. Bundled
+  CLI help/version `0.2.0 (19)` and arm64/x86_64 slices for app, CLI and helper
+  passed. Nothing was signed, installed or published.
+- Strict default Swift-format lint passed for all nine changed/new Swift files.
+  Two mixed callback/trailing-closure style findings were corrected before the
+  final lint. Project plist syntax, 263 relative documentation targets and
+  `git diff --check` passed.
+
+Raw logs remain under ignored
+`tmp/piv-recovery/2026-10-07-restore-completion-*`.
+
+Next: product host/CLI restore and explicit resume dispatch, exclusive barriers
+against init/enrollment/configuration work, lock/disconnect invalidation, bounded
+request/status behavior, then separate-process and physical qualification. No
+real token, vault or installed product was operated on by this increment.
