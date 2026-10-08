@@ -95,11 +95,11 @@ are the implementation packages, not new names for already completed probes.
 | `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; profile-3 domain codecs, contexts, proof construction/checks, and fixtures implemented; final acceptance and integrated review remain |
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
-| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish and reciprocal pending guards implemented; product composition/status, shipping-runtime barriers and physical qualification remain |
+| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish, authenticated four-state status and reciprocal pending guards implemented; product composition, shipping-runtime barriers and physical qualification remain |
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; internal authenticated initial restore and exact resume now compose preparation, manifest-last publication, insert-only trust, ordinary-runtime reopening, configuration selection and ordered finalization; product dispatch/barriers, separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | Planned |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; public token/source review and restore/resume CLI/protocol, gated host/connection lifecycle, restart ownership admission and native factories implemented; remaining commands, live feature gating, profile-3 shipping runtime and signed qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -427,12 +427,12 @@ hardware operation, real-vault activation, merge or release.
 - **Real-vault ready:** 813/814 pass and explicit adoption in 815 is qualified.
 - **Full completion:** 815's Stable artifact is released and verified.
 
-The latest increment is checkpoint-linked ancestry for late same-epoch siblings
-and merge co-parents under `REC-809`,
-following internal durable adoption under `REC-804` and the `REC-808`
-registration service, with remaining `REC-807` integration,
-final `REC-805`/`REC-806` acceptance and `REC-804` integrated decisions tracked
-explicitly. The
+The latest increment is bounded read-only public token/source review under
+`REC-812`, after restore/resume CLI dispatch, native restore composition and
+complete internal authenticated restore and exact resume under `REC-811`. Remaining
+command dispatch, live feature gating and shipping
+profile-3 integration remain, alongside final platform, lifecycle and release
+acceptance. The ledger below records each component's scope and evidence. The
 [contract](piv-recovery-contract.md) describes the
 experimental dual-authorization direction and its reduced historical replay
 promise. The capsule, recipient roster, recovery contexts/wrappers, containing
@@ -566,6 +566,11 @@ No implementation package `REC-804` through `REC-815` is complete yet.
 | Seventh 811 ordered ownership finalization, 2026-10-07 | [Finalizer](../Sources/KeyCore/V3RecoveryRestoreFinalizer.swift), [journal completion reader](../Sources/KeyCore/V3RecoveryRestoreJournal.swift) and [finalization tests](../Tests/KeyCoreTests/V3RecoveryRestoreFinalizerTests.swift) | Fresh ordinary access and exact selected/source/trust/files precede reservation-first, preparation-last CAS removal. The remaining complete-bundle pin supports halfway continuation without another record or new format. No pins means no pending claim, not retrospective success. Encrypted files remain inert; no product caller or native qualification. |
 | Eighth 811 authenticated preparation service, 2026-10-07 | [Restore service](../Sources/KeyCore/V3RecoveryRestoreService.swift), [scoped journal](../Sources/KeyCore/V3RecoveryRestoreJournal.swift) and [service tests](../Tests/KeyCoreTests/V3RecoveryRestoreServiceTests.swift) | Reader-issued native observation and one recovery agreement authenticate the source before new-directory creation. Durable reservation precedes fresh Mac credentials; independent reload and wrapper opening precede encrypted preparation. Source/token, cancellation, deadline and authentication-generation checks span the call and record rename boundaries. Scoped completion, product dispatch/resume and native acceptance remain. |
 | Ninth 811 scoped completion and resume, 2026-10-07 | [Restore service](../Sources/KeyCore/V3RecoveryRestoreService.swift), [completion tests](../Tests/KeyCoreTests/V3RecoveryRestoreCompletionServiceTests.swift) and existing publication/trust/selection/finalization components | One source agreement spans initial restore through ordered cleanup. Explicit resume requires exact local ownership and fresh source authentication, never new credentials or replacement ciphertext. Selected resume verifies existing trust and only finalizes. Product dispatch/barriers, separate-process and physical acceptance remain. |
+| First 812 gated host and connection boundary, 2026-10-07 | [Recovery request/scope](../Sources/KeyCore/KeyRecoveryRequest.swift), [host](../Sources/KeyCore/KeyServiceHost.swift), [helper connections](../Sources/KeyLaunchAgentHelper/main.swift) and [routing tests](../Tests/KeyCoreTests/KeyRecoveryRoutingTests.swift) | Public restore/resume selectors cross the protocol; one request is admitted through the existing exclusive host barrier. Lock cancels out of band and disconnect cancels its connection's scopes. Uncertain selection forces restart; process-local pending state refuses competing setup. Live Stable/Preview capability remains disabled; durable restart admission and native/CLI/runtime composition remain. |
+| Second 812 restart ownership admission, 2026-10-07 | [Local ownership queries](../Sources/KeyCore/V3ImmutableTransactionRecoveryAnchor.swift), [paired capability](../Sources/KeyCore/KeyRecoveryRequest.swift), [host](../Sources/KeyCore/KeyServiceHost.swift) and [ownership tests](../Tests/KeyCoreTests/KeyRecoveryOwnershipTests.swift) | Recovery capability requires an ownership inspector. Either existing restore pin or an uncertain query refuses competing setup and cold selected-runtime composition. Explicit resume still validates exact source-bound state; presence grants no authority. No new marker or file scan. Live products remain disabled; native composition and signed Keychain acceptance remain. |
+| Third 812 native restore composition, 2026-10-07 | [Workflow/factory](../Sources/KeyCore/V3RecoveryRestoreWorkflow.swift), [local metadata roots](../Sources/KeyCore/VaultLocationResolver.swift), [physical containment](../Sources/KeyCore/V3RecoveryRestoreEnvironment.swift) and [workflow tests](../Tests/KeyCoreTests/V3RecoveryRestoreWorkflowTests.swift) | Exact public selectors resolve through the native reader before local scaffolding. The factory pairs ownership, journal pins, Mac identity, checkpoint/cache and one scoped agreement with the actual restore service. Fresh-Mac metadata creation is bounded; resume never recreates missing directories. Live Stable/Preview remain disabled and no CLI is added. Native product acceptance and actual XPC/hardware behavior remain unqualified. |
+| Fourth 812 restore/resume CLI, 2026-10-07 | [Parser](../Sources/KeyCore/CLIParser.swift), [application](../Sources/KeyCore/KeyCLIApplication.swift), [help](../Sources/KeyCore/CLIHelp.swift) and [CLI software tests](../Tests/KeyCoreTests/RecoveryCLITests.swift) | Explicit selectors and paths dispatch through the existing guarded request, never configuration defaults or CLI credentials. Actual software CLI/host/workflow/service composition covers completion, saved-preparation interruption, fresh-host exact resume and completed-attempt refusal. Live Stable/Preview still refuse before state creation; public review, other commands, shipping profile-3 composition and signed/native qualification remain. |
+| Fifth 812 public review, 2026-10-07 | [Closed request/result/workflow](../Sources/KeyCore/KeyRecoveryReview.swift), [host admission](../Sources/KeyCore/KeyServiceHost.swift), [CLI](../Sources/KeyCore/KeyCLIApplication.swift) and [review tests](../Tests/KeyCoreTests/KeyRecoveryReviewTests.swift) | Bounded token listing never selects or reads a credential; explicit source review reuses public history selection and revalidates token, source and scope. No entry read, PIN/touch, private agreement, Keychain, saved-attempt change or configuration selection. Shared exclusion/cancellation keeps restore exclusive and review read-only; configured lock still runs. Live products stay disabled; other commands, runtime composition and signed/native qualification remain. |
 
 Append concise package evidence here as implementation progresses. Record full
 operational logs outside committed documentation; keep enough provenance,
@@ -4067,3 +4072,486 @@ Next: product host/CLI restore and explicit resume dispatch, exclusive barriers
 against init/enrollment/configuration work, lock/disconnect invalidation, bounded
 request/status behavior, then separate-process and physical qualification. No
 real token, vault or installed product was operated on by this increment.
+
+### First 812 gated host and connection boundary, 2026-10-07
+
+The normal service protocol now represents restore and explicit resume using
+public source/destination paths, token ID and the existing credential-derived
+recipient ID. Initial restore also supplies a display name. No PIN, PUK,
+management key, recovered key, native observation or saved consent crosses XPC.
+Selectors are structurally bounded but are not native binding or approval;
+the future native composition must independently select and validate them.
+The utility role cannot send these requests. Their client reply bound is 120
+seconds and their host scope expires after 90 seconds, starting before queue
+admission. Successful recovery uses the existing helper shutdown handshake,
+with restart-timeout guidance that never suggests starting another restore.
+
+The [host](../Sources/KeyCore/KeyServiceHost.swift) admits at most one recovery
+request, including one waiting behind another exclusive host operation. Other
+recovery clients receive an immediate refusal. Its existing exclusive queue
+serializes source/destination/configuration work against init, directory-scoped
+enrollment and runtime selection. A configured handler is never replaced by
+recovery. Cold selected resume is admitted without composing an ordinary runtime;
+the restore service must still prove its exact saved selection and trust.
+
+Lock cannot wait behind the recovery barrier before invalidating authentication.
+The host first invalidates its generation and cancels its admitted scope. If
+recovery is active, lock returns without waiting for native UI, which may not
+drain immediately. This fast path is possible only because active recovery has
+no configured handler. The composed service must use the exact scope's
+generation store, cancellation and deadline; its later checks reject approval
+or publication after cancellation. Finished scopes are cancelled too. Token
+exclusion remains a separate existing native lease, including callbacks that
+outlive cancellation or timeout.
+
+Each authenticated helper XPC connection now has a permanent cancellation
+lifetime. Interruption/invalidation cancels only that connection's registered
+scopes. A later registration on a closed connection is cancelled immediately;
+disconnect never automatically starts another operation or cancels another
+client's independent scope.
+
+After entering recovery, process-local pending state refuses another initial
+restore, init, enrollment and vault-directory changes; explicit resume remains
+available. If configuration exists on exit, even after failure, cancellation or
+a lost reply, the host requires restart instead of composing a runtime from an
+uncertain selection. Apparent success without actual configuration is refused.
+This guard is not durable ownership. The live composition must add saved-attempt
+admission across helper restarts before enabling the feature. No record scan,
+new durable marker, credential replacement or filesystem cleanup was added.
+
+Running recovery outside the host queue was considered, but would let setup or
+runtime-selection work overlap it. Running lock only inside that queue would
+delay cancellation behind native UI. The existing queue plus out-of-band scope
+invalidation preserves the serialization contract without another work queue.
+The admission hook follows the host's existing init/enrollment composition style.
+
+[14 test declarations / 32 cases](../Tests/KeyCoreTests/KeyRecoveryRoutingTests.swift)
+cover protocol round trips, selector bounds, roles/deadlines, disabled live
+products, configured-runtime refusal, uncertain selection, pending setup guards,
+late success, concurrent requests, connection cancellation and expired tickets.
+Six cases run the actual restore service through host cancellation at encrypted
+preparation, manifest publication and configuration selection. The retained
+ownership is checked; no second agreement or new identity is requested. These
+tests inject the service composition and do not establish native selector
+dispatch, an actual XPC interruption or physical prompt behavior.
+
+Stable and ordinary Preview live hosts still refuse recovery before inspecting
+configuration, composing a runtime or opening a card. CLI syntax, native service
+composition, restart-persistent pending guards and signed product qualification
+remain. No installed product, real vault, real token or release was operated on.
+
+Verification:
+
+- Existing routing/protocol regressions passed 51 declarations across three
+  suites before the new tests. Focused Debug passed 65 declarations across
+  four suites in 8.075 seconds. The final reply-boundary recheck and disconnect
+  case then passed the same 65 declarations in 9.070 seconds, including all
+  14 new declarations / 32 cases.
+  A test-only compiler error used an unavailable `AppError.description`; the
+  test now uses the existing localized error interface.
+- Full optimized suite passed 1,607 KeyCore declarations across 130 suites in
+  406.112 seconds, plus six canonical-JSON tests. The separately gated large
+  migration remained skipped. This run preceded the final reply-boundary
+  recheck. Final optimized recompilation and affected revalidation passed all
+  65 declarations across four suites in 3.099 seconds, including the new
+  disconnect-during-selection-inspection case. No source changed afterward.
+- Unsigned universal Preview build, including the final reply-boundary guard,
+  and product-bundle isolation passed. Bundled CLI help/version `0.2.0 (19)` and
+  arm64/x86_64 slices for app, CLI and helper passed; the public CLI is unchanged.
+- Strict default Swift-format lint passed for the new request/scope and test
+  files. Older four-space host/protocol/helper files retain their established
+  formatting; default-style lint findings remain, including long strings and
+  existing pattern/line-layout conventions. A HEAD host comparison confirmed
+  that these conventions predate this increment; no bulk rewrite was made.
+  Project plist syntax, 273 relative documentation targets and
+  `git diff --check` passed.
+
+Raw logs remain under ignored
+`tmp/piv-recovery/2026-10-07-recovery-host-*`.
+
+Next: native selector/directory/store composition and restart-persistent
+saved-attempt admission, then CLI review/restore/resume syntax and the gated
+profile-3 ordinary runtime. Signed two-Mac and actual XPC/hardware acceptance
+remain subsequent checks, not results of this software increment.
+
+### Second 812 restart ownership admission, 2026-10-07
+
+Recovery dispatch now requires a paired local ownership inspector in the
+[capability](../Sources/KeyCore/KeyRecoveryRequest.swift). The
+[host](../Sources/KeyCore/KeyServiceHost.swift) checks it before initial restore,
+init, directory-scoped enrollment and vault-directory changes. A cold configured
+host also checks before composing its ordinary runtime: config selection may
+have committed while final ownership cleanup remains unfinished. Explicit
+resume still enters the exact source-bound service; lock remains available.
+Unconfigured status reports locked without opening a runtime.
+
+The [inspector](../Sources/KeyCore/V3ImmutableTransactionRecoveryAnchor.swift)
+performs at most two noninteractive Keychain existence queries, one per existing
+restore ownership namespace. Query construction shares the existing access-group,
+service, synchronization and Data Protection policy. It requests no item data,
+attributes or references and consumes status only. Existing anchor reads and
+compare-and-swap writes still require their exact source vault account.
+
+Either pin blocks competing admission, including a preparation-only pin after
+reservation cleanup. Only two not-found results permit admission. Unavailable
+storage, missing entitlements, forbidden interaction and other failures refuse
+admission, with guidance to preserve state and resume or inspect it. No result
+is cached. A malformed or unrelated account in either dedicated namespace
+cannot be silently ignored because no account or content parsing grants an
+exception. Presence grants no recovery authority.
+
+A third durable marker was considered but would add another write/cleanup
+ordering and orphan state. Checking the two pins already owned by the journal
+avoids a new persisted format. Scanning local preparation files would confuse
+inert leftovers with authority and would need unbounded discovery. Neither
+alternative is used; the existing exact journal remains responsible for resume.
+The guard operates inside the existing single-helper host serialization, not
+as a cross-process transaction lock or proof against local Keychain deletion.
+
+[Seven test declarations / 30 cases](../Tests/KeyCoreTests/KeyRecoveryOwnershipTests.swift)
+cover bounded query shape, Stable/Preview/qualification namespace isolation,
+both Data Protection policies, either surviving pin, uncertain status, invalid
+storage configuration, cold configured/unconfigured hosts and fresh checks on
+each admission. Five cases interrupt the actual restore service, replace the
+host, and exercise exact resume at reservation, encrypted preparation, config
+selection and each cleanup boundary. Reservation-only state does not recreate
+a credential; preparation-only state still blocks ordinary composition; cleared
+pins cannot retroactively claim recovery success. Successful exact resume clears
+ownership and a later host can compose normal authority.
+
+These tests use real filesystem/crypto/service logic with software native
+providers and memory pin storage. The production query adapter is compiled but
+the matching call is substituted in tests. Signed Keychain access, actual
+helper-process restart, native dispatch and prompt behavior remain unqualified.
+Stable and ordinary Preview remain disabled and have no new ownership queries
+on their unchanged live paths. No token, installed product or real vault was
+operated on.
+
+Verification:
+
+- Final focused Debug passed 78 declarations across six suites in 22.978
+  seconds, including recovery, init, enrollment and XPC policy regressions.
+- Full optimized suite passed 1,614 KeyCore declarations across 131 suites in
+  409.291 seconds, plus six canonical-JSON tests. The separately gated large
+  migration remained skipped. No implementation or test source changed after
+  this run began.
+- Unsigned universal Preview build and bundle isolation passed. Bundled CLI
+  help and `version` (`0.2.0 (19)`) passed, as did arm64/x86_64 app, CLI and helper
+  slices. No public recovery command was enabled.
+- Strict default Swift-format lint passed for the request/capability and both
+  recovery host test files. The existing four-space host/anchor sources retain
+  their established formatting without a bulk rewrite. Default-style lint still
+  reports indentation and layout conventions there; HEAD comparisons confirm
+  that the style mismatch predates this increment. The compiler also reports
+  the unchanged routing test's capture of the non-Sendable public request enum.
+  Project plist syntax, 283 relative documentation targets and
+  `git diff --check` passed.
+
+Raw evidence remains under ignored
+`tmp/piv-recovery/2026-10-07-recovery-ownership-*`.
+
+Next: native selector/directory/store composition, including explicit local
+config/cache creation for a fresh Mac and strict no-bootstrap resume. Then CLI
+review/restore/resume and gated ordinary profile-3 integration. This increment
+does not enable a live recovery route or claim the signed vertical slice is done.
+
+### Third 812 native restore composition, 2026-10-07
+
+The [workflow](../Sources/KeyCore/V3RecoveryRestoreWorkflow.swift) now resolves an
+explicit request into retained source/destination-parent handles, the exact
+native token candidate and its complete recipient ID. It refuses unsupported
+platforms, existing destinations, wrong selectors, unrecognized anchors and
+unsupported public policy before requesting agreement. No public request can
+provide a native observation, PIN, admin command or source authority.
+
+The live factory composes the existing reader/agreement, journal ownership
+stores, Secure Enclave Mac identity manager, checkpoint store, contained cache
+and source mutation owner. It returns the existing paired capability, not an
+ordinary configured runtime. The actual restore/resume service receives the
+exact host authentication generation, cancellation and deadline. Construction
+performs no native or filesystem operation; shipping hosts do not install it yet.
+
+`KeyConfigStore` now owns bounded local metadata preparation below an existing
+home. Initial restore can prepare missing Library/Application Support/product
+and cache directories after valid public selection, using retained parents,
+nofollow child inspection, identity comparison, 0700 creation and parent fsync.
+Scope/config/source checks surround creation. Physical containment reuses the
+existing restore environment's walk, rather than another path-prefix policy.
+Destination/metadata collisions are refused through aliased parents and case
+variants, conservatively even on a case-sensitive filesystem. Resume opens
+existing config/cache/destination/parent roots only and cannot repair missing
+directories. Failed preparation leaves scaffolding intact for inspection.
+
+Reusing recursive `FileManager` cache/bootstrap creation would follow replaced
+or symlinked paths and could recreate missing resume state. Requiring an already
+existing product directory would prevent a fresh Mac from restoring. Bounded
+initial-only scaffolding handles both constraints without changing ordinary
+init/enrollment bootstrap behavior or creating another metadata format. It
+creates no vault, credential, ownership or config selection before source-key
+authentication; those transitions still belong to the restore service.
+
+[12 declarations / 43 cases](../Tests/KeyCoreTests/V3RecoveryRestoreWorkflowTests.swift)
+cover fresh/existing metadata layouts, exact candidate selection among multiple
+cards, wrong public selectors/policy/anchors, unavailable and existing locations,
+symlinked local components, source/config overlap, aliased/case-variant metadata
+collisions, unusable existing configs, scoped cancellation during preparation,
+and missing resume roots. Three cases replace the host after actual service
+interruption at encrypted preparation, config selection and reservation cleanup,
+then finish exact resume without another Mac identity. Initial restores reopen
+ordinary access from the selected config, saved Mac identity and actual composed
+cache after token availability is removed. They do not receive a source key or
+reuse a recovered-key session.
+
+All service/filesystem/crypto integration is real; card/provider/Mac keys and
+Keychain storage are software substitutes. The native factory and both universal
+product slices compile, but no real Keychain, Secure Enclave, YubiKey, installed
+product or vault was operated on. Actual XPC interruption, process restart,
+native selector acceptance and physical prompt behavior remain unqualified.
+
+Verification:
+
+- Final focused Debug passed 70 declarations across six suites in 49.103
+  seconds, including ownership/host, init, enrollment and cache regressions.
+  The first test compile lacked `try` on a throwing assertion and used a `Void`
+  callback argument; both test-only issues were corrected before the final run.
+- Full optimized suite passed 1,626 KeyCore declarations across 132 suites in
+  435.906 seconds, plus six canonical-JSON tests. The separately gated large
+  migration remained skipped. No implementation or test source changed after
+  the full run began.
+- Unsigned universal Preview build and product isolation passed. Bundled CLI
+  help and `version` (`0.2.0 (19)`) passed, with arm64/x86_64 app, CLI and helper
+  slices. No recovery command is enabled.
+- Strict default Swift-format lint passed for the new workflow and tests.
+  Existing four-space config-store formatting is retained; default-style lint
+  reports the established indentation/layout mismatch, confirmed against HEAD.
+  The compiler also reports the unchanged routing test's non-Sendable request
+  capture. Project plist syntax, 292 relative documentation targets and
+  `git diff --check` passed.
+
+Raw evidence remains under ignored
+`tmp/piv-recovery/2026-10-07-recovery-workflow-*`.
+
+Next: CLI review/restore/resume and live feature gating alongside the ordinary
+profile-3 runtime. Product failure guidance and signed two-Mac/XPC/native
+qualification remain required before enabling the vertical slice.
+
+### Fourth 812 component: explicit restore/resume CLI, 2026-10-07
+
+The [parser](../Sources/KeyCore/CLIParser.swift) now exposes `recovery restore`
+and `recovery resume`; [help](../Sources/KeyCore/CLIHelp.swift) states that both
+remain disabled in Stable and ordinary Preview. Both require exactly one source,
+destination, token and complete recovery recipient selector. Restore also
+requires a valid readable Mac name. Resume refuses a replacement name. The
+recipient selector is the existing public-key identifier, not the certificate
+fingerprint used by the earlier feasibility probe. No PIN, PUK, management key,
+vault-key, force or confirmation-bypass option is accepted.
+
+The [application](../Sources/KeyCore/KeyCLIApplication.swift) captures the working
+directory once, resolves the two explicit paths, validates the absolute bounded
+request and sends it through the existing guarded service protocol. It does not
+read configuration to fill omitted selectors, inspect provider files, collect
+credentials, retry, clear local state or turn resume into a fresh restore. The
+existing helper owns source authentication, exact local ownership, publication,
+selection and the success shutdown handshake.
+
+A separate CLI-only recovery enum was considered, but it would duplicate the
+same restore/resume variants without an independent display or confirmation
+contract. Reusing the existing request keeps the protocol unchanged; path
+resolution stays at the CLI boundary and is revalidated before dispatch.
+Read-only review cannot use the same host flow: entering restore sets uncertain
+pending state and success requires selected configuration. Its separate public
+observation/response path remains the next step, not an approval to restore.
+
+Failure guidance preserves source, destination, records and configuration. A
+failed or lost reply does not establish whether selection committed. Complete
+saved attempts use exact explicit resume; absent, incomplete or changed state
+requires inspection, not deletion or another initial restore. Help distinguishes
+restart/status from proof of completion and warns that the new vault does not
+inherit recovery registration. No claim of provider freshness is added.
+
+The [new tests](../Tests/KeyCoreTests/RecoveryCLITests.swift) contain 10 declarations
+and 52 parameter cases, plus parser refusal variants exercised within cases.
+They cover duplicate/missing/bounded/malformed selectors, Mac names, credential
+and bypass-option refusal, local help without configuration or transport,
+relative-path resolution and no credential input, response/transport failure
+without retry, and both shipping products' pre-state refusal. Actual software
+CLI/host/workflow/service composition restores arbitrary fixture contents,
+interrupts at complete preparation, resumes through a fresh host and refuses a
+completed attempt before another source agreement. Source files stay unchanged,
+one Mac identity is created, and no resume-to-restore fallback occurs.
+
+Verification for this CLI-only increment:
+
+- Focused Debug: 168 declarations across 8 suites passed in 55.982 seconds,
+  covering CLI/parser/help, host ownership and connection cancellation, actual
+  workflow composition and XPC role/lifecycle policy. The final change after
+  that run only replaces array-style generated usage with explicit single-value
+  usage text; repeated parser/help/CLI Debug checks passed 73 declarations in
+  3 suites in 8.849 seconds for that correction.
+- Focused Release on the final source: the same 168 declarations across 8 suites
+  passed in 31.318 seconds. The full cryptographic suite was not rerun for this
+  increment; no cryptographic implementation, stored format, host admission,
+  protocol encoding or native adapter changed.
+- Unsigned universal Preview build passed on the final source. Product-bundle
+  isolation, actual compiled recovery group/restore/resume help and `version`
+  (`0.2.0 (19)`) passed. App, CLI and helper contain arm64/x86_64 slices. No
+  signing, installation, token operation or publication occurred.
+- Strict default formatting passed for the new CLI test file. Existing
+  four-space source/help/test conventions are retained. Project plist syntax,
+  303 relative documentation targets and `git diff --check` passed.
+  Release compilation reports the unchanged routing test's non-Sendable
+  request capture; no fix outside this increment is included.
+
+Raw logs and compiled help stay under ignored
+`tmp/piv-recovery/2026-10-07-recovery-cli-*`.
+
+Next: bounded read-only public credential/source review, then remaining recovery
+commands and gated shipping profile-3 composition. Live operations stay disabled;
+signed two-Mac/XPC/native acceptance remains unqualified. This is source
+self-review and software composition, not a new independent security review or
+completion of `REC-812`.
+
+### Fifth 812 component: public token/source review, 2026-10-07
+
+The [closed public-read workflow](../Sources/KeyCore/KeyRecoveryReview.swift)
+implements bounded token inventory and explicit source review. The CLI now has
+`key recovery tokens [--json]` and
+`key recovery review --source <directory> --token <token-id> [--json]`.
+Both shipping products still refuse before filesystem/card access. Listing
+returns at most 64 exact token IDs/reader names and never chooses a candidate or
+opens its slot. Source review reads only the explicitly selected token's public
+credential, reported policy and recognized anchor. It reuses the bounded public
+history selector, repeats token/source observations and checks scope/path
+identity around every filesystem read.
+
+The workflow has no config, journal, ownership, Mac-key or agreement dependency.
+Its source adapter refuses entry reads. Human output labels entry counts as
+unverified and quotes control characters in the source path. JSON source results
+carry `public-observation-only` assurance. Neither output establishes possession,
+protected administration, PIN/touch enforcement, complete/restorable contents or
+provider freshness. There is no readiness, private credential or confirmation
+reference. Review is not saved approval; later restore reads everything again.
+
+Adding review to the existing restore enum was considered, but would make the
+restore-only pending guard, configuration-selection requirement and shutdown
+handshake depend on another semantic variant. The new read-only wire request and
+optional result keep that boundary explicit. Existing request encodings are
+unchanged; older responses still decode without the optional result. An older
+helper refuses the new request kind during decode rather than falling back.
+
+The host reuses one bounded connection/lock scope and at-most-one admission for
+both operations. Restore retains its exclusive barrier. Review uses a concurrent
+read, so ordinary lock still reaches an already configured runtime while public
+callbacks drain. Setup/config barriers wait for review. Review never sets or
+clears process-local or durable pending ownership and does not require or compose
+configuration. Public source observations can therefore be reviewed while an
+attempt needs attention, without authorizing setup or ordinary runtime access.
+Both live hooks remain uninstalled; future restore installation still requires
+the paired durable ownership inspector. Utility XPC stays status/lock-only.
+
+The [15 new declarations](../Tests/KeyCoreTests/KeyRecoveryReviewTests.swift)
+exercise 44 parameter cases plus CLI refusal variants inside cases. Actual
+CLI/host/reader/history/filesystem composition uses software token fixtures.
+Missing entry files still yield only public observations, not protection claims.
+Tests cover exact selectors/policy/anchor/history refusal, token/path/scope changes,
+human path quoting and JSON assurance, configured/pending inspection, no new or
+cleared ownership, lock/disconnect late-result refusal, mutual exclusion and
+setup-barrier ordering. Live Stable/Preview construction remains a no-I/O smoke
+check; no physical token or native lifecycle qualification is added.
+
+Verification on the final source:
+
+- Focused Debug: 183 declarations across 9 suites passed in 58.063 seconds.
+  This covers the new review path plus CLI/help, restore workflow, ownership,
+  connection/lock admission and XPC role/lifecycle regressions.
+- Full Release: 1,651 KeyCore declarations across 134 suites passed in
+  462.524 seconds, plus 6 canonical-JSON declarations. The separately gated
+  large-migration case remains skipped as before.
+- Final unsigned universal Preview build passed. Product-bundle isolation,
+  actual compiled token/review help, version `0.2.0 (19)` and arm64/x86_64
+  slices for app, CLI and helper passed. Nothing was signed, installed or
+  published, and no physical token operation was requested.
+- Strict default formatting passed for the new workflow/request/result and
+  review tests. Existing four-space sources retain their conventions. Project
+  plist syntax, 311 relative documentation targets and `git diff --check`
+  passed. The unchanged routing-test non-Sendable request capture warning is
+  still reported; build metadata extraction also reports its usual missing
+  AppIntents dependency warning.
+
+The first test pass caught a test-only configuration-read assertion that also
+fired during the intentionally subsequent init; it now counts reads and proves
+none occur during review. An optional-Bool assertion failed compilation and was
+corrected before final verification. No production behavior was weakened to
+make these tests pass. Raw logs and compiled help remain under ignored
+`tmp/piv-recovery/2026-10-07-recovery-review-*`.
+
+Next: configured recovery registration/status composition and remaining commands,
+with the ordinary profile-3 runtime and reciprocal barriers required before live
+opt-in. Signed two-Mac/XPC/native acceptance and a fresh independent review of
+product composition remain outstanding. `REC-812` is not complete.
+
+### 2026-10-07: authenticated registration status before configured composition
+
+The shipping factory still composes only profile 2. Installing registration there
+without profile-3 unlock, catch-up, session ownership and reciprocal barriers
+would bypass the existing runtime boundary. This increment instead implements
+the authenticated status service that configured registration will use.
+
+Putting status on the registration service was considered. That would make
+inspection depend on a private identity, token reader and agreement provider,
+although none should be used. The separate
+[status service](../Sources/KeyCore/V3RecoveryRegistrationStatus.swift) owns the
+inspection checks with only source/local-store dependencies and the existing
+mutation owner. It reuses the registration repository and journal rather than
+adding a second preparation parser or snapshot authenticator.
+
+Four distinct results are implemented: authenticated empty active roster,
+authenticated registered roster, exact locally owned pending registration, and
+attention required. Pending distinguishes pre-activation from an exact committed
+candidate with unfinished cleanup. A current-key-authenticated floor and complete
+current snapshot are required for positive results. Pre-commit pending inspection
+also authenticates the intent MAC and dual-authorized candidate boundary; it does
+not open the candidate key or claim readiness to finish. After commitment, the
+candidate must be the authenticated floor. No saved token approval is inferred.
+
+Exact source and checkpoint observations, ownership and the selected bundle are
+rechecked before return. Inaccessible/corrupt local records, incomplete source,
+invalid keys, competing ownership and changes during observation require attention
+rather than claiming absence of recovery protection. Unowned provider bundles are
+not adopted. Status cannot write, clean up, perform catch-up, contact a token,
+unwrap a Mac key or select configuration. Registered reports authenticated stored
+coverage, not current possession, token policy enforcement or provider freshness.
+
+The [existing registration-service fixture](../Tests/KeyCoreTests/V3RecoveryRegistrationServiceTests.swift)
+now exercises status over real codecs, crypto, journals and contained filesystem
+objects. Tests cover the external-write boundary without token reads, publication
+versus checkpoint commitment versus completed cleanup, incorrect current keys,
+missing/corrupt local records and entry bytes, competing/unavailable ownership,
+unowned bundles, a parsed but unauthenticated intent, and changing checkpoint,
+ownership, source and pending bundle. Counters check no token session, hardware
+agreement, private unwrap or bundle write occurs during inspection.
+
+No CLI/protocol/host route or live feature gate changes in this increment. The
+status caller still needs configured-runtime authentication and connection/lock
+scope; inspection results are not admission or mutation authority. `REC-808` and
+`REC-812` remain in progress. Next is the gated profile-3 configured runtime and
+registration command composition. Physical/signed acceptance and integrated AI
+review remain outstanding.
+
+Verification for this increment:
+
+- Initial focused Debug: 78 declarations across the registration service/domain
+  suites passed in 11.796 seconds. Final optimized regressions: 147 declarations
+  across six suites passed in 15.035 seconds, including the final nine new status
+  declarations and their 22 cases. The final run also covers public review,
+  host routing, content publication and adoption. The full suite was not rerun;
+  no shipping host/protocol/runtime dispatch changed.
+- Unsigned universal Preview build and product-bundle isolation passed. App,
+  CLI and helper contain arm64/x86_64 slices; the compiled version remains
+  `0.2.0 (19)`. No install, signing, publication or physical token operation.
+- Strict formatting, project plist syntax, 314 relative documentation targets
+  and `git diff --check` passed. The unchanged routing-test non-Sendable request
+  capture warning and build metadata extraction's missing AppIntents dependency
+  warning remain. Raw logs/build products are ignored
+  under `tmp/piv-recovery/2026-10-07-registration-status-*` and
+  `tmp/piv-recovery/registration-status-build`.

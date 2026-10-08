@@ -190,6 +190,8 @@ public final class KeyXPCClientTransport: KeyServiceTransport {
             return AppError.service("Your new vault is ready, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Run `key status` after it restarts. Do not run init again.")
         }
         switch request {
+        case .recovery:
+            return AppError.service("The restored vault is selected, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Run `key status` after it restarts. Do not start another restore.")
         case .share(.accept), .shareInDirectory(.accept, _):
             return AppError.service("This Mac has joined the vault, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Run `key status` after it restarts. You do not need to accept the invitation again.")
         case .migrationApply:
@@ -215,6 +217,8 @@ private extension KeyServiceRequest {
         case .getConflictValue: "conflict get"
         case .resolveConflicts: "conflict resolve"
         case .share, .shareInDirectory: "device sharing"
+        case .recovery: "vault recovery"
+        case .recoveryReview: "public recovery review"
         case .list: "list"
         case .migrationPreflight: "migration preflight"
         case .migrationApply: "migration"

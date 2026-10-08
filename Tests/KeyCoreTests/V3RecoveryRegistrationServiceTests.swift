@@ -10,6 +10,188 @@ import Testing
 struct V3RecoveryRegistrationServiceTests {
   private typealias Core = V3RecoveryRegistrationTests
 
+  @Test func statusAuthenticatesAnUnregisteredCheckpointWithoutTokenOrPrivateOperations() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    #expect(try f.status() == .unregistered(checkpoint: f.core.checkpoint))
+    #expect(f.card.publicSessions == 0 && f.provider.requests == 0)
+    #expect(f.core.owner.signatures == 0 && f.core.owner.unwraps == 0)
+    #expect(f.ownership.value == nil && f.checkpoints.value == f.core.checkpoint.canonicalBytes)
+  }
+
+  @Test func statusPreservesPendingPreparationBeforeAndAfterExternalWrite() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let export = try f.prepare()
+    let bytes = try Data(contentsOf: f.bundleURL(export.operationID))
+    let ownership = f.ownership.value
+    let sessions = f.card.publicSessions
+    let expected = V3RecoveryRegistrationStatus.pending(
+      checkpoint: f.core.checkpoint, activationCommitted: false)
+    #expect(try f.status() == expected)
+    f.card.anchor = export.anchor
+    #expect(try f.status() == expected)
+    #expect(f.card.publicSessions == sessions && f.provider.requests == 0)
+    #expect(f.core.owner.unwraps == 0 && f.core.owner.signatures == 1)
+    #expect(f.ownership.value == ownership)
+    #expect(try Data(contentsOf: f.bundleURL(export.operationID)) == bytes)
+  }
+
+  @Test(arguments: [
+    V3RecoveryRegistrationServicePhase.manifestPublished, .checkpointAdvanced, .ownershipCleared,
+  ])
+  func statusDistinguishesPublicationCommitAndCompletedRegistration(
+    phase: V3RecoveryRegistrationServicePhase
+  ) throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    f.card.anchor = try f.prepare().anchor
+    let pending = try #require(try f.pending())
+    let keys = Keys()
+    #expect(throws: Core.FixtureError.cancelled) {
+      try f.finish(observer: Observer { if $0 == phase { throw Core.FixtureError.cancelled } }) {
+        _, key in keys.append(key)
+      }
+    }
+    let committed = phase != .manifestPublished
+    let checkpoint = try V3ManifestCheckpoint(
+      vaultID: Core.vaultID,
+      envelopeDigest: committed ? pending.candidate.digest : f.core.parent.digest)
+    // Read the exact software identity wrapper only to obtain the committed key
+    // for this fixture. The status service itself cannot perform this operation.
+    let key =
+      try committed
+      ? f.core.owner.unwrapDeviceWrappedVaultKey(
+        #require(pending.candidate.body.fields.wrappedKeys.first).wrappedKey,
+        context: pending.candidate.body.deviceContext(
+          recipientDeviceID: f.core.owner.publicIdentity.deviceID),
+        reason: "Software status fixture")
+      : Core.oldKey
+    let unwraps = f.core.owner.unwraps
+    let sessions = f.card.publicSessions
+    let ownership = f.ownership.value
+    // Registration status remains about stored authority, not token presence.
+    f.card.anchor = nil
+    let expected: V3RecoveryRegistrationStatus =
+      phase == .ownershipCleared
+      ? .registered(checkpoint: checkpoint, recipients: [pending.intent.anchor.recipientID])
+      : .pending(checkpoint: checkpoint, activationCommitted: committed)
+    #expect(try f.status(key: key) == expected)
+    #expect(try f.status(key: Data(repeating: 8, count: 32)) == .attentionRequired)
+    #expect(f.core.owner.unwraps == unwraps && f.card.publicSessions == sessions)
+    #expect(f.provider.requests == 1 && f.ownership.value == ownership)
+  }
+
+  @Test(arguments: 0..<8)
+  func statusInspectionFailuresRequireAttentionWithoutClearingOwnership(variant: Int) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    var key = Core.oldKey
+    switch variant {
+    case 0: f.checkpoints.value = nil
+    case 1: f.checkpoints.value = Data("invalid checkpoint".utf8)
+    case 2: key = Data(repeating: 7, count: 32)
+    case 3: f.ownership.rejectRead = true
+    case 4:
+      try f.ownership.replaceRecoveryAnchor(
+        Data("invalid ownership".utf8), expectedAnchor: nil, vaultID: Core.vaultID)
+    case 5:
+      let export = try f.prepare()
+      try FileManager.default.removeItem(at: f.bundleURL(export.operationID))
+    case 6:
+      let export = try f.prepare()
+      try Data("invalid bundle".utf8).write(to: f.bundleURL(export.operationID))
+    default:
+      try FileManager.default.removeItem(at: f.entryURL(#require(f.core.entries.values.first)))
+    }
+    let pin = f.ownership.value
+    let sessions = f.card.publicSessions
+    #expect(try f.status(key: key) == .attentionRequired)
+    #expect(f.ownership.value == pin && f.card.publicSessions == sessions)
+    #expect(f.provider.requests == 0 && f.core.owner.unwraps == 0)
+  }
+
+  @Test(arguments: [false, true])
+  func statusNeverTreatsOtherPendingMutationsOrUnavailableStoresAsAbsence(adoption: Bool) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let store = adoption ? f.adoption : f.transactions
+    try store.replaceRecoveryAnchor(Data([1]), expectedAnchor: nil, vaultID: Core.vaultID)
+    #expect(try f.status() == .attentionRequired)
+    try store.replaceRecoveryAnchor(nil, expectedAnchor: Data([1]), vaultID: Core.vaultID)
+    store.rejectRead = true
+    #expect(try f.status() == .attentionRequired)
+    #expect(f.ownership.value == nil && f.card.publicSessions == 0)
+  }
+
+  @Test func statusCannotAdoptAnUnownedProviderBundle() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let preparation = try f.core.prepare()
+    let bundle = try V3RecoveryRegistrationBundle(preparation: preparation)
+    try f.store.persistRegistrationBundle(
+      bundle.canonicalBytes, operationID: preparation.intent.operationID)
+    #expect(try f.status() == .unregistered(checkpoint: f.core.checkpoint))
+    #expect(f.ownership.value == nil && f.provider.requests == 0)
+  }
+
+  @Test func statusAuthenticatesPendingIntentRatherThanOnlyParsingItsLocalPin() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let original = try f.core.prepare()
+    let old = original.intent
+    let intent = try V3RecoveryRegistrationIntent(
+      operationID: old.operationID, expectedCheckpoint: old.expectedCheckpoint,
+      ownerDeviceID: old.ownerDeviceID, publicKey: old.publicKey, anchor: old.anchor,
+      stagedEntries: old.stagedEntries, currentVaultKey: Data(repeating: 9, count: 32))
+    let preparation = V3RecoveryRegistrationPreparation(
+      intent: intent, candidate: original.candidate, stagedEntries: original.stagedEntries)
+    let bundle = try V3RecoveryRegistrationBundle(preparation: preparation)
+    try f.store.persistRegistrationBundle(bundle.canonicalBytes, operationID: intent.operationID)
+    let ownership = try V3ImmutableTransactionRecoveryAnchor(
+      operationID: intent.operationID, vaultID: Core.vaultID,
+      intentDigest: Data(SHA256.hash(data: intent.canonicalBytes)), phase: .recoverable)
+    try f.ownership.replaceRecoveryAnchor(
+      ownership.canonicalBytes, expectedAnchor: nil, vaultID: Core.vaultID)
+    #expect(try f.pending() == preparation)
+    #expect(try f.status() == .attentionRequired)
+    #expect(f.ownership.value == ownership.canonicalBytes)
+    #expect(f.core.owner.unwraps == 0 && f.card.publicSessions == 0)
+  }
+
+  @Test(arguments: 0..<4)
+  func statusRejectsChangesDuringInspection(variant: Int) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let export = try variant == 3 ? f.prepare() : nil
+    let sessions = f.card.publicSessions
+    let source = StatusSource(store: f.store) { count in
+      guard count == (variant == 3 ? 2 : 1) else { return }
+      switch variant {
+      case 0: f.checkpoints.value = nil
+      case 1:
+        try f.ownership.replaceRecoveryAnchor(Data([1]), expectedAnchor: nil, vaultID: Core.vaultID)
+      case 2:
+        try FileManager.default.removeItem(at: f.entryURL(#require(f.core.entries.values.first)))
+      default:
+        try Data("changed pending bundle".utf8).write(
+          to: f.bundleURL(#require(export).operationID))
+      }
+    }
+    #expect(try f.status(source: source) == .attentionRequired)
+    #expect(f.provider.requests == 0 && f.card.publicSessions == sessions)
+    #expect(source.writes == 0)
+  }
+
+  @Test func statusRechecksTheExactSnapshotAndNeverWrites() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let source = StatusSource(store: f.store) { _ in }
+    #expect(try f.status(source: source) == .unregistered(checkpoint: f.core.checkpoint))
+    #expect(source.listings == 2 && source.writes == 0)
+  }
+
   @Test func prepareExportsOneDurableCandidateWithoutActivatingOrAgreeing() throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -598,6 +780,55 @@ struct V3RecoveryRegistrationServiceTests {
     }
   }
 
+  private final class StatusSource:
+    V3ImmutableObjectReading, V3RecoveryRegistrationBundleStoring, @unchecked Sendable
+  {
+    let store: V3FilesystemTransactionArtifactStore
+    let onListing: @Sendable (Int) throws -> Void
+    private let lock = NSLock()
+    private var count = 0
+    private var writeCount = 0
+    var listings: Int { lock.withLock { count } }
+    var writes: Int { lock.withLock { writeCount } }
+    init(
+      store: V3FilesystemTransactionArtifactStore,
+      onListing: @escaping @Sendable (Int) throws -> Void
+    ) {
+      self.store = store
+      self.onListing = onListing
+    }
+    func manifestDigests(maximumCount: Int) throws -> V3RepositoryDirectoryListing {
+      let result = try store.manifestDigests(maximumCount: maximumCount)
+      let current = lock.withLock {
+        count += 1
+        return count
+      }
+      try onListing(current)
+      return result
+    }
+    func readManifest(digest: Data, maximumBytes: Int) throws -> V3RepositoryObjectRead {
+      try store.readManifest(digest: digest, maximumBytes: maximumBytes)
+    }
+    func readEntry(entryID: String, digest: Data, maximumBytes: Int) throws
+      -> V3RepositoryObjectRead
+    {
+      try store.readEntry(entryID: entryID, digest: digest, maximumBytes: maximumBytes)
+    }
+    func readRegistrationBundle(operationID: VaultTransactionOperationID, maximumBytes: Int) throws
+      -> V3RepositoryObjectRead
+    {
+      try store.readRegistrationBundle(operationID: operationID, maximumBytes: maximumBytes)
+    }
+    func persistRegistrationBundle(_: Data, operationID _: VaultTransactionOperationID) throws {
+      lock.withLock { writeCount += 1 }
+      throw Core.FixtureError.cancelled
+    }
+    func confirmRegistrationBundle(_: Data, operationID _: VaultTransactionOperationID) throws {
+      lock.withLock { writeCount += 1 }
+      throw Core.FixtureError.cancelled
+    }
+  }
+
   private struct Observer: V3RecoveryRegistrationServicePhaseObserving {
     let action: @Sendable (V3RecoveryRegistrationServicePhase) throws -> Void
     init(_ action: @escaping @Sendable (V3RecoveryRegistrationServicePhase) throws -> Void) {
@@ -726,6 +957,16 @@ struct V3RecoveryRegistrationServiceTests {
       try V3RecoveryRegistrationJournal(bundleStore: store, ownershipStore: ownership).loadPending(
         vaultID: Core.vaultID)
     }
+    func status(
+      key: Data = Core.oldKey,
+      source: (any V3ImmutableObjectReading & V3RecoveryRegistrationBundleStoring)? = nil
+    ) throws -> V3RecoveryRegistrationStatus {
+      try V3RecoveryRegistrationStatusService(
+        vaultID: Core.vaultID, mutationOwner: mutationOwner, source: source ?? store,
+        checkpointStore: checkpoints, registrationOwnershipStore: ownership,
+        transactionOwnershipStore: transactions, adoptionOwnershipStore: adoption
+      ).status(currentVaultKey: key)
+    }
     func publish(_ bytes: Data, digest: Data) throws {
       let operation = VaultTransactionOperationID()
       try store.stageManifest(bytes, digest: digest, operationID: operation)
@@ -763,6 +1004,8 @@ struct V3RecoveryRegistrationServiceTests {
     private var record: Data?
     private var pin: UInt8 = 3
     private var active = false
+    private var sessions = 0
+    var publicSessions: Int { lock.withLock { sessions } }
     var inSession: Bool { lock.withLock { active } }
     var anchor: Data? {
       get { lock.withLock { record } }
@@ -786,7 +1029,10 @@ struct V3RecoveryRegistrationServiceTests {
       lease: PIVTokenOperationLease,
       _ consume: ((PIVPublicReadCommand) throws -> PIVPublicReadReply) throws -> T
     ) throws -> T {
-      lock.withLock { active = true }
+      lock.withLock {
+        active = true
+        sessions += 1
+      }
       defer {
         lock.withLock { active = false }
         withExtendedLifetime(lease) {}

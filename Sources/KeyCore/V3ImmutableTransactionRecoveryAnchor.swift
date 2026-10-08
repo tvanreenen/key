@@ -1,5 +1,6 @@
 import Foundation
 internal import JSONCanonicalization
+import LocalAuthentication
 import Security
 
 enum V3ImmutableTransactionRecoveryAnchorError:
@@ -270,8 +271,20 @@ final class V3ImmutableTransactionRecoveryAnchorKeychainStore:
     }
 
     private func baseQuery(vaultID: String) throws -> [String: Any] {
-        guard isValidV3UUID(vaultID),
-              !configuration.vaultService.isEmpty,
+        guard isValidV3UUID(vaultID) else {
+            throw V3ImmutableTransactionRecoveryAnchorError.invalidConfiguration
+        }
+        var query = try Self.namespaceQuery(configuration: configuration, namespace: namespace)
+        query[kSecAttrAccount as String] = vaultID
+        return query
+    }
+
+    /// Namespace-wide queries are read-only admission checks, never mutation
+    /// selectors. All anchor reads and writes still require an exact vault ID.
+    static func namespaceQuery(
+        configuration: RuntimeConfiguration, namespace: V3RecoveryOwnershipNamespace
+    ) throws -> [String: Any] {
+        guard !configuration.vaultService.isEmpty,
               let accessGroup = configuration.keychainAccessGroup,
               !accessGroup.isEmpty
         else {
@@ -282,7 +295,6 @@ final class V3ImmutableTransactionRecoveryAnchorKeychainStore:
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String:
                 "\(configuration.vaultService).\(namespace.rawValue)",
-            kSecAttrAccount as String: vaultID,
             kSecAttrAccessGroup as String: accessGroup,
             kSecAttrSynchronizable as String: false
         ]
@@ -290,6 +302,48 @@ final class V3ImmutableTransactionRecoveryAnchorKeychainStore:
             query[kSecUseDataProtectionKeychain as String] = true
         }
         return query
+    }
+}
+
+/// Presence can refuse competing setup, but cannot authorize or locate a
+/// restore. Resume must still validate exact source-bound ownership and files.
+protocol V3RecoveryRestoreOwnershipChecking: Sendable {
+    func hasPendingRestore() throws -> Bool
+}
+
+/// Two bounded, noninteractive existence queries over the existing local pins.
+/// No account enumeration, item contents, file scan or new durable marker.
+struct V3RecoveryRestoreKeychainOwnership: V3RecoveryRestoreOwnershipChecking {
+    private let configuration: RuntimeConfiguration
+    private let match: @Sendable ([String: Any]) -> OSStatus
+
+    init(
+        configuration: RuntimeConfiguration,
+        match: @escaping @Sendable ([String: Any]) -> OSStatus = {
+            SecItemCopyMatching($0 as CFDictionary, nil)
+        }
+    ) {
+        self.configuration = configuration
+        self.match = match
+    }
+
+    func hasPendingRestore() throws -> Bool {
+        for namespace in [V3RecoveryOwnershipNamespace.restoreReservation, .restorePreparation] {
+            var query = try V3ImmutableTransactionRecoveryAnchorKeychainStore.namespaceQuery(
+                configuration: configuration, namespace: namespace)
+            let context = LAContext()
+            context.interactionNotAllowed = true
+            query[kSecUseAuthenticationContext as String] = context
+            query[kSecMatchLimit as String] = kSecMatchLimitOne
+            // No return type and a nil result pointer: only status is consumed.
+            switch match(query) {
+            case errSecSuccess: return true
+            case errSecItemNotFound: continue
+            case let status:
+                throw V3ImmutableTransactionRecoveryAnchorError.keychainStatus(status)
+            }
+        }
+        return false
     }
 }
 

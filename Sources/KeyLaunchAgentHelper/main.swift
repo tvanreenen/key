@@ -21,11 +21,15 @@ private final class KeyAgentDelegate: NSObject, NSXPCListenerDelegate {
     }
 
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
+        let connection = KeyServiceConnection()
+        newConnection.interruptionHandler = { connection.invalidate() }
+        newConnection.invalidationHandler = { connection.invalidate() }
         let exportedObject = KeyAgentService(
             handler: handler,
             lifecycleController: lifecycleController,
             role: role,
-            logger: logger
+            logger: logger,
+            connection: connection
         )
         newConnection.exportedInterface = NSXPCInterface(with: KeyXPCProtocol.self)
         newConnection.exportedObject = exportedObject
@@ -43,18 +47,21 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
     private let stateLock = NSLock()
+    private let connection: KeyServiceConnection
     private var shutdownAuthorized = false
 
     init(
         handler: KeyServiceHost,
         lifecycleController: HelperLifecycleController,
         role: KeyXPCClientRole,
-        logger: Logger
+        logger: Logger,
+        connection: KeyServiceConnection
     ) {
         self.handler = handler
         self.lifecycleController = lifecycleController
         self.role = role
         self.logger = logger
+        self.connection = connection
     }
 
     func sendRequest(_ requestData: NSData, withReply reply: @escaping (NSData?, NSString?) -> Void) {
@@ -86,7 +93,7 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
         }
 
         do {
-            let response = handler.handle(request)
+            let response = handler.handle(request, connection: connection)
             let responseData = try encoder.encode(response)
             if request.requiresHelperShutdownAfterSuccess,
                response.exitCode == EXIT_SUCCESS {

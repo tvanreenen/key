@@ -11,8 +11,17 @@ public final class KeyServiceHost {
     private let updateVaultDirectory: ((String) throws -> Void)?
     private let configuredDirectory: (() throws -> URL)?
     private let enroll: ((KeyShareRequest, String) throws -> KeyServiceResponse)?
+    private let recovery: KeyRecoveryCapability?
+    private let reviewRecovery: ((KeyRecoveryReviewRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)?
+    private let recoveryLock = NSLock()
+    private let recoveryAuthentication = V3DeviceWrappedVaultKeySessionStore()
+    private var recoveryRequest: KeyRecoveryRequestScope?
+    private var activeRecovery: UUID?
     private var handler: ((KeyServiceRequest) -> KeyServiceResponse)?
     private var restartPending = false
+    // Process-local uncertainty guard supplements the capability's durable
+    // ownership check. It also covers failure before the first pin is saved.
+    private var recoveryPending = false
 
     init(
         hasConfiguration: @escaping () throws -> Bool,
@@ -20,7 +29,9 @@ public final class KeyServiceHost {
         initialize: @escaping (String) throws -> String,
         updateVaultDirectory: ((String) throws -> Void)? = nil,
         configuredDirectory: (() throws -> URL)? = nil,
-        enroll: ((KeyShareRequest, String) throws -> KeyServiceResponse)? = nil
+        enroll: ((KeyShareRequest, String) throws -> KeyServiceResponse)? = nil,
+        recovery: KeyRecoveryCapability? = nil,
+        reviewRecovery: ((KeyRecoveryReviewRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil
     ) {
         self.hasConfiguration = hasConfiguration
         self.makeHandler = makeHandler
@@ -28,6 +39,8 @@ public final class KeyServiceHost {
         self.updateVaultDirectory = updateVaultDirectory
         self.configuredDirectory = configuredDirectory
         self.enroll = enroll
+        self.recovery = recovery
+        self.reviewRecovery = reviewRecovery
     }
 
     public static func live(
@@ -64,11 +77,26 @@ public final class KeyServiceHost {
         )
     }
 
-    public func handle(_ request: KeyServiceRequest) -> KeyServiceResponse {
+    public func handle(
+        _ request: KeyServiceRequest, connection: KeyServiceConnection? = nil
+    ) -> KeyServiceResponse {
+        if request == .lock, cancelRecoveryRequests() {
+            // Active recovery was admitted only with no configured handler.
+            // Cancel before the exclusive queue, even if native UI has not
+            // drained. Its scope blocks all later authority transitions.
+            return .success()
+        }
+        if case let .recovery(action) = request {
+            return handleRecovery(action, connection: connection)
+        }
+        if case let .recoveryReview(action) = request {
+            return handleRecoveryReview(action, connection: connection)
+        }
         if case let .shareInDirectory(action, path) = request {
             return queue.sync(flags: .barrier) {
                 respond {
                     guard !restartPending else { return restarting() }
+                    try requireNoRecoveryPending()
                     guard action.supportsDirectorySelection,
                           path.hasPrefix("/"), !path.utf8.contains(0)
                     else {
@@ -104,6 +132,7 @@ public final class KeyServiceHost {
             return queue.sync(flags: .barrier) {
                 respond {
                     guard !restartPending else { return restarting() }
+                    try requireNoRecoveryPending()
                     guard try !hasConfiguration(), handler == nil else {
                         throw AppError.operationRefused("Key already has a configuration or an active runtime. Init never replaces a vault. Run `key status`; use migration for v2 or enrollment for an existing v3 vault.")
                     }
@@ -124,6 +153,7 @@ public final class KeyServiceHost {
                 if restartPending {
                     return request == .lock ? .success() : restarting()
                 }
+                if case .setVaultDirectory = request { try requireNoRecoveryPending() }
                 let resolved = try compositionLock.withLock {
                     if let handler { return handler }
                     if request == .lock { return { _ in .success() } }
@@ -135,6 +165,10 @@ public final class KeyServiceHost {
                         }
                         return { _ in .failure(KeyConfigStore.notInitializedError) }
                     }
+                    // A selected restore can still own unfinished completion.
+                    // A restarted helper must not compose ordinary authority
+                    // until explicit resume has validated and cleared its pins.
+                    try requireNoRecoveryPending()
                     // A moved vault cannot compose its old runtime. Correct
                     // only an existing selection, without opening the old root.
                     if case let .setVaultDirectory(path) = request,
@@ -150,6 +184,114 @@ public final class KeyServiceHost {
                 return resolved(request)
             }
         }
+    }
+
+    private func handleRecovery(
+        _ request: KeyRecoveryRequest, connection: KeyServiceConnection?
+    ) -> KeyServiceResponse {
+        // No live capability is installed yet. Stable and ordinary Preview
+        // refuse without composing a runtime, reading a card or touching files.
+        guard let recovery else {
+            return .failure("Recovery is not enabled in this product build.")
+        }
+        return withRecoveryScope(connection: connection, flags: .barrier) { scope in
+            try scope.requireCurrent()
+            guard !restartPending else { return restarting() }
+            try request.validate()
+            guard handler == nil else {
+                throw AppError.operationRefused("Recovery cannot run alongside a configured runtime. Run `key lock`, then explicitly resume the saved attempt after Key Agent restarts.")
+            }
+            if request.isInitialRestore {
+                try requireNoRecoveryPending()
+                guard try !hasConfiguration() else {
+                    throw AppError.operationRefused("Restore requires an unconfigured Mac and never replaces its selected vault.")
+                }
+            }
+            try recoveryLock.withLock {
+                try scope.requireCurrent()
+                activeRecovery = scope.id
+            }
+            defer {
+                recoveryLock.withLock { activeRecovery = nil }
+                // Selection may have committed before a failed/lost reply.
+                // Never compose a runtime or start init after uncertainty.
+                do { if try hasConfiguration() { restartPending = true } }
+                catch { restartPending = true }
+            }
+            recoveryPending = true
+            let response = try recovery.recover(request, scope)
+            try scope.requireCurrent()
+            if response.exitCode == EXIT_SUCCESS, try !hasConfiguration() {
+                throw AppError.operationRefused("Recovery returned without selecting a vault. Leave the attempt intact and explicitly resume; do not start another restore.")
+            }
+            try scope.requireCurrent()
+            return response
+        }
+    }
+
+    private func handleRecoveryReview(
+        _ request: KeyRecoveryReviewRequest, connection: KeyServiceConnection?
+    ) -> KeyServiceResponse {
+        // Separate, disabled live hook. No config/pin read, pending-state
+        // transition, selected-runtime composition or shutdown authorization.
+        guard let reviewRecovery else {
+            return .failure("Public recovery review is not enabled in this product build.")
+        }
+        return withRecoveryScope(connection: connection, flags: []) { scope in
+            try scope.requireCurrent()
+            guard !restartPending else { return restarting() }
+            try request.validate()
+            let response = try reviewRecovery(request, scope)
+            try scope.requireCurrent()
+            return response
+        }
+    }
+
+    /// One bounded review/restore scope, cancelled by its connection or lock.
+    /// Restore keeps its exclusive barrier. Review is a concurrent read so
+    /// ordinary lock can still invalidate a configured runtime while native
+    /// public callbacks drain. Setup/config barriers wait for the read to end.
+    private func withRecoveryScope(
+        connection: KeyServiceConnection?, flags: DispatchWorkItemFlags,
+        operation: (KeyRecoveryRequestScope) throws -> KeyServiceResponse
+    ) -> KeyServiceResponse {
+        let pending = recoveryLock.withLock { () -> KeyRecoveryRequestScope? in
+            guard recoveryRequest == nil else { return nil }
+            let scope = KeyRecoveryRequestScope(
+                authentication: recoveryAuthentication,
+                deadline: .now() + .seconds(KeyRecoveryRequest.maximumDurationSeconds))
+            recoveryRequest = scope
+            return scope
+        }
+        guard let scope = pending else {
+            return .failure("Another recovery request is running or waiting. No new recovery operation was started; wait for it to finish before explicitly trying again.")
+        }
+        connection?.register(scope)
+        defer {
+            connection?.remove(scope)
+            recoveryLock.withLock { recoveryRequest = nil }
+            scope.cancellation.cancel()
+        }
+        return queue.sync(flags: flags) { respond { try operation(scope) } }
+    }
+
+    /// Out-of-band cancellation must not wait for the exclusive host queue.
+    /// Cancels the queued scope too; a stale request cannot capture fresh consent
+    /// merely because its turn at the barrier begins after lock.
+    private func cancelRecoveryRequests() -> Bool {
+        let state = recoveryLock.withLock {
+            recoveryAuthentication.invalidate()
+            return (activeRecovery != nil, recoveryRequest)
+        }
+        state.1?.cancellation.cancel()
+        return state.0
+    }
+
+    private func requireNoRecoveryPending() throws {
+        guard !recoveryPending else {
+            throw AppError.operationRefused("A recovery request may have left a saved attempt. Leave its records and folders intact and explicitly resume or inspect it; do not initialize, enroll or change vault configuration.")
+        }
+        try recovery?.requireNoPendingRestore()
     }
 
     private func respond(_ operation: () throws -> KeyServiceResponse) -> KeyServiceResponse {

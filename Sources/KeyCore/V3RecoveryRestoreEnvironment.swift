@@ -325,7 +325,7 @@ struct V3RecoveryRestoreEnvironment: Sendable {
 
   /// Walk physical parents instead of comparing path prefixes: a symlinked
   /// ancestor must not permit writes into the read-only recovery source.
-  private static func contains(
+  static func contains(
     _ ancestor: VaultRootDirectoryHandle, _ child: VaultRootDirectoryHandle
   ) throws -> Bool {
     try child.withFileDescriptor { descriptor in
