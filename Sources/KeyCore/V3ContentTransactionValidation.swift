@@ -62,11 +62,21 @@ protocol V3ContentTransactionValidating: Sendable {
     throws
   func validatePublishedEntries(_ validated: Validated) throws
   func validatePublishedManifest(_ validated: Validated) throws
+  /// Domain bookkeeping after authenticated commitment, while exact local
+  /// ownership still protects retries. Failure must retain that ownership.
+  func finishCommitted(
+    _ input: V3ContentTransactionInput, validated: Validated, vaultKey: Data
+  ) throws
 }
 
 extension V3ContentTransactionValidating {
+  func finishCommitted(
+    _: V3ContentTransactionInput, validated _: Validated, vaultKey _: Data
+  ) throws {}
+
   func validateRecoveryIntent(_ intent: V3ImmutableTransactionRecoveryIntent) throws {
-    guard intent.expectedHeads == [intent.expectedCheckpoint.envelopeDigest],
+    guard [.addEntry, .editEntry, .copyEntry, .moveEntry, .removeEntry].contains(intent.kind),
+      intent.expectedHeads == [intent.expectedCheckpoint.envelopeDigest],
       intent.enrollmentTranscriptDigest == nil, intent.recoveryMergeResolutions == nil
     else {
       throw V3ImmutableTransactionRecoveryError.invalidIntent(
