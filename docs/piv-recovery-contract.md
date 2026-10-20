@@ -1437,6 +1437,363 @@ lifetimes do not guarantee zeroization. No plaintext persistence or resume
 format is implemented. Software callback counts and disposable filesystem tests
 do not qualify hardware prompts, protected administration, or a complete restore.
 
+### Implemented restore candidate preparation
+
+The [internal restore candidate](../Sources/KeyCore/V3RecoveryRestoreCandidate.swift)
+accepts the verifier-only complete snapshot, not caller-supplied plaintext or an
+archive diagnostic. It rechecks exact source observations and reuses permanent
+genesis construction. Its future owner must supply fresh random identifiers/key
+material and new platform Mac credentials; preparation neither generates nor
+persists them. Selected source namespace/entry/transition IDs and device/recipient
+public keys cannot be reused as destination authority.
+
+The output contains scoped in-memory plaintext and encrypted candidate objects,
+not a durable intent or permission to publish. Independent validation reparses
+the permanent envelope and checks its digest/MAC, exact one-Mac roster/wrapper,
+complete encrypted snapshot, limits, revision-one entries and source-byte/type
+equality. Unicode-equivalent but byte-different secrets are not interchangeable.
+The source is rechecked afterward. No source ancestry, epoch capsule or recovery
+roster is inherited; the destination starts without recovery registration.
+
+[Six software declarations](../Tests/KeyCoreTests/V3RecoveryRestoreCandidateTests.swift)
+cover ordinary rotation/edit-to-recovery composition, empty and populated inputs,
+changed sources, reused authority, mismatched objects and bounded resources.
+The destination wrapper still requires a Mac opening. Internal durable ownership
+and encrypted preparation, plus internal manifest-last publication, are
+implemented below, together with internal checkpoint installation and an ordinary
+runtime reopen, exact configuration selection/reconciliation and ordered ownership
+finalization. The native-bound service now composes complete initial restore and
+exact reauthenticated resume below. Product dispatch/barriers, separate-process
+and physical qualification remain. No product restore route is enabled.
+
+### Implemented authenticated restore preparation service
+
+The internal [restore service](../Sources/KeyCore/V3RecoveryRestoreService.swift)
+requires independently retained source/parent directory handles, an unconfigured
+Mac and an observation issued by its native public reader. It rejects a foreign
+reader observation, changed card/key/anchor, unrecognized anchor, weaker policy,
+wrong journal/config root or existing local attempt before requesting recovery
+agreement. Public source selection precedes the one-operation native adapter;
+the existing verifier then authenticates the complete current snapshot.
+
+A shared source mutation owner spans the request. The existing session's
+authentication-generation ticket, cancellation and deadline are checked before
+and after authentication and at subsequent admission boundaries. The ticket is
+only a race guard; no recovered key is installed in that store. After recovery
+agreement drains, a token-operation lease spans preparation. Rechecks verify
+the same native token observation and source contents; public card sessions
+close before Mac private operations. Source, destination and config observations
+are not globally atomic filesystem locks. The future host must serialize this
+work against init/enrollment/configured requests and invalidate the generation
+on lock or disconnect.
+
+The new folder is created only after source authentication. A complete public
+reservation is durably pinned before the service creates fresh Mac credentials.
+The service independently reloads the persisted identity and opens the prepared
+Mac wrapper, comparing the opened key before admitting complete encrypted
+preparation. Random destination key bytes and plaintext remain scoped memory;
+the temporary wrapper-proof session is invalidated before staging. The result
+contains operation/checkpoint identifiers, path and entry count, not saved
+approval, recovered secrets or publication authority.
+
+Journal scope callbacks are synchronous and nonescaping. They check before
+ownership transitions and at the synchronized no-overwrite record rename
+boundary. Locks, cancellation, stale source/token state and uncertain credential
+creation leave exact durable evidence for investigation or later explicit
+completion. A reservation never authorizes generating replacement credentials;
+another prepare refuses before another native agreement or directory creation.
+The internal `prepare` method publishes no destination objects, trust/cache,
+configuration or cleanup. It remains an isolated preparation entry point, not a
+proposed two-command product flow. Full `restore` now completes under the same
+one-agreement source scope; `resume` authenticates afresh for interruptions.
+
+[14 software declarations / 45 cases](../Tests/KeyCoreTests/V3RecoveryRestoreServiceTests.swift)
+exercise these boundaries with actual binding adapters, crypto, files and the
+mutation owner. Native I/O and local ownership storage alone are substituted.
+No hardware prompt count or real Secure Enclave acceptance is established here.
+
+### Implemented scoped restore completion and resume
+
+The service's initial `restore` composes the existing manifest-last publisher,
+insert-only trust installer, ordinary-runtime reopen, no-overwrite configuration
+selection and ordered finalizer inside the same authenticated source scope.
+Source/token observation, authentication generation, cancellation and deadline
+checks remain synchronous and nonescaping at private-operation admission,
+atomic publication boundaries and ownership removal. The report contains only
+operation/checkpoint identifiers, path and entry count. It cannot authorize a
+later operation or retain consent.
+
+Explicit `resume` requires exact device-local ownership before recovery
+agreement. It rejects incomplete reservation-only state, changed source
+selection, changed preparation, replaced locations and unrelated configuration.
+Complete bytes with a still-prepared pin can be verified and promoted; no new
+credential, random destination key, resealing or destination creation occurs.
+Resume independently reloads the saved Mac identity and opens the saved wrapper
+in a temporary session, which is invalidated before continuation.
+
+An unselected resume completes publication, trust and selection. If the exact
+configuration is already selected, resume requires the exact existing
+checkpoint/cache before authentication, skips publication/selection and runs
+fresh completion verification before cleanup. It does not repair trust or
+silently adopt later ordinary edits. Reservation removal precedes preparation
+removal. Preparation-only ownership can finish this half-completed cleanup;
+with neither pin remaining, resume reports no pending attempt rather than
+claiming retrospective success after a lost reply.
+
+[Nine software declarations / 83 cases](../Tests/KeyCoreTests/V3RecoveryRestoreCompletionServiceTests.swift)
+exercise initial restore, 21 interruption boundaries, cancellation/lock guards,
+late atomic-renaming guards, exact resume and existing-trust requirements. A
+freshly composed ordinary runtime reads, mutates and cold-reopens the restored
+vault without recovery-token availability or an injected restore key. This is
+a same-process test, not separate-process or physical acceptance. Initial
+restore uses one source agreement and five saved Mac-wrapper operations in
+these tests; Mac operation counts do not establish physical Touch ID prompts.
+Shipping host serialization, lock/disconnect invalidation, product dispatch and
+native acceptance remain unwired.
+
+### Implemented restore locations and intent format
+
+The [filesystem environment](../Sources/KeyCore/V3RecoveryRestoreEnvironment.swift)
+creates only a missing final destination folder beneath an independently opened
+parent. It checks physical ancestry before creation, including symlinked
+ancestors, so the source and local configuration tree cannot contain the
+destination. Existing empty folders are refused, not adopted. The source,
+destination, destination parent and configuration root retain exact standardized
+paths and device/file identities. Later checks reject replaced folders or any
+configuration, including malformed files, directories and dangling symlinks.
+This initial path supports an unconfigured Mac only. The configuration directory
+must already exist; inspection never bootstraps it or overwrites a selection.
+
+The [restore intent format](../Sources/KeyCore/V3RecoveryRestoreIntent.swift) binds
+those locations, one operation ID, the source anchor/credential/head, a stable
+commitment to the observed public history/listing, and the destination genesis
+digest/key ID/owner. The exact genesis digest commits its roster, transition,
+wrapper and complete encrypted entry references. Record authentication uses
+HKDF-SHA256 and HMAC-SHA256 with a restore-only domain, keyed by the new
+destination vault key. It does not retain the source key. Canonical parsing
+requires exact fields, bounded bytes, canonical identifiers and paths; it does
+not authenticate the record or establish token provenance.
+
+Record construction revalidates the verifier-only snapshot through the retained
+source descriptor before and after authentication. A snapshot from an unrelated
+reader cannot be accepted solely because the caller supplied plausible paths.
+The saved anchor is still a binding, not a substitute for a fresh native token
+read during an actual recovery ceremony.
+
+This format is not saved approval. The internal journal below now reserves local
+ownership and stores complete encrypted preparations. Product resume must first
+establish local ownership of the exact saved preparation before opening its
+addressed Mac wrapper, then authenticate this record and reverify the source and
+complete destination contents. A matching MAC alone cannot authorize publication.
+Internal components now install checkpoint trust and select configuration after
+ordinary reopening. Source/native binding, session-generation checks, explicit
+reauthentication and serialized composition remain the restore owner's
+responsibilities. The checks observe filesystem state;
+they do not lock folders against concurrent external changes.
+
+### Implemented local restore reservation and encrypted preparation
+
+The [restore journal](../Sources/KeyCore/V3RecoveryRestoreJournal.swift) owns two
+separate non-synchronizing device-local records, using the existing ownership
+store and contained atomic file writer. Both are keyed by the source vault ID,
+not the newly generated destination ID. One pending attempt blocks another
+attempt for the same source on that Mac/product. The namespaces cannot collide
+with ordinary transactions, registration or profile adoption. The ownership
+anchor format and those existing workflows are unchanged.
+
+Before any platform credential is created, `reserve` pins the operation and
+SHA-256 digest of a [public reservation](../Sources/KeyCore/V3RecoveryRestoreReservation.swift).
+That record binds the exact reviewed source, physical locations, and fresh vault,
+transition and entry IDs. The journal writes and synchronizes its canonical
+bytes, reads them back and rechecks the source and pins before returning. The
+new-directory gate is shared across environment copies and consumed once;
+independently reopened handles cannot start another reservation. The record
+contains no raw key, credential or saved authorization.
+
+After full candidate validation, `stage` pins the SHA-256 digest of the complete
+[encrypted bundle](../Sources/KeyCore/V3RecoveryRestoreBundle.swift) before writing
+it. The bundle contains the authenticated intent, exact genesis envelope and all
+encrypted entries. It is local-only at
+`v3-restore-attempts/<operationID>/preparation.json`, beside `reservation.json`
+under the configuration root, not in the recovery source. Both records use
+bounded canonical parsing and exact bindings. Parsing alone does not authenticate
+the MAC, ciphertext or plaintext equality.
+
+`loadPending` follows only the operation ID in the local reservation pin. It
+does not scan for files, adopt a provider record, or open source/destination paths
+from JSON. It checks the complete saved bytes against both ownership digests
+before returning any candidate wrapper. Files without local ownership are inert.
+Missing, changed, oversized, symlinked or otherwise invalid records stop the
+operation. A reservation without a complete preparation does not authorize
+replacement credential creation or automatic reconstruction.
+
+Explicit `confirmPreparation` takes a freshly recovered source snapshot,
+destination key and expected Mac identity from its caller. It authenticates the
+intent and validates the saved manifest and every ciphertext against that source
+using the existing full genesis checks. It neither encrypts again nor generates
+new IDs, wrappers or credentials. The source and live locations are rechecked;
+both files are read back and synchronized; both ownership pins are compared
+before and after the preparation becomes durable. A final reload checks that the
+records still match. These observations do not replace the future service's
+serialized mutation owner, current authentication scope or lock-generation checks.
+
+The journal itself has no private-key caller, cleanup, publication, checkpoint,
+configuration selection or product resume route. Software tests use real
+disposable filesystem writes and software keys, including a fresh journal reader,
+independently opened handles and a new destination wrapper opening. They do not
+qualify a separate OS process, native credential provenance, the new Keychain
+namespaces or physical-token behavior. Interrupted partial reservations remain
+pending for later explicit reconciliation; they are not silently abandoned.
+
+### Implemented restore publication and exact reconciliation
+
+The internal [restore publisher](../Sources/KeyCore/V3RecoveryRestorePublisher.swift)
+accepts a fresh source snapshot, destination key and already loaded addressed Mac
+identity. It confirms the exact owned preparation and validates it under the
+publication limits before a private operation or destination write. The existing
+permanent-profile checkpoint unlocker opens the saved Mac wrapper once and checks
+the resulting key against the supplied destination key. Its validation session
+is scoped to the call and invalidated on success and failure. No platform
+credential is created, and no private operation is automatically retried.
+
+The complete encrypted preparation is already durable staging. Publication uses
+the existing contained no-overwrite atomic writer directly at the final immutable
+addresses, rather than creating another transaction namespace and later deleting
+it. Entries are installed, read back and synchronized before the genesis manifest
+becomes visible. Full existing genesis checks compare the published bytes with
+the freshly verified source contents. Live source/location bindings and both
+ownership records are rechecked across publication and before return.
+
+Destination inspection accepts only a subset of the exact owned object addresses
+before the manifest exists. Known empty parent directories left by an interrupted
+creation are allowed. Unknown files, extra entries or manifests, symlinks,
+malformed bytes and orphan `.partial` files stop the operation and remain
+untouched. Root and child listings are bounded and use fresh directory-open
+descriptions, not a reused directory cursor.
+
+A later explicit call validates the saved preparation and opens its addressed
+Mac wrapper again. It may install missing entries only while the manifest is
+absent. If the exact manifest is already present, every referenced entry must
+already exist with its exact prepared bytes; the publisher does not repair a
+committed snapshot. Existing exact objects are rechecked and synchronized, not
+resealed or replaced. Cancellation and other failures leave the owned preparation
+available for a separate explicit call, subject to the same fresh checks.
+
+The returned report identifies the published checkpoint, not permission to
+install local trust or select the vault. The publisher writes no checkpoint,
+manifest cache, configuration, token object or persistent key session and does
+not clear ownership. Product requests, native source/identity provenance,
+session-generation checks and serialized helper ownership still need service
+integration. Filesystem observations cannot lock out concurrent external changes;
+a detected change stops the operation without rolling back published objects.
+
+[Software tests](../Tests/KeyCoreTests/V3RecoveryRestorePublisherTests.swift) cover
+empty/populated publication, each observer boundary, interrupted atomic writes,
+explicit later reconciliation, cancellation, wrapper mismatch, source/config/pin
+changes, destination damage and bounds. They use real disposable files and
+software wrapper operations. They do not qualify native authentication, actual
+process termination, separate-process ordinary reopening, large-vault performance
+or real-token recovery. A process crash that leaves an unknown partial file is
+not claimed to be automatically resumable.
+
+### Implemented restore trust and ordinary-runtime reopening
+
+The [trust installer](../Sources/KeyCore/V3RecoveryRestoreTrustInstaller.swift)
+rechecks complete published objects through the publisher's non-repairing
+confirmation path. A previous publication report is not authority. Missing or
+altered files stop the operation before a wrapper opening or checkpoint insert.
+Only an absent checkpoint can be inserted. An existing exact checkpoint supports
+explicit continuation; malformed or different trust is never replaced.
+
+The existing identity loader reconstructs the addressed Mac identity. Its saved
+wrapper must open to the prepared key before first trust. Exact encrypted manifest
+bytes are cached with the existing filesystem cache, then the absent checkpoint
+is inserted using the existing store's compare-and-replace boundary. Failures
+retain any committed exact trust and ownership rather than rolling it back.
+
+The validation session is cleared. A new empty session and ordinary permanent
+read runtime load the identity again and independently open the published wrapper.
+Every item name, type and plaintext byte is compared with the scoped recovered
+snapshot. The prepared key is never injected into that ordinary session. Both
+temporary sessions are invalidated on exit. These two Mac-wrapper operations are
+software-qualified calls, not a guarantee about native authentication prompts.
+This component makes no recovery-token operation.
+
+Source, locations, saved records, checkpoint and exact cache bytes are rechecked
+across durable steps and final reopening. The report is not saved consent or
+configuration selection. No configuration or token is written, no credentials
+are created, and no ownership is cleared. Current native authentication scope,
+session generation and helper serialization remain service responsibilities.
+Software tests use real files/cache and memory checkpoints; separate-process,
+Secure Enclave, large-vault and physical recovery qualification remain.
+
+### Implemented restore configuration selection and exact continuation
+
+The [selection installer](../Sources/KeyCore/V3RecoveryRestoreSelectionInstaller.swift)
+loads the locally owned preparation and independently supplied physical handles.
+It repeats trust installation and fresh ordinary-runtime verification rather
+than accepting a saved success report. Only then does the existing atomic
+no-overwrite writer publish the normal local configuration. The exact source,
+files, ownership, cache and checkpoint are checked again after the temporary
+config is synchronized, before publication, and after selection.
+
+An explicit later call can accept an already-selected config only when its bytes
+exactly match the intended destination path, vault ID and local mode. It requires
+existing exact checkpoint trust before loading credentials; config cannot
+reconstruct missing trust. The saved identity opens the wrapper again through
+new temporary sessions, and the actual complete snapshot is verified again.
+Selected configuration is synchronized without rewriting it. Even a formatting
+change is not normalized or overwritten by this continuation path.
+
+Ordinary preparation/reopening still requires absent config. A completion
+environment cannot stage or publish a restore again. Missing or damaged objects,
+different trust, changed source or replaced folders stop continuation. Committed
+config/trust are retained, not rolled back. Later ordinary edits that advance
+the restored checkpoint need separate reconciliation; this exact-genesis path
+does not adopt them as completed restore evidence.
+
+This selection component retains both ownership pins and encrypted records.
+The separate finalizer below can retire exact selected ownership. Native
+approval/session binding, serialized service composition and product routing
+remain unimplemented. This component neither creates credentials
+nor accesses a token. Tests use disposable config files, software identities,
+memory checkpoints and the real filesystem cache/runtime, not native hardware or
+a separate OS process.
+
+### Implemented selected restore ownership finalization
+
+The [finalizer](../Sources/KeyCore/V3RecoveryRestoreFinalizer.swift) loads only
+locally pinned restore state. It requires exact selected config, the existing
+destination checkpoint/cache, matching source observation and complete published
+files. A new empty ordinary-runtime session independently loads the saved Mac
+identity, opens its wrapper once and compares all restored item names, types and
+plaintext bytes. It does not inject the prepared key. The temporary session is
+invalidated on every exit; native authentication prompt counts are unqualified.
+
+Only then does the journal clear the exact reservation pin, recheck all state,
+and clear the exact preparation pin. Both removals use the existing store's
+compare-and-replace contract. Clearing preparation first would leave no local
+digest for the complete bundle. Reservation-first leaves that digest intact,
+so a dedicated finalization reader can verify the same bundle after interruption.
+Every original reservation field is retained in that pinned bundle; reconstructing
+those public bytes must exactly match the existing reservation file. No file,
+credential, key or ownership record is regenerated or rearmed.
+
+Preparation-only ownership is never accepted by normal preparation, publication,
+trust insertion or config selection. Completion checks still require selected
+config and existing exact trust. Changes, unavailable state and ambiguous errors
+stop further cleanup without retry or rollback. Final checks cover the actual
+source, config, files, cache/checkpoint and expected absence of both pins before
+returning success. The cleared state exists only in the current scoped call.
+
+After both pins are absent, a later call returns only "no locally owned pending
+attempt" without loading leftover files or credentials. It does not claim that
+an old operation succeeded. If the final reply was lost, ordinary configured-vault
+status is the appropriate subsequent check. Encrypted records remain inert audit
+evidence; config, credentials, checkpoint and vault/source files are not deleted.
+No new namespace or persisted format is introduced. Native scope/session binding,
+host serialization, product restore/resume and separate-process acceptance remain.
+
 ### Implemented native public reader
 
 The [internal reader](../Sources/KeyCore/PIVRecoveryTokenReader.swift) replaces the
