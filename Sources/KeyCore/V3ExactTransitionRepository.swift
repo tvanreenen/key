@@ -181,6 +181,9 @@ struct V3ExactTransitionRepository: Sendable {
         - additionalCount,
       state.usage.totalEntryBytes <= limits.maximumTotalEntryBytes - additionalBytes
     else { throw V3RecoveryValidationError.resourceLimit }
+    try V3RecoveryPublicationBudget.require(
+      candidate, manifestBytes: state.manifestBytes,
+      objectCount: state.listedObjectCount, limits: limits)
   }
 
   func readManifest(_ digest: Data) throws -> Data {
@@ -204,6 +207,83 @@ struct V3ExactTransitionRepository: Sendable {
     case .unavailable: throw V3RecoveryValidationError.sourceUnavailable
     case .invalid: throw V3RecoveryValidationError.invalidObject
     case .tooLarge: throw V3RecoveryValidationError.resourceLimit
+    }
+  }
+}
+
+/// Publication admission over supplied immutable history, not token provenance
+/// or a replacement for full old/new snapshot validation. Reuse recovery's own
+/// verifier so its cumulative depth/reference bounds cannot diverge from saves.
+enum V3RecoveryPublicationBudget {
+  static func require(
+    _ candidate: V3RecoveryManifestEnvelope, manifestBytes: [Data: Data],
+    objectCount: Int, limits: V3ManifestRepositoryLimits
+  ) throws {
+    let active = candidate.body.recovery.recipients.filter { $0.status == .active }
+    guard !active.isEmpty else { return }
+    let additional = manifestBytes[candidate.digest] == nil ? 1 : 0
+    guard objectCount >= manifestBytes.count,
+      objectCount <= limits.maximumManifestObjects - additional
+    else { throw V3RecoveryValidationError.resourceLimit }
+    var projected = manifestBytes
+    if let existing = projected[candidate.digest], existing != candidate.canonicalBytes {
+      throw V3RecoveryValidationError.sourceChanged
+    }
+    projected[candidate.digest] = candidate.canonicalBytes
+    let source = ProjectedSource(manifests: projected, objectCount: objectCount + additional)
+    var carrying: [Data: (envelope: V3RecoveryManifestEnvelope, recipient: V3RecoveryRecipient)] =
+      [:]
+    var total = 0
+    for (digest, bytes) in projected {
+      guard bytes.count <= limits.maximumManifestBytes,
+        bytes.count <= limits.maximumTotalManifestBytes - total
+      else { throw V3RecoveryValidationError.resourceLimit }
+      total += bytes.count
+      // Older permanent or unsupported profiles may precede registration.
+      // The selector independently refuses unsupported reachable descendants.
+      guard let envelope = try? V3RecoveryManifestCodec().parseEnvelope(bytes),
+        envelope.body.fields.vaultID == candidate.body.fields.vaultID,
+        let recipient = active.first(where: { envelope.body.recovery.recipients.contains($0) })
+      else { continue }
+      carrying[digest] = (envelope, recipient)
+    }
+    // The earliest continuing registration is a common conservative floor for
+    // every active recipient. New registration alone starts at its own floor;
+    // adding a backup must not reset a continuing primary's earlier obligation.
+    let floors = carrying.filter { _, value in
+      value.envelope.parents.allSatisfy { carrying[$0] == nil }
+    }
+    guard floors.count == 1, let (digest, floor) = floors.first else {
+      throw V3RecoveryValidationError.invalidTransition
+    }
+    let anchor = try V3RecoveryAnchor(
+      floor: .init(vaultID: candidate.body.fields.vaultID, envelopeDigest: digest),
+      recipientID: floor.recipient.recipientID,
+      registrationID: floor.recipient.registrationID, slot: floor.recipient.slot)
+    let selected = try V3RecoveryHistorySelector(source: source, limits: limits).select(
+      anchor: anchor, credentialPublicKey: floor.recipient.publicKey)
+    guard selected.head.digest == candidate.digest else {
+      throw V3RecoveryValidationError.sourceChanged
+    }
+  }
+
+  /// Exact projected bytes only. No disk writes, historical ciphertext reads,
+  /// token I/O or private-key dependency. Provider withholding stays out of scope.
+  private struct ProjectedSource: V3ImmutableObjectReading {
+    let manifests: [Data: Data]
+    let objectCount: Int
+    func manifestDigests(maximumCount: Int) throws -> V3RepositoryDirectoryListing {
+      objectCount > maximumCount
+        ? .limitExceeded : .available(digests: Array(manifests.keys), objectCount: objectCount)
+    }
+    func readManifest(digest: Data, maximumBytes: Int) throws -> V3RepositoryObjectRead {
+      guard let bytes = manifests[digest] else { return .unavailable }
+      return bytes.count > maximumBytes ? .tooLarge : .available(bytes)
+    }
+    func readEntry(entryID _: String, digest _: Data, maximumBytes _: Int) throws
+      -> V3RepositoryObjectRead
+    {
+      .unavailable
     }
   }
 }
