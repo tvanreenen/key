@@ -194,6 +194,31 @@ public final class KeyServiceHandler {
             rootHandle: rootHandle
         )
         let session = V3DeviceWrappedVaultKeySessionStore()
+        if runtimeConfiguration.experimentalRecoveryEnabled,
+           case .recovery = try v3SelectedCheckpointProfile(
+               vaultID: vaultID, checkpoints: checkpointStore, source: objectStore, cache: cache
+           ).profile {
+            guard #available(macOS 26.0, *) else {
+                throw AppError.operationRefused("Recovery-capable vaults require macOS 26 or later in this experimental build.")
+            }
+            let mutationOwner = VaultTransactionMutationOwner()
+            let runtime = V3RecoveryVaultRuntime(
+                vaultID: vaultID, objectStore: objectStore, checkpointStore: checkpointStore,
+                transactionOwnershipStore: recoveryAnchorStore,
+                registrationOwnershipStore: V3ImmutableTransactionRecoveryAnchorKeychainStore(
+                    configuration: runtimeConfiguration, namespace: .registration),
+                adoptionOwnershipStore: V3ImmutableTransactionRecoveryAnchorKeychainStore(
+                    configuration: runtimeConfiguration, namespace: .adoption),
+                cache: cache, identityLoader: identityManager, session: session,
+                mutationOwner: mutationOwner)
+            // Permanent-profile enrollment/replacement services must not be
+            // reused for a recovery profile. Dedicated lifecycle routes remain.
+            return KeyServiceHandler(
+                keyStore: keyStore, entryStore: entryStore, keychainMode: keyConfiguration.keychainMode,
+                configStore: configStore, mutationOwner: mutationOwner, vaultUXService: runtime,
+                vaultReader: runtime, vaultMutator: runtime, vaultSession: runtime,
+                configuredVaultID: vaultID)
+        }
         let unlockRuntime = V3DeviceWrappedVaultUnlockRuntime(
             vaultID: vaultID,
             checkpointStore: checkpointStore,
@@ -651,6 +676,10 @@ public final class KeyServiceHandler {
                 throw AppError.operationRefused("Recovery must be dispatched by Key Agent's service host.")
             case .recoveryReview:
                 throw AppError.operationRefused("Public recovery review must be dispatched by Key Agent's service host.")
+            case .recoveryRegistration:
+                throw AppError.operationRefused("Recovery registration must be dispatched by Key Agent's service host.")
+            case .recoveryRotation:
+                throw AppError.operationRefused("Recovery-profile key rotation must be dispatched by Key Agent's service host.")
             case .list:
                 let entries = if let vaultReader {
                     try vaultReader.list(allowStale: false)

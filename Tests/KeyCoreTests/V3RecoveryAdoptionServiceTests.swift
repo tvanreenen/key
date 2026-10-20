@@ -597,6 +597,67 @@ struct V3RecoveryAdoptionServiceTests {
     }
   }
 
+  @Test(arguments: [false, true])
+  func configuredWorkflowAdoptsOrResumesTheExactProfileBeforeOrdinaryReopen(resume: Bool) throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    let action: KeyRecoveryRegistrationRequest
+    if resume {
+      #expect(throws: Core.FixtureError.cancelled) {
+        try f.service(
+          observer: Observer { phase in
+            if phase == .artifactsStaged { throw Core.FixtureError.cancelled }
+          }
+        ).adopt(currentVaultKey: Core.oldKey)
+      }
+      let anchor = try V3ImmutableTransactionRecoveryAnchor(
+        canonicalBytes: #require(f.ownership.value))
+      action = .resumeAdoption(operationID: anchor.operationID.rawValue)
+    } else {
+      action = .adopt
+    }
+    let root = f.root.appendingPathComponent(".test-local-cache", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let cache = V3CheckpointManifestFilesystemCache(
+      rootHandle: try VaultRootDirectoryHandle(opening: root))
+    let reader = PIVRecoveryTokenReader(inventory: NoTokens(), gate: PIVTokenOperationGate())
+    let store = V3FilesystemTransactionArtifactStore(
+      rootHandle: try VaultRootDirectoryHandle(opening: f.root))
+    let workflow = KeyRecoveryRegistrationWorkflow(
+      vaultID: Core.vaultID, store: store, checkpoints: f.checkpoints, transaction: f.transactions,
+      registration: f.registration, adoption: f.ownership, cache: cache,
+      identities: WorkflowLoader(identity: f.core.owner), reader: reader,
+      agreement: .live(reader: reader), owner: f.mutationOwner)
+    let scope = KeyRecoveryRequestScope(authentication: .init(), deadline: .now() + 90)
+    let response = try workflow.handle(action, scope: scope)
+    guard case .completed(let vault, _, let pending) = response.recoveryRegistration else {
+      throw Core.FixtureError.cancelled
+    }
+    #expect(vault == Core.vaultID && !pending && f.ownership.value == nil)
+    let runtime = V3RecoveryVaultRuntime(
+      vaultID: Core.vaultID, objectStore: store, checkpointStore: f.checkpoints,
+      transactionOwnershipStore: f.transactions, registrationOwnershipStore: f.registration,
+      adoptionOwnershipStore: f.ownership, cache: cache,
+      identityLoader: WorkflowLoader(identity: f.core.owner), session: .init(),
+      mutationOwner: f.mutationOwner)
+    #expect(try runtime.list(allowStale: false).count == f.core.entries.count)
+    #expect(try runtime.status().health == .ready)
+  }
+
+  private struct NoTokens: PIVRecoveryTokenInventoryProviding {
+    func connections(maximumCount _: Int) throws -> [any PIVRecoveryTokenConnection] {
+      Issue.record("Adoption must not inspect hardware")
+      return []
+    }
+  }
+  private struct WorkflowLoader: V3DeviceWrappedIdentityLoading {
+    let identity: any V3DeviceWrappedVaultKeyUnwrapping
+    func loadDeviceIdentity(vaultID _: String, reason _: String) throws -> (
+      any V3DeviceWrappedVaultKeyUnwrapping
+    )? { identity }
+  }
+
   private struct Fixture: Sendable {
     let core: V3RecoveryProfileAdoptionTests.Fixture
     let root: URL

@@ -505,6 +505,135 @@ Unowned provider bundles remain inert. Caller admission errors still propagate;
 the future product route must enforce connection, lock and deadline scope.
 This is not a shipping status command or profile-2 adoption path.
 
+### Implemented internal routine profile-3 unlock
+
+The [profile-3 unlock runtime](../Sources/KeyCore/V3RecoveryVaultUnlockRuntime.swift)
+opens only the manifest selected by this Mac's bounded local checkpoint. It
+reuses the existing native identity-loader interface, exact-manifest cache and
+in-memory Mac-key session. Its explicit recovery-profile codec rejects profile 2
+and unknown profiles before a private operation; no profile projection or
+provider-head discovery grants authority.
+
+Cold access verifies the exact manifest digest and active Mac identity, opens
+that Mac's profile-3 HPKE wrapper once, and authenticates the current manifest
+MAC and epoch capsule before installing a resident key. Warm access uses only a
+matching resident key and repeats manifest/capsule authentication. A mismatched
+resident session refuses rather than retrying authentication automatically.
+Neither path checks entry availability, advances a checkpoint, repairs pending
+work, opens historical keys or contacts a token. Returned floor metadata is not
+a complete snapshot or a current-provider-head claim. Entry reads, catch-up and
+status retain their own validation responsibilities.
+
+Ordinary-transaction, registration and adoption ownership stores are required.
+Any present record, including malformed bytes, blocks ordinary unlock; any read
+failure refuses. These are ordinary-runtime barriers, not an implementation of
+the separate authenticated registration/adoption reconciliation route. Pending
+ceremonies will need their dedicated scoped authentication path.
+
+Requests capture a session ticket before serialization. Explicit reauthentication
+atomically discards the prior key and replaces that still-current ticket inside
+the session store. Lock does not wait for the request mutex or native UI. Exact
+checkpoint, pending ownership and ticket checks surround identity access, unwrap,
+optional cache warming, installation and return. A lock, expiry or replacement
+invalidates late authentication. Failed access clears resident state. Cache-write
+failure alone does not undo verified authority; cache callbacks cannot bypass
+the final state checks. No private operation is retried.
+
+Software integration opens a real enrolled-Mac profile-3 floor, runs the existing
+rotation catch-up and ordinary mutation services, then locks and freshly opens
+the saved state. This is not native authentication qualification or a shipping
+runtime factory. Live Stable/Preview dispatch remains unchanged.
+
+### Implemented internal exact-checkpoint profile-3 reads
+
+The [read adapter](../Sources/KeyCore/V3RecoveryReadOnlyVaultRuntime.swift) uses
+the existing read planner, encrypted-entry executor and bounded encrypted-closure
+validator. It selects entries only from the authenticated local floor. It does
+not discover provider heads, advance authority, or grant provider-current status;
+catch-up and stale-provider policy must be composed by a surrounding runtime.
+
+Unlock returns an internal read context bound to its exact checkpoint and
+authentication-generation ticket. The context contains no key. Cold access
+retains the installation receipt, rather than capturing a new ticket after
+authentication; warm access retains its original ticket. Exact checkpoint,
+pending ownership and generation are checked before and after key lookup, and
+again after decryption before plaintext is returned. Lock, expiry or replacement
+invalidates this context even if the same key ID is installed again.
+
+Entry reads verify the pinned immutable object's digest, context and AEAD.
+Names are normalized and validated before authentication. List and status check
+the bounded encrypted closure, then revalidate the context before returning
+metadata. A ready status here means encrypted-object availability, digest and
+shape/context checks at that exact floor, not independent AEAD opening of every
+entry or proof that the provider supplied its newest state. Missing ciphertext
+allows a last-trusted names-only list only with explicit stale permission;
+invalid objects and exceeded budgets refuse even that list. Missing entry
+plaintext is never returned under stale permission.
+
+Read authorization validates a selector against the authenticated floor; it
+does not open the entry or grant a reusable plaintext capability. The adapter
+refuses mutation and history methods because it has no publication or graph
+observation responsibility. It does not claim an empty conflict set. The internal
+composition below now surrounds it with catch-up and ordinary publication.
+Pending-ceremony routing and the gated factory remain outstanding. No CLI,
+protocol, live dispatch or token operation changes.
+
+### Implemented internal profile-3 runtime composition
+
+The [runtime](../Sources/KeyCore/V3RecoveryVaultRuntime.swift) combines existing
+unlock, catch-up, exact reads, ordinary publication and memory-session services.
+It is not installed by a shipping factory. Reads and catch-up run inside the
+helper's shared mutation owner. Mutation methods reuse the helper-supplied
+operation ID and direct owners, rather than nesting that queue. Mutation
+authorization only opens the local floor; publication independently catches up,
+reconciles and checks its source. Lock remains independent of the queue and
+native UI. Memory-session status does not read provider files or authenticate.
+
+Admission is captured before read serialization and carried into unlock and
+catch-up. Catch-up returns its exact floor and live ticket, including receipts
+from legitimate epoch installations. The unlock runtime continues that floor
+without a cold fallback. Final read/list/status return checks the same context,
+the observed manifest inventory and published bytes, then the context again.
+This last source check opens no historical key and requests no private operation;
+its closure retains ciphertext and manifest evidence, not old vault keys.
+It detects changes to the observed files, not files a provider never disclosed.
+
+Explicit stale permission admits content competition or transport incompleteness
+only at the unchanged authenticated admission floor. Missing files after any
+checkpoint advance cannot roll back to that floor. Invalidity, source changes,
+authority competition, revocation, budget violations, pending ownership, lock
+and unrelated session replacement do not grant stale success. Status distinguishes
+an incomplete graph or competing edits from ready state. Ordinary writes retain
+the existing automatic-merge behavior for compatible edits; unresolved conflicts
+require explicit, freshly validated choices. Metadata conflict list/show and
+helper-owned resolution are composed. Conflict-value reads use the same fresh
+authenticated projection as metadata and resolution. Conflict/version IDs must
+match its exact membership; they are not file addresses or reusable approvals.
+A deletion has no plaintext and is distinct from an unknown version or an empty
+secret. Linear and automatically mergeable history do not invent conflicts.
+
+The sealed read plan binds the selected entry, exact checkpoint and complete
+head set. The existing executor authenticates its ciphertext and checks authority
+after opening it. The runtime reobserves the complete same-epoch graph and requires
+equality with the selection observation; then its outer read guard rechecks the
+session, pending ownership and published source. Conflict values have no stale
+fallback. These software checks request no additional private-key operation.
+
+Pending registration or adoption still blocks routine runtime admission.
+Interrupted ordinary content saves use a separate pending-authentication context:
+one exact bounded device-local anchor must remain unchanged, and both other
+namespaces must stay empty. This context cannot be passed to an ordinary reader.
+The existing content/merge publication kernel reconciles only that pinned intent;
+normal unlock and catch-up then continue the same live session ticket against the
+resulting checkpoint, with no cold fallback. Malformed or competing ownership
+refuses before identity access. Explicit registration/adoption routing remains.
+If lock follows a
+durable publication, the saved bytes are not undone; the request's late success
+is refused. No automatic authentication retry, token administration, configuration
+change or source repair is added. Software operation counts do not qualify native
+prompt counts. Registration commands, gated product factories, integrated review
+and signed hardware qualification remain required before real-vault opt-in.
+
 ### Implemented reciprocal internal pending-work guards
 
 Registration now requires explicit ordinary-transaction and adoption ownership
@@ -2373,17 +2502,28 @@ publication authority. No source/configuration/Keychain deletion is performed.
 
 No shipping recovery composition or real-vault opt-in is enabled.
 Adoption alone does not claim recovery protection; that requires separate
-registration. Reciprocal pending-state barriers in ordinary product services,
-product integration of profile-3 writes/catch-up, lifecycle support, integrated
-review and distribution qualification remain required before real-vault opt-in.
+registration. Reciprocal pending-state barriers and ordinary profile-3
+writes/catch-up are now composed behind the Preview gate. Broader lifecycle
+integration, implementation review and distribution qualification remain
+required before real-vault opt-in.
 
-The proposed complete public workflow is a `recovery` command group for status,
-credential review, registration, recipient listing/removal, restore review,
-restore, and explicit resume. Token listing, public source review and
-restore/resume syntax and disabled-build help now exist; other commands remain
-proposed, not a runnable command listing.
-Names/options are reviewed with service fixtures before implementation. No PIN, PUK,
-management key, or raw vault key crosses CLI arguments or XPC. Destructive
+The gated public `recovery` workflow now includes token/credential/source review,
+registration status/prepare/resume-export/finish, exact local pending selectors,
+explicit adoption/resume, token-free key rotation/resume and restore/resume.
+Native configured factories and the ordinary profile-3 runtime are composed
+only by an explicitly enabled Preview bundle; shipping plists remain disabled.
+Recipient-removal and broader device-lifecycle product flows still need separate
+integration and qualification. Software fixtures do not establish native
+PIN/touch enforcement, prompt counts or signed separate-process behavior.
+
+`recovery pending` returns bounded device-local operation IDs only. It neither
+authenticates an intent nor establishes readiness or resume approval. The actual
+resuming service checks exact ownership, authenticated contents and operation
+kind. A missing intent is preserved for inspection, not treated as new authority.
+Checkpoint-changing requests retire an existing runtime even after ambiguous
+failure; explicit restart/reconciliation must precede ordinary use.
+
+No PIN, PUK, management key, or raw vault key crosses CLI arguments or XPC. Destructive
 changes use exact-target review and opaque confirmation references.
 
 Product services own normal mutations and destination/config barriers. Token

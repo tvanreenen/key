@@ -95,11 +95,11 @@ are the implementation packages, not new names for already completed probes.
 | `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; profile-3 domain codecs, contexts, proof construction/checks, and fixtures implemented; final acceptance and integrated review remain |
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
-| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; internal prepare/resume/finish, authenticated four-state status and reciprocal pending guards implemented; product composition, shipping-runtime barriers and physical qualification remain |
-| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; internal mutation service and reciprocal authority-service guards implemented; shipping-runtime barriers, product/CLI acceptance and integrated/native qualification remain |
+| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; domain prepare/resume/finish/status, configured workflow, CLI, gated factory and reciprocal pending barriers implemented; integrated review and signed physical qualification remain |
+| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation service, reciprocal ownership guards and gated ordinary runtime/CLI composition implemented; integrated review and signed native acceptance remain |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
-| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; internal authenticated initial restore and exact resume now compose preparation, manifest-last publication, insert-only trust, ordinary-runtime reopening, configuration selection and ordered finalization; product dispatch/barriers, separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; public token/source review and restore/resume CLI/protocol, gated host/connection lifecycle, restart ownership admission and native factories implemented; remaining commands, live feature gating, profile-3 shipping runtime and signed qualification remain |
+| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; domain restore/resume, insert-only trust, ordinary reopening, configuration selection, ordered finalization and gated product dispatch/barriers implemented; integrated review, separate-process and physical acceptance remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | At review/testing checkpoint: public credential/source review, registration/adoption/status/pending/rotation/restore/resume commands, scoped host barriers/restart, exact pending routing and gated ordinary runtime implemented; full serialized Release and unsigned universal Preview release checks pass; implementation review and signed two-Mac qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -427,12 +427,13 @@ hardware operation, real-vault activation, merge or release.
 - **Real-vault ready:** 813/814 pass and explicit adoption in 815 is qualified.
 - **Full completion:** 815's Stable artifact is released and verified.
 
-The latest increment is bounded read-only public token/source review under
-`REC-812`, after restore/resume CLI dispatch, native restore composition and
-complete internal authenticated restore and exact resume under `REC-811`. Remaining
-command dispatch, live feature gating and shipping
-profile-3 integration remain, alongside final platform, lifecycle and release
-acceptance. The ledger below records each component's scope and evidence. The
+The current integration checkpoint includes gated configured registration,
+adoption, token-free rotation, exact pending selectors, restore/resume and the
+ordinary profile-3 runtime. Combined automated verification passes; implementation
+review and the signed two-Mac vertical slice establish the next acceptance
+checkpoint. This does not complete backup-token/lifecycle/platform/release
+qualification or enable real-vault use. The ledger below records each component's
+scope and evidence. The
 [contract](piv-recovery-contract.md) describes the
 experimental dual-authorization direction and its reduced historical replay
 promise. The capsule, recipient roster, recovery contexts/wrappers, containing
@@ -4555,3 +4556,469 @@ Verification for this increment:
   warning remain. Raw logs/build products are ignored
   under `tmp/piv-recovery/2026-10-07-registration-status-*` and
   `tmp/piv-recovery/registration-status-build`.
+
+### 2026-10-07: routine profile-3 Mac unlock and cancellable reauthentication
+
+The existing shipping unlock runtime binds its trusted-envelope type and HPKE
+context to profile 2. Extending it with a recovery-profile variant would make
+every permanent-profile state-loader/catch-up caller branch on that variant.
+The internal [profile-3 runtime](../Sources/KeyCore/V3RecoveryVaultUnlockRuntime.swift)
+instead returns the existing profile-3 floor type and reuses the current
+identity-loader interface, checkpoint cache and in-memory session. It does not
+project a recovery manifest into profile 2 or install a second key store.
+
+Only exact bytes selected by a bounded device-local checkpoint can be opened.
+Permanent and unknown profiles, unavailable or substituted bytes, missing or
+unfamiliar identity and revoked-device metadata refuse before private unwrap.
+Cold access performs one Mac wrapper opening and checks key identity, manifest
+MAC and encrypted epoch-capsule/private-public correspondence. Warm access uses
+only the matching resident key and repeats current authentication. It does not
+load identity or open another wrapper. A mismatched warm key refuses without
+automatic authentication retry. These operation counts are software evidence,
+not measured native prompt counts.
+
+Explicit unlock clears any earlier key before identity access. A new atomic
+session operation requires the request's still-current admission ticket before
+clearing the key and issuing its replacement ticket. Separate invalidate and
+ticket-capture calls were rejected because a lock in between could be treated
+as fresh approval. Runtime lock remains independent of request serialization,
+so it can invalidate an outstanding authentication while native UI is active.
+Checkpoint, pending ownership and generation checks surround private work,
+optional cache warming, session installation and return. Failures clear the
+session and do not retry. Exact cache bytes improve availability but grant no
+authority; a cache write failure is best effort, while a lock during that call
+still invalidates the result.
+
+All three ordinary/registration/adoption ownership stores are mandatory.
+Present or unreadable ownership blocks this ordinary unlock path. No marker is
+parsed as consent, cleared or reconciled. Registration/adoption pending-state
+authentication remains a separate product-composition task; their services must
+not use a normal-runtime admission result to bypass their own exact guards.
+
+The new [unlock tests](../Tests/KeyCoreTests/V3RecoveryVaultUnlockRuntimeTests.swift)
+use real profile-3 publication, HPKE, capsule and contained filesystem fixtures.
+Seventeen declarations exercise 39 cases, including cache/provider transport,
+cold/warm access, explicit reauthentication, malformed/local/source/profile and
+identity refusal, every pending namespace, revoked-device refusal, invalid MAC
+and capsule correspondence, cancellation/private failures, and late changes
+during identity access, unwrap, cache warming and after installation. Two new
+[session declarations](../Tests/KeyCoreTests/V3DeviceWrappedVaultKeySessionTests.swift)
+exercise five cases of atomic key clearing and stale/foreign admission refusal.
+A concrete enrolled-Mac test unlocks, catches up through an actual rotation,
+saves through the ordinary mutation service, locks and reopens the saved floor;
+the complete current snapshot is then authenticated by the existing repository.
+
+This runtime authenticates only the selected manifest/capsule, not entry
+availability or provider-current contents. It never advances a checkpoint,
+discovers a provider head, catches up, administers a token or selects configuration.
+Read/UX composition, catch-up serialization, pending-ceremony routing, registration
+commands and the gated shipping factory remain to be composed. No live hook,
+protocol, CLI route or feature gate changes. Signed/native qualification and
+integrated independent review remain outstanding; `REC-812` is not complete.
+
+Verification for the unlock increment:
+
+- Expanded Debug: 108 declarations across six suites passed in 69.384 seconds.
+  This includes permanent-profile unlock, shared sessions, registration, concrete
+  catch-up and the new unlock cases. After removing a redundant profile decode
+  already enforced by the existing codec, final-source full Release passed:
+  1,679 KeyCore declarations across 135 suites in 438.805 seconds, plus six
+  canonical-JSON declarations. The separately gated large-migration test remains
+  skipped as before.
+- Final unsigned universal Preview build, product-bundle isolation, compiled
+  version `0.2.0 (19)` and arm64/x86_64 slices for app, CLI and helper passed.
+  No install, signing, publication, push, user-vault access or physical token
+  operation was performed.
+- Strict formatting for the new runtime/tests and session tests, project plist
+  syntax, 318 relative documentation targets and `git diff --check` passed.
+  The unchanged routing-test non-Sendable request capture and missing AppIntents
+  metadata dependency warnings remain.
+
+Initial verification caught two test compilation errors: a throwing property
+initializer and an equality assertion on a non-Equatable floor type. A capsule
+fixture also failed the cipher's key/context guard before reaching runtime
+validation. The tests now initialize the fixture in its throwing initializer,
+compare floor fields and use a well-shaped capsule with mismatched public/private
+correspondence. No production validation was relaxed. Raw verification logs and
+build products remain ignored under `tmp/piv-recovery/2026-10-07-recovery-unlock-*`
+and `tmp/piv-recovery/registration-status-build`.
+
+### 2026-10-07: exact-checkpoint profile-3 read adapter
+
+The internal [read adapter](../Sources/KeyCore/V3RecoveryReadOnlyVaultRuntime.swift)
+reuses the existing planner, executor and bounded encrypted-closure validator.
+It owns profile-3 authentication and UX error translation, not graph selection
+or publication. A generic profile-switching read orchestrator was considered,
+but would broaden the existing permanent-profile trust boundary while product
+composition is still incomplete. A separate adapter preserves explicit profile
+ownership without duplicating cryptography, plans or object verification.
+
+Unlock now provides a typed process-local read context retaining the exact
+authentication ticket (the installation receipt on cold access). Key lookup and
+final plaintext/metadata release revalidate generation, checkpoint and all three
+pending namespaces. Reinstalling the same key cannot revive an older read.
+The context is neither persistent authority nor a key container. Existing
+floor-returning unlock methods remain available for their existing callers.
+
+Status checks encrypted closure availability, hash and shape/context, not every
+entry's AEAD or provider freshness. Reads independently authenticate the selected
+entry. Only an explicit stale list permits unavailable encrypted files; invalid
+files or budget violations refuse. History and mutation methods refuse instead
+of inventing empty history or writable support. Invalid selectors are rejected
+before identity access. Catch-up/stale-provider policy, ordinary write/session
+composition and pending ceremony routing remain separate product work.
+
+The [read tests](../Tests/KeyCoreTests/V3RecoveryReadOnlyVaultRuntimeTests.swift)
+use actual profile-3 publication, entry AEAD and contained filesystem storage,
+with software Mac keys and scripted late changes. They cover exact secret/TOTP
+reads, empty/missing names, malformed selectors, unavailable/invalid ciphertext,
+budgets, all pending namespaces, lock and same-key replacement, retained-context
+refusal, read-only/history refusal, and actual same-epoch save plus cold reopen.
+No live hook, CLI, feature gate or native operation changes; `REC-812` remains
+in progress.
+
+Verification for this increment:
+
+- Focused Debug passed 62 declarations across six read/unlock/session suites
+  in 8.442 seconds. The new suite has 12 declarations exercising 50 cases.
+- Expanded Release passed 170 declarations across 11 suites in 76.051 seconds,
+  adding ordinary mutation and concrete same-epoch, key-transition, merged and
+  coordinated catch-up coverage. The full suite was not repeated for this bounded
+  internal adapter; the preceding unlock increment records its full Release run.
+- Final unsigned universal Preview build, bundle isolation, compiled version
+  `0.2.0 (19)` and arm64/x86_64 app, CLI and helper slices passed. Formatting,
+  project plist syntax, 321 relative documentation targets and diff whitespace
+  checks passed. Existing routing-test Sendable and AppIntents metadata warnings
+  remain unchanged.
+- No install, signing, publishing, push, real-vault access or token operation.
+  Logs remain ignored under `tmp/piv-recovery/2026-10-07-recovery-read-*`; build
+  products reuse `tmp/piv-recovery/registration-status-build`.
+
+### 2026-10-07: internal profile-3 runtime orchestration
+
+The [runtime](../Sources/KeyCore/V3RecoveryVaultRuntime.swift) composes the
+existing unlock, catch-up, read adapter, ordinary mutation and memory-session
+services. Extending the permanent-profile runtime with generic callbacks was
+compared with a recovery-specific orchestrator. The latter keeps profile-3
+continuation and stale-policy decisions explicit without broadening profile-2
+dispatch or projecting recovery envelopes into permanent-profile trust types.
+Neither approach needed new cryptography or a second publication engine.
+
+Reads/catch-up share the existing helper mutation queue. Writes reuse its
+operation ID and direct owners. A separate runtime lock would invert acquisition
+order between reads and helper-owned writes, so it was not introduced. Admission
+tickets are captured before read serialization. They continue through unlock,
+identity loading, catch-up and final output; epoch receipts replace the ticket
+only after legitimate installation. Exact reads consume that context directly,
+without another authentication call at the hand-off. Lock does not wait for UI
+or the mutation queue.
+
+The coordinator's continuation result retains an exact published-source guard.
+It rechecks bounded inventory, manifest bytes and ciphertext after the read,
+with context checks on both sides. This is byte comparison, not reopening old
+keys or independently decrypting historical snapshots. Transport fallback is
+limited to an unchanged, MAC-authenticated admission floor. Partial checkpoint
+advances, invalidity, source changes, authority conflict, revocation and pending
+work refuse instead. No provider-global freshness guarantee is added.
+
+Ordinary writes retain automatic reconciliation and exact publication checks.
+Conflict metadata and helper-owned resolution are composed; conflict plaintext
+remains explicitly unsupported. All pending ownership still blocks routine
+admission, preserving files and markers for the dedicated reconciliation route
+yet to be composed. Memory-session status and lock use the existing session.
+No shipping hook, gate, CLI, protocol, configuration or token operation changes.
+`REC-812` remains in progress; pending routing, sealed conflict-value reads,
+registration commands, the gated factory and signed qualification remain.
+
+The [runtime tests](../Tests/KeyCoreTests/V3RecoveryVaultRuntimeTests.swift)
+use real profile-3 history, publication, software Mac keys and the actual helper
+serialization queue. They exercise mixed edits/rotations, all ordinary write
+routes, save/reopen, conflict/stale policy, resolution, automatic merge, missing
+files, pending namespaces, admission cancellation and late identity changes.
+New [coordinator cases](../Tests/KeyCoreTests/V3RecoveryCatchUpCoordinatorTests.swift)
+cover epoch receipts, queued same-key replacement, authenticated fallback,
+transport failure after a committed advance and late published-file changes.
+Verification for this increment:
+
+- Initial focused Debug passed 57 declarations across four suites in 130.178
+  seconds. After preserving the mutation reconciler's automatic-merge policy and
+  adding final published-file checks, expanded Debug passed 119 declarations
+  across nine suites in 135.270 seconds. The final memory-session test and
+  operation-neutral cancellation wording were then included in final Release:
+  202 declarations across 13 suites passed in 88.942 seconds. The new runtime
+  suite has 12 declarations exercising 26 cases; five new coordinator declarations
+  exercise eight continuation/source cases. No production guard was relaxed to
+  obtain a pass. The full suite was not repeated; the earlier unlock increment
+  records its full Release baseline.
+- Final unsigned universal Preview build, product-bundle isolation, compiled
+  version `0.2.0 (19)` and arm64/x86_64 app, CLI and helper slices passed. Strict
+  formatting, project plist syntax, 325 relative documentation targets and
+  whitespace checks passed. Existing routing-test Sendable and AppIntents
+  metadata warnings remain unchanged.
+- No install, signing, publication, push, user-vault access or physical token
+  operation. Logs remain ignored under
+  `tmp/piv-recovery/2026-10-07-recovery-runtime-*`; build products reuse
+  `tmp/piv-recovery/registration-status-build`.
+
+### 2026-10-07: sealed profile-3 conflict-value reads
+
+The [shared planner](../Sources/KeyCore/V3ReadPlan.swift) now selects recovery
+conflict values from the [existing authenticated projection](../Sources/KeyCore/V3ConflictObservation.swift).
+A direct recovery-specific decryption callback was also considered. Reusing the
+sealed plan and existing executor keeps exact selection and final authority
+checks together, without another decryption path, public plan constructor or
+conversion into permanent-profile trust objects. Metadata and value reads share
+the same projection; conflict resolution keeps its existing validator.
+
+Conflict and version IDs are exact members of a fresh authenticated observation,
+not paths, arbitrary digest prefixes or reusable approval. A changed head set
+invalidates the displayed conflict ID. Deleted versions refuse plaintext rather
+than becoming missing versions or empty secrets. Linear and automatically
+mergeable histories provide no conflict selection.
+
+The [runtime](../Sources/KeyCore/V3RecoveryVaultRuntime.swift) reads under the
+existing helper mutation owner and session admission ticket. The executor
+authenticates the selected ciphertext, then the runtime reobserves the complete
+same-epoch graph and requires exact equality before returning a value. The outer
+runtime guard checks pending ownership, session and published source again.
+There is no stale fallback, new authentication hand-off, historical private-key
+opening, publication, token administration or shipping dispatch change.
+
+[Software conflict-read tests](../Tests/KeyCoreTests/V3RecoveryConflictReadTests.swift)
+publish real filesystem branches and exercise the production observer, sealed
+planner and entry cipher: secret/TOTP edits, destination collisions, rename/edit,
+deletion, selector membership, changed heads and late executor authority changes.
+[Runtime tests](../Tests/KeyCoreTests/V3RecoveryVaultRuntimeTests.swift) read the
+actual competing values and refuse queued lock, same-key session replacement,
+another published branch and each pending namespace without private unwrap.
+Native prompt behavior and signed hardware qualification are not established by
+these tests. `REC-812` remains in progress: pending routing, registration commands,
+the gated factory, integrated review and signed qualification remain.
+
+Verification for this increment:
+
+- Focused Debug passed 60 declarations across six suites in 57.472 seconds.
+  Expanded Release passed 125 declarations across ten suites in 63.248 seconds,
+  including shared read/UX, reconciliation, merge, catch-up and ordinary mutation
+  boundaries. Seven new declarations exercise 18 cases. The initial Debug build
+  caught a throwing expression inside a test macro; correcting its `try` placement
+  required no production change. The full suite was not repeated; the preceding
+  unlock increment records the applicable full Release baseline.
+- Unsigned universal Preview build, bundle isolation, compiled version
+  `0.2.0 (19)` and arm64/x86_64 app, CLI and helper slices passed. Strict formatting
+  of the edited two-space files, project plist syntax, 330 relative documentation
+  targets and diff whitespace passed. Existing four-space shared files retain
+  their baseline formatting. Routing-test Sendable and AppIntents metadata
+  warnings remain unchanged.
+- No install, signing, release, push, user-vault access or physical token operation.
+  Logs remain ignored under `tmp/piv-recovery/2026-10-07-recovery-conflict-read-*`;
+  build products reuse `tmp/piv-recovery/registration-status-build`.
+
+### 2026-10-07: exact pending authentication and ordinary-save routing
+
+The unlock runtime now returns a separate pending context, selected only by one
+bounded device-local ownership record. Its exact bytes, checkpoint and session
+ticket remain guarded; other ownership namespaces must stay empty. It cannot be
+used by an ordinary reader. Relaxing the routine no-pending guard was considered
+and rejected because it would let read admission bypass unfinished publication.
+The typed context confines that exception to reconciliation.
+
+The runtime now routes ordinary interrupted saves through the existing
+content/merge recovery kernel, then continues normal unlock/catch-up with the same
+session receipt. It does not scan provider intents, create replacement work,
+reopen historical keys or retry authentication. Registration/adoption still need
+explicit product routes; authority-changing transaction recovery is not routed
+through the content validator.
+
+Focused Debug passed 54 declarations across three suites in 63.934 seconds.
+Five new declarations exercise 23 cases: exact namespaces, malformed/ambiguous
+selection, late state changes, cancelled admission, and real interrupted saves
+at four publication phases with warm/cold sessions. No production guard was
+relaxed for a pass. This increment has not separately repeated Release or the
+product build; the integration checkpoint will run those on the combined source.
+Logs are ignored under `tmp/piv-recovery/2026-10-07-pending-runtime-debug.log`.
+No native operation, user-vault access, installation or push occurred.
+
+### 2026-10-07: configured registration protocol and host admission
+
+Configured setup now has public-only status, prepare, export-resume, finish and
+explicit adoption/resume requests. The default host still refuses them without
+an installed capability. Enabled requests share the existing bounded connection
+scope and exclusive host barrier, rather than a second setup queue. A
+checkpoint-changing attempt locks any composed runtime and requires restart even
+if its result is uncertain. Lock/disconnect cancellation rejects late success.
+The service protocol carries no native observation, private key or credential.
+
+Focused Debug passed 35 declarations across three suites in 10.904 seconds.
+Six new routing declarations exercise 28 cases, including protocol round trips,
+full-CLI-only access, invalid/disabled/unconfigured admission, ambiguous changes
+and disconnect. CLI syntax, concrete configured workflow and live gating remain
+the next increments. No native operation, installation or push occurred. Logs
+remain ignored under `tmp/piv-recovery/2026-10-07-registration-route-debug.log`.
+
+### 2026-10-07: registration CLI and public credential inspection
+
+The CLI now describes configured registration status, prepare/export,
+resume-export, finish and explicit adoption/resume. Preparation, finish and
+adoption require typed interactive confirmation; no PIN, management-key or
+force option exists. Public credential inspection returns the complete recipient
+ID and anchor occupancy before registration without private work. Export checks
+the bounded response and exact credential binding, then creates a new file only.
+Failure guidance preserves pending state and forbids replacement preparation.
+
+Focused Debug passed 101 declarations across five suites in 30.376 seconds.
+Six new declarations exercise 12 cases plus parser rejection loops. A first run
+caught a base-directory URL ambiguity: exports could resolve one folder too
+high when an injected directory URL lacked a trailing slash. Normalizing the
+directory base fixed it; exact-byte, existing-file and symlink cases now pass.
+The public fixture file from that failed run was moved to ignored temp evidence.
+No existing file was overwritten. Concrete configured workflow and live gating
+remain next. Logs are ignored under `tmp/piv-recovery/2026-10-07-registration-cli-*`.
+
+### 2026-10-07: concrete configured setup composition
+
+The [configured workflow](../Sources/KeyCore/KeyRecoveryRegistrationWorkflow.swift)
+authenticates the exact local checkpoint and routes explicit registration and
+adoption through their existing services. A per-request session is discarded on
+exit; no key or native observation crosses the protocol. Pending setup uses the
+separate exact-ownership context. The services and scoped Mac identity check the
+host's cancellation/generation/deadline before further private work or state
+guards. Status has no token dependency. Format parsing chooses a profile, not
+provider authority; its normal unlock service still authenticates the floor.
+
+Keeping setup in a host-barrier workflow was compared with adding it to each
+ordinary runtime. The host already owns configured selection, bounded connection
+lifetime and restart; the domain services own exact resume and publication.
+Reusing those boundaries avoids another queue or publication implementation.
+Out-of-band lock now also locks a composed ordinary runtime during configured
+setup; the former restore-only shortcut could otherwise leave that key resident.
+
+Focused Debug passed 86 declarations across four suites in 27.037 seconds.
+Five new declarations exercise seven cases: actual prepare/export-resume,
+simulated external import, one software-provider possession operation, status,
+ordinary reopening, cancellation during Mac opening, wrong recipient, explicit
+adoption/resume and configured lock. Compilation corrections used the existing
+HPKE types and recipient-ID derivation; no guard was relaxed. Hardware/provider
+calls remain scripted; native policy and signed qualification are unverified.
+The Xcode source list includes the workflow. Live factory/gating is next; logs
+remain ignored under `tmp/piv-recovery/2026-10-07-registration-workflow-*`.
+
+### 2026-10-07: gated native factories and configured profile dispatch
+
+An explicit Preview-only bundle flag now installs review, configured setup and
+restore capabilities. Neither shipping plist contains it; Stable also refuses
+the flag if supplied. Ordinary profile-3 commands compose their dedicated runtime
+from the exact local checkpoint, not permanent-profile lifecycle services or a
+provider-selected head. Format dispatch checks bounded bytes and digest binding;
+normal unlock still establishes authentication. Configured setup rechecks the
+original root identity and selection before/after private calls and at service
+state guards. Cross-queue checks create a fresh filesystem reader rather than
+declaring the existing FileManager-bearing config store unchecked Sendable.
+
+Focused Debug passed 86 declarations across five suites in 3.993 seconds. New
+cases cover the default-off/Stable gate, invalid exact checkpoint binding and
+selection changes during Mac opening, with no new token request or activation.
+Compiler checks caught the non-Sendable config reader; the fresh-reader closure
+resolved it without relaxing concurrency checking. Initial test expectations
+were corrected to use existing unlock error mapping and prior public-read counts.
+Logs remain ignored under `tmp/piv-recovery/2026-10-07-gated-factory-*`.
+Combined Release and universal product verification are still pending. No native
+private operation, installation, shipping flag change or push occurred. A narrow
+token-free rotation route remains before the signed vertical-slice test.
+
+### 2026-10-07: token-free configured rotation and saved-operation discovery
+
+`recovery rotate` now uses the existing unchanged-roster rotation service, not
+registration semantics or token operations. Its separate public request carries
+only an optional exact original operation ID. The configured host shares its
+exclusive admission and retires the old runtime even after ambiguous failure.
+The service and transaction validator retain connection, location, generation
+and deadline checks through publication. Resume pins the original anchor at
+service admission, rather than selecting replacement work after authentication.
+Successful key installation may change the temporary local session generation;
+the independent host scope remains exact until the reply.
+
+`recovery pending` reads at most three bounded device-local anchors and prints
+their original operation IDs without private authentication or provider scans.
+It remains available when the checkpoint cannot be read. These public selectors
+are not validated intents, readiness or approval. Missing/malformed intents and
+ambiguous ownership remain preserved for inspection, not forced cleanup.
+
+Sharing configured admission was compared with adding rotation to the permanent
+profile sharing services. Separate requests plus the established rotation domain
+service keep format-specific authority checks and token exclusion explicit. The
+pending-selector command closes a practical interruption gap: an operation ID
+must be discoverable even when the initial reply was lost.
+
+Focused Debug passed 117 declarations across six suites in 8.962 seconds. The
+configured test performs registration, ordinary edits, token-free rotation,
+cold reopening and complete snapshot recovery with one software agreement. New
+cases exercise exact uncommitted/committed resume, wrong operation IDs, native
+wrapper cancellation, cancellation before/after checkpoint commitment, host
+retirement, disconnected late replies, CLI consent and public pending discovery.
+One fixture compile correction supplied the existing token exclusion gate.
+No token inventory or private operation occurs in rotation fixtures. Combined
+Release/build checks and signed native prompt qualification remain next. Logs
+are ignored under `tmp/piv-recovery/2026-10-07-rotation-route-*` and
+`tmp/piv-recovery/2026-10-07-configured-recovery-debug-final.log`.
+
+#### Review and signed-test handoff
+
+1. Review the configured host/runtime dispatch, exact pending ownership and
+   completion/restart semantics against the contract. Broader profile-3 device
+   enrollment/revocation/replacement and recipient-removal product routes remain
+   separate lifecycle acceptance work; permanent-profile services are refused.
+2. Produce an explicitly enabled, signed Preview release-configuration candidate
+   with `KeyExperimentalRecoveryEnabled` set to a plist boolean in its relevant
+   bundles before signing. Shipping plists are unchanged. Record exact hashes,
+   identity and namespace isolation before installing; do not alter the real
+   vault, installed product or hardware under implementation-test authorization.
+3. On disposable data, use ordinary init plus explicit recovery adoption, public
+   credential inspection, prepare/export, separate owner-run vendor import of
+   the exact public anchor, then finish. Key has no token writer. Secure external
+   administration independently; no PIN/PUK/management credential enters CLI/XPC.
+4. Remove the token. Edit, rotate and reopen through ordinary product commands.
+   Copy the complete source vault to an unconfigured second Mac. Restore with
+   one approved token operation, remove it, then read/edit/lock/reopen normally.
+   Do not transfer the original Mac identity or local preparation records.
+5. Exercise explicit interruption/resume and record observed prompt counts,
+   cancellation and unchanged unrelated state. Do not infer PIN/touch policy
+   enforcement from software fixtures. Missing files/provider freshness remain
+   the user's delivery responsibility.
+
+Reaching this handoff is not completion of `REC-813` through `REC-815`, nor
+authorization to publish or enable real-vault recovery.
+
+### 2026-10-07: combined integration verification and review checkpoint
+
+The six implementation increments above are locally committed. Configured
+registration/adoption, exact pending selectors, token-free rotation, restore
+dispatch and ordinary profile-3 composition are ready for implementation review
+and disposable signed-product testing. This is the requested integration
+checkpoint, not completion of the full recovery roadmap.
+
+- Full `swift test -c release --no-parallel` passed: 1,748 KeyCore tests across
+  140 suites in 439.210 seconds, plus six canonical-JSON tests. The existing
+  opt-in large mixed migration test was skipped. An initial unconstrained full
+  run failed with 70 timing issues in eight concurrency suites. Those exact
+  suites and the whole source passed serialized, consistent with test-runner
+  scheduling contention. No tests, production deadlines or guards were relaxed.
+  Unconstrained runner timing sensitivity remains visible, not a clean first-run
+  result. Both logs remain ignored under
+  `tmp/piv-recovery/2026-10-07-configured-recovery-full-release*`.
+- Unsigned universal `PreviewRelease` build passed. Bundle isolation and compiled
+  CLI version `0.2.0 (19)` passed; app, CLI and helper each contain arm64/x86_64
+  slices. Produced app/helper plists report Preview identity and contain no
+  experimental recovery flag. Only version/help were executed, not the app,
+  helper or recovery commands. AppIntents metadata-extraction warnings remain.
+  Build log and products stay ignored under `tmp/piv-recovery`.
+- Strict formatting of the edited two-space files, project plist syntax,
+  331 relative documentation targets and diff whitespace passed. Existing
+  four-space shared files retain their baseline formatting. The contract now
+  distinguishes implemented gated commands from remaining lifecycle integration.
+
+No physical token operation, installed-product change, signing, notarization,
+release, real-vault adoption or push occurred. Default builds remain gated off.
+The next work is the review/signed-test handoff above; independent backup-token,
+broader device/recipient lifecycle and final OS/provider/release acceptance stay
+open. The raw runner output is not committed.
