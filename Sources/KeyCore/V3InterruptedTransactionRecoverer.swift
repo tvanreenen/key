@@ -92,7 +92,8 @@ struct V3InterruptedTransactionRecoverer: Sendable {
                   canonicalBytes: intentData
               ),
               intent.operationID == anchor.operationID,
-              intent.vaultID == vaultID
+              intent.vaultID == vaultID,
+              intent.recoveryMergeResolutions == nil
         else {
             throw V3ImmutableTransactionRecoveryError.invalidIntent(
                 operationID: anchor.operationID.rawValue

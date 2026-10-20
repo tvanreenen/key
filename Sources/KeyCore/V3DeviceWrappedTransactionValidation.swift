@@ -232,74 +232,9 @@ struct V3DeviceWrappedTransactionValidator: Sendable {
             throw V3ImmutableTransactionError.invalidAncestryProof
         }
 
-        let parentByID = Dictionary(
-            uniqueKeysWithValues: parent.body.entries.map {
-                ($0.entryID, $0)
-            }
+        try V3EntryMutationPolicy().validate(
+            from: parent.body.entries, to: candidate.body.entries, kind: kind
         )
-        let candidateByID = Dictionary(
-            uniqueKeysWithValues: candidate.body.entries.map {
-                ($0.entryID, $0)
-            }
-        )
-        let added = candidate.body.entries.filter {
-            parentByID[$0.entryID] == nil
-        }
-        let removed = parent.body.entries.filter {
-            candidateByID[$0.entryID] == nil
-        }
-        let updated: [(old: V3ManifestEntry, new: V3ManifestEntry)] =
-            candidate.body.entries.compactMap { entry in
-            guard let old = parentByID[entry.entryID], old != entry else {
-                return nil
-            }
-            return (old: old, new: entry)
-        }
-        guard added.allSatisfy({ $0.revision == 1 }),
-              updated.allSatisfy({ change in
-                  change.old.revision < v3MaximumSafeInteger
-                      && change.new.revision == change.old.revision + 1
-              })
-        else {
-            throw V3ImmutableTransactionError.invalidAncestryProof
-        }
-
-        let permitted: Bool
-        switch kind {
-        case .addEntry:
-            permitted = added.count == 1
-                && removed.isEmpty
-                && updated.isEmpty
-        case .editEntry:
-            permitted = added.isEmpty
-                && removed.isEmpty
-                && updated.count == 1
-                && updated[0].old.name == updated[0].new.name
-        case .copyEntry:
-            permitted = added.count == 1
-                && updated.isEmpty
-                && removed.count <= 1
-                && (removed.first?.name == added[0].name
-                    || removed.isEmpty)
-        case .moveEntry:
-            permitted = added.isEmpty
-                && updated.count == 1
-                && removed.count <= 1
-                && updated[0].old.name != updated[0].new.name
-                && updated[0].old.type == updated[0].new.type
-                && (removed.first?.name == updated[0].new.name
-                    || removed.isEmpty)
-        case .removeEntry:
-            permitted = added.isEmpty
-                && updated.isEmpty
-                && removed.count == 1
-        case .resolveConflict, .mergeHeads, .migrateToV3, .enrollDevice,
-            .revokeDevice, .registerRecoveryRecipient, .adoptRecoveryProfile, .catchUpVault, .recoverInterruptedTransaction:
-            permitted = false
-        }
-        guard permitted else {
-            throw V3ImmutableTransactionError.invalidAncestryProof
-        }
     }
 
     private func changedCandidateEntries(
