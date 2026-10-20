@@ -416,6 +416,47 @@ struct V3RecoveryContentMutationPublisherTests {
       snapshot.entries.map(\.plaintext) == ["updated\n密碼", "updated\n密碼", "JBSWY3DPEHPK3PXP"])
   }
 
+  @Test(arguments: [false, true])
+  func savesRefuseBeforeExceedingAnOlderRecoveryFloor(references: Bool) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let limits = V3ManifestRepositoryLimits(
+      maximumManifestObjects: 32, maximumHistoryDepth: references ? 10 : 2,
+      maximumReferencedEntryObjects: references ? 5 : 32)
+    let first = try f.build(.edit(name: "fixture/secret", type: .secret, plaintext: "first"))
+    let entries = try V3RecoveryContentMutationValidator().validate(
+      first, parent: f.parent, currentEntries: f.entries, vaultKey: Core.nextKey)
+    let saved = try f.publisher(limits: limits).publish(first, vaultKey: Core.nextKey)
+    let second = try V3RecoveryContentMutationBuilder().build(
+      .edit(name: "fixture/secret", type: .secret, plaintext: "second"),
+      checkpoint: saved.checkpoint, parent: saved.envelope, currentEntries: entries,
+      vaultKey: Core.nextKey)
+    #expect(throws: V3RecoveryValidationError.resourceLimit) {
+      try f.publisher(limits: limits, owner: VaultTransactionMutationOwner()).publish(
+        second, vaultKey: Core.nextKey)
+    }
+    #expect(f.checkpoints.value == saved.checkpoint.canonicalBytes && f.ownership.value == nil)
+    #expect(!FileManager.default.fileExists(atPath: f.manifestURL(second.envelope.digest).path))
+    for entry in second.stagedEntries {
+      #expect(!FileManager.default.fileExists(atPath: f.entryURL(entry).path))
+    }
+    // Both the original backup and the later primary can still select the
+    // last accepted save under the same bounds, without this Mac's checkpoint.
+    let backup = try #require(f.core.parent.body.recovery.recipients.first)
+    let backupAnchor = try V3RecoveryAnchor(
+      floor: .init(vaultID: Core.vaultID, envelopeDigest: f.core.parent.digest),
+      recipientID: backup.recipientID, registrationID: backup.registrationID, slot: backup.slot)
+    for (anchor, publicKey) in [
+      (backupAnchor, f.core.backupToken.publicKey.x963Representation),
+      (f.anchor, f.core.token.publicKey.x963Representation),
+    ] {
+      let selection = try V3RecoveryHistorySelector(source: f.store, limits: limits).select(
+        anchor: anchor, credentialPublicKey: publicKey)
+      #expect(selection.head.digest == saved.envelope.digest)
+    }
+    #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
+  }
+
   private static func saveChain(root: URL) throws -> (
     V3RecoveryAnchor, P256.KeyAgreement.PrivateKey, Data
   ) {
@@ -518,8 +559,8 @@ struct V3RecoveryContentMutationPublisherTests {
     let registration = Ownership()
     let adoption = Ownership()
     let operationID = VaultTransactionOperationID()
-    init(root: URL? = nil) throws {
-      core = try Core.Fixture(backup: true)
+    init(root: URL? = nil, secretRevision: UInt64 = 4) throws {
+      core = try Core.Fixture(backup: true, secretRevision: secretRevision)
       let prepared = try core.prepare()
       parent = prepared.candidate
       checkpoint = try V3ManifestCheckpoint(vaultID: Core.vaultID, envelopeDigest: parent.digest)

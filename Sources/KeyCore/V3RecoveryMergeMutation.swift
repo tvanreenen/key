@@ -253,6 +253,13 @@ struct V3RecoveryMergeMutationValidator: Sendable {
     guard maximum < limits.maximumHistoryDepth else {
       throw V3RecoveryMergeMutationError.resourceLimit
     }
+    do {
+      try V3RecoveryPublicationBudget.require(
+        candidate.envelope, manifestBytes: observed.observedManifestBytes,
+        objectCount: observed.listedObjectCount + required, limits: limits)
+    } catch V3RecoveryValidationError.resourceLimit {
+      throw V3RecoveryMergeMutationError.resourceLimit
+    }
   }
 
   private func depths(_ observed: V3RecoverySameEpochObservation) throws -> [Data: Int] {

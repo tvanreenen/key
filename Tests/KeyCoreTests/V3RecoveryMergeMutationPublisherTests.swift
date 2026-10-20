@@ -419,8 +419,11 @@ struct V3RecoveryMergeMutationPublisherTests {
       observed.entryObjects.values.reduce(0) { $0 + $1.canonicalBytes.count }
       + candidate.stagedEntries.reduce(0) { $0 + $1.canonicalBytes.count }
     let limits = V3ManifestRepositoryLimits(
-      maximumManifestObjects: observed.listedObjectCount + 1, maximumHistoryDepth: 2,
-      maximumReferencedEntryObjects: observed.entryObjects.count + candidate.stagedEntries.count,
+      maximumManifestObjects: observed.listedObjectCount + 1, maximumHistoryDepth: 3,
+      // Include the continuing backup's pre-registration snapshot references;
+      // their ciphertext is not needed for current-snapshot publication.
+      maximumReferencedEntryObjects: observed.entryObjects.count + candidate.stagedEntries.count
+        + f.core.entries.count,
       maximumManifestBytes: (Array(observed.observedManifestBytes.values) + [
         candidate.envelope.canonicalBytes
       ])
@@ -450,8 +453,9 @@ struct V3RecoveryMergeMutationPublisherTests {
     let observed = try observation(f)
     let limits = V3ManifestRepositoryLimits(
       maximumManifestObjects: observed.listedObjectCount + (variant == 0 ? 0 : 1),
-      maximumHistoryDepth: variant == 1 ? 1 : 2,
-      maximumReferencedEntryObjects: observed.entryObjects.count + (variant == 2 ? 0 : 1),
+      maximumHistoryDepth: variant == 1 ? 2 : 3,
+      maximumReferencedEntryObjects: observed.entryObjects.count + candidate.stagedEntries.count
+        + f.core.entries.count - (variant == 2 ? 1 : 0),
       maximumManifestBytes: candidate.envelope.canonicalBytes.count,
       maximumTotalManifestBytes: observed.observedManifestBytes.values.reduce(0) { $0 + $1.count }
         + candidate.envelope.canonicalBytes.count - (variant == 3 ? 1 : 0))
@@ -524,6 +528,27 @@ struct V3RecoveryMergeMutationPublisherTests {
         .publish(candidate, vaultKey: Core.nextKey)
     }
     #expect(f.checkpoints.value == f.checkpoint.canonicalBytes && f.ownership.value != nil)
+  }
+
+  @Test(arguments: [false, true])
+  func mergesPreserveTheOlderRecoveryFloorBudget(automatic: Bool) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let candidate = try candidate(f, automatic: automatic)
+    // Two edges from the local checkpoint, but three from the continuing
+    // backup's floor. Local-checkpoint accounting alone admits this merge.
+    let limits = V3ManifestRepositoryLimits(maximumManifestObjects: 32, maximumHistoryDepth: 2)
+    let observed = try observation(f)
+    #expect(throws: V3RecoveryMergeMutationError.resourceLimit) {
+      try V3RecoveryMergeMutationValidator(limits: limits).validate(
+        candidate, observed: observed, vaultKey: Core.nextKey)
+    }
+    #expect(throws: V3RecoveryMergeMutationError.resourceLimit) {
+      try publisher(f, limits: limits).publish(candidate, vaultKey: Core.nextKey)
+    }
+    #expect(f.checkpoints.value == f.checkpoint.canonicalBytes && f.ownership.value == nil)
+    #expect(!FileManager.default.fileExists(atPath: f.manifestURL(candidate.envelope.digest).path))
+    #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
   }
 
   private func candidate(_ f: Fixture, automatic: Bool) throws -> V3RecoveryMergeMutationCandidate {

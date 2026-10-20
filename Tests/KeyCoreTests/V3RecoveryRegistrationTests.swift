@@ -1016,7 +1016,7 @@ struct V3RecoveryRegistrationTests {
     let entries: [V3EntryObjectKey: V3EncryptedEntry]
     var credential: PIVRecoveryKeyMetadata { metadata() }
 
-    init(empty: Bool = false, backup: Bool = false) throws {
+    init(empty: Bool = false, backup: Bool = false, secretRevision: UInt64 = 4) throws {
       owner = try Owner()
       let keyID = try V3VaultKeyID.derive(
         vaultKey: V3RecoveryRegistrationTests.oldKey, vaultID: V3RecoveryRegistrationTests.vaultID)
@@ -1029,7 +1029,7 @@ struct V3RecoveryRegistrationTests {
             context: V3EntryAuthenticationContext(
               vaultID: V3RecoveryRegistrationTests.vaultID,
               entryID: V3RecoveryRegistrationTests.entryID,
-              name: "fixture/secret", type: .secret, keyID: keyID, revision: 4),
+              name: "fixture/secret", type: .secret, keyID: keyID, revision: secretRevision),
             vaultKey: V3RecoveryRegistrationTests.oldKey),
           V3EntryCipher().seal(
             "JBSWY3DPEHPK3PXP",

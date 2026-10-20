@@ -422,7 +422,7 @@ struct V3RecoveryMergeMutationTests {
       }
     }
     let exact = V3ManifestRepositoryLimits(
-      maximumManifestObjects: observed.listedObjectCount + 1, maximumHistoryDepth: 2)
+      maximumManifestObjects: observed.listedObjectCount + 1, maximumHistoryDepth: 3)
     _ = try V3RecoveryMergeMutationBuilder(limits: exact).buildAutomatic(
       from: observed, vaultKey: Core.nextKey)
   }
@@ -447,48 +447,15 @@ struct V3RecoveryMergeMutationTests {
 
   @Test(arguments: [false, true])
   func theMaximumRevisionRefusesResealingButStillPermitsAnExplicitDeletion(delete: Bool) throws {
-    let f = try Fixture()
+    // Start the synthetic vault near the bound, rather than inventing an
+    // invalid revision jump in history before the tested branch publications.
+    let f = try Fixture(secretRevision: v3MaximumSafeInteger - 1)
     defer { f.remove() }
-    // A test-only already-trusted floor near the counter bound. No history
-    // advancement or production checkpoint mutation is claimed by this seed.
-    let secret = try #require(f.entries.values.first { $0.context.name == "fixture/secret" })
-    let fields = f.parent.body.fields
-    let high = try V3EntryCipher().seal(
-      "near maximum",
-      context: V3EntryAuthenticationContext(
-        vaultID: fields.vaultID, entryID: secret.context.entryID,
-        name: secret.context.name, type: .secret, keyID: fields.keyID,
-        revision: v3MaximumSafeInteger - 1),
-      vaultKey: Core.nextKey)
-    let body = try V3RecoveryManifestBody(
-      fields: V3DeviceWrappedManifestFields(
-        vaultID: fields.vaultID, keyID: fields.keyID,
-        authorityTransitionID: fields.authorityTransitionID, devices: fields.devices,
-        wrappedKeys: fields.wrappedKeys,
-        entries: fields.entries.map {
-          $0.entryID == secret.context.entryID
-            ? V3ResealedEntry(encryptedEntry: high).manifestEntry : $0
-        }),
-      epochSigningKey: f.parent.body.epochSigningKey,
-      transitionProof: f.parent.body.transitionProof,
-      recovery: f.parent.body.recovery)
-    let envelope = try V3RecoveryEpochBoundary().encode(
-      body: body, parents: [f.parent.digest], vaultKey: Core.nextKey, authorizations: [])
-    try f.seed(envelope, entries: [high])
-    let floor = V3RecoveryContentCommit(
-      checkpoint: try V3ManifestCheckpoint(vaultID: Core.vaultID, envelopeDigest: envelope.digest),
-      envelope: envelope)
-    var entries = f.entries.filter { $0.key.entryID != secret.context.entryID }
-    entries[
-      try V3RecoveryMergeMutationValidator.address(
-        V3ResealedEntry(encryptedEntry: high).manifestEntry)] = high
     let a = try branches.publishBranch(
-      f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "maximum")],
-      from: floor, entries: entries)
+      f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "maximum")])
     let b = try branches.publishBranch(
-      f, requests: [.remove(name: "fixture/secret")], from: floor, entries: entries)
-    let observed = try V3RecoverySameEpochRepositoryObserver(source: f.store).observe(
-      from: floor, vaultKey: Core.nextKey)
+      f, requests: [.remove(name: "fixture/secret")])
+    let observed = try observation(f)
     let choices = try choose(observed, head: delete ? b.envelope.digest : a.envelope.digest)
     if delete {
       let candidate = try V3RecoveryMergeMutationBuilder().buildResolution(
