@@ -81,9 +81,11 @@ public final class KeyServiceHost {
         _ request: KeyServiceRequest, connection: KeyServiceConnection? = nil
     ) -> KeyServiceResponse {
         if request == .lock, cancelRecoveryRequests() {
-            // Active recovery was admitted only with no configured handler.
-            // Cancel before the exclusive queue, even if native UI has not
-            // drained. Its scope blocks all later authority transitions.
+            // Public review may be draining ahead of a queued setup barrier.
+            // Lock the resident runtime without joining that queue, even when
+            // the cancelled scope never entered an exclusive recovery request.
+            let resolved = compositionLock.withLock { handler }
+            if let resolved { _ = resolved(.lock) }
             return .success()
         }
         if case let .recovery(action) = request {
@@ -281,7 +283,7 @@ public final class KeyServiceHost {
     private func cancelRecoveryRequests() -> Bool {
         let state = recoveryLock.withLock {
             recoveryAuthentication.invalidate()
-            return (activeRecovery != nil, recoveryRequest)
+            return (activeRecovery != nil || recoveryRequest != nil, recoveryRequest)
         }
         state.1?.cancellation.cancel()
         return state.0
