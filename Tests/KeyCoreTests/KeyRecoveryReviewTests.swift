@@ -318,6 +318,62 @@ struct KeyRecoveryReviewTests {
   }
 
   @Test(arguments: [false, true])
+  func lockDoesNotWaitForASetupBarrierBehindPublicReview(initialization: Bool) {
+    let started = DispatchSemaphore(value: 0)
+    let release = DispatchSemaphore(value: 0)
+    let reviewDone = DispatchSemaphore(value: 0)
+    let barrierCalling = DispatchSemaphore(value: 0)
+    let barrierDone = DispatchSemaphore(value: 0)
+    let cancelled = DispatchSemaphore(value: 0)
+    let lockDone = DispatchSemaphore(value: 0)
+    let state = State()
+    let host = KeyServiceHost(
+      hasConfiguration: { true },
+      makeHandler: {
+        { request in
+          if request == .lock { state.locks.increment() }
+          return .success()
+        }
+      }, initialize: { _ in "Unused" },
+      reviewRecovery: { _, scope in
+        let hook = scope.cancellation.register { cancelled.signal() }
+        defer { scope.cancellation.remove(hook) }
+        started.signal()
+        guard release.wait(timeout: .now() + 5) == .success else { throw Stop.unexpected }
+        return .init(exitCode: 0, value: nil, errorMessage: nil, recoveryReview: .tokens([]))
+      })
+    let box = HostBox(host)
+    #expect(host.handle(.list).exitCode == EXIT_SUCCESS)
+    DispatchQueue.global().async {
+      state.response = box.host.handle(.recoveryReview(.tokens))
+      reviewDone.signal()
+    }
+    defer { release.signal() }
+    #expect(started.wait(timeout: .now() + 5) == .success)
+    DispatchQueue.global().async {
+      barrierCalling.signal()
+      _ = box.host.handle(
+        initialization ? .initializeVault(path: "/unused") : .setVaultDirectory(path: "/unused"))
+      barrierDone.signal()
+    }
+    #expect(barrierCalling.wait(timeout: .now() + 5) == .success)
+    #expect(barrierDone.wait(timeout: .now() + .milliseconds(100)) == .timedOut)
+    DispatchQueue.global().async {
+      #expect(box.host.handle(.lock).exitCode == EXIT_SUCCESS)
+      lockDone.signal()
+    }
+    #expect(cancelled.wait(timeout: .now() + 5) == .success)
+    let locked = lockDone.wait(timeout: .now() + 1) == .success
+    #expect(locked)
+    #expect(state.locks.value == 1)
+    release.signal()
+    #expect(reviewDone.wait(timeout: .now() + 5) == .success)
+    #expect(barrierDone.wait(timeout: .now() + 5) == .success)
+    if !locked { #expect(lockDone.wait(timeout: .now() + 5) == .success) }
+    #expect(state.response?.exitCode != EXIT_SUCCESS && state.response?.recoveryReview == nil)
+  }
+
+  @Test(arguments: [false, true])
   func lockOrConnectionCancellationDiscardsLateReviewAndLockStillLocksConfiguredRuntime(
     disconnect: Bool
   ) {
@@ -369,7 +425,7 @@ struct KeyRecoveryReviewTests {
       #expect(state.scope?.cancellation.isCancelled == false)
       connection.invalidate()
     } else {
-      #expect(host.handle(.lock) == .success("Ordinary"))
+      #expect(host.handle(.lock).exitCode == EXIT_SUCCESS)
       #expect(state.locks.value == 1)
     }
     release.signal()
