@@ -208,6 +208,86 @@ public struct KeyConfigStore {
         try VaultRootDirectoryHandle(opening: configurationPaths().configDirectoryURL)
     }
 
+    /// Explicit initial restore may create local scaffolding, never a vault,
+    /// config selection, ownership record or credential. Resume opens only the
+    /// existing roots. All creation is bounded and relative to retained parents.
+    func restoreMetadataRoots(
+        source: VaultRootDirectoryHandle, parent: VaultRootDirectoryHandle, name: String,
+        create: Bool, validateScope: () throws -> Void
+    ) throws -> (configuration: VaultRootDirectoryHandle, cache: VaultRootDirectoryHandle) {
+        guard !name.isEmpty, name != ".", name != "..", !name.contains("/"), !name.utf8.contains(0) else {
+            throw V3RecoveryRestoreError.invalidIntent
+        }
+        func recheck() throws {
+            try validateScope()
+            try source.requireConfiguredRootIdentity()
+            try parent.requireConfiguredRootIdentity()
+            if create { try requireUnconfigured() }
+        }
+        try recheck()
+        let root: VaultRootDirectoryHandle
+        if create {
+            var current = try VaultRootDirectoryHandle(opening: homeDirectoryURL)
+            for component in ["Library", "Application Support", productIdentity.applicationSupportDirectoryName] {
+                try recheck()
+                guard try !V3RecoveryRestoreEnvironment.contains(source, current),
+                      !(current.identity == parent.identity && component.caseInsensitiveCompare(name) == .orderedSame)
+                else { throw V3RecoveryRestoreError.overlappingDirectories }
+                current = try restoreMetadataDirectory(in: current, name: component, create: true, validateScope: recheck)
+            }
+            root = current
+        } else {
+            root = try restoreCompletionRoot()
+        }
+        try recheck()
+        guard try !V3RecoveryRestoreEnvironment.contains(source, root),
+              try !V3RecoveryRestoreEnvironment.contains(root, source),
+              try !V3RecoveryRestoreEnvironment.contains(root, parent)
+        else { throw V3RecoveryRestoreError.overlappingDirectories }
+        let cache = try restoreMetadataDirectory(
+            in: root, name: "v3-checkpoint-manifests", create: create, validateScope: recheck)
+        try recheck()
+        try root.requireConfiguredRootIdentity()
+        try cache.requireConfiguredRootIdentity()
+        return (root, cache)
+    }
+
+    private func restoreMetadataDirectory(
+        in parent: VaultRootDirectoryHandle, name: String, create: Bool,
+        validateScope: () throws -> Void
+    ) throws -> VaultRootDirectoryHandle {
+        // Product identity is supplied by composition, not a path from a record.
+        guard !name.isEmpty, name != ".", name != "..", !name.contains("/"), !name.utf8.contains(0) else {
+            throw AppError.invalidConfiguration("Invalid local recovery directory name.")
+        }
+        try validateScope()
+        if create {
+            try parent.withFileDescriptor { descriptor in
+                try validateScope()
+                if mkdirat(descriptor, name, mode_t(0o700)) == 0 {
+                    guard fsync(descriptor) == 0 else {
+                        throw AppError.io("Could not synchronize local recovery scaffolding. Leave it intact for inspection.")
+                    }
+                } else if errno != EEXIST {
+                    throw AppError.io("Could not prepare local recovery scaffolding (POSIX error \(errno)).")
+                }
+            }
+        }
+        let child = try VaultRootDirectoryHandle(
+            opening: parent.rootURL.appendingPathComponent(name, isDirectory: true))
+        try parent.withResolvedDescriptor(at: name, expecting: .directory) { descriptor in
+            var metadata = stat()
+            guard fstat(descriptor.rawValue, &metadata) == 0,
+                  child.identity == VaultRootDirectoryIdentity(
+                    deviceID: UInt64(metadata.st_dev), fileID: UInt64(metadata.st_ino))
+            else { throw V3RecoveryRestoreError.locationChanged }
+        }
+        try validateScope()
+        try parent.requireConfiguredRootIdentity()
+        try child.requireConfiguredRootIdentity()
+        return child
+    }
+
     func restoredVaultConfigurationData(root: URL, vaultID: String) throws -> Data {
         guard isValidV3UUID(vaultID) else {
             throw AppError.invalidConfiguration("Key cannot configure a vault with an invalid ID.")

@@ -9,7 +9,8 @@ struct UserFacingHelpTests {
         "config get", "config set", "config list",
         "conflict list", "conflict show", "conflict get", "conflict copy", "conflict resolve",
         "share devices", "share invite", "share invitations", "share join", "share requests",
-        "share compare", "share approve", "share accept", "share revoke"
+        "share compare", "share approve", "share accept", "share revoke",
+        "recovery", "recovery tokens", "recovery review", "recovery restore", "recovery resume"
     ])
     func helpDoesNotContactTheServiceOrCreateConfiguration(topic: String) throws {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
