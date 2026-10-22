@@ -4,14 +4,15 @@ Prepared 2026-10-22 for `REC-812`. This is a test plan, not passing hardware
 evidence. Use disposable data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Current replacement candidate: prepared, not installed
+## Current replacement candidate: installed; credential preflight incomplete
 
 Source: `db69f44fcb9816127e5cd0df3db18169ca5d55df`, including the Preview-only
 smart-card permission fix. A fresh universal `PreviewRelease` archive was built
 from this clean commit. A separate copy has Boolean recovery gates enabled in
 app/helper; source shipping plists and the base archive still omit the gates.
 Version/build remains `0.2.0 (19)`, so use the hashes below rather than version
-alone. Neither Mac's installed app was replaced by this preparation.
+alone. Preparation did not install it; the subsequently approved installation
+and native results are recorded below.
 
 Apple submission `06805524-85b9-4b43-b042-d8d6213bfdaa` accepted
 `Key-Preview-recovery-db69f44-local.zip` with no issues. Its report matches the
@@ -30,10 +31,44 @@ pass. The app/CLI/helper each contain arm64 and x86_64; both helper slices carry
 Boolean `com.apple.security.smartcard=true`. No app/helper was launched and no
 token operation was run.
 
-Replacement installation on both Macs and the subsequent read-only native
-preflight still require separate approval. This notarization does not qualify
+Replacement installation on both Macs and the bounded read-only native
+preflight were subsequently approved. This notarization does not qualify
 native token access, protected administration, recovery or the occupied prototype
 anchor. Previous preflight limits below still apply.
+
+### Replacement installation and public-read result, 2026-10-22
+
+The exact replacement is installed on both Macs, macOS `27.0.1 (26A434)`, arm64.
+The Air verified the transfer manifest and all seven payload hashes before
+installation. Both Macs verified installed executable hashes, Boolean gates,
+signatures/entitlements, ticket and Gatekeeper. Fresh helper registration and
+actual running helper path/hash checks passed. One ordinary status request per
+Mac returned the expected unconfigured error. Preview configs remain absent;
+no further config/cache reset was needed. Stable app all-file/config hashes
+are unchanged. Prior apps are recoverably preserved:
+
+- Mini: `tmp/piv-recovery/qualification-2026-10-22-db69f44/mini-install/Previous Key Preview.app`.
+- Air: `~/Downloads/Key-Preview-db69f44-Air-20261022T151031Z/backup-before-install/Key Preview.app`.
+
+The single public inventory on the Air returned exit zero with no candidates.
+The Mini's inventory returned exit zero with one Yubico candidate, clearing the
+previous missing-permission failure. The explicitly selected Mini credential
+request then returned exit one, `PIVPublicObjectError.unexpectedStatus`, with no
+payload. The current diagnostic exposes neither the failed public-read stage
+nor the numeric status; the adapter can also map native errors to status zero.
+The cause remains unresolved. No retry or alternate token command followed.
+
+Product certificate/metadata binding, recipient identity and anchor occupancy
+remain unverified; an empty Air inventory is not credential success. No PIN or
+management authentication, private-key operation, token write or vault entry/
+authority operation was requested. Existing Keychain/pending ownership was not
+cleared or assessed. Next is scoped public-reader diagnostics/compatibility
+investigation before any registration or token administration. Native failure
+does not authorize changing the key or bypassing validation.
+
+Raw Mini evidence is in that candidate's `mini-install/` directory; the Air
+record is `piv-air-test/air-db69f44-install.json` in its chat's evidence folder.
+The original app/config backups and public prototype-anchor backup remain intact.
 
 ## Original candidate and permission boundaries
 

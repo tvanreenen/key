@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; Preview-only smart-card fix and regressions pass; exact gated replacement candidate notarized/stapled; replacement installation, native preflight and physical qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; notarized smart-card replacement installed/verified on both Macs; public inventory passes; Mini credential read stops with generic unexpectedStatus; native read diagnostics and physical qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -352,6 +352,33 @@ preflight, not recovery registration or token administration. The
 [acceptance checklist](piv-recovery-signed-test.md) identifies the replacement
 separately from the original installation history. No physical gate is passed
 by notarization.
+
+#### Replacement installed; public credential preflight incomplete, 2026-10-22
+
+The owner approved replacement installation on both Macs and public-only token
+preflight, excluding the actual vault and all token writes. Fresh preconditions
+confirmed the expected previous app and absent Preview config. The exact
+`db69f44` replacement was installed with verified old-app backups, no config/
+Keychain cleanup, refreshed Preview helper registration and matching running
+helper paths/hashes. Installed signatures, entitlements, gates, ticket and
+Gatekeeper passed. Stable app/config hashes are unchanged on both Macs, and
+ordinary status still reports no configured Preview vault.
+
+Public inventory passed: no candidate on the Air, one Yubico candidate on the
+Mini. The Mini's explicit public credential request stopped with
+`PIVPublicObjectError.unexpectedStatus` and no payload. No retry followed. The
+current diagnostic does not expose which read/status failed and can mask a
+native error as status zero; no cause or successful credential binding is
+established. No PIN/touch/private operation, token write, actual-vault entry/
+authority operation or state-changing recovery command was requested. Protected
+pending ownership remains unassessed and preserved.
+
+The [acceptance checklist](piv-recovery-signed-test.md) records the backup paths
+and partial result. Next is separately directed public-reader diagnostics and
+compatibility investigation, not key replacement/reset, anchor overwrite or
+registration. The earlier factory-default management key and occupied prototype
+anchor remain separate unresolved preconditions. No implementation source,
+installed Stable app, PR readiness, release or public push changed here.
 
 ## Architecture ownership
 
