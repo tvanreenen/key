@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; inventory passes; public-read diagnostic fix tested and exact diagnostic candidate notarized/stapled; installation and public-only observation remain before diagnosing the original native failure; physical qualification remains |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; diagnostic Preview installed on Mini; Air replacement verified/dispatched but final report unavailable after disconnect; Mini read isolated to slot9d metadata with CryptoTokenKit communication error and no card status; root cause and physical qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -410,8 +410,9 @@ remain. Logs stay ignored under
 `tmp/piv-recovery/public-read-diagnostics/`.
 
 No native token operation, vault operation, installed-app change, signing,
-notarization, push or release occurred. The installed candidate still lacks
-these diagnostics. Next is separately approved diagnostic-candidate preparation/
+notarization, push or release occurred at this software-only checkpoint.
+The installed candidate then lacked these diagnostics. Next was separately
+approved diagnostic-candidate preparation/
 installation and one public-only observation, not a protocol guess, key reset,
 PIN retry or anchor overwrite. Session-start/lifetime and malformed-object errors
 retain their existing guards; this increment does not claim native success.
@@ -435,14 +436,45 @@ Ticket, signing/entitlement, Gatekeeper and final ZIP round-trip checks pass;
 executable bytes match the submitted candidate. Version/build remains `0.2.0 (19)`.
 
 Raw evidence/artifacts are ignored under
-`tmp/piv-recovery/qualification-2026-10-22-036cfa9/`. The previous candidate is
-unchanged. Nothing was installed or launched; no token/vault operation, PR push,
+`tmp/piv-recovery/qualification-2026-10-22-036cfa9/`. The previous candidate was
+unchanged at this preparation checkpoint. Nothing was installed or launched;
+no token/vault operation, PR push,
 tag or public release occurred. The earlier 121 software tests apply to this
 unchanged source; packaging adds no native qualification. Next is separately
 approved installation and one public-only observation with the new diagnostic,
 not key administration or a guessed protocol change. The
 [acceptance checklist](piv-recovery-signed-test.md) identifies the new artifact
 separately from installed-build history.
+
+#### Diagnostic installation and bounded native result, 2026-10-22
+
+Owner-approved installation of the exact notarized `036cfa9` diagnostic candidate
+completed on the Mini. Installed file hashes, signatures/entitlements, Boolean
+gates, ticket and Gatekeeper passed. The previous app is recoverably backed up;
+running host/helper paths and hashes match the new candidate. One ordinary status
+returned the expected unconfigured error. Preview config remains absent; Stable
+app all-file/config hashes are unchanged. No reset or Keychain cleanup occurred.
+
+One public inventory found the same single token. One explicitly selected public
+credential request failed at `read-slot-9d-metadata`, with no reported card status
+and `CryptoTokenKit:-2`. The active SDK identifies that code as communication
+error. Inspected sequential code establishes that application selection and
+certificate parsing completed before this failure, not that the complete
+credential/policy binding passed. Recipient identity and anchor validation remain
+incomplete. The transport/provider or request-compatibility cause is unresolved.
+No retry, alternative probe, PIN/authentication, private operation, token write
+or actual-vault content/authority operation followed.
+
+The Air verified the exact transfer manifest/seven payloads and artifact trust
+checks, confirmed the prior installed candidate/config absence, and began the
+replacement. The host then became unreachable before the final report could be
+retrieved. Air completion and final preservation/inventory are unconfirmed.
+Retrieve its existing result on reconnection rather than blindly repeating work.
+
+Raw Mini evidence/backup stay ignored under the diagnostic candidate's
+`mini-install/`; sanitized results are in the
+[acceptance checklist](piv-recovery-signed-test.md). Next is metadata-read
+compatibility investigation, not key administration or recovery acceptance.
 
 ## Architecture ownership
 

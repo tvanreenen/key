@@ -4,7 +4,7 @@ Prepared 2026-10-22 for `REC-812`. This is a test plan, not passing hardware
 evidence. Use disposable data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Diagnostic candidate: prepared, not installed
+## Diagnostic candidate: installation and public-read results
 
 Source: `036cfa96bbd3f71dc2fa75d0470e6041f0f328bc`, including the public-read
 step/status/native-code diagnostic fix. A fresh signed universal `PreviewRelease`
@@ -24,12 +24,52 @@ The ticket, signatures, entitlement allowlists, Gatekeeper and final ZIP
 round-trip pass. Stapling changed no executable bytes; the original submission
 ZIP remains unchanged. Version/build is still `0.2.0 (19)`, not a unique selector.
 
-No installation, app/helper launch, token call or vault operation occurred.
-The installed build below is unchanged. A diagnostic-candidate installation
-and one public-only observation require separate approval; notarization does
-not resolve or qualify the original native failure.
+Preparation did not install or launch the candidate or call the token/vault.
+The subsequently approved installation and bounded public-read result follow.
+Notarization alone does not qualify native access or recovery.
 
-## Installed replacement: credential preflight incomplete
+### Diagnostic installation and Mini result, 2026-10-22
+
+The exact candidate is installed on the Mini, macOS `27.0.1 (26A434)`, arm64.
+Installed hashes, Boolean gates, signatures/entitlements, ticket and Gatekeeper
+pass. The previous app is backed up and file-compared; installed files match
+the extracted candidate. Fresh helper registration and the running helper's
+executable path/hash were verified. One status request returned the expected
+unconfigured error. Preview config remains absent and Stable app all-file/config
+hashes are unchanged. No config or Keychain reset occurred.
+
+One public inventory returned the same single Yubico candidate. One explicitly
+selected credential read then returned exit one, no payload, and:
+
+```text
+Public PIV read failed [step=read-slot-9d-metadata, status=not-reported, native=CryptoTokenKit:-2, reason=unexpected-status]. No automatic retry was attempted.
+```
+
+The active SDK's `TKError.h` identifies `-2` as `TKErrorCodeCommunicationError`.
+No card status was reported; this is not evidence of card rejection or a PIN
+failure. The sequential reader path establishes that application selection and
+certificate parsing completed before this metadata failure. Full policy/key
+binding, recipient identity and anchor validation remain incomplete. Transport/
+provider or request compatibility remains unresolved; no fallback or additional
+token probe followed. No PIN, management authentication, private operation,
+token write or actual-vault content/authority operation was requested.
+
+Mini evidence and recoverable previous-app backup are under ignored
+`tmp/piv-recovery/qualification-2026-10-22-036cfa9/mini-install/`.
+The read result is recorded in `RESULT.json`; prior backups remain intact.
+
+The Air verified the transfer manifest and all seven payloads, source signatures,
+entitlements, Boolean gates, universal slices, ticket and Gatekeeper, and confirmed
+the prior `db69f44` installation and absent Preview config. It then began the
+approved replacement. Remote connectivity was lost before the final install/
+inventory report could be retrieved. Air completion, backup path and final
+preservation checks are unconfirmed; do not repeat installation or token calls
+blindly. Resume by retrieving that chat's existing result when reachable.
+
+Next is metadata-read compatibility investigation, not key administration or
+recovery acceptance. This result does not justify changing the PIN or key.
+
+## Previous replacement: credential preflight incomplete
 
 Source: `db69f44fcb9816127e5cd0df3db18169ca5d55df`, including the Preview-only
 smart-card permission fix. A fresh universal `PreviewRelease` archive was built
@@ -63,7 +103,8 @@ anchor. Previous preflight limits below still apply.
 
 ### Replacement installation and public-read result, 2026-10-22
 
-The exact replacement is installed on both Macs, macOS `27.0.1 (26A434)`, arm64.
+At this checkpoint the exact replacement was installed on both Macs,
+macOS `27.0.1 (26A434)`, arm64.
 The Air verified the transfer manifest and all seven payload hashes before
 installation. Both Macs verified installed executable hashes, Boolean gates,
 signatures/entitlements, ticket and Gatekeeper. Fresh helper registration and
@@ -79,7 +120,7 @@ The single public inventory on the Air returned exit zero with no candidates.
 The Mini's inventory returned exit zero with one Yubico candidate, clearing the
 previous missing-permission failure. The explicitly selected Mini credential
 request then returned exit one, `PIVPublicObjectError.unexpectedStatus`, with no
-payload. The current diagnostic exposes neither the failed public-read stage
+payload. That build's diagnostic exposed neither the failed public-read stage
 nor the numeric status; the adapter can also map native errors to status zero.
 The cause remains unresolved. No retry or alternate token command followed.
 
@@ -107,7 +148,8 @@ The unsigned universal Preview build and product-isolation checks pass; default
 recovery gates remain absent. This is not a newly signed/installable candidate.
 
 No hardware call or actual-vault operation was made to obtain this result.
-Neither installed app has these diagnostics yet. The cause of the prior native
+At that software-only checkpoint, neither installed app had these diagnostics.
+The cause of the prior native
 failure remains unknown; its discarded stage/status cannot be recovered from
 that transcript. A new diagnostic candidate, installation and public-only read
 require separate approval. Do not infer a need to change the PIN, key, policies
