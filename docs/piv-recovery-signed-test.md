@@ -4,7 +4,38 @@ Prepared 2026-10-22 for `REC-812`. This is a test plan, not passing hardware
 evidence. Use disposable data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Candidate and permission boundaries
+## Current replacement candidate: prepared, not installed
+
+Source: `db69f44fcb9816127e5cd0df3db18169ca5d55df`, including the Preview-only
+smart-card permission fix. A fresh universal `PreviewRelease` archive was built
+from this clean commit. A separate copy has Boolean recovery gates enabled in
+app/helper; source shipping plists and the base archive still omit the gates.
+Version/build remains `0.2.0 (19)`, so use the hashes below rather than version
+alone. Neither Mac's installed app was replaced by this preparation.
+
+Apple submission `06805524-85b9-4b43-b042-d8d6213bfdaa` accepted
+`Key-Preview-recovery-db69f44-local.zip` with no issues. Its report matches the
+submitted SHA-256:
+`0d7bed49d6ae55a6184b7f5db8d3203e40569480cb7d069fdea7fdbaaee89083`.
+
+Use **`Key-Preview-recovery-db69f44-notarized.zip`** for an approved replacement
+installation. SHA-256:
+`4dd0007d202f5e5fec5e4091b1c19ea1bbb5beeff4cf9bcd10f59a748222f341`.
+It is in ignored `tmp/piv-recovery/qualification-2026-10-22-db69f44/`.
+The original submission ZIP remains unchanged. A separate extracted app was
+stapled without rebuilding or re-signing; its executable bytes match the
+submitted candidate. Final ticket, Developer ID signatures, hardened runtime,
+timestamps, exact entitlement allowlists, Gatekeeper and ZIP round-trip checks
+pass. The app/CLI/helper each contain arm64 and x86_64; both helper slices carry
+Boolean `com.apple.security.smartcard=true`. No app/helper was launched and no
+token operation was run.
+
+Replacement installation on both Macs and the subsequent read-only native
+preflight still require separate approval. This notarization does not qualify
+native token access, protected administration, recovery or the occupied prototype
+anchor. Previous preflight limits below still apply.
+
+## Original candidate and permission boundaries
 
 Source: `0ffaee776050da2a5452505b9b4c76be352e5022`, including the three integrated
 review-fix commits. The app is a universal `PreviewRelease` candidate, not a new

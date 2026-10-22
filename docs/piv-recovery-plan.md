@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; installed candidate's native inventory blocked by missing smart-card entitlement; Preview-only source fix, signing-policy regressions and new signed archive pass; replacement candidate and physical qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; Preview-only smart-card fix and regressions pass; exact gated replacement candidate notarized/stapled; replacement installation, native preflight and physical qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -324,6 +324,34 @@ to reset or overwrite anything. The [signed-test checklist](piv-recovery-signed-
 records the limits. Next is a newly gated/notarized replacement candidate and
 approved installation, then public native preflight before disposable recovery
 qualification. No PR push, release or hardware operation occurred in this fix.
+
+#### Replacement candidate notarized, 2026-10-22
+
+The owner approved preparing and notarizing the replacement without installation,
+actual-vault access or YubiKey operations. A fresh universal `PreviewRelease`
+archive was built from clean source `db69f44fcb9816127e5cd0df3db18169ca5d55df`.
+A separate app copy received Boolean recovery gates and was signed inside-out
+with the existing Developer ID identity. Both helper slices retain the new
+smart-card entitlement and exact Preview Keychain group. App/CLI permissions
+remain unchanged. Source shipping plists and the base archive remain gated off.
+
+Submission `06805524-85b9-4b43-b042-d8d6213bfdaa` returned `Accepted` with no
+issues. Apple's report matches the exact submission ZIP SHA-256
+`0d7bed49d6ae55a6184b7f5db8d3203e40569480cb7d069fdea7fdbaaee89083`.
+A separate copy extracted from that ZIP was stapled, with no rebuild or re-sign.
+The final `Key-Preview-recovery-db69f44-notarized.zip` SHA-256 is
+`4dd0007d202f5e5fec5e4091b1c19ea1bbb5beeff4cf9bcd10f59a748222f341`.
+
+Signature/entitlement, architecture, ticket, Gatekeeper and final ZIP round-trip
+checks passed. Executable bytes match the submitted candidate. Version/build
+remains `0.2.0 (19)`; no tag, public release or push was created. Raw evidence and
+artifacts are ignored under `tmp/piv-recovery/qualification-2026-10-22-db69f44/`.
+The old candidate ZIP is unchanged. Neither installed app nor any vault/token
+state was changed. Next is approved replacement installation and read-only native
+preflight, not recovery registration or token administration. The
+[acceptance checklist](piv-recovery-signed-test.md) identifies the replacement
+separately from the original installation history. No physical gate is passed
+by notarization.
 
 ## Architecture ownership
 
