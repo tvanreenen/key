@@ -1,6 +1,6 @@
 # PIV catastrophe recovery implementation plan
 
-Current implementation tracker: 2026-10-06. The retained evidence summaries
+Current implementation tracker: 2026-10-22. The retained evidence summaries
 are linked below. This is the authoritative completion plan for the
 PIV recovery track; the v3 roadmap summarizes it rather than maintaining a
 second set of work-package statuses.
@@ -91,15 +91,15 @@ are the implementation packages, not new names for already completed probes.
 
 | Package | Deliverable | Depends on | Status |
 |---|---|---|---|
-| `REC-804` | Format, authority, lifecycle, and compatibility contract | Baseline | In progress; experimental direction and AI review disposition recorded; internal exact adoption publication/resume implemented; integrated graph/platform and rollout acceptance remain |
-| `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; profile-3 domain codecs, contexts, proof construction/checks, and fixtures implemented; final acceptance and integrated review remain |
-| `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; bounded software selector and complete current-snapshot verifier implemented; native anchor provenance, integrated review, and restore-only input integration remain |
+| `REC-804` | Format, authority, lifecycle, and compatibility contract | Baseline | In progress; experimental direction, design/integrated AI review and fix dispositions recorded; signed platform, compatibility and rollout acceptance remain |
+| `REC-805` | Versioned recovery profile, contexts, codecs, fixtures, and validators | 804 | In progress; profile-3 domain implementation and integrated review complete at the current test checkpoint; physical/compatibility acceptance and format freeze remain |
+| `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; selector, snapshot verifier and restore input integration implemented and reviewed; signed native provenance and physical acceptance remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
-| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; domain prepare/resume/finish/status, configured workflow, CLI, gated factory and reciprocal pending barriers implemented; integrated review and signed physical qualification remain |
-| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation service, reciprocal ownership guards and gated ordinary runtime/CLI composition implemented; integrated review and signed native acceptance remain |
+| `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; integrated workflow implemented/reviewed with host-lock regression fixed; protected administration and signed physical qualification remain |
+| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
-| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; domain restore/resume, insert-only trust, ordinary reopening, configuration selection, ordered finalization and gated product dispatch/barriers implemented; integrated review, separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | At review/testing checkpoint: public credential/source review, registration/adoption/status/pending/rotation/restore/resume commands, scoped host barriers/restart, exact pending routing and gated ordinary runtime implemented; full serialized Release and unsigned universal Preview release checks pass; implementation review and signed two-Mac qualification remain |
+| `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; integrated review/fixes and software verification pass; local signed universal candidate prepared; notarization, installation approval and two-Mac physical qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -156,6 +156,84 @@ and submission, rather than being patched around at the top. Restore and product
 integration should get subsequent review layers when their boundaries are known.
 Stack publication does not complete any implementation package or authorize a
 hardware operation, real-vault activation, merge or release.
+
+### Current review and test handoff, 2026-10-22
+
+The complete stack now includes restore engine PR 74, service/CLI boundary PR 75,
+and configured runtime/registration/rotation PR 76 above the original five
+layers. The October 6 table above records the earlier partition, not current
+branch tips. Integrated read-only AI review found two publication/host defects.
+Both are fixed and covered by regressions that failed before the fixes:
+
+- PR 70, `acd6b01`: project cumulative history-depth and entry-reference usage
+  from the earliest still-active recipient's visible registration floor, rather
+  than only the Mac's latest checkpoint. Reuse the recovery selector for admission;
+  retain full ordinary snapshot checks. A later registration does not reset a
+  continuing recipient's obligation. First registration excludes earlier history.
+- PR 71, `c57c2d3`: apply that shared admission check to automatic/manual merges.
+  Filesystem tests require refusal before ownership, entry/manifest publication or
+  checkpoint advancement, and retain original/backup selection at the exact limit.
+- PR 75, `483cbae`: public review cancellation selects out-of-band resident-session
+  locking even when a setup/configuration barrier is queued behind the review.
+  Both queued initialization and directory-change cases are covered.
+
+The fresh reviewer found no additional actionable defect in the fixes. This is
+AI code review, not a human audit, protocol proof or physical qualification.
+No format fields, additional hardware approvals or historical ciphertext reads
+were introduced. At capacity, publication refuses; no automatic floor refresh,
+history rollover or resource-limit increase is implemented. Withheld provider
+history remains outside the completeness guarantee.
+
+Verification on the integrated source `0ffaee776050da2a5452505b9b4c76be352e5022`:
+
+- `swift test -c release --no-parallel`: 1,754 KeyCore tests in 141 suites passed
+  in 509.038 seconds, plus six canonical-JSON tests. The existing opt-in large
+  mixed migration qualification was skipped. Edited two-space files passed strict
+  formatting; four-space shared files retained their conventions.
+- All 18 named CI checks across PRs 70, 71, 72, 74, 75 and 76 were successful on
+  October 20, and their unchanged heads/results were rechecked on October 22.
+  Local `gh stack` propagation preserved PR order and bases. No PR was merged.
+- Raw review/reproduction/test logs remain ignored under `tmp/piv-recovery/`.
+  The full run is `2026-10-20-review-fixes-full-release.log`.
+
+Next: qualify the prepared signed local Preview candidate using the
+[two-Mac acceptance checklist](piv-recovery-signed-test.md). Signing/building does
+not approve installation, notarization/upload, external token administration,
+PIN/touch operations or real-vault use. The release runtime uses the normal
+Preview namespace; the separate qualification namespace is Debug-only. Existing
+Preview state on both Macs must therefore be checked before any installation or
+test command. Broader device/recipient product paths, independent second-token
+qualification and release acceptance remain open. No package is marked qualified
+or released by this handoff.
+
+#### Signed candidate prepared, 2026-10-22
+
+The `PreviewRelease` archive built from the unchanged integrated source above.
+A separate copy has a boolean recovery gate in its app/helper plists and was
+re-signed inside-out with the existing Developer ID Application identity for
+team `9Q355KSV85`. Repository shipping plists still omit the gate. App, CLI and
+helper passed the existing signing/entitlement and product-isolation checks,
+hardened runtime/timestamp checks, both architecture checks and ZIP round-trip
+signature validation. The app executable is `KeyPreviewHost`, as declared by its
+built plist. Existing AppIntents metadata and missing-category warnings remain.
+
+Local archive: `qualification-2026-10-22-0ffaee7/Key-Preview-recovery-0ffaee7-local.zip`
+under ignored `tmp/piv-recovery/`. SHA-256:
+`0dab766209c8312820724a64ed0b1a6d709d0ba25f27429edcd3f4054aa84e13`.
+Version/build remains `0.2.0 (19)`; no tag or release was created. Component hashes,
+code-directory identities and raw build/signing reports are alongside the ZIP.
+The assembly check initially used an incorrect host executable name and a
+multi-architecture `lipo -verify_arch` form rejected by the installed tool.
+Reading the built plist and checking each architecture separately passed; no
+product source or protection setting changed to obtain that result.
+
+Gatekeeper returned `rejected`, `source=Unnotarized Developer ID`. This is a signed
+but **not yet notarized or install-qualified** candidate. Notarization would
+upload the artifact to Apple and requires separate approval. No policy bypass,
+app/helper launch, installation, token operation, real-vault access, PR merge or
+release publication occurred. The checklist remains unexecuted except for
+artifact preparation checks. No new full regression run is claimed for these
+documentation-only changes.
 
 ## Architecture ownership
 
@@ -429,8 +507,8 @@ hardware operation, real-vault activation, merge or release.
 
 The current integration checkpoint includes gated configured registration,
 adoption, token-free rotation, exact pending selectors, restore/resume and the
-ordinary profile-3 runtime. Combined automated verification passes; implementation
-review and the signed two-Mac vertical slice establish the next acceptance
+ordinary profile-3 runtime. Combined automated verification and integrated AI
+review/fix verification pass; the signed two-Mac vertical slice is the next acceptance
 checkpoint. This does not complete backup-token/lifecycle/platform/release
 qualification or enable real-vault use. The ledger below records each component's
 scope and evidence. The
