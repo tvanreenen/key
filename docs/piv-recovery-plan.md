@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; notarized smart-card replacement installed/verified on both Macs; public inventory passes; Mini credential read stops with generic unexpectedStatus; native read diagnostics and physical qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; replacement installed and inventory passes; public-read diagnostic fix implemented/software-tested; original native credential failure remains unresolved pending an approved updated candidate/read; physical qualification remains |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -379,6 +379,42 @@ compatibility investigation, not key replacement/reset, anchor overwrite or
 registration. The earlier factory-default management key and occupied prototype
 anchor remain separate unresolved preconditions. No implementation source,
 installed Stable app, PR readiness, release or public push changed here.
+
+#### Public-read diagnostic correction, 2026-10-22
+
+The owner approved diagnosis and better diagnostics with no new YubiKey or
+actual-vault access. Source inspection found two confirmed diagnostic defects:
+four different public reads threw the same opaque error, and the native adapter
+discarded non-absence statuses when CryptoTokenKit also returned an error.
+The active SDK documents that a non-success card status can accompany an error.
+The earlier transcript therefore cannot recover the failed stage/status, and
+does not establish the cause of the hardware failure.
+
+The reader now preserves that status and only a sanitized native domain category/
+numeric code. A fixed-format error identifies the command and status, native
+category/code and reason without response bytes, arbitrary native descriptions,
+userInfo, nested errors or token IDs. Missing successful-response data identifies
+the read too. Expected anchor absence remains distinct; a success status with
+a native error is still refused. The four commands, request bytes, parsers,
+policy checks, deadlines, cancellation and no-retry behavior are unchanged.
+
+The regression failed with eight missing-step/status assertions before the fix.
+Afterward, 65 focused reader/metadata/review/agreement tests in four suites and
+56 registration/restore workflow tests in two suites passed. Fixtures cover all
+read steps, status plus native error, redaction, missing data, expected absence,
+no retry and delivery through the actual host/CLI error path. Strict formatting
+and diff whitespace pass. An unsigned universal `PreviewRelease` build and
+product-isolation checks passed; host/CLI/helper each contain both architectures,
+and default recovery gates remain absent. Existing AppIntents extraction warnings
+remain. Logs stay ignored under
+`tmp/piv-recovery/public-read-diagnostics/`.
+
+No native token operation, vault operation, installed-app change, signing,
+notarization, push or release occurred. The installed candidate still lacks
+these diagnostics. Next is separately approved diagnostic-candidate preparation/
+installation and one public-only observation, not a protocol guess, key reset,
+PIN retry or anchor overwrite. Session-start/lifetime and malformed-object errors
+retain their existing guards; this increment does not claim native success.
 
 ## Architecture ownership
 

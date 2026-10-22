@@ -537,6 +537,29 @@ struct KeyRecoveryReviewTests {
       f.reservations.value == nil && f.preparations.value == nil && f.checkpoints.value == nil)
   }
 
+  @Test
+  func publicReadDiagnosticSurvivesHostAndCLIWithoutPayloadOrAnotherRequest() throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let failure = PIVPublicReadFailure(
+      command: .keyManagementMetadata, reason: .unexpectedStatus, status: 0x6a80,
+      nativeError: .init(NSError(domain: NSOSStatusErrorDomain, code: -50)))
+    let workflow = KeyRecoveryReviewWorkflow(reader: reader(f, after: { _ in throw failure }))
+    let configurationReads = Counter()
+    let service = host(review: workflow.handle, configurationReads: configurationReads)
+    let transport = MemoryTransport { service.handle($0) }
+    let io = MemoryIO(
+      stdinIsTTY: false, pipedInput: "must-not-read", secureInput: "must-not-read",
+      onReadLine: { Issue.record("A public-read failure must not collect input") })
+    let cli = KeyCLIApplication(transport: transport, io: io, clipboard: MemoryClipboard())
+    #expect(
+      cli.run(arguments: ["recovery", "credential", "--token", f.card.tokenID, "--json"]) != 0)
+    #expect(io.stdout.isEmpty && io.stderr == failure.localizedDescription + "\n")
+    #expect(transport.requests.count == 1 && configurationReads.value == 0)
+    #expect(f.provider.requests == 0 && f.identities.creates.value == 0)
+    #expect(f.reservations.value == nil && f.preparations.value == nil)
+  }
+
   private func request(_ f: Fixture) -> KeyRecoveryReviewRequest {
     .source(path: f.source.root.path, tokenID: f.card.tokenID)
   }

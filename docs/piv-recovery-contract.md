@@ -2169,6 +2169,16 @@ There is no raw APDU, PIN, management authentication, write, reset or private
 operation interface. Absent, recognized and unrecognized occupancy are distinct;
 unknown bytes are withheld, with an internal digest for exact revalidation.
 A recognized anchor does not establish protected administration or possession.
+
+Public-read status and missing-data failures report a fixed command-step label,
+the reported status (or `not-reported` for zero), a fixed reason and an allowlisted
+native domain category/code. Native descriptions, userInfo, nested errors,
+response bytes and token identifiers are not retained in that diagnostic.
+CryptoTokenKit can supply an error alongside a card status; neither numeric
+value is discarded. Only the anchor read accepts the expected absent-object
+status `0x6a82`, still requiring nil/empty data. A success status with a native
+error remains a failure. No alternate command, authentication or retry follows.
+
 The [metadata codec](../Sources/KeyCore/PIVRecoveryKeyMetadata.swift) bounds
 responses to 256 bytes with exact fields, lengths and supported
 P-256 encoding. Missing, malformed or unsupported metadata fails without a

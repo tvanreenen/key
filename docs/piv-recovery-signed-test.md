@@ -70,6 +70,24 @@ Raw Mini evidence is in that candidate's `mini-install/` directory; the Air
 record is `piv-air-test/air-db69f44-install.json` in its chat's evidence folder.
 The original app/config backups and public prototype-anchor backup remain intact.
 
+### Diagnostic follow-up: software only, 2026-10-22
+
+The source now reports the exact public-read step, status and sanitized native
+category/code instead of discarding the status and throwing one opaque error.
+Native descriptions, userInfo, nested error text, token IDs and reply bytes are
+excluded. The regression failed before the fix; 65 focused reader/metadata/review/
+agreement tests and 56 related registration/restore workflow tests now pass.
+The existing command bytes, validation and no-retry policy are unchanged.
+The unsigned universal Preview build and product-isolation checks pass; default
+recovery gates remain absent. This is not a newly signed/installable candidate.
+
+No hardware call or actual-vault operation was made to obtain this result.
+Neither installed app has these diagnostics yet. The cause of the prior native
+failure remains unknown; its discarded stage/status cannot be recovered from
+that transcript. A new diagnostic candidate, installation and public-only read
+require separate approval. Do not infer a need to change the PIN, key, policies
+or prototype anchor from the old generic error.
+
 ## Original candidate and permission boundaries
 
 Source: `0ffaee776050da2a5452505b9b4c76be352e5022`, including the three integrated

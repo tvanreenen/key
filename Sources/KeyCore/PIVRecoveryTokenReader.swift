@@ -22,6 +22,15 @@ enum PIVPublicReadCommand: CaseIterable, Sendable {
   case keyManagementMetadata
   case recoveryAnchor
 
+  var diagnosticStep: String {
+    switch self {
+    case .selectApplication: "select-piv-application"
+    case .keyManagementCertificate: "read-slot-9d-certificate"
+    case .keyManagementMetadata: "read-slot-9d-metadata"
+    case .recoveryAnchor: "read-recovery-anchor"
+    }
+  }
+
   var instruction: UInt8 {
     switch self {
     case .selectApplication: 0xa4
@@ -53,9 +62,83 @@ enum PIVPublicReadCommand: CaseIterable, Sendable {
   }
 }
 
+/// Only fixed labels and numeric codes cross the diagnostic boundary. Never
+/// retain native descriptions/userInfo, response bytes or token identifiers.
+struct PIVPublicReadFailure: Error, LocalizedError, Equatable, Sendable {
+  enum Reason: String, Sendable {
+    case unexpectedStatus = "unexpected-status"
+    case nativeError = "native-error"
+    case missingResponseData = "missing-response-data"
+  }
+
+  struct NativeError: Equatable, Sendable {
+    enum Domain: String, Sendable {
+      case cryptoTokenKit = "CryptoTokenKit"
+      case cocoa = "Cocoa"
+      case posix = "POSIX"
+      case osStatus = "OSStatus"
+      case other
+    }
+    let domain: Domain
+    let code: Int
+
+    init(_ error: NSError) {
+      switch error.domain {
+      case TKErrorDomain: domain = .cryptoTokenKit
+      case NSCocoaErrorDomain: domain = .cocoa
+      case NSPOSIXErrorDomain: domain = .posix
+      case NSOSStatusErrorDomain: domain = .osStatus
+      default: domain = .other
+      }
+      code = error.code
+    }
+  }
+
+  let command: PIVPublicReadCommand
+  let reason: Reason
+  let status: UInt16
+  let nativeError: NativeError?
+
+  var errorDescription: String? {
+    let reportedStatus = status == 0 ? "not-reported" : String(format: "0x%04x", Int(status))
+    let native = nativeError.map { "\($0.domain.rawValue):\($0.code)" } ?? "none"
+    return
+      "Public PIV read failed [step=\(command.diagnosticStep), status=\(reportedStatus), native=\(native), reason=\(reason.rawValue)]. No automatic retry was attempted."
+  }
+}
+
 struct PIVPublicReadReply: Sendable {
   let data: Data?
   let status: UInt16
+  let nativeError: PIVPublicReadFailure.NativeError?
+
+  init(data: Data?, status: UInt16, error: Error? = nil) {
+    self.data = data
+    self.status = status
+    nativeError = error.map { .init($0 as NSError) }
+  }
+
+  func validated(for command: PIVPublicReadCommand) throws -> Self {
+    // CryptoTokenKit may return both an NSError and a card status. Preserve
+    // both, rather than replacing the status with zero. Only the anchor's
+    // expected absent-object status may proceed with that native error.
+    // See TKSmartCard.h sendIns:p1:p2:data:le:reply: in the active SDK.
+    if command == .recoveryAnchor && status == 0x6a82 { return self }
+    guard status == 0x9000 else { throw failure(command, reason: .unexpectedStatus) }
+    guard nativeError == nil else { throw failure(command, reason: .nativeError) }
+    return self
+  }
+
+  func requiredData(for command: PIVPublicReadCommand) throws -> Data {
+    guard let data else { throw failure(command, reason: .missingResponseData) }
+    return data
+  }
+
+  private func failure(_ command: PIVPublicReadCommand, reason: PIVPublicReadFailure.Reason)
+    -> PIVPublicReadFailure
+  {
+    .init(command: command, reason: reason, status: status, nativeError: nativeError)
+  }
 }
 
 /// The native boundary owns the card instance and exclusive session. A token
@@ -178,21 +261,14 @@ final class PIVRecoveryTokenReader: Sendable {
     let result = try connection.withPublicReadSession(lease: lease) { nativeSend in
       func send(_ command: PIVPublicReadCommand) throws -> PIVPublicReadReply {
         guard connection.isValid else { throw PIVRecoveryTokenError.tokenChanged }
-        return try nativeSend(command)
+        return try nativeSend(command).validated(for: command)
       }
-      guard try send(.selectApplication).status == 0x9000 else {
-        throw PIVPublicObjectError.unexpectedStatus
-      }
-      let certificate = try send(.keyManagementCertificate)
-      guard certificate.status == 0x9000, let certificateData = certificate.data else {
-        throw PIVPublicObjectError.unexpectedStatus
-      }
+      _ = try send(.selectApplication)
+      let certificateData = try send(.keyManagementCertificate)
+        .requiredData(for: .keyManagementCertificate)
       let publicKey = try Self.certificatePublicKey(
         PIVPublicObjectCodec.certificate(certificateData))
-      let metadataReply = try send(.keyManagementMetadata)
-      guard metadataReply.status == 0x9000, let metadataData = metadataReply.data else {
-        throw PIVPublicObjectError.unexpectedStatus
-      }
+      let metadataData = try send(.keyManagementMetadata).requiredData(for: .keyManagementMetadata)
       let keyMetadata = try PIVRecoveryKeyMetadataCodec.parse(metadataData)
       guard keyMetadata.publicKey == publicKey else {
         throw PIVRecoveryKeyPolicyError.publicKeyMismatch
@@ -208,9 +284,7 @@ final class PIVRecoveryTokenReader: Sendable {
         occupancy = .absent
         objectDigest = nil
       } else {
-        guard reply.status == 0x9000, let response = reply.data else {
-          throw PIVPublicObjectError.unexpectedStatus
-        }
+        let response = try reply.requiredData(for: .recoveryAnchor)
         let object = try PIVPublicObjectCodec.object(
           response, maximumBytes: V3RecoveryAnchor.maximumBytes)
         objectDigest = Data(SHA256.hash(data: object))
@@ -478,10 +552,7 @@ private final class PIVNativeTokenConnection: PIVRecoveryTokenConnection, @unche
         ins: command.instruction, p1: command.p1, p2: command.p2,
         data: command.data, le: 0
       ) { data, status, error in
-        reply.complete(
-          PIVPublicReadReply(
-            data: data,
-            status: error == nil || status == 0x6a82 ? status : 0))
+        reply.complete(PIVPublicReadReply(data: data, status: status, error: error))
         lifetime.didSend()
         gate.signal()
       }
