@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; integrated review/fixes and software verification pass; exact notarized candidate installed and unconfigured XPC verified on both Macs; protected pending-state preconditions and physical qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; installed candidate's native inventory blocked by missing smart-card entitlement; Preview-only source fix, signing-policy regressions and new signed archive pass; replacement candidate and physical qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -291,6 +291,39 @@ PIN/touch operations and any public-anchor import require their stated separate
 review and owner approval. No PR push, merge, release or real-vault activation
 occurred. Raw installation records remain ignored under `tmp/piv-recovery/` on
 the Mini and in the Air chat's local evidence folder.
+
+#### Public preflight and Preview permission correction, 2026-10-22
+
+The owner authorized read-only token inspection, then separately approved fixing
+the observed Preview permission defect without touching the token or actual vault.
+The installed helper's missing `com.apple.security.smartcard` entitlement causes
+`TKSmartCardSlotManager.default` to be nil, as documented by Apple's SDK/API.
+The old signing allowlist incorrectly accepted that incomplete capability set.
+
+Only the Preview helper now requests Boolean true for this entitlement. The
+release checker requires that exact type/value and continues rejecting the
+permission on Stable, the app and CLI. Added signing-policy fixture checks use
+the real checker with simulated signature metadata; they test policy, not
+Developer ID trust. The missing-permission case failed before the fix. All
+release-script and Preview-install safety tests now pass. Preview CI runs the
+release-script suite. All 42 focused reader/metadata/review software tests pass.
+
+A separate signed universal `PreviewRelease` archive passes actual Developer ID,
+hardened runtime, timestamp and entitlement checks. Both slices of the embedded
+helper carry the permission. The archive has the normal disabled recovery gates;
+it was not launched, notarized or installed. No native success is claimed, and
+the existing notarized candidate remains blocked for public-token inspection.
+No source cryptographic path, Stable permission, vault selection or token state
+changed. Raw archive/test evidence remains ignored under
+`tmp/piv-recovery/smartcard-permission-check/`.
+
+Vendor reads from the preceding authorized preflight reported the expected slot
+policy, but also factory-default management credentials and an occupied prototype
+anchor. Those are separate unresolved administration preconditions, not permission
+to reset or overwrite anything. The [signed-test checklist](piv-recovery-signed-test.md)
+records the limits. Next is a newly gated/notarized replacement candidate and
+approved installation, then public native preflight before disposable recovery
+qualification. No PR push, release or hardware operation occurred in this fix.
 
 ## Architecture ownership
 

@@ -100,6 +100,42 @@ absent from this status result. Raw reports remain local and ignored; the Air
 record is `piv-air-test/air-install-20261022.json` in that chat's evidence folder.
 This completes installation, not a recovery or hardware acceptance test.
 
+### Read-only preflight and permission fix, 2026-10-22
+
+The installed candidate's public token inventory returned
+`PIVRecoveryTokenError.unavailable`. Its helper lacks
+`com.apple.security.smartcard`; Apple's SDK and
+[API documentation](https://developer.apple.com/documentation/cryptotokenkit/tksmartcardslotmanager/default)
+require that Boolean entitlement for `TKSmartCardSlotManager.default`.
+Successful signing checks against the previous allowlist did not establish
+native API access. The installed candidate is blocked at this preflight.
+
+Separately approved vendor-tool reads confirmed a YubiKey 5C NFC, firmware 5.8.0,
+slot 9d P-256, generated origin, PIN ALWAYS and touch ALWAYS. PIN/PUK counters
+reported 3/3; no authentication was attempted. The management key remains
+factory-default. Object `0x5F4B59` contains the old prototype anchor, not the
+current format. Its 246 public bytes were backed up locally; no overwrite,
+credential change or actual-vault operation occurred. Product certificate/key
+binding and recipient identity remain unverified.
+
+The source fix adds the entitlement only to the Preview helper and requires
+Boolean true in the release checker. Stable retains its original allowlist;
+the app and CLI remain unable to claim this permission. Signing-policy fixtures
+failed before the fix and pass afterward, alongside all release-script and
+Preview-install safety tests. The 42 focused reader/metadata/review software tests
+passed. A separate signed universal `PreviewRelease` archive passes the updated
+checker and both-architecture signature/entitlement checks without being launched.
+These are static/software results, not a successful native preflight.
+
+The archive retains the default disabled recovery gates. No replacement candidate
+was notarized or installed, and both installed apps remain unchanged. Next:
+prepare a newly gated/notarized candidate, obtain replacement-install approval,
+then repeat public credential inspection. Protected administration and the occupied
+prototype anchor still require separate owner-reviewed vendor-tool decisions.
+Do not reset PIV, replace slot 9d or overwrite the anchor as part of this fix.
+Raw evidence stays ignored under `tmp/piv-recovery/smartcard-permission-check/`
+and the earlier candidate's `public-preflight/` directory.
+
 ## Credential and administration preflight
 
 - [ ] Obtain approval for public token inspection. Select one token explicitly;

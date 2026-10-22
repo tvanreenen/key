@@ -202,10 +202,23 @@ require_entitlement_value \
 
 assert_entitlement_keys "CLI" "${cli_entitlements}"
 
+helper_entitlement_keys=("keychain-access-groups")
+if [[ "${variant}" == preview ]]; then
+  helper_entitlement_keys+=("com.apple.security.smartcard")
+fi
 assert_entitlement_keys \
   "helper" \
   "${helper_entitlements}" \
-  "keychain-access-groups"
+  "${helper_entitlement_keys[@]}"
+if [[ "${variant}" == preview ]]; then
+  # TKSmartCardSlotManager.default is nil without this Boolean entitlement:
+  # https://developer.apple.com/documentation/cryptotokenkit/tksmartcardslotmanager/default
+  if [[ "$(plutil -extract 'com\.apple\.security\.smartcard' raw -expect bool \
+    -o - "${helper_entitlements}" 2>/dev/null || true)" != true ]]; then
+    echo "helper smart-card entitlement must be boolean true" >&2
+    exit 1
+  fi
+fi
 require_entitlement_value \
   "helper keychain access group" \
   "${helper_entitlements}" \

@@ -167,6 +167,116 @@ create_test_product_bundle \
   "0.2.0-alpha.2"
 touch "${stable_package}/completions/_key"
 
+# Exercise the real entitlement gate with fixture signature metadata. This does
+# not establish Developer ID trust; real signed archives require separate checks.
+signing_fixture_root="${test_root}/signing-policy"
+signing_fixture_bin="${signing_fixture_root}/bin"
+mkdir -p "${signing_fixture_bin}"
+cat > "${signing_fixture_bin}/codesign" <<'EOF'
+#!/bin/zsh
+set -euo pipefail
+target="$argv[-1]"
+case "$1" in
+  --verify) exit 0 ;;
+  -dv)
+    case "${target}" in
+      */Key.app) identifier=work.tvr.key.app ;;
+      */Key\ Preview.app) identifier=work.tvr.key.preview.app ;;
+      */MacOS/key) identifier=work.tvr.key.cli ;;
+      */MacOS/key-preview) identifier=work.tvr.key.preview.cli ;;
+      */Key\ Agent.app) identifier=work.tvr.key.xpc ;;
+      */Key\ Preview\ Agent.app) identifier=work.tvr.key.preview.xpc ;;
+      *) exit 64 ;;
+    esac
+    print -r -- "Identifier=${identifier}"
+    print -r -- 'TeamIdentifier=9Q355KSV85'
+    print -r -- 'CodeDirectory v=20500 flags=0x10000(runtime)'
+    print -r -- 'Timestamp=fixture'
+    ;;
+  -d)
+    [[ "$#" -eq 5 && "$2 $3 $4" == '--entitlements - --xml' ]] || exit 64
+    if [[ -f "${target}.entitlements.plist" ]]; then
+      cat "${target}.entitlements.plist"
+    fi
+    ;;
+  *) exit 64 ;;
+esac
+EOF
+chmod +x "${signing_fixture_bin}/codesign"
+
+verify_signing_fixture() {
+  PATH="${signing_fixture_bin}:${PATH}" \
+    "${repo_root}/scripts/verify-signing.sh" "$1" \
+    > "${signing_fixture_root}/verification.log" 2>&1
+}
+
+reject_signing_fixture() {
+  local app_path="$1"
+  local reason="$2"
+  if verify_signing_fixture "${app_path}"; then
+    echo "expected signing verification to reject ${reason}" >&2
+    exit 1
+  fi
+  grep -Fq "${reason}" "${signing_fixture_root}/verification.log"
+}
+
+for variant in stable preview; do
+  if [[ "${variant}" == stable ]]; then
+    fixture_app="${signing_fixture_root}/Key.app"
+    fixture_helper="${fixture_app}/Contents/Helpers/Key Agent.app"
+    fixture_cli="${fixture_app}/Contents/MacOS/key"
+    fixture_config="${repo_root}/Config/KeyLaunchAgentHelper.entitlements"
+    fixture_identifier=work.tvr.key.app
+  else
+    fixture_app="${signing_fixture_root}/Key Preview.app"
+    fixture_helper="${fixture_app}/Contents/Helpers/Key Preview Agent.app"
+    fixture_cli="${fixture_app}/Contents/MacOS/key-preview"
+    fixture_config="${repo_root}/Config/KeyPreviewLaunchAgentHelper.entitlements"
+    fixture_identifier=work.tvr.key.preview.app
+  fi
+  create_test_product_bundle "${variant}" "${fixture_app}" "0.2.0"
+  fixture_app_entitlements="${fixture_app}.entitlements.plist"
+  fixture_helper_entitlements="${fixture_helper}.entitlements.plist"
+  /usr/libexec/PlistBuddy \
+    -c "Add :com.apple.application-identifier string 9Q355KSV85.${fixture_identifier}" \
+    -c 'Add :com.apple.developer.team-identifier string 9Q355KSV85' \
+    "${fixture_app_entitlements}" >/dev/null
+  # A Preview helper without smart-card access was previously accepted by the
+  # release gate even though TKSmartCardSlotManager.default must return nil.
+  if [[ "${variant}" == preview ]]; then
+    cp "${repo_root}/Config/KeyLaunchAgentHelper.entitlements" "${fixture_helper_entitlements}"
+    /usr/libexec/PlistBuddy -c 'Set :keychain-access-groups:0 9Q355KSV85.work.tvr.key.preview.shared' \
+      "${fixture_helper_entitlements}"
+    reject_signing_fixture "${fixture_app}" 'helper is missing required entitlement com.apple.security.smartcard'
+  fi
+  cp "${fixture_config}" "${fixture_helper_entitlements}"
+  verify_signing_fixture "${fixture_app}"
+  if [[ "${variant}" == preview ]]; then
+    for bad_type in 'bool false' 'string true' 'integer 1'; do
+      /usr/libexec/PlistBuddy -c 'Delete :com.apple.security.smartcard' \
+        -c "Add :com.apple.security.smartcard ${bad_type}" "${fixture_helper_entitlements}"
+      reject_signing_fixture "${fixture_app}" 'helper smart-card entitlement must be boolean true'
+    done
+    cp "${fixture_config}" "${fixture_helper_entitlements}"
+  else
+    /usr/libexec/PlistBuddy -c 'Add :com.apple.security.smartcard bool true' \
+      "${fixture_helper_entitlements}"
+    reject_signing_fixture "${fixture_app}" 'helper contains unexpected entitlements'
+    cp "${fixture_config}" "${fixture_helper_entitlements}"
+  fi
+  /usr/libexec/PlistBuddy -c 'Add :com.apple.security.get-task-allow bool true' \
+    "${fixture_helper_entitlements}"
+  reject_signing_fixture "${fixture_app}" 'helper contains unexpected entitlements'
+  cp "${fixture_config}" "${fixture_helper_entitlements}"
+  /usr/libexec/PlistBuddy -c 'Add :com.apple.security.smartcard bool true' \
+    "${fixture_app_entitlements}"
+  reject_signing_fixture "${fixture_app}" 'app contains unexpected entitlements'
+  /usr/libexec/PlistBuddy -c 'Delete :com.apple.security.smartcard' "${fixture_app_entitlements}"
+  /usr/libexec/PlistBuddy -c 'Add :com.apple.security.smartcard bool true' \
+    "${fixture_cli}.entitlements.plist" >/dev/null
+  reject_signing_fixture "${fixture_app}" 'CLI contains unexpected entitlements'
+done
+
 artifact_verifier_root="${test_root}/artifact-verifier"
 artifact_verifier_scripts="${artifact_verifier_root}/scripts"
 artifact_verifier_project="${artifact_verifier_root}/Key.xcodeproj/project.pbxproj"
