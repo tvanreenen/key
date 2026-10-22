@@ -19,10 +19,15 @@ alone. Raw artifacts and signing reports stay ignored under
   app and embedded helper. Shipping source plists must still omit the flag.
 - [x] Record the local pre-notarization ZIP SHA-256 and component hashes. Its SHA-256
   is `0dab766209c8312820724a64ed0b1a6d709d0ba25f27429edcd3f4054aa84e13`.
-  Re-record final transfer hashes after authorized notarization/stapling.
-- [x] Record notarization/Gatekeeper status honestly. Gatekeeper currently returns
-  `rejected`, `source=Unnotarized Developer ID`. A valid signature alone is
-  not notarization or permission to bypass a launch-policy refusal.
+  The unchanged ZIP was the input to Apple submission
+  `c512d968-8749-4f7d-a358-ffa0c7249025`, which returned `Accepted` with no issues.
+- [x] Record the stapled transfer ZIP `Key-Preview-recovery-0ffaee7-notarized.zip`.
+  SHA-256: `1b7ae213c3b98f5311a584e1bfd98aed62612114526e478f4f7301974223ca8d`.
+  Transfer this ZIP, not the original unstapled submission ZIP. Compiled app,
+  CLI and helper bytes remain unchanged; the stapled ticket changes the ZIP hash.
+- [x] Validate the ticket, signatures, entitlements and Gatekeeper assessment on
+  the stapled app and again after ZIP extraction. Gatekeeper now reports
+  `accepted`, `source=Notarized Developer ID`. No policy bypass was used.
 - [ ] Obtain installation approval separately. No installer, app, helper or live
   recovery command is run during candidate preparation.
 

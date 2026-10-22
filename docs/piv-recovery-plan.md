@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; integrated review/fixes and software verification pass; local signed universal candidate prepared; notarization, installation approval and two-Mac physical qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; integrated review/fixes and software verification pass; signed universal candidate notarized and stapled; installation approval and two-Mac physical qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -227,13 +227,39 @@ multi-architecture `lipo -verify_arch` form rejected by the installed tool.
 Reading the built plist and checking each architecture separately passed; no
 product source or protection setting changed to obtain that result.
 
-Gatekeeper returned `rejected`, `source=Unnotarized Developer ID`. This is a signed
-but **not yet notarized or install-qualified** candidate. Notarization would
-upload the artifact to Apple and requires separate approval. No policy bypass,
-app/helper launch, installation, token operation, real-vault access, PR merge or
-release publication occurred. The checklist remains unexecuted except for
-artifact preparation checks. No new full regression run is claimed for these
+At preparation, Gatekeeper returned `rejected`, `source=Unnotarized Developer ID`.
+That initial state was superseded by the separately approved notarization below.
+No policy bypass, app/helper launch, installation, token operation, real-vault
+access, PR merge or release publication occurred. The checklist remains unexecuted
+except for artifact checks. No new full regression run is claimed for these
 documentation-only changes.
+
+#### Exact candidate notarized, 2026-10-22
+
+After explicit owner approval, the unchanged ZIP with SHA-256
+`0dab766209c8312820724a64ed0b1a6d709d0ba25f27429edcd3f4054aa84e13`
+was submitted using the existing `key-notary` profile. Apple submission
+`c512d968-8749-4f7d-a358-ffa0c7249025` returned `Accepted`, with `issues: null`.
+Apple's report records that same input filename and SHA-256. Submission/result
+JSON and the complete report remain in the ignored candidate directory.
+
+A separate app copy was extracted from the exact submitted ZIP and stapled.
+No rebuild or re-signing occurred. App, CLI and helper executable bytes match
+the original candidate. `stapler validate` and the existing `verify-release.sh`
+signature/entitlement/Gatekeeper checks pass, including after final ZIP extraction.
+Gatekeeper reports `accepted`, `source=Notarized Developer ID`.
+
+Use `Key-Preview-recovery-0ffaee7-notarized.zip` in the same ignored directory for
+the later transfer. Its SHA-256 is
+`1b7ae213c3b98f5311a584e1bfd98aed62612114526e478f4f7301974223ca8d`.
+The original submission ZIP remains unchanged. The transfer ZIP differs because
+it includes the stapled ticket; it is not a different compiled build.
+
+This completes local packaging/notarization checks, not the two-Mac vertical
+slice or hardware qualification. Nothing was installed or launched. Preview
+namespace preflight and exact-target installation approval remain next; token
+administration, PIN/touch operations, public release and real-vault use remain
+outside this notarization approval.
 
 ## Architecture ownership
 
