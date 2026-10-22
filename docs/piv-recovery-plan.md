@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; integrated review/fixes and software verification pass; signed universal candidate notarized and stapled; installation approval and two-Mac physical qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; integrated review/fixes and software verification pass; exact notarized candidate installed and unconfigured XPC verified on both Macs; protected pending-state preconditions and physical qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -260,6 +260,37 @@ slice or hardware qualification. Nothing was installed or launched. Preview
 namespace preflight and exact-target installation approval remain next; token
 administration, PIN/touch operations, public release and real-vault use remain
 outside this notarization approval.
+
+#### Preview-only reset and two-Mac installation, 2026-10-22
+
+After explicit owner approval, fresh Mini and Air preflights established distinct
+Stable/Preview config selections, canonical vault roots and directory identities.
+Both Macs run macOS `27.0.1 (26A434)`, arm64. The owner declared Preview/test data
+disposable but excluded the actual vault and YubiKey from this operation.
+
+The exact notarized transfer ZIP above was verified and installed as Preview on
+both Macs. Old Preview apps were preserved and their local config/cache folders
+relocated into owner-only recoverable backups. No cloud vault folders or Keychain
+items were removed. Installed component hashes, gates, signatures, entitlement
+allowlists, Gatekeeper and stapled tickets passed on both Macs. Preview helper
+registration was refreshed with the newly installed host's supported maintenance
+command and app launch; running helper paths/hashes match the exact candidate.
+
+One ordinary CLI status request per Mac returned the expected unconfigured error
+through XPC. Both Preview configs remain absent, and Stable app/config hashes
+are unchanged. No actual-vault entry/authority operation, token API, credential
+change or recovery command was invoked. Existing protected pending ownership
+was neither cleared nor established absent. Installation does not qualify the
+signed physical workflow or authorize advancing into token operations.
+
+The [acceptance checklist](piv-recovery-signed-test.md) records backup locations
+and this checkpoint. Next is separately approved public credential/administration
+preflight and resolution of any protected pending-operation preconditions,
+followed by the disposable signed vertical slice. Protected token administration,
+PIN/touch operations and any public-anchor import require their stated separate
+review and owner approval. No PR push, merge, release or real-vault activation
+occurred. Raw installation records remain ignored under `tmp/piv-recovery/` on
+the Mini and in the Air chat's local evidence folder.
 
 ## Architecture ownership
 

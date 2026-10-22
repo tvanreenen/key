@@ -28,8 +28,10 @@ alone. Raw artifacts and signing reports stay ignored under
 - [x] Validate the ticket, signatures, entitlements and Gatekeeper assessment on
   the stapled app and again after ZIP extraction. Gatekeeper now reports
   `accepted`, `source=Notarized Developer ID`. No policy bypass was used.
-- [ ] Obtain installation approval separately. No installer, app, helper or live
-  recovery command is run during candidate preparation.
+- [x] Obtain installation approval separately. The owner approved the Air
+  preflight, recoverable Preview-only reset and exact-candidate installation on
+  both Macs, explicitly excluding the actual vault and YubiKey. No installer,
+  app, helper or live recovery command ran during candidate preparation.
 
 The runtime's separate qualification namespace is Debug-only. This candidate uses
 normal Preview app, helper, configuration and Keychain namespaces, isolated from
@@ -38,22 +40,65 @@ shell variable or working directory does not isolate those namespaces.
 
 ## Stop before installation
 
-- [ ] Identify the exact Mini and Air OS/build and architecture; record supported
+- [x] Identify the exact Mini and Air OS/build and architecture; record supported
   availability before running recovery (the receiver uses macOS 26+ APIs).
-- [ ] Check installed Stable/Preview identities and any Preview configuration or
-  saved operation on each Mac. Do not print saved secret values or Keychain contents.
-- [ ] Both Preview namespaces must be confirmed disposable and the Air's Preview
-  state unconfigured. If either has valued data or an existing selection, stop
-  and choose a separate user/test environment with the owner. Do not delete or
-  repoint configuration to make the precondition pass.
-- [ ] Approve the exact installation targets and transfer method. Preserve any
+- [x] Check installed Stable/Preview identities, public config selections and
+  local config/cache boundaries on each Mac, without reading vault entries or
+  Keychain contents. Protected pending-operation state remains unassessed below.
+- [x] Confirm both Preview namespaces disposable with the owner before changing
+  existing selections. The owner approved relocating only their local Preview
+  config/cache into recoverable backups, not deleting cloud vaults or Keychain
+  state. This supersedes the original separate-user proposal for this install.
+- [ ] Before recovery testing, resolve any competing protected pending ownership.
+  An absent config and an unconfigured status response do not prove its absence.
+  Preserve and inspect any saved operation; do not clear pins to make tests pass.
+- [x] Approve the exact installation targets and transfer method. Preserve any
   existing app/state; do not replace Stable or invoke the ordinary Preview build
   script, which installs automatically.
-- [ ] On the Air, verify the received archive hash against the Mini's recorded
+- [x] On the Air, verify the received archive hash against the Mini's recorded
   final hash, then verify the extracted signature before installation. Do not
   remove quarantine or ad-hoc re-sign to work around a policy failure.
-- [ ] After authorized installation, verify the running helper's exact candidate
+- [x] After authorized installation, verify the running helper's exact candidate
   identity and XPC namespace on each Mac. A version string alone is insufficient.
+
+### Installation checkpoint, 2026-10-22
+
+Both Macs run macOS `27.0.1 (26A434)`, arm64. Each now has the exact universal,
+notarized `0.2.0 (19)` candidate above at `/Applications/Key Preview.app`.
+Installed app/CLI/helper executable hashes match the approved transfer; both
+recovery gates are boolean `true`. Signatures, entitlements, Gatekeeper and the
+stapled ticket passed on each Mac. No rebuild, re-sign or policy bypass was used.
+
+Fresh preflights established distinct Stable/Preview vault paths, directory
+identities and configured vault IDs. Only the local Preview Application Support
+folder was relocated, after stopping Preview. Old Preview apps were copied and
+verified before replacement. Recoverable owner-only backup roots:
+
+- Mini: `tmp/piv-recovery/qualification-2026-10-22-0ffaee7/mini-install/` in this
+  worktree, containing `Previous Key Preview.app` and
+  `Previous Preview Application Support`.
+- Air: `~/Downloads/Key-Preview-recovery-Air-20261022T142751Z/backup-before-install/`.
+
+The received packet manifest and all six payload hashes passed on the Air.
+Transfer used the separately approved Preview/test iCloud folder outside both
+selected vault roots. No cloud vault directory was reset or removed.
+
+On each Mac, the newly installed host's supported Preview-only maintenance
+command unregistered the old helper, then opening Preview registered it afresh.
+The running helper resolves to the installed candidate executable, with the
+expected hash, team and Preview service identity. One ordinary `status --json`
+per Mac returned exit `1`, "No vault is configured". The CLI's `.vaultStatus`
+route correctly returns that error through XPC without composing a vault runtime;
+the dashboard's separate `.status` endpoint returns locked. No initialization
+was performed to obtain exit zero. Both Preview configs remain absent.
+
+Stable app all-file hashes and its config hash stayed unchanged on both Macs.
+No actual-vault entry/authority operation or YubiKey API was requested. All
+Keychain items, cloud vault contents and earlier rehearsal artifacts were left
+alone. Protected pending ownership remains unknown and must not be inferred
+absent from this status result. Raw reports remain local and ignored; the Air
+record is `piv-air-test/air-install-20261022.json` in that chat's evidence folder.
+This completes installation, not a recovery or hardware acceptance test.
 
 ## Credential and administration preflight
 
