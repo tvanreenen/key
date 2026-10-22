@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; replacement installed and inventory passes; public-read diagnostic fix implemented/software-tested; original native credential failure remains unresolved pending an approved updated candidate/read; physical qualification remains |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; inventory passes; public-read diagnostic fix tested and exact diagnostic candidate notarized/stapled; installation and public-only observation remain before diagnosing the original native failure; physical qualification remains |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -415,6 +415,34 @@ these diagnostics. Next is separately approved diagnostic-candidate preparation/
 installation and one public-only observation, not a protocol guess, key reset,
 PIN retry or anchor overwrite. Session-start/lifetime and malformed-object errors
 retain their existing guards; this increment does not claim native success.
+
+#### Diagnostic candidate notarized, 2026-10-22
+
+After owner approval, a fresh signed universal `PreviewRelease` archive was built
+from clean source `036cfa96bbd3f71dc2fa75d0470e6041f0f328bc`. A separate copy has
+Boolean recovery gates in app/helper; source shipping plists and the base archive
+remain gated off. Exact Preview entitlement/signature and architecture checks
+passed. The helper contains the new diagnostic message. Its smart-card permission
+and Preview Keychain group are unchanged from the previous permission fix.
+
+Apple submission `3024ad4d-4e87-47f5-8449-a4e114845306` returned `Accepted` with
+no issues and the exact submission ZIP SHA-256
+`ec8214f9283adaff30703091fb6d9e459725f82789bab1112ae15d4f59765b7a`.
+A separately extracted copy was stapled without rebuilding or re-signing.
+The final `Key-Preview-diagnostic-036cfa9-notarized.zip` SHA-256 is
+`07c17a7c79d8e3a8e2bc22c000f5bb4053bef34763a039c0e40eacf832be8b71`.
+Ticket, signing/entitlement, Gatekeeper and final ZIP round-trip checks pass;
+executable bytes match the submitted candidate. Version/build remains `0.2.0 (19)`.
+
+Raw evidence/artifacts are ignored under
+`tmp/piv-recovery/qualification-2026-10-22-036cfa9/`. The previous candidate is
+unchanged. Nothing was installed or launched; no token/vault operation, PR push,
+tag or public release occurred. The earlier 121 software tests apply to this
+unchanged source; packaging adds no native qualification. Next is separately
+approved installation and one public-only observation with the new diagnostic,
+not key administration or a guessed protocol change. The
+[acceptance checklist](piv-recovery-signed-test.md) identifies the new artifact
+separately from installed-build history.
 
 ## Architecture ownership
 

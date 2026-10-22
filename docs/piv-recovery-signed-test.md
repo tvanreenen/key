@@ -4,7 +4,32 @@ Prepared 2026-10-22 for `REC-812`. This is a test plan, not passing hardware
 evidence. Use disposable data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Current replacement candidate: installed; credential preflight incomplete
+## Diagnostic candidate: prepared, not installed
+
+Source: `036cfa96bbd3f71dc2fa75d0470e6041f0f328bc`, including the public-read
+step/status/native-code diagnostic fix. A fresh signed universal `PreviewRelease`
+archive and separately gated copy passed the exact Preview signing/entitlement
+checks. The helper contains the diagnostic message; both slices retain Boolean
+smart-card permission. App/helper recovery gates are Boolean true only in the
+candidate copy. Source shipping plists and the base archive remain gated off.
+
+Apple submission `3024ad4d-4e87-47f5-8449-a4e114845306` returned `Accepted` with
+no issues. Its report matches `Key-Preview-diagnostic-036cfa9-local.zip`, SHA-256
+`ec8214f9283adaff30703091fb6d9e459725f82789bab1112ae15d4f59765b7a`.
+
+For an approved installation, use `Key-Preview-diagnostic-036cfa9-notarized.zip`
+in ignored `tmp/piv-recovery/qualification-2026-10-22-036cfa9/`. SHA-256:
+`07c17a7c79d8e3a8e2bc22c000f5bb4053bef34763a039c0e40eacf832be8b71`.
+The ticket, signatures, entitlement allowlists, Gatekeeper and final ZIP
+round-trip pass. Stapling changed no executable bytes; the original submission
+ZIP remains unchanged. Version/build is still `0.2.0 (19)`, not a unique selector.
+
+No installation, app/helper launch, token call or vault operation occurred.
+The installed build below is unchanged. A diagnostic-candidate installation
+and one public-only observation require separate approval; notarization does
+not resolve or qualify the original native failure.
+
+## Installed replacement: credential preflight incomplete
 
 Source: `db69f44fcb9816127e5cd0df3db18169ca5d55df`, including the Preview-only
 smart-card permission fix. A fresh universal `PreviewRelease` archive was built
