@@ -52,11 +52,12 @@ enum PIVPublicReadCommand: CaseIterable, Sendable {
     default: 0xff
     }
   }
-  var data: Data {
+  // TKSmartCard.send distinguishes an absent input field (nil) from empty Data.
+  var data: Data? {
     switch self {
     case .selectApplication: Data([0xa0, 0, 0, 3, 8, 0, 0, 0x10, 0, 1, 0])
     case .keyManagementCertificate: Data([0x5c, 3, 0x5f, 0xc1, 0x0b])
-    case .keyManagementMetadata: Data()
+    case .keyManagementMetadata: nil
     case .recoveryAnchor: Data([0x5c, 3, 0x5f, 0x4b, 0x59])
     }
   }

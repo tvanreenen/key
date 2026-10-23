@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; exact diagnostic Preview installed/verified on both Macs; Air empty public inventory; Mini read isolated to slot9d metadata with CryptoTokenKit communication error and no card status; root cause and physical qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; exact diagnostic Preview installed/verified on both Macs; Mini metadata communication failure isolated; narrow absent-payload fix and 131 software regressions pass; corrected signed candidate/native confirmation and physical qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -493,10 +493,31 @@ Installed vendor source and offline formatter output corroborate no payload.
 An offline Apple capture attempt stopped before transport because it lacked a
 real session; no session or token operation followed. This establishes a code/
 API mismatch, not its causal link to the saved hardware failure. The narrow
-payload-model correction and regression coverage remain proposed, not applied.
+payload-model correction and regression coverage were proposed, not applied at
+that investigation checkpoint.
 See the [investigation record](piv-recovery-signed-test.md#metadata-request-investigation-2026-10-23).
 No production change, installed-app change, native call or vault operation was
 made. Raw probes/evidence stay ignored in `tmp/piv-recovery/metadata-read-investigation/`.
+
+#### Narrow metadata payload correction, 2026-10-23
+
+Owner approval covered the payload correction and software regressions only.
+`PIVPublicReadCommand.data` is now optional; only metadata returns `nil`. The
+existing native send forwards it unchanged. Other payload bytes, slot/opcode,
+`le: 0`, policy/anchor/certificate validation, session handling, deadlines and
+no-retry behavior are unchanged. No transport abstraction or fallback was added.
+
+The absent-versus-empty regression failed first with two assertions against old
+code. After the fix, SwiftPM Debug built successfully and 66 focused tests in
+four suites plus 65 registration/restore/routing tests in three suites passed.
+Strict formatting and diff-whitespace checks passed. Logs stay ignored under
+`tmp/piv-recovery/metadata-payload-fix/`.
+
+No native token call, actual-vault access, authentication, private operation,
+token write, installed-app replacement, signing/notarization, push or release
+occurred. Software checks do not prove the original hardware failure resolved.
+Installed Preview is unchanged; corrected-candidate preparation and a bounded
+public-only native observation require separate approval.
 
 ## Architecture ownership
 

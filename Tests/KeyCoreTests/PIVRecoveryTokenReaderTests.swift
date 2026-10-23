@@ -367,12 +367,25 @@ struct PIVRecoveryTokenReaderTests {
     for command in [PIVPublicReadCommand.keyManagementCertificate, .recoveryAnchor] {
       #expect(command.instruction == 0xcb && command.p1 == 0x3f && command.p2 == 0xff)
     }
-    #expect(
-      PIVPublicReadCommand.keyManagementCertificate.data == Data([0x5c, 3, 0x5f, 0xc1, 0x0b]))
-    #expect(PIVPublicReadCommand.recoveryAnchor.data == Data([0x5c, 3, 0x5f, 0x4b, 0x59]))
     let metadata = PIVPublicReadCommand.keyManagementMetadata
     #expect(metadata.instruction == 0xf7 && metadata.p1 == 0 && metadata.p2 == 0x9d)
-    #expect(metadata.data.isEmpty)
+  }
+
+  @Test
+  func publicReadPayloadsDistinguishAbsentInputFromEmptyData() {
+    // TKSmartCard.send uses nil for an absent input field, not non-nil empty
+    // Data. These are the values forwarded directly at the native boundary.
+    let expected: [(PIVPublicReadCommand, Data?)] = [
+      (.selectApplication, Data([0xa0, 0, 0, 3, 8, 0, 0, 0x10, 0, 1, 0])),
+      (.keyManagementCertificate, Data([0x5c, 3, 0x5f, 0xc1, 0x0b])),
+      (.keyManagementMetadata, nil),
+      (.recoveryAnchor, Data([0x5c, 3, 0x5f, 0x4b, 0x59])),
+    ]
+    for (command, payload) in expected {
+      let actual: Data? = command.data
+      #expect(actual == payload)
+      #expect(actual != Data())
+    }
   }
 
   @Test func metadataPublicKeyMustMatchTheCertificate() throws {

@@ -82,8 +82,9 @@ recovery acceptance. This result does not justify changing the PIN or key.
 
 ### Metadata request investigation, 2026-10-23
 
-Code and primary documentation identify a request-model mismatch. The metadata
-command returns non-nil empty `Data()` and passes it directly to `TKSmartCard.send`.
+Code and primary documentation identified a request-model mismatch. At this
+investigation checkpoint the metadata command returned non-nil empty `Data()`
+and passed it directly to `TKSmartCard.send`.
 The active macOS 27.0 SDK's `TKSmartCard.h` documents `nil` when no input field
 should be present. This is the only closed public command without an input
 payload. Its opcode/parameters match
@@ -112,6 +113,28 @@ corrected request is tested. No product tests were rerun for this investigation.
 No new token discovery/read, PIN/authentication, private operation, token write,
 vault operation or installed-app change occurred. Raw evidence and the offline
 probe stay ignored under `tmp/piv-recovery/metadata-read-investigation/`.
+
+### Narrow metadata payload correction, 2026-10-23
+
+After approval, the existing closed command's payload became optional. Metadata
+now supplies `nil` directly to `TKSmartCard.send`; all other commands retain their
+exact payload bytes. No new transport abstraction, command, retry, fallback or
+policy exception was introduced. The slot/opcode, `le: 0`, diagnostics, validation,
+session lifetime and timeouts are unchanged.
+
+The new regression checks absent input versus present-but-empty input and the
+exact payloads of all four commands. It failed against the old code with two
+assertions, then passed after the correction. SwiftPM Debug built successfully;
+66 reader/metadata/review/agreement tests in four suites passed, followed by
+65 registration/restore/routing tests in three suites using that same build.
+Strict formatting and diff-whitespace checks passed. Software fixtures do not
+establish Apple's emitted bytes or hardware success.
+
+Raw logs are ignored under `tmp/piv-recovery/metadata-payload-fix/`. No native
+token call, authentication, private operation, token write, actual-vault access,
+installed-app change, signing/notarization, push or release occurred. Installed
+Preview still has the prior payload behavior. A separately approved updated
+candidate and one bounded public read are needed to test the causal hypothesis.
 
 ## Previous replacement: credential preflight incomplete
 
