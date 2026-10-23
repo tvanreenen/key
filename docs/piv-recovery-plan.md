@@ -729,6 +729,19 @@ requested. Evidence remains ignored under
 `tmp/piv-recovery/registration-finish-refreshed-2026-10-23/`. Preserve setup. A
 further finish needs separate approval and a physical-touch cue; no reset/import.
 
+#### Staged-authentication UX probe prepared, not hardware tested, 2026-10-23
+
+The owner approved preparation only. An ignored standalone probe compiles with
+Swift 6 warnings as errors and passes software gate/redaction/default-mode checks.
+It requires the actual selected key's ACL, then would try system-owned access-
+control evaluation before one synthetic agreement with additional PIN dialogs
+disabled. No native lookup/authentication/agreement was run; no app/production
+source, vault or registration change occurred. Config/export/bundle hashes match.
+Probe/evidence are under `tmp/piv-recovery/staged-auth-preparation-2026-10-23/`.
+Next is separate approval for noninteractive ACL inspection, then any hardware
+authentication. Callback/touch separation and signed-helper behavior are unproven;
+drop the route rather than use timing guesses or extra/weaker authentication.
+
 ## Architecture ownership
 
 - Format and cryptographic validation stay in `KeyCore`, following

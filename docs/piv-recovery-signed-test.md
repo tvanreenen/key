@@ -5,6 +5,25 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## UX side investigation: staged-auth probe prepared only, 2026-10-23
+
+An isolated ignored probe under
+`tmp/piv-recovery/staged-auth-preparation-2026-10-23/` compiles with Swift 6 and
+warnings as errors. Software-only gate/redaction tests pass; default/help do not
+access a token. Neither native-key-check nor authentication mode was run. No
+installed app, production source, vault or registration workflow changed;
+config/export/bundle hashes remain unchanged.
+
+The future test requires the actual selected private key's access-control object,
+with no replacement ACL. It would evaluate that ACL through macOS, then permit
+one synthetic agreement with further PIN dialogs disabled. Callback success is
+not assumed to mean physical PIN acceptance or touch readiness. No PIN value is
+read or supplied by the probe. Next is a separately approved noninteractive ACL
+check; authentication remains a later approval. Drop this route if separation is
+unreliable or adds approval/weakens policy. Standalone success would still need
+signed-helper qualification. Existing registration remains at the last checkpoint
+below; no fresh native status or hardware claim was obtained during preparation.
+
 ## Current checkpoint: refreshed finish reached provider, no touch, 2026-10-23
 
 The owner separately approved one finish with the refreshed selector. Exact
