@@ -5,7 +5,38 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Current hardware checkpoint: protected administration reported, slot 9d empty
+## Current hardware checkpoint: fresh credential publicly verified, 2026-10-23
+
+The owner reported completing external generation of a fresh slot9d P-256 key
+and its self-signed certificate. Serial-selected vendor-library public reads
+report generated origin, PIN/touch `ALWAYS`, and exact certificate/metadata
+public-key equality. The installed metadata-corrected Preview candidate below
+returned the same independently derived new recipient ID, `absent` anchor and
+`public-observation-only` assurance. One fresh inventory and one selected public
+credential command were used; no native retry was requested.
+
+The macOS token selector remained unchanged in the fresh inventory. It is not
+the credential identity: the new recipient differs from the erased key's
+recipient and was checked against current vendor metadata. Do not reuse old
+recipient bindings, certificates or registration exports.
+
+Public administration observations remain nondefault AES192 management key,
+management touch `ALWAYS`, stored-key protection flag true, PIN-derived mode
+false, and nondefault PIN/PUK with full 3/3 counters. No protected management
+secret was retrieved. Installed CLI/host/helper hashes match the recorded
+candidate, the running helper uses its installed path, and Preview config is
+still absent. No authentication, private operation, token write or actual-vault
+access occurred during verification. The owner's earlier certificate-creation
+operation was separate from these public checks.
+
+This is not attestation, proof of possession, policy-enforcement testing or
+registration/restore qualification. Raw probe/results and the machine-checked
+comparison remain ignored under
+`tmp/piv-recovery/fresh-credential-2026-10-23/`. Next is separately scoped
+disposable Preview-vault preparation and registration qualification; no new
+anchor import or private-key operation is authorized by this checkpoint.
+
+## Earlier checkpoint: protected administration reported, slot 9d empty
 
 After the approved reset below, the owner reported privately setting a fresh PIN
 and PUK, then successful completion of the reviewed `ykman` management-key change
