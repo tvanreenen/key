@@ -1,10 +1,62 @@
 # Signed Preview two-Mac acceptance checklist
 
-Prepared 2026-10-22 for `REC-812`. This is a test plan, not passing hardware
-evidence. Use disposable data only. The [implementation plan](piv-recovery-plan.md)
+Prepared 2026-10-22, updated 2026-10-23 for `REC-812`. This checklist records
+scoped evidence, not passing end-to-end recovery qualification. Use disposable
+data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Diagnostic candidate: installation and public-read results
+## Metadata-corrected candidate: Mini public preflight passed
+
+Source `d3db6a475d79f48782a548400f13596c3fbc9404`, signed universal
+`PreviewRelease`, version `0.2.0 (19)`. Only a separate candidate copy has Boolean
+recovery gates true in app/helper. Shipping source plists/base archive remain
+gated off. Expected Preview signatures, exact entitlements including helper
+smart-card permission, universal slices and gates pass.
+
+Apple accepted submission `186ccea0-906b-40f5-9934-42f36016ce8f` with no issues,
+matching `Key-Preview-metadata-d3db6a4-local.zip`, SHA-256
+`528700d22809f59ad35ba0427f905210089b80c16a5e84e5dd66ea877e8d7680`.
+Use `Key-Preview-metadata-d3db6a4-notarized.zip` for any approved later transfer;
+SHA-256 `fb7ab47c2480259d2ee21f38b7a0bc18da56732b50e354f21e5788c3c0b647c7`.
+The staple, signatures, Gatekeeper and ZIP round-trip pass. No executable bytes
+changed after submission. Artifacts/evidence are ignored under
+`tmp/piv-recovery/qualification-2026-10-23-d3db6a4/`.
+
+### Mini installation and single public credential command, 2026-10-23
+
+Installed files match this candidate, and running host/helper paths/hashes verify.
+The previous `036cfa9` app backup at `mini-install/Previous Key Preview.app`
+matches the previous artifact and retains a valid deep strict signature. The Air
+remains on `036cfa9`; no remote request or Air installation was made.
+
+The first ordinary status immediately after opening Preview returned an XPC
+connection error. The script stopped before any token command. Inspection found
+the exact Preview job registered, not running, with zero runs. One explicit
+status recheck after that inspection returned expected exit one, unconfigured.
+No app installation or helper maintenance was repeated. Two status calls are
+recorded, not one; the startup sequencing explanation is not a proven product
+defect or fix.
+
+One inventory found the same single token; one explicitly selected credential
+command returned exit zero with `public-observation-only` assurance and
+`unrecognized` anchor state. The unchanged workflow validates reported P-256,
+generated origin, PIN/touch `ALWAYS`, certificate/metadata public-key equality,
+recipient derivation and observation revalidation. The signed native metadata
+read now succeeds. This supports the payload correction resolving the observed
+failure in this run; it is not a capture of the earlier malformed packet or a
+proof of possession, policy enforcement, protected administration or recovery.
+
+The occupied unrecognized object is consistent with the previously saved
+prototype; no fresh byte-for-byte vendor comparison or overwrite was performed.
+Stable app all-file/config hashes are unchanged; Preview config remains absent.
+No PIN/touch, authentication, private operation, token write, actual-vault access,
+config/Keychain reset, registration, restore, push or release occurred. Protected
+pending ownership remains unassessed. The result is in `mini-install/RESULT.json`.
+Stop here for owner-reviewed external management-key protection and exact-target
+anchor handling before disposable-vault registration. Do not reset PIV or replace
+slot 9d. This passing public preflight does not pass the full `REC-812` slice.
+
+## Earlier diagnostic candidate: installation and public-read results
 
 Source: `036cfa96bbd3f71dc2fa75d0470e6041f0f328bc`, including the public-read
 step/status/native-code diagnostic fix. A fresh signed universal `PreviewRelease`

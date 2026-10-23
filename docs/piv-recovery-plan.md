@@ -1,6 +1,6 @@
 # PIV catastrophe recovery implementation plan
 
-Current implementation tracker: 2026-10-22. The retained evidence summaries
+Current implementation tracker: 2026-10-23. The retained evidence summaries
 are linked below. This is the authoritative completion plan for the
 PIV recovery track; the v3 roadmap summarizes it rather than maintaining a
 second set of work-package statuses.
@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; exact diagnostic Preview installed/verified on both Macs; Mini metadata communication failure isolated; narrow absent-payload fix and 131 software regressions pass; corrected signed candidate/native confirmation and physical qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; corrected notarized Preview installed on Mini and public credential/policy/key binding passes; occupied unrecognized anchor preserved; Air retains earlier diagnostic; external administration, disposable-vault registration/restore and physical qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -518,6 +518,48 @@ token write, installed-app replacement, signing/notarization, push or release
 occurred. Software checks do not prove the original hardware failure resolved.
 Installed Preview is unchanged; corrected-candidate preparation and a bounded
 public-only native observation require separate approval.
+
+#### Corrected signed candidate and Mini public preflight, 2026-10-23
+
+A fresh signed universal `PreviewRelease` archive was built from clean source
+`d3db6a475d79f48782a548400f13596c3fbc9404`. A separately gated copy retained the
+exact Preview identities/entitlements and passed architecture/signature checks.
+Shipping source plists and the base archive remain gated off. Apple accepted
+submission `186ccea0-906b-40f5-9934-42f36016ce8f` with no issues; the report
+matches submitted ZIP SHA-256
+`528700d22809f59ad35ba0427f905210089b80c16a5e84e5dd66ea877e8d7680`.
+The final `Key-Preview-metadata-d3db6a4-notarized.zip` SHA-256 is
+`fb7ab47c2480259d2ee21f38b7a0bc18da56732b50e354f21e5788c3c0b647c7`.
+Ticket, exact signing/entitlement, Gatekeeper and final ZIP round-trip checks pass;
+stapling changed no executable bytes. Version/build remains `0.2.0 (19)`.
+
+Only the Mini was updated. The prior `036cfa9` app is recoverably backed up and
+file-compared; installed files match the new candidate. Running host/helper paths
+and hashes verify. The first status immediately after opening Preview failed to
+connect to the helper and stopped before inventory. Read-only inspection then
+found the Preview job registered with zero runs. One explicit non-token status
+recheck returned the expected unconfigured error; no maintenance or installation
+was repeated. This records a startup sequencing observation, not a new product
+fix or a proven general cause for XPC failures.
+
+One inventory found the expected single token. One credential command succeeded
+with `public-observation-only` assurance and `unrecognized` anchor state. The
+unchanged reader requires reported P-256/generated/PIN-always/touch-always policy,
+certificate/metadata public-key equality and revalidation. The metadata stage
+now passes in the signed native product. This run supports the absent-payload
+correction resolving the previously observed failure; it does not capture the
+old wire bytes or prove possession, enforced policy, protected administration or
+recoverability. The occupied unrecognized anchor is consistent with the prior
+prototype observation, not a new byte-for-byte comparison or approval to overwrite.
+
+Stable app all-file/config hashes remain unchanged and Preview config is absent.
+No PIN/touch, private operation, token write, actual-vault content/authority access,
+config/Keychain reset, registration, restore, PR push or release occurred. The Air
+was not updated or contacted. Raw evidence and backup stay ignored under
+`tmp/piv-recovery/qualification-2026-10-23-d3db6a4/`, with the native result in
+`mini-install/RESULT.json`. Next is separately reviewed owner-run external
+administration/anchor handling, then disposable-vault registration and two-Mac
+recovery acceptance. No key reset or private-key replacement is implied.
 
 ## Architecture ownership
 
