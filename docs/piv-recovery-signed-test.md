@@ -5,6 +5,31 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Current hardware checkpoint: disposable PIV setup reset, 2026-10-23
+
+The owner explicitly approved discarding this test-only PIV setup after losing
+track of its PIN/PUK and reporting one failed PIN in the management-protection
+command. This superseded the earlier instructions to preserve slot 9d, the PUK
+and prototype anchor; it did not authorize actual-vault access or a whole-device
+reset. Fresh serial-selected inspection matched the known YubiKey 5C NFC,
+firmware 5.8.0, with PIN 2/3, PUK 3/3 and the management key still default.
+
+One owner-authorized `ykman 5.9.2` PIV-only reset completed. The inspected vendor
+implementation blocks the old PIN/PUK as part of the reset procedure, then clears
+PIV and restores defaults. No manual credential guesses or fallback full-device
+reset were performed. Public verification afterward reports PIN/PUK 3/3,
+default AES192 management key, no key in slot 9d and no object at `0x5F4B59`.
+The old private key is erased and cannot be restored from public evidence;
+the earlier 246-byte public prototype-anchor backup remains preserved.
+
+No new PIN/PUK, protected management key, slot key or certificate has been set.
+Earlier public-read results below are historical evidence for the old credential,
+not qualification of a new identity. Reprovisioning will require new public
+selectors/recipient identity and fresh validation; do not reuse old registration
+exports or certificate bindings. Raw reset/preflight/verification evidence stays
+ignored under `tmp/piv-recovery/piv-reset-2026-10-23/`. No actual-vault access,
+Key config/Keychain cleanup, app change, PR push or release occurred.
+
 ## Metadata-corrected candidate: Mini public preflight passed
 
 Source `d3db6a475d79f48782a548400f13596c3fbc9404`, signed universal

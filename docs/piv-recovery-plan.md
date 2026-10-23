@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; corrected notarized Preview installed on Mini and public credential/policy/key binding passes; occupied unrecognized anchor preserved; Air retains earlier diagnostic; external administration, disposable-vault registration/restore and physical qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; corrected signed Mini public preflight passed with old test credential; owner subsequently approved PIV-only reset, now verified empty/default; fresh credential/admin setup and disposable-vault registration/restore qualification remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -560,6 +560,30 @@ was not updated or contacted. Raw evidence and backup stay ignored under
 `mini-install/RESULT.json`. Next is separately reviewed owner-run external
 administration/anchor handling, then disposable-vault registration and two-Mac
 recovery acceptance. No key reset or private-key replacement is implied.
+
+#### Owner-approved disposable PIV reset, 2026-10-23
+
+After an unsuccessful owner-entered PIN in the external management-key command,
+the owner explicitly confirmed this key was test-only and approved discarding
+its PIV setup. That approval superseded preservation of the old slot9d credential,
+PUK and prototype anchor, but not the actual-vault exclusion. Fresh inspection
+selected the exact known device, confirmed firmware5.8.0, PIN2/3, PUK3/3 and a
+still-default AES192 management key. The earlier attempted protection had not
+established a nondefault management key.
+
+The reviewed installed `ykman 5.9.2` PIV-only reset ran once on that explicit
+serial. Its required internal blocking of old PIN/PUK preceded successful reset;
+no manual guessing or whole-device fallback occurred. Public postchecks report
+default credentials, PIN/PUK3/3, no slot9d key and absent prototype object5F4B59.
+The erased private key is not recoverable; the prior public-anchor backup remains
+intact. Earlier native acceptance evidence remains historical, not a usable
+current recovery credential. New provisioning needs new selectors and binding.
+
+No new credential or management protection was provisioned afterward. Next is
+owner-private PIN/PUK setup, protected management-key setup, and fresh external
+slot9d/certificate provisioning before the disposable-vault flow. No actual-vault
+access, config/Keychain cleanup, app replacement, PR push or release occurred.
+Raw evidence stays ignored under `tmp/piv-recovery/piv-reset-2026-10-23/`.
 
 ## Architecture ownership
 
