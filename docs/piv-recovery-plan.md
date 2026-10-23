@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration pending after one lookup failure; reconnect refreshed selector, standalone exact lookup now finds one match and old selector finds zero; no finish retry; helper possession/activation/restore qualification remain; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; refreshed-selector finish passed helper lookup, failed provider call; owner entered PIN but did not touch; same setup pending, activation false and counters 3/3; separately approved possession/activation and restore qualification remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -712,6 +712,22 @@ finish retry, private operation, token write or actual-vault operation was
 requested; Preview was locked. Raw evidence is ignored under
 `tmp/piv-recovery/discovery-reconnect-2026-10-23/`. Next is separately approved
 finish with fresh selectors; no reprepare/import or implementation change.
+
+#### Refreshed-selector finish reached provider; owner did not touch, 2026-10-23
+
+One separately approved finish with fresh public selectors passed helper key
+lookup/binding/algorithm guards, then returned providerFailure (code10). The
+owner saw/submitted the PIN dialog but did not physically touch. Missing-touch
+timeout is consistent, not confirmed: the native CFError is discarded by this
+build. No automatic retry occurred. This was the second explicitly approved
+finish for the same setup, not another preparation.
+
+Dedicated local status after lock/restart confirms pending and activation false;
+published files, configs, export/bundle and public credential/anchor are unchanged,
+with PIN/PUK3/3. Preview was locked; no key write or actual-vault operation was
+requested. Evidence remains ignored under
+`tmp/piv-recovery/registration-finish-refreshed-2026-10-23/`. Preserve setup. A
+further finish needs separate approval and a physical-touch cue; no reset/import.
 
 ## Architecture ownership
 

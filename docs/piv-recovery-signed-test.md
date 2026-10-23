@@ -5,7 +5,28 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Current checkpoint: reconnect refreshed discovery, no finish retry, 2026-10-23
+## Current checkpoint: refreshed finish reached provider, no touch, 2026-10-23
+
+The owner separately approved one finish with the refreshed selector. Exact
+installed hashes, source/config/bundle/export checks, saved operation and fresh
+public credential preflight passed. This second explicit finish for the same
+setup passed native key lookup/binding/algorithm guards, then returned exit one,
+`PIVRecoveryAgreementError` code10 (`providerFailure` at key exchange). The
+provider's underlying CFError is not exposed by this build. No automatic retry
+occurred. The owner confirmed seeing/submitting the PIN dialog but not physically
+touching the key. A missing-touch timeout is consistent with these observations,
+not a confirmed native error classification or policy-enforcement qualification.
+
+After lock/restart, local pending/authenticated registration status confirms the
+same operation, no active recipients and activation committed false. Published
+vault files, configs, export/bundle hashes and public anchor/credential are
+unchanged. Public PIN/PUK counters remain 3/3. Preview was locked. No token write
+or actual-vault operation was requested. Raw evidence remains ignored under
+`tmp/piv-recovery/registration-finish-refreshed-2026-10-23/`.
+Preserve setup; no reset/reimport is needed. Any further finish requires separate
+approval and an explicit physical-touch cue after PIN entry.
+
+## Earlier checkpoint: reconnect refreshed discovery, no finish retry, 2026-10-23
 
 Owner-approved read-only diagnosis after reconnect found a changed macOS token
 selector, with unchanged recipient/certificate and recognized public anchor.
