@@ -482,6 +482,22 @@ Raw Mini evidence/backup stay ignored under the diagnostic candidate's
 [acceptance checklist](piv-recovery-signed-test.md). Next is metadata-read
 compatibility investigation, not key administration or recovery acceptance.
 
+#### Metadata request investigation, 2026-10-23
+
+Metadata investigation on 2026-10-23 found a documented request-model mismatch:
+the no-input metadata command passes non-nil empty `Data()` to Apple's API,
+whose active SDK documents `nil` to express absent input. Its opcode and slot
+match Yubico's command; `le: 0` retains its documented meaning. Existing tests
+check emptiness and fake native replies, not absent input at the encoder.
+Installed vendor source and offline formatter output corroborate no payload.
+An offline Apple capture attempt stopped before transport because it lacked a
+real session; no session or token operation followed. This establishes a code/
+API mismatch, not its causal link to the saved hardware failure. The narrow
+payload-model correction and regression coverage remain proposed, not applied.
+See the [investigation record](piv-recovery-signed-test.md#metadata-request-investigation-2026-10-23).
+No production change, installed-app change, native call or vault operation was
+made. Raw probes/evidence stay ignored in `tmp/piv-recovery/metadata-read-investigation/`.
+
 ## Architecture ownership
 
 - Format and cryptographic validation stay in `KeyCore`, following

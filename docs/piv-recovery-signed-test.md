@@ -80,6 +80,39 @@ chat's evidence directory. Empty inventory is not credential/recovery success.
 Next is metadata-read compatibility investigation, not key administration or
 recovery acceptance. This result does not justify changing the PIN or key.
 
+### Metadata request investigation, 2026-10-23
+
+Code and primary documentation identify a request-model mismatch. The metadata
+command returns non-nil empty `Data()` and passes it directly to `TKSmartCard.send`.
+The active macOS 27.0 SDK's `TKSmartCard.h` documents `nil` when no input field
+should be present. This is the only closed public command without an input
+payload. Its opcode/parameters match
+[Yubico's GET METADATA](https://developers.yubico.com/PIV/Introduction/Yubico_extensions.html#_get_metadata).
+Apple separately documents `le: 0` for the available response; this investigation
+does not establish a reason to change it.
+
+The installed `ykman 5.9.2` source requests slot metadata without a payload.
+Offline execution of its formatters produced `00f7009d00` for short format and
+`00f7009d` for extended format under its default response-length convention.
+These are vendor outputs, not captured Apple bytes; the APIs have different
+response-length conventions. Earlier saved vendor metadata reads succeeded.
+
+The existing command-surface test asserts emptiness, not absence. Fake connection
+responses do not exercise Apple's native encoder. An offline synthetic-card
+capture attempt stopped at Apple's active-session precondition before any
+transport request; it did not establish the emitted bytes. No real session or
+private-API/precondition bypass was attempted.
+
+The supported recommendation is to represent the metadata payload as `nil` at
+the existing boundary and regress absent versus empty input explicitly, keeping
+the opcode, slot, response handling, policies, validation and no-retry behavior.
+That production fix is not implemented here. The API mismatch is established;
+its causal link to the saved communication error remains unconfirmed until a
+corrected request is tested. No product tests were rerun for this investigation.
+No new token discovery/read, PIN/authentication, private operation, token write,
+vault operation or installed-app change occurred. Raw evidence and the offline
+probe stay ignored under `tmp/piv-recovery/metadata-read-investigation/`.
+
 ## Previous replacement: credential preflight incomplete
 
 Source: `db69f44fcb9816127e5cd0df3db18169ca5d55df`, including the Preview-only
