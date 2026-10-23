@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; fresh credential public binding passed; disposable Mini vault initialized, seeded, backed up and adopted; registration prepared and exact public anchor exported; pending, activation not committed; external import/possession/restore qualification remain; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable Mini vault prepared/adopted, registration pending; owner-imported public anchor matches exact export and Preview recognizes it; possession/activation/restore qualification remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -660,6 +660,22 @@ source vault, pending bundle and local ownership; do not repeat prepare or clear
 records. Next is separately reviewed owner-run exact public-anchor import, then
 possession/activation and restore qualification. Export alone is not active
 recovery, possession or recovery proof.
+
+#### Owner-imported anchor publicly verified, 2026-10-23
+
+After the owner reported successful external import, serial-selected vendor
+public reads matched object5F4B59 byte-for-byte with the approved 401-byte export.
+Credential/certificate binding, policies, public management settings and PIN/PUK
+3/3 counters remain expected. Installed Preview's fresh public inspection reports
+the same recipient and recognized anchor. The pending registration selector,
+published vault files, export/bundle hashes and config hashes are unchanged;
+Preview was locked. Authenticated registration status was not rerun.
+
+Verification requested no authentication, token write, finish or actual-vault
+operation. Raw evidence stays ignored under
+`tmp/piv-recovery/anchor-import-verified-2026-10-23/`. Next is separately approved
+possession/activation through finish; do not repeat prepare or reimport. This
+public checkpoint does not establish possession, enforcement or recovery.
 
 ## Architecture ownership
 

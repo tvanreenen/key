@@ -5,7 +5,29 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Current checkpoint: registration pending, public anchor exported, 2026-10-23
+## Current checkpoint: imported public anchor verified, 2026-10-23
+
+After the owner reported `Object imported.`, serial-selected public vendor reads
+confirmed object `0x5F4B59` contains exactly the approved 401-byte export, with
+the same SHA-256 recorded below. Certificate/public-key binding, generated P-256
+origin, PIN/touch `ALWAYS`, public management settings and full PIN/PUK 3/3 counters
+remain as expected. The protected management secret was not read.
+
+One fresh installed Preview inventory and one selected credential read returned
+the expected recipient with `recognized` anchor and public-only assurance. The
+same local registration selector remains pending. Published manifest/entry files,
+config hashes, export and pending-bundle hashes are unchanged; Preview was locked.
+Verification requested no authentication, token write, finish or actual-vault
+operation. Authenticated registration status was not rerun. No possession,
+policy-enforcement, activation or restore qualification is established here.
+Raw probe/results remain ignored under
+`tmp/piv-recovery/anchor-import-verified-2026-10-23/`.
+
+Next is separately approved `register finish`: one deliberate hardware possession
+operation before activation of this disposable vault's recovery registration.
+Preserve the current setup; do not repeat prepare or reimport the object.
+
+## Earlier checkpoint: registration pending, public anchor exported, 2026-10-23
 
 The owner approved preparation/export only for the disposable Mini Preview vault.
 Fresh public inventory/credential reads matched the expected new recipient and
