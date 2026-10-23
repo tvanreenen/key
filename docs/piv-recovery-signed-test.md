@@ -5,7 +5,37 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Current hardware checkpoint: fresh credential publicly verified, 2026-10-23
+## Current checkpoint: disposable Mini vault ready for registration, 2026-10-23
+
+The owner approved disposable Preview-vault preparation, with the actual vault
+excluded and no YubiKey writes. The exact installed metadata-corrected candidate
+created a fresh local vault in the ignored evidence directory below. Init's
+existing configuration/pending-restore guards remained in place; no records were
+cleared. Preview config now selects only this disposable vault. Stable config's
+hash remained unchanged; no actual-vault operation was requested.
+
+One synthetic secret and one synthetic TOTP entry were added. Ordinary status
+reported ready, two entries and no conflicts. Secret readback matched. After
+locking Preview, a complete pre-adoption vault-file copy was preserved and
+compared byte-for-byte. Explicit format adoption then committed with no cleanup
+pending. The subsequent local registration status reported `unregistered`, no
+recipients and no activation commit; pending selectors were empty. Ordinary
+status remained ready with two entries, entry names and secret readback matched,
+and the pre-adoption backup passed its recorded hashes. Preview was locked.
+TOTP generation/restore equivalence was not tested in this step.
+
+No token inventory, public token read, PIN/touch request, private token operation,
+anchor export/import or registration preparation/finish was requested. No app
+replacement, Air update, push or release occurred. Raw logs, scripts, intentionally
+public synthetic fixtures, source vault and `profile2-backup` remain ignored under
+`tmp/piv-recovery/disposable-mini-2026-10-23/`; preserve them and the associated
+Preview local records. The backup is not an independent recovery credential.
+
+Next is separately scoped registration preparation/export using fresh public
+selectors. That operation creates pending local setup, not active recovery.
+External anchor import and possession verification remain later approvals.
+
+## Earlier checkpoint: fresh credential publicly verified, 2026-10-23
 
 The owner reported completing external generation of a fresh slot9d P-256 key
 and its self-signed certificate. Serial-selected vendor-library public reads

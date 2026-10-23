@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; corrected signed Mini public preflight passed with fresh externally provisioned credential; certificate/metadata binding and new recipient match independent vendor reads; protected-administration public flags verified, anchor absent; disposable-vault registration/restore qualification remains; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; fresh credential public binding passed; disposable Mini vault initialized with synthetic entries, backed up and adopted; healthy, unregistered and no pending setup; registration/restore qualification remains; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -621,6 +621,27 @@ It does not establish attestation, possession, policy enforcement or recovery.
 Raw public evidence/probe/comparison stay ignored under
 `tmp/piv-recovery/fresh-credential-2026-10-23/`. Disposable-vault registration and
 signed physical restore qualification remain; no Air update or release occurred.
+
+#### Disposable Mini vault prepared and adopted, 2026-10-23
+
+Owner-approved preparation used the exact installed corrected Preview candidate,
+without clearing local ownership or configuration guards. A fresh local vault
+received synthetic secret/TOTP entries, passed ordinary status and secret
+readback, and was locked before a byte-matching pre-adoption file backup.
+Explicit adoption committed with cleanup pending false. Afterward, local
+registration status was unregistered with no recipients/activation commit,
+pending selectors were empty, and ordinary status reported ready with two
+entries and no conflicts. Entry names/secret readback and backup hashes passed;
+Preview was locked. TOTP generation/restore equivalence remains untested.
+
+Preview config selects the disposable vault only. Stable config's hash remained
+unchanged. No actual-vault operation, token operation, anchor export/import,
+registration preparation/finish, Air update or release was requested. Raw
+scripts/logs, public synthetic fixtures, source vault and pre-adoption file
+backup remain ignored under `tmp/piv-recovery/disposable-mini-2026-10-23/`.
+Preserve these and associated Preview local records. Next is separately scoped
+registration preparation/export; external import and possession remain later
+approvals. This checkpoint does not establish recovery qualification.
 
 ## Architecture ownership
 
