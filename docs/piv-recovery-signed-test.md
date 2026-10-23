@@ -5,7 +5,33 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Current checkpoint: finish blocked at native key lookup, 2026-10-23
+## Current checkpoint: reconnect refreshed discovery, no finish retry, 2026-10-23
+
+Owner-approved read-only diagnosis after reconnect found a changed macOS token
+selector, with unchanged recipient/certificate and recognized public anchor.
+A local ad-hoc CLI probe, with interaction disabled throughout, found exactly
+one native reference using the product's exact query filters. Its public key,
+application label, token, P-256 attributes and advertised ECDH support match.
+A selected-token-only comparison also found one reference. A second probe added
+the previous selector as a noninteractive comparison: it returned zero matches
+(`errSecItemNotFound`), while current-selector queries still returned one.
+
+This strongly supports stale discovery after reprovisioning; it does not prove
+the earlier helper's unlogged match count. The probe runs outside the installed
+helper, so its successful lookup does not qualify helper behavior or possession.
+Installed executable hashes, deep strict signatures, Developer ID/team and
+expected helper entitlements pass unrestricted inspection. An initial restricted
+signature failure was not reproduced unrestricted and is not evidence of damage.
+
+Public vendor postchecks confirm the same exact anchor/credential and PIN/PUK
+3/3 counters. The same registration selector remains pending; published vault
+files, configs, export and bundle hashes are unchanged. No authenticated status,
+finish, private operation, token write or actual-vault operation was requested.
+Preview was locked. Raw probes, reports and public certificate remain ignored
+under `tmp/piv-recovery/discovery-reconnect-2026-10-23/`.
+Next is separately approved finish using fresh selectors, not reprepare/import.
+
+## Earlier checkpoint: finish blocked at native key lookup, 2026-10-23
 
 After owner approval and passing exact setup/public preflight, one explicit
 `register finish` returned exit one, `KeyCore.PIVRecoveryAgreementError error 2`.
