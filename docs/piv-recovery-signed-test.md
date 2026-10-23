@@ -5,7 +5,34 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Current checkpoint: disposable Mini vault ready for registration, 2026-10-23
+## Current checkpoint: registration pending, public anchor exported, 2026-10-23
+
+The owner approved preparation/export only for the disposable Mini Preview vault.
+Fresh public inventory/credential reads matched the expected new recipient and
+absent anchor. Config selection, installed candidate hashes, unregistered local
+status, no pending selectors and healthy two-entry state passed before preparation.
+
+One explicit `register prepare` exported a 401-byte public anchor to
+`tmp/piv-recovery/registration-mini-2026-10-23/public-anchor.json`. It matches the
+exact saved pending bundle's anchor byte-for-byte. The CLI also validated its
+canonical format and vault/recipient binding before exporting without overwrite.
+Export SHA-256 is
+`f786d98657107ece49ca05b018a970a4eda78019c3d713cffbff5f009f6dc78e`.
+Local pending inspection identifies only registration operation
+`1c30b710-cf12-4d76-b031-ecc83dbb87f8`; authenticated registration status reports
+`pending`, no active recipients and activation committed false. Published
+manifest/entry file hashes, Preview/Stable config hashes and pre-adoption backup
+hashes remained unchanged. Preview was locked afterward.
+
+No YubiKey write, PIN/touch/private token operation, finish, actual-vault operation,
+Air update or release was requested. Public reads are not possession or recovery
+proof. Raw scripts/logs/results and the public export remain ignored under the
+directory above; preserve them with the source vault, local ownership and pending
+bundle. Do not repeat prepare or clear records. Next is separately approved,
+owner-run import of these exact public bytes, after reviewing the device, object
+and occupancy. Possession verification/activation remains a later step.
+
+## Earlier checkpoint: disposable Mini vault ready for registration, 2026-10-23
 
 The owner approved disposable Preview-vault preparation, with the actual vault
 excluded and no YubiKey writes. The exact installed metadata-corrected candidate

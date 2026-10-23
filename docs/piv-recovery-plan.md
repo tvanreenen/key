@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; fresh credential public binding passed; disposable Mini vault initialized with synthetic entries, backed up and adopted; healthy, unregistered and no pending setup; registration/restore qualification remains; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; fresh credential public binding passed; disposable Mini vault initialized, seeded, backed up and adopted; registration prepared and exact public anchor exported; pending, activation not committed; external import/possession/restore qualification remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -642,6 +642,24 @@ backup remain ignored under `tmp/piv-recovery/disposable-mini-2026-10-23/`.
 Preserve these and associated Preview local records. Next is separately scoped
 registration preparation/export; external import and possession remain later
 approvals. This checkpoint does not establish recovery qualification.
+
+#### Disposable registration prepared and public anchor exported, 2026-10-23
+
+Fresh public credential inspection, exact disposable config selection and local
+preconditions passed. One explicit preparation exported a 401-byte public anchor;
+its bytes match the saved bundle's anchor. Authenticated status reports pending,
+no active recipients and activation committed false. Public pending inspection
+selects only registration operation `1c30b710-cf12-4d76-b031-ecc83dbb87f8`.
+Published manifest/entry files, both config hashes and pre-adoption backup hashes
+remain unchanged; Preview was locked. No token write/private operation, finish,
+actual-vault operation, Air update or release was requested.
+
+Evidence/export remain ignored under
+`tmp/piv-recovery/registration-mini-2026-10-23/`. Preserve that directory, the
+source vault, pending bundle and local ownership; do not repeat prepare or clear
+records. Next is separately reviewed owner-run exact public-anchor import, then
+possession/activation and restore qualification. Export alone is not active
+recovery, possession or recovery proof.
 
 ## Architecture ownership
 
