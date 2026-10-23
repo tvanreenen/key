@@ -5,7 +5,31 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Current checkpoint: imported public anchor verified, 2026-10-23
+## Current checkpoint: finish blocked at native key lookup, 2026-10-23
+
+After owner approval and passing exact setup/public preflight, one explicit
+`register finish` returned exit one, `KeyCore.PIVRecoveryAgreementError error 2`.
+The inspected enum and a local Swift/Foundation error-code mapping identify
+`ambiguousKey`: native lookup did not return exactly one matching private-key
+reference. This guard precedes `session.agree`; the error does not distinguish
+zero from multiple matches. No automatic retry occurred. This is not a reported
+wrong PIN or agreement-provider failure. Prompt counts were not owner-confirmed.
+
+Initial local inspection returned the helper's restarting guidance. After lock,
+ordinary status refused pending state; dedicated pending and authenticated
+registration inspection succeeded after restart. The same operation remains
+pending, no active recipients, activation committed false. Published vault files,
+export/bundle/config hashes and public credential/anchor remain unchanged.
+Serial-selected public postchecks show PIN/PUK still 3/3. Preview was locked;
+no token write or actual-vault operation was requested.
+
+Raw scripts/logs/results remain ignored under
+`tmp/piv-recovery/registration-finish-2026-10-23/`. Preserve all pending setup.
+Stale macOS key discovery is a hypothesis, not an established cause. Next is
+owner reconnect and noninteractive key-discovery diagnosis before any separately
+approved finish retry; do not prepare, reimport or reset anything.
+
+## Earlier checkpoint: imported public anchor verified, 2026-10-23
 
 After the owner reported `Object imported.`, serial-selected public vendor reads
 confirmed object `0x5F4B59` contains exactly the approved 401-byte export, with

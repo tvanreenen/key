@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable Mini vault prepared/adopted, registration pending; owner-imported public anchor matches exact export and Preview recognizes it; possession/activation/restore qualification remain; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration prepared and imported anchor verified; one finish failed exact native key lookup before agreement; still pending, activation false, counters 3/3; lookup diagnosis and possession/activation/restore qualification remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -676,6 +676,24 @@ operation. Raw evidence stays ignored under
 `tmp/piv-recovery/anchor-import-verified-2026-10-23/`. Next is separately approved
 possession/activation through finish; do not repeat prepare or reimport. This
 public checkpoint does not establish possession, enforcement or recovery.
+
+#### Single finish attempt blocked at exact native lookup, 2026-10-23
+
+One owner-approved finish request returned `PIVRecoveryAgreementError` code2.
+Inspected source and a local Swift NSError mapping identify the exact-one-match
+guard (`ambiguousKey`) before `session.agree`; zero/multiple matches are not
+distinguished. No automatic retry or setup replacement occurred. Initial local
+inspection returned restarting; following lock, ordinary status refused pending
+state, while dedicated pending/authenticated registration status after restart
+confirmed the same pending operation and activation committed false.
+
+Published test-vault files, export/bundle/config hashes and public credential/
+anchor are unchanged. Public PIN/PUK counters remain 3/3. Preview was locked;
+no token write or actual-vault operation was requested. Prompt counts were not
+owner-confirmed. Raw evidence stays ignored under
+`tmp/piv-recovery/registration-finish-2026-10-23/`. Cache/re-enumeration is only a
+hypothesis. Next is reconnect and noninteractive lookup diagnosis before any
+separately approved finish retry; preserve setup, do not reprepare/reimport/reset.
 
 ## Architecture ownership
 
