@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; diagnostic Preview installed on Mini; Air replacement verified/dispatched but final report unavailable after disconnect; Mini read isolated to slot9d metadata with CryptoTokenKit communication error and no card status; root cause and physical qualification remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; exact diagnostic Preview installed/verified on both Macs; Air empty public inventory; Mini read isolated to slot9d metadata with CryptoTokenKit communication error and no card status; root cause and physical qualification remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -465,11 +465,17 @@ incomplete. The transport/provider or request-compatibility cause is unresolved.
 No retry, alternative probe, PIN/authentication, private operation, token write
 or actual-vault content/authority operation followed.
 
-The Air verified the exact transfer manifest/seven payloads and artifact trust
-checks, confirmed the prior installed candidate/config absence, and began the
-replacement. The host then became unreachable before the final report could be
-retrieved. Air completion and final preservation/inventory are unconfirmed.
-Retrieve its existing result on reconnection rather than blindly repeating work.
+The Air completed installation and the bounded inventory on 2026-10-22. Its
+saved result was retrieved after reconnection on 2026-10-23, without repeating
+installation or token calls. The exact transfer manifest/seven payloads,
+artifact trust checks, installed file hashes, running host/helper identities and
+fresh registration passed. One status returned the expected unconfigured error;
+one public inventory returned no candidates. No credential was selected/read.
+Stable app all-file/config hashes are unchanged; Preview config remains absent.
+The previous-app backup verifies. No PIN/touch, private operation, token write,
+vault operation, reset or recovery followed. This is enumeration success, not
+credential or recovery acceptance. The Air record is
+`piv-air-test/air-036cfa9-install.json` in that chat's evidence directory.
 
 Raw Mini evidence/backup stay ignored under the diagnostic candidate's
 `mini-install/`; sanitized results are in the

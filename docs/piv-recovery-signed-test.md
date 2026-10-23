@@ -58,13 +58,24 @@ Mini evidence and recoverable previous-app backup are under ignored
 `tmp/piv-recovery/qualification-2026-10-22-036cfa9/mini-install/`.
 The read result is recorded in `RESULT.json`; prior backups remain intact.
 
-The Air verified the transfer manifest and all seven payloads, source signatures,
-entitlements, Boolean gates, universal slices, ticket and Gatekeeper, and confirmed
-the prior `db69f44` installation and absent Preview config. It then began the
-approved replacement. Remote connectivity was lost before the final install/
-inventory report could be retrieved. Air completion, backup path and final
-preservation checks are unconfirmed; do not repeat installation or token calls
-blindly. Resume by retrieving that chat's existing result when reachable.
+### Air result retrieved after reconnection, 2026-10-23
+
+The Air completed the approved installation on 2026-10-22, macOS
+`27.0.1 (26A434)`, arm64. Its existing final result was retrieved on 2026-10-23;
+no installation or token call was repeated. The transfer manifest/all seven
+payloads, component identities, entitlements, Boolean gates, universal slices,
+signatures, Gatekeeper and stapled ticket passed. Installed files match the
+received candidate; fresh registration and running host/helper paths/hashes
+were verified. One status returned expected exit one, unconfigured. One public
+inventory returned exit zero with no candidates; no credential was inspected.
+
+Stable app all-file/config hashes are unchanged, Preview config remains absent,
+and the previous-app backup verifies at
+`~/Downloads/Key-Preview-036cfa9-Air-20261022T155344Z/backup-before-install/Key Preview.app`.
+No PIN/touch, authentication, private operation, token write, vault operation,
+config/Keychain reset or recovery followed. Protected pending ownership remains
+unassessed. Raw evidence is `piv-air-test/air-036cfa9-install.json` in the Air
+chat's evidence directory. Empty inventory is not credential/recovery success.
 
 Next is metadata-read compatibility investigation, not key administration or
 recovery acceptance. This result does not justify changing the PIN or key.
