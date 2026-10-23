@@ -5,7 +5,30 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Current hardware checkpoint: disposable PIV setup reset, 2026-10-23
+## Current hardware checkpoint: protected administration reported, slot 9d empty
+
+After the approved reset below, the owner reported privately setting a fresh PIN
+and PUK, then successful completion of the reviewed `ykman` management-key change
+with random generation, PIN-protected storage, AES192 and management touch enabled.
+No credentials were supplied to Key or this chat.
+
+Read-only verification on 2026-10-23 selected the same device and read only public
+metadata/administrative flags. It reports nondefault AES192 management key,
+management touch `ALWAYS`, stored-key protection flag true, PIN-derived mode false,
+nondefault PIN/PUK with 3/3 counters, no slot9d key and absent object `0x5F4B59`.
+The protected management-key object was not read. These observations and the
+owner's successful command report support the intended setup; they do not prove
+randomness, retrieve/validate the stored secret, exercise management authentication
+or establish touch enforcement. No PIN/PUK verification, private operation,
+token write or actual-vault access occurred during these checks.
+
+Raw public evidence and the inspected read-only probe are ignored under
+`tmp/piv-recovery/management-protection-2026-10-23/verified-public-settings.json`
+and `verify-public-settings.py`. Next is separately approved external generation
+of a fresh slot9d P-256 credential/certificate with required policies, followed by
+new public binding validation. Old recipient IDs/selectors remain obsolete.
+
+## Earlier checkpoint: disposable PIV setup reset, 2026-10-23
 
 The owner explicitly approved discarding this test-only PIV setup after losing
 track of its PIN/PUK and reporting one failed PIN in the management-protection

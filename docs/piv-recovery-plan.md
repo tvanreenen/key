@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; corrected signed Mini public preflight passed with old test credential; owner subsequently approved PIV-only reset, now verified empty/default; fresh credential/admin setup and disposable-vault registration/restore qualification remain; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; corrected signed Mini public preflight passed with old credential; approved reset completed, owner set PIN/PUK and protected management key, public settings verified; slot9d/anchor empty; fresh credential and disposable-vault registration/restore qualification remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -584,6 +584,23 @@ owner-private PIN/PUK setup, protected management-key setup, and fresh external
 slot9d/certificate provisioning before the disposable-vault flow. No actual-vault
 access, config/Keychain cleanup, app replacement, PR push or release occurred.
 Raw evidence stays ignored under `tmp/piv-recovery/piv-reset-2026-10-23/`.
+
+#### Owner-private credential setup and public administration verification, 2026-10-23
+
+The owner reported setting a fresh PIN and PUK, then `New management key set.`
+after the reviewed vendor generation/protection command. A public-only probe
+using the installed vendor library selected the same known device and reports
+nondefault AES192 management key, management touch `ALWAYS`, PIN-protected stored
+key flag, no PIN-derived mode, and nondefault PIN/PUK with full 3/3 counters.
+Slot9d remains empty and object5F4B59 absent.
+
+No protected management-key object, secret value or authentication was requested
+by verification. Public flags and the owner report do not independently prove
+randomness, stored-secret retrieval/authentication or touch enforcement. No token
+write or actual-vault access occurred during verification. Raw evidence/probe stay
+ignored under `tmp/piv-recovery/management-protection-2026-10-23/`.
+Next is separately approved owner-run slot9d P-256 generation/certificate setup,
+then new public recipient binding and disposable-vault registration qualification.
 
 ## Architecture ownership
 
