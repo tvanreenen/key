@@ -1,11 +1,24 @@
 # Signed Preview two-Mac acceptance checklist
 
-Prepared 2026-10-22, updated 2026-10-23 for `REC-812`. This checklist records
+Prepared 2026-10-22, updated 2026-10-24 for `REC-812`. This checklist records
 scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## UX side investigation: isolated staged authentication passed, 2026-10-23
+## UX side investigation: second isolated staged test passed, 2026-10-24
+
+The owner separately requested one repeat to watch more closely. The same probe
+completed ACL evaluation at08:24:26 UTC, then one matching synthetic exchange at
+08:24:29 UTC with further PIN dialogs disabled. The owner confirmed one PIN dialog
+and that it closed before the access-control message and flash/touch. No automatic
+retry, finish, token write or actual-vault operation occurred. Public postchecks
+show unchanged credential/anchor and PIN/PUK3/3; the same pending selector and
+config/export/bundle hashes remain intact. Evidence is ignored under
+`tmp/piv-recovery/staged-auth-repeat-2026-10-24/`. Two standalone observations on
+this Mac/key support the handoff; signed-helper validation and broader reliability
+remain unproven. No additional test or product integration was performed.
+
+## Earlier UX checkpoint: isolated staged authentication passed, 2026-10-23
 
 One separately approved test of the hash-verified standalone probe evaluated the
 actual selected key ACL through macOS. The callback succeeded at03:29:38 UTC

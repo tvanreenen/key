@@ -766,6 +766,18 @@ selector and config/export/bundle hashes remain intact. Evidence is ignored unde
 `tmp/piv-recovery/staged-auth-test-2026-10-23/`. Next is separately approved signed-
 helper validation before integration; cancellation/repeatability remain unproven.
 
+#### Owner-observed repeat of staged authentication passed, 2026-10-24
+
+One separately approved repeat with the unchanged probe again matched its
+synthetic exchange after ACL completion, with further PIN dialogs disabled. The
+owner confirmed one PIN dialog closing before the access-control message and
+flash/touch. Same pending selector, config/export/bundle hashes and public anchor/
+credential remain intact; PIN/PUK3/3. No automatic retry, finish, key write or
+actual-vault operation occurred. Evidence is ignored under
+`tmp/piv-recovery/staged-auth-repeat-2026-10-24/`. This is a second standalone
+observation, not signed-helper or general reliability qualification. Next remains
+separately approved signed-helper validation before product integration.
+
 ## Architecture ownership
 
 - Format and cryptographic validation stay in `KeyCore`, following
