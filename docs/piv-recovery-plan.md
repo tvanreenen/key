@@ -1,6 +1,6 @@
 # PIV catastrophe recovery implementation plan
 
-Current implementation tracker: 2026-10-23. The retained evidence summaries
+Current implementation tracker: 2026-10-24. The retained evidence summaries
 are linked below. This is the authoritative completion plan for the
 PIV recovery track; the v3 roadmap summarizes it rather than maintaining a
 second set of work-package statuses.
@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; refreshed-selector finish passed helper lookup, failed provider call; owner entered PIN but did not touch; same setup pending, activation false and counters 3/3; separately approved possession/activation and restore qualification remain; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration remains pending; two standalone staged-auth passes recorded; signed diagnostic-only helper build20 prepared, not installed; helper/UI/native activation and restore qualification remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -777,6 +777,26 @@ actual-vault operation occurred. Evidence is ignored under
 `tmp/piv-recovery/staged-auth-repeat-2026-10-24/`. This is a second standalone
 observation, not signed-helper or general reliability qualification. Next remains
 separately approved signed-helper validation before product integration.
+
+#### Signed diagnostic-helper validation candidate prepared only, 2026-10-24
+
+An uninstalled universal build20 candidate retains normal Preview signing/service
+identities and production XPC requirements. The diagnostic CLI/helper do not link
+KeyCore or provide vault/registration operations. Original host code matches on
+signature-stripped owned copies; the copied bundle is re-signed, ordinary recovery
+disabled and validation-only marker required. A side-by-side Debug namespace was
+not chosen because it changes the helper identity/policy being qualified.
+
+Software-only checks, exact signatures/entitlements, hardened runtime/timestamp,
+both slices and ZIP round-trip pass. No install, notarization submission, service
+activation, live XPC, token query/authentication/agreement, finish, key write or
+actual-vault operation occurred. Installed/config/export/bundle hashes remain
+unchanged. Preparation source/evidence stay ignored under
+`tmp/piv-recovery/signed-helper-preparation-2026-10-24/`; use `final/` only.
+Next is separately approved notarization/temporary Preview replacement and
+noninteractive helper inspection, with another pause before authentication.
+Native/XPC/cancellation behavior is still untested. Preserve the original app and
+pending setup; ordinary commands are disabled in this temporary diagnostic build.
 
 ## Architecture ownership
 

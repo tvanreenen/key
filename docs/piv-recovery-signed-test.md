@@ -5,7 +5,33 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## UX side investigation: second isolated staged test passed, 2026-10-24
+## UX side investigation: signed-helper candidate prepared only, 2026-10-24
+
+A diagnostic-only universal build20 candidate is signed and packaged, but not
+notarized, installed or run as a helper service. The normal Preview identities,
+production XPC requirements, hardened runtime and exact helper entitlements are
+retained. Its replacement CLI/helper do not link KeyCore or expose vault or
+registration commands. The original host code is retained and re-signed; owned
+signature-stripped copies match. Ordinary recovery gates are false and a separate
+validation-only marker is required. This is not a public release or product UI.
+
+Swift 6 warnings-as-errors builds, software core/boundary checks, signed help/
+self-tests, ordinary-command and noninteractive staged-request refusal pass.
+Repository signing/entitlement checks, both slices, deep strict verification and
+ZIP round-trip pass. No live XPC, token query, authentication, agreement, finish,
+key write or actual-vault operation was requested. Installed executable and
+config/export/pending-bundle hashes are unchanged. No production source changed.
+
+Use only `final/` under ignored
+`tmp/piv-recovery/signed-helper-preparation-2026-10-24/`; earlier assemblies are
+retained intermediate evidence. The review ZIP SHA-256 is
+`19d48976263f5ecef9fd02ff73ef598f10b8f01015b272ea227b69fba508f012`.
+Next is separately approved notarization/temporary Preview-only installation,
+then running-helper identity checks and noninteractive inspection. Pause again
+before any authenticated test. The diagnostic candidate disables normal Preview
+commands; preserve a verified original app rollback copy and all pending records.
+
+## Earlier UX checkpoint: second isolated staged test passed, 2026-10-24
 
 The owner separately requested one repeat to watch more closely. The same probe
 completed ACL evaluation at08:24:26 UTC, then one matching synthetic exchange at
