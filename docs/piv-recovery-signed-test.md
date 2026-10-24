@@ -5,7 +5,20 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## UX side investigation: staged-auth probe prepared only, 2026-10-23
+## UX side investigation: actual-key ACL found without authentication, 2026-10-23
+
+One separately approved `--check-key` run used the hash-verified standalone probe,
+fresh public inventory/credential and a pinned certificate checked against fresh
+serial-selected vendor reads. Exact native lookup/public binding checks passed;
+the selected key exposes a validly typed access-control object. Interaction stayed
+disabled; no authentication or key-agreement mode was invoked. Public postchecks
+show unchanged credential/anchor and PIN/PUK3/3; config/export/bundle hashes match.
+No registration, token write or actual-vault operation was requested. Evidence is
+ignored under `tmp/piv-recovery/staged-auth-acl-check-2026-10-23/`.
+This establishes ACL availability only, not reliable PIN/touch staging. Next is
+separate approval for one isolated staged-authentication test; no finish retry.
+
+## Earlier UX checkpoint: staged-auth probe prepared only, 2026-10-23
 
 An isolated ignored probe under
 `tmp/piv-recovery/staged-auth-preparation-2026-10-23/` compiles with Swift 6 and

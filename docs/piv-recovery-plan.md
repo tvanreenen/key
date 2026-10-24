@@ -742,6 +742,17 @@ Next is separate approval for noninteractive ACL inspection, then any hardware
 authentication. Callback/touch separation and signed-helper behavior are unproven;
 drop the route rather than use timing guesses or extra/weaker authentication.
 
+#### Noninteractive actual-key ACL check passed, 2026-10-23
+
+One approved standalone `--check-key` run passed exact key/public binding checks
+and found the actual selected key's access-control object, with interaction
+disabled. No authentication/agreement, registration, token write or actual-vault
+operation was requested. Public postchecks show unchanged credential/anchor and
+PIN/PUK3/3; config/export/bundle hashes match. Raw evidence is ignored under
+`tmp/piv-recovery/staged-auth-acl-check-2026-10-23/`. ACL presence is not evidence
+of PIN/touch separation. Next is separately approved isolated authentication,
+not product integration or a registration finish retry.
+
 ## Architecture ownership
 
 - Format and cryptographic validation stay in `KeyCore`, following
