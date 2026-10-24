@@ -5,7 +5,31 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## UX side investigation: signed-helper candidate prepared only, 2026-10-24
+## UX side investigation: signed-helper candidate notarized, not installed, 2026-10-24
+
+Apple accepted the exact recorded build20 review ZIP in submission
+`3a10e32d-7cc7-43bd-81a8-0862bf1daeb7`, with no issues. The submitted SHA-256
+matches the preparation record below. No rebuild or re-sign occurred. An extracted
+copy was stapled and repackaged as
+`Key-Preview-staged-helper-build20-notarized.zip`, SHA-256
+`eddb4a3d7b296c84c53ba26979f32b8336455f06522099eddb126478af86e5a9`.
+Ticket validation, repository signing/entitlement checks, deep strict verification
+for both architectures and Gatekeeper acceptance pass, including ZIP round-trip.
+All three executables and app/helper plists match the submitted source bytes;
+validation-only remains true and ordinary recovery remains disabled.
+
+The installed app, config files, public export and pending-bundle hashes are
+unchanged. No install, host/helper launch, live XPC, token API, authentication,
+vault/registration operation or key write occurred. No release was published.
+Raw logs, transfer ZIP and `NOTARIZED-CANDIDATE.json` remain ignored under
+`tmp/piv-recovery/signed-helper-preparation-2026-10-24/final/notarization/`.
+
+Next is separately approved temporary Preview-only installation with a verified
+original-app rollback copy and preserved pending records, followed by running
+helper identity checks and noninteractive inspection. Pause before authentication.
+Signed-helper native behavior and PIN/touch ordering remain untested.
+
+## Earlier UX checkpoint: signed-helper candidate prepared only, 2026-10-24
 
 A diagnostic-only universal build20 candidate is signed and packaged, but not
 notarized, installed or run as a helper service. The normal Preview identities,

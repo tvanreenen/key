@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration remains pending; two standalone staged-auth passes recorded; signed diagnostic-only helper build20 prepared, not installed; helper/UI/native activation and restore qualification remain; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration remains pending; two standalone staged-auth passes recorded; diagnostic-only helper build20 notarized, not installed; helper/UI/native activation and restore qualification remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -797,6 +797,23 @@ Next is separately approved notarization/temporary Preview replacement and
 noninteractive helper inspection, with another pause before authentication.
 Native/XPC/cancellation behavior is still untested. Preserve the original app and
 pending setup; ordinary commands are disabled in this temporary diagnostic build.
+
+#### Signed diagnostic-helper candidate notarized, not installed, 2026-10-24
+
+Apple accepted the exact recorded review ZIP, submission
+`3a10e32d-7cc7-43bd-81a8-0862bf1daeb7`, with no issues. An extracted copy was
+stapled and repackaged without rebuild/re-sign. Ticket, signing/entitlement,
+deep strict all-architecture and Gatekeeper checks pass, including ZIP round-trip.
+Executable/plist bytes and validation-only/recovery-disabled settings are unchanged.
+The [signed-test record](piv-recovery-signed-test.md) pins both archive hashes;
+raw logs and notarized transfer artifact remain ignored under the preparation's
+`final/notarization/` directory.
+
+Installed executable/config/export/pending-bundle hashes are unchanged. No install,
+host/helper launch, live XPC, token API, authentication, vault/registration operation,
+key write or public release occurred. Next is separately approved temporary
+Preview installation with rollback preservation and noninteractive helper
+inspection, then another pause before authentication. Native behavior is untested.
 
 ## Architecture ownership
 
