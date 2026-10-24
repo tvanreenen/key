@@ -5,7 +5,27 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## UX side investigation: actual-key ACL found without authentication, 2026-10-23
+## UX side investigation: isolated staged authentication passed, 2026-10-23
+
+One separately approved test of the hash-verified standalone probe evaluated the
+actual selected key ACL through macOS. The callback succeeded at03:29:38 UTC
+(2026-10-24 UTC, still2026-10-23 locally), then one synthetic agreement ran with
+further PIN dialogs disabled and matched its software peer at03:29:46 UTC. The
+owner confirmed one PIN dialog and flash/physical touch after the access-control
+step. No retry, registration finish, token write or actual-vault operation was
+requested. No PIN value or shared secret was printed/saved.
+
+This supports the desired handoff in this run, not direct touch-event detection.
+`isCredentialSet(.smartCardPIN)` reported false despite successful staging; it was
+diagnostic only and must not drive the touch prompt. Public postchecks confirm
+unchanged credential/anchor and PIN/PUK3/3. The same registration selector remains
+pending; configs, export and pending-bundle hashes are unchanged. Raw evidence is
+ignored under `tmp/piv-recovery/staged-auth-test-2026-10-23/`.
+Next is separately approved validation in the signed helper before UI/product
+integration; repeatability, cancellation and policy-enforcement qualification
+remain. No installed app or production source changed.
+
+## Earlier UX checkpoint: actual-key ACL found without authentication, 2026-10-23
 
 One separately approved `--check-key` run used the hash-verified standalone probe,
 fresh public inventory/credential and a pinned certificate checked against fresh

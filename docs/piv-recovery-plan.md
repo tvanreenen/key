@@ -753,6 +753,19 @@ PIN/PUK3/3; config/export/bundle hashes match. Raw evidence is ignored under
 of PIN/touch separation. Next is separately approved isolated authentication,
 not product integration or a registration finish retry.
 
+#### One isolated staged-authentication test passed, 2026-10-23
+
+The actual-key ACL callback completed before one successful synthetic agreement
+with further PIN dialogs disabled. The owner confirmed one PIN dialog followed
+by flash/touch after the access-control step. This supports a feasible handoff in
+this standalone ad-hoc run; it is not a touch-event callback or signed-helper
+qualification. Credential-presence reporting was false and must not drive UI.
+No retry, finish, token write or actual-vault operation was requested. Public
+postchecks show unchanged credential/anchor and PIN/PUK3/3; the same registration
+selector and config/export/bundle hashes remain intact. Evidence is ignored under
+`tmp/piv-recovery/staged-auth-test-2026-10-23/`. Next is separately approved signed-
+helper validation before integration; cancellation/repeatability remain unproven.
+
 ## Architecture ownership
 
 - Format and cryptographic validation stay in `KeyCore`, following
