@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration remains pending; two standalone staged-auth passes recorded; diagnostic build20 notarized/installed but helper startup blocked; original build19 restored; helper/UI/native activation and restore qualification remain; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration remains pending; two standalone staged-auth passes recorded; build20 helper startup blocked and build19 restored; startup fix build21 signed/prepared, not notarized/installed; helper/UI/native activation and restore qualification remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -834,6 +834,28 @@ copy remain ignored under `tmp/piv-recovery/signed-helper-install-2026-10-25/`.
 Next is startup-guard diagnosis and bounded diagnostics/launch-context coverage
 before another signed candidate. Signed-helper native behavior remains untested;
 preserve pending records and pause before authentication.
+
+#### Diagnostic startup fix prepared and signed, 2026-10-25
+
+Controlled processes reproduce the original guard's dependence on `argv[0]`:
+absolute labels pass, basename/bundle-relative labels fail. That is consistent
+with the failed helper start, whose arguments were not captured. Corrected
+diagnostic sources use the existing loader-path approach from `KeyVersionInfo`,
+with symlink resolution, exact layout/metadata guards and fixed nonsecret reason
+codes. A signed local refusal verifies reason-code delivery to unified logging.
+Thirty-five local process tests and six signed startup-only label checks pass;
+both architectures compile with warnings as errors. No listener or hardware runs.
+
+Diagnostic build21 is signed/packaged, not notarized/installed. Signing, exact
+entitlements on both slices, strict verification and ZIP round-trip pass. Host
+code matches on signature-stripped owned copies; the native core is unchanged.
+The [signed-test record](piv-recovery-signed-test.md) pins the review ZIP. Sources,
+tests and artifact remain ignored under
+`tmp/piv-recovery/signed-helper-startup-fix-2026-10-25/`. Installed build19, prior
+candidate and protected file hashes remain unchanged. Next is exact-byte
+notarization, then approved installation/noninteractive helper checks. Actual
+SMAppService startup, native inspection and authentication remain unqualified;
+pause before authentication and preserve pending registration.
 
 ## Architecture ownership
 

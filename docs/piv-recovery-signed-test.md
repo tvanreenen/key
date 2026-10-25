@@ -5,7 +5,42 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## UX side investigation: diagnostic helper startup blocked, original Preview restored, 2026-10-25
+## UX side investigation: startup fix prepared and signed, 2026-10-25
+
+A local process reproduction of the original capsule guard passes with absolute
+`argv[0]` and rejects the same executable with basename or bundle-relative labels.
+This establishes a guard defect consistent with the failed launch; the original
+process's arguments were not captured, so its precise failure remains inferred.
+The corrected diagnostic sources locate the loaded executable using
+`_NSGetExecutablePath` and resolve symlinks, following existing `KeyVersionInfo`
+code without linking KeyCore. Expected executable layout and all capsule metadata
+checks remain required. Each guard now has a fixed nonsecret reason code; a signed
+local refusal check confirms that code reaches unified logging and JSON output.
+
+Both architectures compile with Swift6 warnings as errors. Thirty-five local
+process tests pass for launch labels, symlinks, changed cwd, metadata/layout
+refusals, software core/boundary checks, ordinary-command refusal and rejection of
+noninteractive authentication before XPC. Six signed startup-only launch-label
+checks also pass. The new `--startup-check` exits before listener activation,
+XPC or token access. Intel execution and actual SMAppService launch remain untested.
+
+Diagnostic-only build21 is signed and packaged, not notarized or installed. Exact
+signing/entitlement, both-slice, deep strict, host-code and ZIP round-trip checks
+pass. Its review ZIP SHA-256 is
+`0d5b7774a149bd68e2c53e2a84601f7b0233112ecb56300453e6e2ad1d96aa67`.
+The native core is byte-identical to build20; production XPC requirements and
+recovery-disabled/validation-only gates are retained. A local packaging-command
+syntax error was corrected, then verification resumed without re-signing.
+
+Installed build19, prior candidate, disposable/Stable file snapshots and
+config/export/pending-bundle hashes remain unchanged. No listener, hardware query,
+authentication, key write, registration/vault operation, install or public release
+was requested. Corrected sources, tests, logs and candidate remain ignored under
+`tmp/piv-recovery/signed-helper-startup-fix-2026-10-25/`; use `final/` only.
+Next is separately approved notarization of those exact bytes, then temporary
+Preview installation and read-only helper checks. Pause before authentication.
+
+## Earlier UX checkpoint: diagnostic helper startup blocked, original Preview restored, 2026-10-25
 
 Owner-approved preflight verified the exact notarized build20 archive, installed
 build19 hashes, disposable config and same pending registration. Fresh public
