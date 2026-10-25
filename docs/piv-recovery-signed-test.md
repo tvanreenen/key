@@ -5,7 +5,38 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## UX side investigation: startup fix notarized, not installed, 2026-10-25
+## UX side investigation: build21 helper startup and read-only inspection passed, 2026-10-25
+
+After approved public/state preflight and a verified original-app rollback copy,
+the exact notarized build21 installed. Signatures, ticket, Gatekeeper, complete
+copy comparison and installed CLI/helper startup-only checks pass. Opening Preview
+registered build21 through SMAppService. One explicit helper start remains running
+as PID19584, with the exact expected mapped executable/hash, signing identity and
+entitlements. Fixed startup logs confirm capsule validation and listener activation.
+Its command line is bundle-relative, consistent with the reproduced old guard
+defect; the original failed process's arguments remain unavailable.
+
+One `staged-helper --inspect` request completed through the signed CLI/helper XPC
+boundary on arm64 macOS27.0.1 (26A434), exit0. The complete reply contains exactly one noninteractive key-check
+event: actual key ACL available true, authentication requested false. Native exact
+key/certificate/token binding and algorithm guards passed. No authenticated
+request, private-key agreement or retry occurred. This establishes readiness and
+ACL availability in this signed helper context, not PIN/touch ordering or recovery.
+
+Fresh public postchecks match credential, anchor, policies and PIN/PUK3/3. Entire
+disposable-vault and Stable-app snapshots, both configs, public export and encrypted
+pending bundle are unchanged. The same registration selector was pending at
+preflight; no registration operation was requested after replacement. No actual
+vault operation or key write occurred. Raw evidence and rollback remain ignored
+under `tmp/piv-recovery/signed-helper-build21-install-2026-10-25/`.
+
+Build21 remains temporarily installed, with normal Preview commands disabled.
+Next is separately approved one isolated staged PIN/touch synthetic test in this
+signed helper, with no registration finish. Preserve rollback and pending setup;
+stop before authentication until that approval. UI, cancellation, repeatability,
+policy enforcement and end-to-end recovery qualification remain outstanding.
+
+## Earlier UX checkpoint: startup fix notarized, not installed, 2026-10-25
 
 Apple accepted the exact build21 review ZIP in submission
 `27e65935-3299-4c0a-a91f-58b43ca00922`, with no issues. The submitted hash matches

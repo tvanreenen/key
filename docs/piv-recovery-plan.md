@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration remains pending; two standalone staged-auth passes recorded; build20 helper startup blocked and build19 restored; startup fix build21 notarized, not installed; helper/UI/native activation and restore qualification remain; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration remains pending; two standalone staged-auth passes recorded; notarized diagnostic build21 installed with helper startup/read-only ACL inspection passed; signed staged authentication, UI/native activation and restore qualification remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -868,6 +868,24 @@ helper launch, token/authentication or vault/registration operation occurred.
 Next is approved temporary Preview installation with rollback retained, then
 startup-only and noninteractive helper checks. Pause before authentication;
 actual LaunchAgent/native behavior remains unqualified.
+
+#### Build21 signed helper startup/read-only inspection passed, 2026-10-25
+
+Approved exact installation passed signatures, ticket/Gatekeeper and startup-only
+checks, preserving a verified build19 rollback copy. SMAppService registered
+build21; one explicit start remains running with expected mapped executable/hash
+and identity. Fixed logs confirm capsule/listener startup. The current invocation
+is bundle-relative, consistent with the reproduced old guard defect. One signed
+CLI/helper `--inspect` request returned success with actual-key ACL available and
+authentication false. No authenticated request or private agreement was made.
+
+Public postchecks match credential/anchor/policies and PIN/PUK3/3. Disposable/Stable
+file snapshots and configs/export/pending-bundle hashes are unchanged; no key write,
+registration or actual-vault operation occurred. Build21 remains temporarily
+installed with normal Preview commands disabled. Evidence and rollback are ignored
+under `tmp/piv-recovery/signed-helper-build21-install-2026-10-25/`. Next is separately
+approved one isolated staged PIN/touch synthetic test in this helper, preserving
+pending registration. Authentication/UI/reliability/recovery remain unqualified.
 
 ## Architecture ownership
 
