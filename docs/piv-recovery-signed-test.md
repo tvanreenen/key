@@ -5,7 +5,40 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## First real product registration and touch UI passed on Mini, 2026-10-25
+## First product restore and token-free reopening passed on Mini, 2026-10-25
+
+One approved build22 restore completed from19:55:18 to19:55:51 UTC, exit0, using
+only a copy of the disposable source's published manifests/encrypted entries and
+the existing registered key. Preview's three local config/cache files were first
+preserved in a verified backup and Preview was cold-started unconfigured. No source
+Mac credentials, checkpoints or setup bundles were copied into the restore source.
+The owner confirmed exactly one YubiKey PIN dialog and the expected touch-window
+handoff/dismissal. No key write or automatic restore retry/resume occurred.
+
+Both entries restored into fresh vault `5e7481e7-4399-4242-b878-29d013bd15c9`,
+now selected by Preview. New vault/key/device/entry/transition IDs were verified;
+its permanent device-wrapped genesis has no inherited recovery registration.
+After unplugging the YubiKey, public inventory confirmed zero token candidates
+and normal reads matched the exact source fixture bytes and expected TOTP
+seed/time counter. Normal lock stopped the helper, and reads through a fresh
+helper also passed without the token. Final Preview state is locked/helper stopped.
+Entry values were not printed or logged.
+
+The copied source, original source, previous Preview config/cache backup, Stable
+app/config and installed code hashes match. Post-restore public key/anchor/policy
+metadata matches with PIN/PUK3/3. No actual-vault traversal occurred. Evidence stays
+ignored under `tmp/piv-recovery/product-touch-build22-restore-2026-10-25/`.
+Two harness assumptions were corrected: preserve the fixture's literal newline,
+and use lock's existing shutdown rather than expecting a still-running helper.
+There was one restore; only ordinary token-free reads were repeated.
+
+This is same-Mac success: original source Mac credentials remain in the local
+Preview Keychain, so independent Air recovery is still required. Cancellation,
+timeout/disconnect, exact resume, backup-token and further history qualification
+also remain. Preserve both vaults and the old config/cache backup; do not replay
+the completed restore or automatically revert Preview's new selection.
+
+## Earlier: first real product registration and touch UI passed on Mini, 2026-10-25
 
 One separately approved finish request completed through exact installed build22
 on arm64 macOS27.0.1 (26A434), from19:47:31 to19:47:57 UTC, exit0. The actual

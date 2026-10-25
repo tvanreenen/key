@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; real notarized product build22 completed first disposable Mini registration with owner-confirmed one PIN/touch-window flow; public postchecks passed and pending ownership cleared; cancellation, restore/resume, backup-token and two-Mac acceptance remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; real notarized build22 passed first Mini registration and fresh disposable restore with one PIN/touch flow; exact secret/TOTP and fresh-helper reopening passed with token unplugged; independent Air recovery, cancellation/resume, backup-token and remaining history acceptance remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -984,6 +984,23 @@ This is one successful real registration/UI run, not cancellation, enforcement o
 restore qualification. `REC-812` remains in progress. Next is separately approved
 restore into a fresh disposable destination, then the remaining failure-mode and
 two-Mac acceptance. Do not replay the completed registration's old pending setup.
+
+#### First product restore and token-free reopening passed, 2026-10-25
+
+One build22 restore from a published-files-only disposable source copy created
+and selected fresh vault `5e7481e7-4399-4242-b878-29d013bd15c9`. Preview's previous
+local config/cache was preserved before cold-starting it unconfigured. The owner
+confirmed one PIN/touch-window flow. With the key unplugged and public inventory
+empty, exact secret/TOTP checks and fresh-helper reopening passed. New authority
+IDs and no inherited recovery registration were verified. Final Preview state is
+locked; source, backup, Stable and installed-code hashes match, with public key
+state unchanged and PIN/PUK3/3. No key write, actual-vault traversal or restore retry.
+
+Evidence stays ignored under `tmp/piv-recovery/product-touch-build22-restore-2026-10-25/`.
+Same-Mac credentials were retained in Preview Keychain, so this does not replace
+independent Air recovery qualification. `REC-812` remains in progress for Air,
+cancellation/resume, timeout/disconnect, backup-token and further history cases.
+Preserve both vaults and the previous local-state backup for those scoped tests.
 
 ## Architecture ownership
 
