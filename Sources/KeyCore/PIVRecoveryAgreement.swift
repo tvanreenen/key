@@ -15,6 +15,27 @@ enum PIVRecoveryAgreementError: Error, Equatable {
   case cancelled
   case deadlineExceeded
   case providerFailure
+  case accessControlUnavailable
+  case authenticationFailed
+}
+
+extension PIVRecoveryAgreementError: LocalizedError {
+  var errorDescription: String? {
+    switch self {
+    case .invalidPeer, .invalidResult: "Recovery data did not match the required key-agreement format."
+    case .invalidBinding: "The selected recovery credential no longer matches. No replacement key was used."
+    case .ambiguousKey: "Could not select exactly one matching recovery key."
+    case .unavailable: "The recovery key provider is unavailable."
+    case .unsupportedKey: "The selected key does not support the required P-256 agreement."
+    case .alreadyRequested: "This recovery request cannot start another key operation."
+    case .scopeClosed: "The recovery request is no longer active."
+    case .cancelled: "Recovery was cancelled. Preserve saved recovery state; no automatic retry was made."
+    case .deadlineExceeded: "The recovery request timed out. Preserve saved recovery state; no automatic retry was made."
+    case .providerFailure: "The recovery key operation did not complete. No automatic retry was made."
+    case .accessControlUnavailable: "macOS did not expose this key's access-control policy. No authentication or agreement was attempted."
+    case .authenticationFailed: "macOS did not approve the recovery key. No key agreement was requested."
+    }
+  }
 }
 
 /// Native Security ownership boundary. Implementations must keep lookup
@@ -28,6 +49,7 @@ protocol PIVRecoveryAgreementKey: Sendable {
 
 protocol PIVRecoveryAgreementSession: Sendable {
   func keys(tokenID: String, publicKey: Data) throws -> [any PIVRecoveryAgreementKey]
+  func authenticate(key: any PIVRecoveryAgreementKey) throws
   func agree(key: any PIVRecoveryAgreementKey, peer: Data) throws -> Data
   func invalidate()
 }
@@ -91,10 +113,11 @@ final class PIVRecoveryAgreement: Sendable {
     observation: PIVRecoveryTokenObservation,
     cancellation: PIVRecoveryCancellation = PIVRecoveryCancellation(),
     deadline: DispatchTime = .now() + .seconds(60),
+    progress: KeyRecoveryProgress? = nil,
     _ consume: (PIVHPKEReceiver) throws -> T
   ) throws -> T {
     let scope = Scope()
-    defer { scope.close() }
+    defer { scope.close(); progress?.close() }
     let receiver = try PIVHPKEReceiver(publicBytes: observation.publicKey) { [self] peer in
       let attempt = Attempt(deadline: deadline)
       try scope.claim(attempt)
@@ -104,12 +127,13 @@ final class PIVRecoveryAgreement: Sendable {
       }
       let registration = cancellation.register { attempt.stop(.cancelled) }
       defer { cancellation.remove(registration) }
+      _ = attempt.cancellation.register { progress?.close() }
       try attempt.check()
       DispatchQueue.global(qos: .userInitiated).async { [self] in
         attempt.complete(
           Result {
             try attempt.check()
-            return try reader.withVerifiedObservation(observation) { validate in
+            let secret = try reader.withVerifiedObservation(observation) { validate in
               try attempt.check()
               let session = provider.makeSession()
               let stop = attempt.cancellation.register { session.invalidate() }
@@ -132,11 +156,20 @@ final class PIVRecoveryAgreement: Sendable {
               // enabling one private operation, with no public session open.
               try validate()
               try attempt.check()
+              progress?.emit(.authenticating)
+              try attempt.check()
+              try session.authenticate(key: key)
+              try attempt.check()
+              progress?.emit(.touchRequired)
+              try attempt.check()
               let secret = try session.agree(key: key, peer: peer)
               try attempt.check()
               guard secret.count == 32 else { throw PIVRecoveryAgreementError.invalidResult }
               return secret
             }
+            try attempt.check()
+            progress?.emit(.hardwareCompleted)
+            return secret
           })
       }
       return try attempt.wait()
@@ -223,7 +256,10 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
   private let lock = NSLock()
   private var invalidated = false
   private var requested = false
+  private var authenticating = false
+  private var approved = false
   private let owner = UUID()
+  private let approval = Approval()
 
   init() {
     context.interactionNotAllowed = true
@@ -236,7 +272,10 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
       invalidated = true
       return true
     }
-    if shouldInvalidate { context.invalidate() }
+    if shouldInvalidate {
+      approval.complete(false)
+      context.invalidate()
+    }
   }
 
   func keys(tokenID: String, publicKey: Data) throws -> [any PIVRecoveryAgreementKey] {
@@ -289,7 +328,36 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
             == kSecAttrKeyTypeECSECPrimeRandom as String
           && attributes[kSecAttrKeySizeInBits as String] as? Int == 256,
         supportsStandardECDH: SecKeyIsAlgorithmSupported(
-          key, .keyExchange, .ecdhKeyExchangeStandard))
+          key, .keyExchange, .ecdhKeyExchangeStandard),
+        accessControl: Self.accessControl(attributes[kSecAttrAccessControl as String]))
+    }
+  }
+
+  func authenticate(key: any PIVRecoveryAgreementKey) throws {
+    guard let key = key as? NativeKey, key.owner == owner else {
+      throw PIVRecoveryAgreementError.invalidBinding
+    }
+    guard let accessControl = key.accessControl else {
+      throw PIVRecoveryAgreementError.accessControlUnavailable
+    }
+    try lock.withLock {
+      guard !invalidated else { throw PIVRecoveryAgreementError.cancelled }
+      guard !authenticating && !requested else { throw PIVRecoveryAgreementError.alreadyRequested }
+      authenticating = true
+      context.interactionNotAllowed = false
+      // Evaluate this key's actual ACL, never a replacement or PIN credential.
+      // The callback touches only Approval, so even an inline reply is safe.
+      context.evaluateAccessControl(accessControl, operation: .useKeyKeyExchange,
+        localizedReason: "Approve the selected Key vault recovery credential") { [approval] success, error in
+          approval.complete(success && error == nil)
+        }
+    }
+    let success = approval.wait()
+    try lock.withLock {
+      context.interactionNotAllowed = true
+      guard !invalidated else { throw PIVRecoveryAgreementError.cancelled }
+      guard success else { throw PIVRecoveryAgreementError.authenticationFailed }
+      approved = true
     }
   }
 
@@ -301,8 +369,10 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
     try lock.withLock {
       guard !invalidated else { throw PIVRecoveryAgreementError.cancelled }
       guard !requested else { throw PIVRecoveryAgreementError.alreadyRequested }
+      guard approved else { throw PIVRecoveryAgreementError.authenticationFailed }
       requested = true
-      context.interactionNotAllowed = false
+      // No further PIN prompt is permitted after the separate approval step.
+      context.interactionNotAllowed = true
     }
     var error: Unmanaged<CFError>?
     defer { if let error { _ = error.takeRetainedValue() } }
@@ -312,6 +382,31 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
       ) as Data?
     else { throw PIVRecoveryAgreementError.providerFailure }
     return value
+  }
+
+  private static func accessControl(_ value: Any?) -> SecAccessControl? {
+    guard let value, CFGetTypeID(value as CFTypeRef) == SecAccessControlGetTypeID() else { return nil }
+    return (value as! SecAccessControl)
+  }
+
+  /// Invalidating the session wakes the waiter even when the native callback
+  /// does not return promptly. A late/duplicate callback cannot revive it.
+  private final class Approval: @unchecked Sendable {
+    private let lock = NSLock()
+    private let ready = DispatchSemaphore(value: 0)
+    private var result: Bool?
+    func complete(_ success: Bool) {
+      let first = lock.withLock {
+        guard result == nil else { return false }
+        result = success
+        return true
+      }
+      if first { ready.signal() }
+    }
+    func wait() -> Bool {
+      ready.wait()
+      return lock.withLock { result == true }
+    }
   }
 
   private static func importPublicKey(_ bytes: Data) throws -> SecKey {
@@ -336,5 +431,6 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
     let publicKey: Data
     let isP256PrivateKey: Bool
     let supportsStandardECDH: Bool
+    let accessControl: SecAccessControl?
   }
 }

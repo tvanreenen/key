@@ -1,5 +1,51 @@
 import Foundation
 
+/// Presentation only. These stages never authorize an operation or establish
+/// completion of registration/restore; only the service's final reply does.
+public enum KeyRecoveryStage: String, Codable, Sendable, CaseIterable {
+  case authenticating, touchRequired, hardwareCompleted
+
+  public var instruction: String {
+    switch self {
+    case .authenticating: "Approve the recovery key in the macOS dialog. Enter your PIN only there."
+    case .touchRequired: "Touch your flashing YubiKey's metal contact now."
+    case .hardwareCompleted: "Hardware approval completed. Finishing the recovery request."
+    }
+  }
+}
+
+public struct KeyRecoveryProgressEvent: Codable, Sendable {
+  public let operationID: UUID
+  public let stage: KeyRecoveryStage
+}
+
+/// One connection/request's finite progress channel. Callbacks run outside its
+/// lock; consumers must close their own presentation before returning a reply.
+public final class KeyRecoveryProgress: @unchecked Sendable {
+  public let operationID: UUID
+  private let lock = NSLock()
+  private var next = 0
+  private var closed = false
+  private let receive: @Sendable (KeyRecoveryProgressEvent) -> Void
+
+  public init(operationID: UUID, receive: @escaping @Sendable (KeyRecoveryProgressEvent) -> Void) {
+    self.operationID = operationID
+    self.receive = receive
+  }
+
+  func emit(_ stage: KeyRecoveryStage) {
+    let accepted = lock.withLock {
+      guard !closed, next < KeyRecoveryStage.allCases.count,
+        KeyRecoveryStage.allCases[next] == stage else { return false }
+      next += 1
+      return true
+    }
+    if accepted { receive(.init(operationID: operationID, stage: stage)) }
+  }
+
+  public func close() { lock.withLock { closed = true } }
+}
+
 /// Explicit configured key change; no token selector or credential is involved.
 public enum KeyRecoveryRotationRequest: Codable, Equatable, Sendable {
   case rotate
@@ -159,11 +205,14 @@ struct KeyRecoveryRequestScope: Sendable {
   let cancellation = PIVRecoveryCancellation()
   let authentication: V3DeviceWrappedVaultKeySessionStore
   let deadline: DispatchTime
+  let progress: KeyRecoveryProgress?
   private let ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
 
-  init(authentication: V3DeviceWrappedVaultKeySessionStore, deadline: DispatchTime) {
+  init(authentication: V3DeviceWrappedVaultKeySessionStore, deadline: DispatchTime,
+       progress: KeyRecoveryProgress? = nil) {
     self.authentication = authentication
     self.deadline = deadline
+    self.progress = progress
     ticket = authentication.beginAuthentication()
   }
 
