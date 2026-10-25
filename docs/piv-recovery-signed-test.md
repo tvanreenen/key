@@ -5,7 +5,38 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Independent Air restore passed; ordinary-access check pending, 2026-10-25
+## Air token-free ordinary access and fresh-helper checks passed, 2026-10-25
+
+The owner renewed a guided attempt after confirming the old prompt closed and
+readiness. Ordinary health reported ready/v3/two entries, no conflicts/issues.
+The exact secret fingerprint matched before and after normal lock/shutdown,
+including the fixture newline. A fresh helper (PID19502 replacing3559) mapped
+the expected build22 executable/hash and completed the fresh read. Token absence
+was checked before/after by public USB inspection only. Final normal lock and
+stopped helper state were verified, with no subsequent vault command.
+
+The parent independently verified both returned TOTP fingerprints against the
+original synthetic seed and their exact read intervals: counters59765374 and
+59765377, one candidate each. No seed/code was transferred, printed or persisted.
+The initial explicit unlock may have used a warm session; the separate successful
+post-lock fresh-helper read establishes reopening without the old process key.
+No Mac prompt-count claim is inferred from runtime or success.
+
+Source-copy and destination published files, Stable app/config, installed Preview
+and selected config hashes match. Local caches/metadata were not required to stay
+byte-identical. No actual-vault traversal, recovery operation, token API/write,
+config reset, forced termination or discretionary edit occurred. The Air remains
+on its restored disposable vault, locked, without a recovery key registered.
+
+The earlier30.029-second health timeout remains incomplete evidence with cause
+unconfirmed; the guided test was explicitly renewed, not automatically retried.
+Air-local evidence is `piv-air-test/air-product-build22-ordinary-guided-20261025T204510Z.json`.
+Parent snapshots and independent TOTP results stay ignored under
+`tmp/piv-recovery/build22-air-transfer-2026-10-25/`. Successful independent restore
+and token-free fresh-helper access now pass; cancellation/resume, timeout/
+disconnect, backup-token and remaining history qualification are still open.
+
+## Earlier: independent Air restore passed; ordinary-access check pending, 2026-10-25
 
 After separate direct owner approvals in the Air task, public token/credential/
 source review passed, followed by one actual build22 restore. The authoritative

@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and token-free fresh-helper reopening, then separately approved independent Air restore of two entries; one PIN/touch UI confirmed on both Macs; Air ordinary-access check, cancellation/resume, backup-token and remaining history acceptance remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and independent Air restore, with token-free exact secret/TOTP and fresh-helper reopening on both; one PIN/touch UI confirmed on both Macs; cancellation/resume, timeout/disconnect, backup-token and remaining history acceptance remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -1040,6 +1040,24 @@ before entry reads. The owner was not watching; dialog handling/server completio
 remain unconfirmed. File/config/app hashes match and the key was absent. No
 automatic retry ran. A requested guided attempt awaits old-dialog closure and
 owner readiness on Air; ordinary-access acceptance remains pending.
+
+#### Air token-free ordinary access and fresh-helper checks passed, 2026-10-25
+
+The owner renewed the guided ordinary-access test after confirming readiness and
+old-dialog closure. Health, exact secret fingerprint and post-lock fresh-helper
+read passed with the YubiKey absent before/after. The parent independently matched
+both Air TOTP fingerprints to the known synthetic seed and actual read counters;
+no seed/code was transferred or printed. Fresh helper19502 replaced3559 with
+expected build22 identity. Final normal lock left the helper stopped and restored
+selection intact. Source, published destination, Stable, installed app and config
+hashes match. No recovery/key operation or actual-vault traversal occurred.
+
+Evidence stays ignored under `tmp/piv-recovery/build22-air-transfer-2026-10-25/`.
+The initial health timeout remains incomplete, cause unconfirmed; the renewed
+explicit unlock may have been warm, while the later fresh-helper read provides
+the cold-process check. `REC-812` remains in progress for cancellation/exact
+resume, timeout/disconnect, backup-token and remaining history cases. Independent
+restore plus ordinary token-free reopening now pass on Air.
 
 ## Architecture ownership
 
