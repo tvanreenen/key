@@ -5,7 +5,36 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## First product restore and token-free reopening passed on Mini, 2026-10-25
+## Air build22 installed; public recovery preflight pending, 2026-10-25
+
+The reconnected Air completed fresh read-only app/config preflight on arm64
+macOS27.0.1 (26A434), then received the exact notarized build22 and a source copy
+containing only five published manifests and six encrypted entry versions. All
+nine packet payloads, source checksums, signatures, exact entitlements, universal
+slices, gates, accessory UI metadata, ticket and Gatekeeper passed. Installed
+whole-bundle/executable hashes match the Mini candidate; a verified old-app
+rollback remains. Normal helper registration reports parent build22. The helper
+is idle, so a running helper identity was not claimed. Preview remains
+unconfigured; Stable app/config and encrypted source hashes are unchanged.
+
+The owner confirmed the known YubiKey plugged into the Air, but also directly
+instructed the Air task to install only and stop before any recovery or YubiKey
+operation. That narrower limit was honored: no recovery command, device API or
+authentication ran. The initial parent API-preflight request was withdrawn.
+Public key/source preflight and independent restore remain pending, not passing.
+No Mini credentials/config/checkpoints/setup records or plaintext fixtures were
+transferred; only verification fingerprints accompany the encrypted source.
+
+Air receipt: `~/Downloads/Key-Preview-build22-Air-20261025-receipt/`, source
+`source/RecoverySource`, rollback `rollback/Key Preview.app`. Local parent
+evidence stays ignored under `tmp/piv-recovery/build22-air-transfer-2026-10-25/`;
+the Air result is in that task's `piv-air-test/air-product-build22-install.json`.
+The pinned ditto ZIP's normal AppleDouble metadata required an archive guard
+correction, preserving signed bytes and all trust checks. No policy bypass.
+Next is approval for public-only Air preflight, then a separately approved
+single restore into a missing disposable destination.
+
+## Earlier: first product restore and token-free reopening passed on Mini, 2026-10-25
 
 One approved build22 restore completed from19:55:18 to19:55:51 UTC, exit0, using
 only a copy of the disposable source's published manifests/encrypted entries and
