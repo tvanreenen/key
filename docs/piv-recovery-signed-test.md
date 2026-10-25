@@ -5,7 +5,33 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Air build22 installed; public recovery preflight pending, 2026-10-25
+## Independent Air restore passed; ordinary-access check pending, 2026-10-25
+
+After separate direct owner approvals in the Air task, public token/credential/
+source review passed, followed by one actual build22 restore. The authoritative
+reply reports two entries restored, exit0 in18.837 seconds, from20:23:13 to20:23:32
+UTC. The owner confirmed exactly one YubiKey PIN dialog and the expected touch
+window/physical-touch/automatic-dismissal sequence. No retries or token writes.
+
+Air Preview now selects fresh vault `f0c576c3-4055-4b27-9c41-ef15b3fc2ddf` at
+`~/Downloads/Key-Preview-build22-Air-20261025-receipt/Air-Restore-20261025/`.
+Passive metadata checks confirm fresh vault/key/device/signing/wrapping authority,
+two entries, one active Air device and a permanent device-wrapped profile with no
+inherited recovery registration. Source and Stable app/config hashes match; no
+actual-vault traversal occurred. Only published encrypted files were transferred
+from the Mini, with no source Mac credentials/config/checkpoints/setup records.
+This establishes an independent successful restore, not merely a same-Mac run.
+
+The parent retrieved complete bounded execution and passive-check results into
+ignored `tmp/piv-recovery/build22-air-transfer-2026-10-25/`. Full Air-local evidence
+is `piv-air-test/air-product-build22-restore-attempt.json`. The Air stopped before
+follow-up ordinary entry reads; token-free secret/TOTP comparison and fresh-helper
+reopening on Air remain pending. The successful restore already includes normal
+helper shutdown; no automatic restore repeat or forced restart is needed.
+Next approve those ordinary-access checks, then continue cancellation/resume,
+timeout/disconnect, backup-token and further history acceptance.
+
+## Earlier: Air build22 installed; public recovery preflight pending, 2026-10-25
 
 The reconnected Air completed fresh read-only app/config preflight on arm64
 macOS27.0.1 (26A434), then received the exact notarized build22 and a source copy

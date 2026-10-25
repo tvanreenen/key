@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and token-free fresh-helper reopening; exact product/source packet installed and verified on Air, stopped before recovery/device APIs per owner; independent Air preflight/restore, cancellation/resume, backup-token and remaining history acceptance remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and token-free fresh-helper reopening, then separately approved independent Air restore of two entries; one PIN/touch UI confirmed on both Macs; Air ordinary-access check, cancellation/resume, backup-token and remaining history acceptance remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -1017,6 +1017,23 @@ Air receipt is `~/Downloads/Key-Preview-build22-Air-20261025-receipt/`. No Mini
 credential/config/checkpoint/setup records or plaintext fixtures were transferred.
 Next is owner-approved public-only preflight, then separate one-attempt restore
 approval. `REC-812` stays in progress; no independent recovery success is claimed.
+
+#### Independent Air restore passed, 2026-10-25
+
+The owner separately approved public preflight and one actual restore in the Air
+task. Build22 restored two entries into fresh vault
+`f0c576c3-4055-4b27-9c41-ef15b3fc2ddf`, exit0 in18.837 seconds, with the expected
+one-PIN/touch-window flow confirmed by the owner. Passive checks show fresh
+authority, a permanent device-wrapped profile and no inherited recovery key.
+Source and Stable hashes match; no retry, token write or actual-vault traversal.
+Only encrypted published source files crossed from Mini, so this is independent
+device recovery evidence. Parent snapshots stay ignored under
+`tmp/piv-recovery/build22-air-transfer-2026-10-25/`.
+
+Air stopped before ordinary entry reads. Next is token-unplugged secret/TOTP
+comparison and fresh-helper reopening, followed by cancellation/resume and the
+remaining acceptance cases. `REC-812` remains in progress; the initial install-only
+stop boundary was superseded only by the owner's named Air-stage approvals.
 
 ## Architecture ownership
 
