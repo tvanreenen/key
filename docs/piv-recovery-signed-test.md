@@ -5,6 +5,35 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Product touch-window build22 notarized; installation pending, 2026-10-25
+
+The matching real product candidate was archived from `ea1f8f5` as universal
+PreviewRelease build22, Developer ID-signed and notarized. The separate candidate
+enables recovery in its host/helper Info.plists; repository defaults remain off.
+It contains the ordinary product CLI/helper, not the build21 diagnostic substitutes.
+Both architectures, existing signing requirements, exact helper entitlements,
+accessory UI declaration and ZIP round-trip pass. The implementing agent's scoped
+review found no additional blocker; this is not an independent audit.
+
+Apple accepted submission `4429d137-a01d-45f1-81d9-ba4067a66708` with no issues.
+The submission log matches ZIP SHA-256
+`61ca5fc4a22af29957338a7d837636cc5b7ac161f17133807a50d4e04a308540`.
+The stapled package passes Gatekeeper as Notarized Developer ID and a second
+round-trip verification; all three executable bytes match the submitted candidate.
+Transfer ZIP SHA-256:
+`3f6527a01883f1ea7dc0904e07b0d635592df8c4b18ee47f0622cef9332d8ca4`.
+Raw evidence is ignored under `tmp/piv-recovery/product-touch-build22-2026-10-25/`.
+An initial architecture-check command failed after successful archive/signing;
+verification resumed with the corrected command without rebuilding or re-signing.
+
+No installation, product launch, helper restart, authentication, registration
+finish or token request occurred. Installed build21 and the protected config,
+public export, pending preparation and disposable-vault/Stable-app snapshots
+remain unchanged. Next install this exact package with rollback preserved, then
+perform read-only preflight. One real disposable registration-finish attempt and
+native touch-window/cancellation checks require separate authentication approval.
+Notarization does not establish the window's runtime behavior or recovery success.
+
 ## Product staging and touch UI implemented; native acceptance pending, 2026-10-25
 
 The real registration-finish and restore/resume paths now carry scoped progress

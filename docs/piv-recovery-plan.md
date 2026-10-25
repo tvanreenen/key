@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; product ACL staging, scoped progress and native touch UI implemented/software-tested; disposable registration remains pending and diagnostic build21 remains installed; signed product UI/cancellation, activation and restore acceptance remain; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; product ACL staging, scoped progress and native touch UI implemented/software-tested; matching product build22 notarized, installation pending; disposable registration remains pending and diagnostic build21 remains installed; native UI/cancellation, activation and restore acceptance remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -933,6 +933,22 @@ changed. No signing, installation, native test or registration finish. This is
 the implementation review/testing point: next prepare a matching signed product
 Preview for real window/cancellation and pending-registration acceptance, then
 restore qualification. Product feature gates remain unchanged.
+
+#### Matching product touch-window candidate notarized, 2026-10-25
+
+Universal PreviewRelease build22 from `ea1f8f5` contains the real product CLI/helper
+and local recovery gate. Developer ID identities, both architectures, exact helper
+entitlements, accessory UI metadata and package round-trips pass. Apple accepted
+submission `4429d137-a01d-45f1-81d9-ba4067a66708` with no issues; the stapled
+package passes Gatekeeper. Exact hashes and limitations are in the
+[signed acceptance record](piv-recovery-signed-test.md#product-touch-window-build22-notarized-installation-pending-2026-10-25).
+Evidence stays ignored under `tmp/piv-recovery/product-touch-build22-2026-10-25/`.
+
+No installation, launch, helper restart, token request, authentication or
+registration finish occurred. Protected file hashes/snapshots match, and installed
+diagnostic build21 remains in place. Next is exact-package installation and
+read-only preflight, then separately approved native product acceptance. This
+preparation does not complete `REC-812` or qualify live touch-window behavior.
 
 ## Architecture ownership
 
