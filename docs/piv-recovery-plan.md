@@ -1035,6 +1035,12 @@ comparison and fresh-helper reopening, followed by cancellation/resume and the
 remaining acceptance cases. `REC-812` remains in progress; the initial install-only
 stop boundary was superseded only by the owner's named Air-stage approvals.
 
+The subsequently approved token-free health check timed out after30.029 seconds
+before entry reads. The owner was not watching; dialog handling/server completion
+remain unconfirmed. File/config/app hashes match and the key was absent. No
+automatic retry ran. A requested guided attempt awaits old-dialog closure and
+owner readiness on Air; ordinary-access acceptance remains pending.
+
 ## Architecture ownership
 
 - Format and cryptographic validation stay in `KeyCore`, following

@@ -31,6 +31,18 @@ helper shutdown; no automatic restore repeat or forced restart is needed.
 Next approve those ordinary-access checks, then continue cancellation/resume,
 timeout/disconnect, backup-token and further history acceptance.
 
+The owner then approved token-free ordinary reads/reopening and confirmed the
+key unplugged. The first health request timed out after30.029 seconds, exit1,
+before any secret/TOTP read, lock or reopening check. Public USB inspection showed
+no key; source/destination published files, Stable, Preview config and installed
+app hashes match. The owner was not watching, so prompt handling and the server's
+final state are unconfirmed. No automatic retry or lock was attempted. The owner
+requested a guided new attempt; the Air is awaiting confirmation that any old
+Mac dialog is closed and the owner is watching. The timeout remains incomplete
+evidence, not an ordinary-access pass or a restore-failure conclusion. Exact
+timeout evidence is preserved in the parent's ignored Air-transfer folder and
+the Air's `air-product-build22-ordinary-access.json`.
+
 ## Earlier: Air build22 installed; public recovery preflight pending, 2026-10-25
 
 The reconnected Air completed fresh read-only app/config preflight on arm64
