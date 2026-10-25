@@ -68,12 +68,18 @@ final class KeyRecoveryTouchPrompt: @unchecked Sendable {
             alert.layout()
             alert.window.delegate = self
             alert.window.title = "Key Recovery"
+            // The accessory helper may stay inactive after the system PIN UI.
+            // Keep this request's cue above ordinary application windows even
+            // when macOS declines our activation request.
+            alert.window.level = .floating
+            alert.window.hidesOnDeactivate = false
         }
 
         func show() {
             alert.window.center()
-            alert.window.makeKeyAndOrderFront(nil)
             NSApplication.shared.activate()
+            alert.window.makeKey()
+            alert.window.orderFrontRegardless()
         }
         func dismiss() { alert.window.orderOut(nil) }
         @objc private func cancel() { cancelRequest() }

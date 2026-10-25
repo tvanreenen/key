@@ -21,12 +21,29 @@ disposable vaults, Stable app/config and public token state remained unchanged;
 PIN/PUK counters were3/3. Normal Preview lock stopped its helper.
 
 The next request emitted the terminal touch cue and failed after29.683 seconds.
-The owner reported seeing only the PIN dialog, with no touch window. This is
-**not a touch-window cancellation pass**; the prompt handling and failure cause
-remain unresolved. Postchecks establish only that no destination, selection or
-new saved attempt remained and the same protected state/counters were unchanged.
+The owner approved the PIN without touching the key and reported seeing no touch
+window. This is **not a touch-window cancellation pass**; the prompt handling and
+failure cause were investigated separately. Postchecks establish only that no
+destination, selection or new saved attempt remained and the same protected
+state/counters were unchanged.
 No automatic retry occurred. Later saved-preparation cancellation and explicit
 resume remain pending. The seven focused software suites passed83 tests.
+
+The matching build22 helper log records successful access-control approval,
+followed by creation of alert window1551 with AppKit's warning that ordering from
+an inactive app may place it beneath the active application's windows. The ECDH
+call failed14.35 seconds later with CryptoTokenKit-3/card6982. This supports a
+presentation problem and is consistent with withheld touch; the log does not
+prove the window's actual screen position or uniquely diagnose a touch timeout.
+All three installed executable hashes still match the qualified build22.
+
+The local presentation fix explicitly orders the temporary cue to the front even
+while inactive, keeps it above ordinary windows, and disables hiding on
+deactivation. It retains the native alert, Cancel action and completion-driven
+dismissal. Source authentication, touch policy and recovery state are unchanged.
+The helper compiles and all six focused progress/anonymous-XPC regression tests
+pass. Signed installation and observed UI/cancellation acceptance of this change
+remain pending. The installed build22 was not replaced.
 
 All raw evidence remains ignored under
 `tmp/piv-recovery/cancellation-resume-mini-2026-10-25/`. No actual-vault access or
