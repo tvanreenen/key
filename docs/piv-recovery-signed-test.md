@@ -5,6 +5,34 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Mini cancellation checks: PIN passed; touch-window case unresolved, 2026-10-25
+
+The exact installed build22 was tested on the Mini using the published-files-only
+disposable source. Preview's prior selection/cache were preserved locally; its
+configuration-root identity and existing completed journals were retained. The
+initial intended PIN-cancel attempt was instead approved by the owner and
+completed a separate disposable restore. That success and its selection/cache
+were preserved, and it is not counted as cancellation evidence.
+
+A separately guided PIN cancellation returned in1.216 seconds with the explicit
+no-key-agreement diagnostic. The owner confirmed cancelling without entering a
+PIN. No destination, selection or new saved attempt was created. Source, earlier
+disposable vaults, Stable app/config and public token state remained unchanged;
+PIN/PUK counters were3/3. Normal Preview lock stopped its helper.
+
+The next request emitted the terminal touch cue and failed after29.683 seconds.
+The owner reported seeing only the PIN dialog, with no touch window. This is
+**not a touch-window cancellation pass**; the prompt handling and failure cause
+remain unresolved. Postchecks establish only that no destination, selection or
+new saved attempt remained and the same protected state/counters were unchanged.
+No automatic retry occurred. Later saved-preparation cancellation and explicit
+resume remain pending. The seven focused software suites passed83 tests.
+
+All raw evidence remains ignored under
+`tmp/piv-recovery/cancellation-resume-mini-2026-10-25/`. No actual-vault access or
+YubiKey write occurred. No source export to the Air was needed or performed;
+the Air task confirmed it left its successful disposable restore unchanged.
+
 ## Air token-free ordinary access and fresh-helper checks passed, 2026-10-25
 
 The owner renewed a guided attempt after confirming the old prompt closed and
