@@ -1,11 +1,45 @@
 # Signed Preview two-Mac acceptance checklist
 
-Prepared 2026-10-22, updated 2026-10-24 for `REC-812`. This checklist records
+Prepared 2026-10-22, updated 2026-10-25 for `REC-812`. This checklist records
 scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## UX side investigation: signed-helper candidate notarized, not installed, 2026-10-24
+## UX side investigation: diagnostic helper startup blocked, original Preview restored, 2026-10-25
+
+Owner-approved preflight verified the exact notarized build20 archive, installed
+build19 hashes, disposable config and same pending registration. Fresh public
+reads matched the certificate, recognized anchor, policies and PIN/PUK3/3 counters.
+A complete original-app rollback copy passed byte comparison, signatures,
+Gatekeeper and ticket validation before replacement. The exact diagnostic app
+installed and passed the same checks; ordinary recovery remained disabled.
+
+Opening Preview registered build20 through SMAppService. One explicit helper
+start returned PID50430, then launchd recorded exit1 before readiness. Focused
+logs confirm resolution to the installed build20 helper executable, but contain
+no diagnostic listener/native result. The helper source checks startup arguments
+and capsule metadata before activating its listener. Its capsule path derives
+from `argv[0]`; launch-context path handling is a suspect, not an established root
+cause. The catch reports only a generic startup error, so the exact guard failure
+remains unresolved. No diagnostic `--inspect` or authenticated request was sent.
+No second diagnostic-helper launch or authentication retry was requested.
+
+The exact original notarized build19 was restored and re-registered. Its helper
+is running; original executable hashes and whole-app rollback comparison pass.
+Read-only pending inspection returns the same saved operation. Full disposable
+vault and Stable-app file snapshots, both configs, public export and encrypted
+pending bundle are unchanged. Public postchecks again match credential/anchor,
+policies and PIN/PUK3/3. No PIN, touch, private operation, token write, registration
+finish, actual-vault operation, rebuild/re-sign, push or release was requested.
+
+Raw evidence, verified rollback app and unchanged candidate remain ignored under
+`tmp/piv-recovery/signed-helper-install-2026-10-25/` and the earlier preparation
+directory. Signed-helper native inspection and authentication are unqualified.
+Next is diagnosis of the startup guard with bounded nonsecret failure reporting
+and launch-context coverage before another candidate is signed or installed.
+Preserve the pending registration; authentication remains a separate later step.
+
+## Earlier UX checkpoint: signed-helper candidate notarized, not installed, 2026-10-24
 
 Apple accepted the exact recorded build20 review ZIP in submission
 `3a10e32d-7cc7-43bd-81a8-0862bf1daeb7`, with no issues. The submitted SHA-256

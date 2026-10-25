@@ -1,6 +1,6 @@
 # PIV catastrophe recovery implementation plan
 
-Current implementation tracker: 2026-10-24. The retained evidence summaries
+Current implementation tracker: 2026-10-25. The retained evidence summaries
 are linked below. This is the authoritative completion plan for the
 PIV recovery track; the v3 roadmap summarizes it rather than maintaining a
 second set of work-package statuses.
@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration remains pending; two standalone staged-auth passes recorded; diagnostic-only helper build20 notarized, not installed; helper/UI/native activation and restore qualification remain; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration remains pending; two standalone staged-auth passes recorded; diagnostic build20 notarized/installed but helper startup blocked; original build19 restored; helper/UI/native activation and restore qualification remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -814,6 +814,26 @@ host/helper launch, live XPC, token API, authentication, vault/registration oper
 key write or public release occurred. Next is separately approved temporary
 Preview installation with rollback preservation and noninteractive helper
 inspection, then another pause before authentication. Native behavior is untested.
+
+#### Diagnostic helper startup blocked, original Preview restored, 2026-10-25
+
+Exact notarized build20 installation and SMAppService registration passed with a
+verified original-app rollback copy. One explicit helper start exited1 before
+readiness. Logs confirm resolution to the installed helper, but no diagnostic
+listener/native result. Startup argument/capsule guards precede listener
+activation; `argv[0]`-based path handling is a suspect, not a proven cause. Generic
+failure reporting does not identify the rejected guard. No diagnostic inspection
+or authenticated request was sent, and no second diagnostic launch was requested.
+
+The exact notarized build19 was restored; its helper is running and the same
+registration remains pending. Whole disposable-vault/Stable-app snapshots,
+configs, export and encrypted pending bundle are unchanged. Fresh public key
+checks pass before/after with PIN/PUK3/3. No private operation, key write,
+actual-vault operation or production-source change occurred. Evidence and rollback
+copy remain ignored under `tmp/piv-recovery/signed-helper-install-2026-10-25/`.
+Next is startup-guard diagnosis and bounded diagnostics/launch-context coverage
+before another signed candidate. Signed-helper native behavior remains untested;
+preserve pending records and pause before authentication.
 
 ## Architecture ownership
 
