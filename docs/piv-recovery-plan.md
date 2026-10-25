@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration remains pending; two standalone staged-auth passes recorded; build20 helper startup blocked and build19 restored; startup fix build21 signed/prepared, not notarized/installed; helper/UI/native activation and restore qualification remain; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration remains pending; two standalone staged-auth passes recorded; build20 helper startup blocked and build19 restored; startup fix build21 notarized, not installed; helper/UI/native activation and restore qualification remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -856,6 +856,18 @@ candidate and protected file hashes remain unchanged. Next is exact-byte
 notarization, then approved installation/noninteractive helper checks. Actual
 SMAppService startup, native inspection and authentication remain unqualified;
 pause before authentication and preserve pending registration.
+
+#### Diagnostic startup fix notarized, not installed, 2026-10-25
+
+Apple accepted exact build21 submission `27e65935-3299-4c0a-a91f-58b43ca00922`
+with no issues. Stapled and repackaged without rebuild/re-sign; ticket, signature,
+entitlement, all-architecture and Gatekeeper checks pass, including ZIP round-trip.
+The [signed-test record](piv-recovery-signed-test.md) pins both hashes. Executables,
+metadata, installed build19 and protected file hashes are unchanged. No install,
+helper launch, token/authentication or vault/registration operation occurred.
+Next is approved temporary Preview installation with rollback retained, then
+startup-only and noninteractive helper checks. Pause before authentication;
+actual LaunchAgent/native behavior remains unqualified.
 
 ## Architecture ownership
 

@@ -5,7 +5,26 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## UX side investigation: startup fix prepared and signed, 2026-10-25
+## UX side investigation: startup fix notarized, not installed, 2026-10-25
+
+Apple accepted the exact build21 review ZIP in submission
+`27e65935-3299-4c0a-a91f-58b43ca00922`, with no issues. The submitted hash matches
+the preparation record below. An extracted copy was stapled and repackaged as
+`Key-Preview-staged-helper-build21-notarized.zip`, SHA-256
+`458c0f7b7337c866a9e020b1bd5aba327d7da3e61b9107317dfcadcd2f888097`.
+Ticket, signing/entitlement, deep strict all-architecture and Gatekeeper checks
+pass, including ZIP round-trip. Executable and app/helper plist bytes match the
+submitted source; diagnostic-only settings remain intact. No rebuild/re-sign.
+
+Installed build19, disposable/Stable file snapshots, configs, export and pending
+bundle hashes are unchanged. No install, helper launch, token API, authentication,
+vault/registration operation or public release occurred. Evidence and transfer
+artifact remain ignored in the startup-fix preparation's `final/notarization/`.
+Next is approved temporary Preview-only installation with rollback preservation,
+then startup-only and read-only helper checks. Pause before authentication. This
+notarization does not establish actual LaunchAgent or native behavior.
+
+## Earlier UX checkpoint: startup fix prepared and signed, 2026-10-25
 
 A local process reproduction of the original capsule guard passes with absolute
 `argv[0]` and rejects the same executable with basename or bundle-relative labels.
