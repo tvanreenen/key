@@ -5,7 +5,35 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Product touch-window build22 notarized; installation pending, 2026-10-25
+## Product build22 installed on Mini; public preflight passed, 2026-10-25
+
+The exact notarized build22 installed on the Mini through the existing Preview
+installer after preserving and verifying a complete build21 rollback. Installed
+executable hashes, signatures, ticket, Gatekeeper and whole-bundle comparison
+match the candidate. Opening Preview registered build22; observed helper PID86048
+maps the expected installed executable and launchd reports parent build22.
+
+One each of public token discovery, credential inspection and pending-operation
+inspection passed through the real product CLI/helper. The expected recipient and
+recognized public anchor match, and registration operation
+`1c30b710-cf12-4d76-b031-ecc83dbb87f8` remains pending. Vendor public verification
+matches certificate, anchor, setup/policies and PIN/PUK3/3. No PIN verification,
+management authentication, secret read, private-key operation or token write ran.
+Both configs, public export, pending preparation and full disposable-vault/Stable-app
+snapshots are unchanged. The actual vault was not traversed. Only this Mac was
+updated; the Air was not contacted.
+
+Evidence and build21 rollback stay ignored under
+`tmp/piv-recovery/product-touch-build22-install-2026-10-25/`. An initial path guard
+stopped before installation because of the config's existing trailing slash;
+comparing normalized Path values resolved the guard without editing the config.
+No authentication or registration finish occurred. Next is a separately approved
+single finish attempt for this disposable registration, observing PIN closure,
+touch cue/focus and automatic dismissal. That attempt can activate the disposable
+registration; the key itself is not provisioned or rewritten. Live window behavior,
+cancellation, restore/resume and two-Mac acceptance remain outstanding.
+
+## Earlier: product touch-window build22 notarized, 2026-10-25
 
 The matching real product candidate was archived from `ea1f8f5` as universal
 PreviewRelease build22, Developer ID-signed and notarized. The separate candidate

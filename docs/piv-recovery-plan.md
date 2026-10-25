@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; product ACL staging, scoped progress and native touch UI implemented/software-tested; matching product build22 notarized, installation pending; disposable registration remains pending and diagnostic build21 remains installed; native UI/cancellation, activation and restore acceptance remain; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; product ACL staging, scoped progress and native touch UI implemented/software-tested; matching notarized product build22 installed on Mini, public preflight passed; disposable registration remains pending; native UI/cancellation, activation, restore and two-Mac acceptance remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -941,7 +941,7 @@ and local recovery gate. Developer ID identities, both architectures, exact help
 entitlements, accessory UI metadata and package round-trips pass. Apple accepted
 submission `4429d137-a01d-45f1-81d9-ba4067a66708` with no issues; the stapled
 package passes Gatekeeper. Exact hashes and limitations are in the
-[signed acceptance record](piv-recovery-signed-test.md#product-touch-window-build22-notarized-installation-pending-2026-10-25).
+[signed acceptance record](piv-recovery-signed-test.md#earlier-product-touch-window-build22-notarized-2026-10-25).
 Evidence stays ignored under `tmp/piv-recovery/product-touch-build22-2026-10-25/`.
 
 No installation, launch, helper restart, token request, authentication or
@@ -949,6 +949,24 @@ registration finish occurred. Protected file hashes/snapshots match, and install
 diagnostic build21 remains in place. Next is exact-package installation and
 read-only preflight, then separately approved native product acceptance. This
 preparation does not complete `REC-812` or qualify live touch-window behavior.
+
+#### Product build22 installed on Mini; public preflight passed, 2026-10-25
+
+Exact build22 installed through the existing Preview installer after verified
+build21 rollback preservation. Signatures, ticket, Gatekeeper and installed bytes
+match the candidate. The real helper was observed as PID86048 with parent build22
+and its expected executable mapping. Public discovery, credential and pending
+inspection passed; expected recipient/public anchor and pending registration are
+unchanged. Vendor public metadata matches setup/policies with PIN/PUK3/3. Config,
+public-export, preparation and full disposable-vault/Stable-app hashes match.
+
+No authentication, private-key operation, registration finish, token write or
+actual-vault traversal occurred. Only the Mini was updated; no Air action. Raw
+evidence and rollback stay ignored under
+`tmp/piv-recovery/product-touch-build22-install-2026-10-25/`. Next is separately
+approved one-attempt disposable finish for live PIN/touch-window acceptance;
+cancellation, restore/resume and two-Mac qualification remain. `REC-812` stays
+in progress.
 
 ## Architecture ownership
 
