@@ -83,7 +83,7 @@ struct V3RecoveryRestorePublisher: Sendable {
     _ = try V3DeviceWrappedCheckpointUnlocker().unlock(
       checkpoint: bundle.intent.destinationCheckpoint,
       manifestData: bundle.manifest.canonicalBytes, identity: identity, session: session,
-      reason: "Verify this Mac's access to the prepared restored vault.",
+      reason: "Publish prepared restored vault.",
       validateBeforeSessionInstall: {
         try recheck()
         _ = try inventory(bundle, store: store)

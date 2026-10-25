@@ -30,6 +30,9 @@ final class KeyRecoveryTouchPrompt: @unchecked Sendable {
             }
         case .hardwareCompleted:
             finish()
+        case .preparingRestoredVault, .openingSavedPreparation, .preparationSaved,
+             .publishingRestoredVault, .activatingRestoredVault:
+            break
         }
     }
 

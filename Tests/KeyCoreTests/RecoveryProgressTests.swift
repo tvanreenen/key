@@ -62,7 +62,7 @@ struct RecoveryProgressTests {
   @Test func registrationProgressUsesStderrAndNeverReplacesFinalFailure() {
     let recipient = Base64URL.encode(Data(repeating: 7, count: 32))
     let io = MemoryIO(stdinIsTTY: true, lineInput: "REGISTER")
-    let transport = MemoryTransport(stages: KeyRecoveryStage.allCases) { _ in
+    let transport = MemoryTransport(stages: KeyRecoveryStage.hardwareStages) { _ in
       .failure("Fixture final validation failed.")
     }
     let app = KeyCLIApplication(transport: transport, io: io, clipboard: MemoryClipboard())
@@ -70,7 +70,7 @@ struct RecoveryProgressTests {
       "--recipient", recipient]) != EXIT_SUCCESS)
     #expect(transport.requests.count == 1 && transport.progressRequests == 1)
     #expect(io.stdout.isEmpty)
-    for stage in KeyRecoveryStage.allCases { #expect(io.stderr.contains(stage.instruction)) }
+    for stage in KeyRecoveryStage.hardwareStages { #expect(io.stderr.contains(stage.instruction)) }
     #expect(io.stderr.contains("Fixture final validation failed."))
     #expect(io.stderr.contains("Preserve token"))
   }
@@ -86,6 +86,28 @@ struct RecoveryProgressTests {
       .recoveryRotation(.rotate)] {
       #expect(!request.supportsRecoveryProgress)
     }
+  }
+
+  @Test(arguments: [false, true], [false, true])
+  func restoreBranchesStayOrderedBoundedAndRejectSkippedOrRepeatedStages(resume: Bool, selected: Bool) throws {
+    let receiver = KeyXPCRecoveryProgressReceiver(wake: .init(value: 0))
+    func send(_ stage: KeyRecoveryStage) throws {
+      receiver.recoveryProgress(try JSONEncoder().encode(
+        KeyRecoveryProgressEvent(operationID: receiver.operationID, stage: stage)) as NSData)
+    }
+    try send(.preparationSaved)
+    for stage in KeyRecoveryStage.hardwareStages { try send(stage) }
+    let branch: KeyRecoveryStage = resume ? .openingSavedPreparation : .preparingRestoredVault
+    try send(.activatingRestoredVault)
+    try send(branch)
+    try send(resume ? .preparingRestoredVault : .openingSavedPreparation)
+    try send(.preparationSaved)
+    try send(.preparationSaved)
+    if !selected { try send(.publishingRestoredVault) }
+    try send(.activatingRestoredVault)
+    for stage in KeyRecoveryStage.allCases { try send(stage) }
+    #expect(receiver.take() == KeyRecoveryStage.hardwareStages + [branch, .preparationSaved]
+      + (selected ? [] : [.publishingRestoredVault]) + [.activatingRestoredVault])
   }
 
   private final class Events: @unchecked Sendable {

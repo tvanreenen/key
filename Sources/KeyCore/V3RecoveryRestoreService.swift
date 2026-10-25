@@ -142,6 +142,8 @@ struct V3RecoveryRestoreService {
         }
         try observer.didReach(.reservationDurable)
         try requireReservation()
+        progress?.emit(.preparingRestoredVault)
+        try requireReservation()
         let created = try identities.createDeviceWrappedIdentity(
           vaultID: reservation.vaultID, displayName: deviceName,
           reason: "Create this Mac's credentials for the restored vault.")
@@ -170,7 +172,7 @@ struct V3RecoveryRestoreService {
           vaultID: reservation.vaultID, envelopeDigest: genesis.manifestDigest)
         _ = try V3DeviceWrappedCheckpointUnlocker().unlock(
           checkpoint: checkpoint, manifestData: genesis.manifestData, identity: saved,
-          session: session, reason: "Verify this Mac's saved restored-vault access.",
+          session: session, reason: "Prepare restored vault on this Mac.",
           validateBeforeSessionInstall: requireReservation)
         guard try session.load(vaultID: reservation.vaultID, keyID: genesis.body.keyID) == key
         else {
@@ -188,10 +190,11 @@ struct V3RecoveryRestoreService {
         _ = try journal.confirmPreparation(
           sourceVaultID: anchor.floor.vaultID, snapshot: snapshot, environment: environment,
           vaultKey: key, expectedOwner: saved.publicIdentity, validateScope: recheck)
+        progress?.emit(.preparationSaved)
         if finish {
           try complete(
             snapshot: snapshot, environment: environment, vaultKey: key, identity: saved,
-            source: source, parent: parent, validateScope: recheck)
+            source: source, parent: parent, validateScope: recheck, progress: progress)
         }
         return .init(
           operationID: reservation.operationID, checkpoint: bundle.intent.destinationCheckpoint,
@@ -275,22 +278,25 @@ struct V3RecoveryRestoreService {
           identity.publicIdentity == bundle.manifest.body.devices[0].identity
         else { throw V3RecoveryRestoreServiceError.savedIdentityMismatch }
         try requirePending()
+        progress?.emit(.openingSavedPreparation)
+        try requirePending()
         let session = V3DeviceWrappedVaultKeySessionStore()
         defer { session.invalidate() }
         _ = try V3DeviceWrappedCheckpointUnlocker().unlock(
           checkpoint: bundle.intent.destinationCheckpoint,
           manifestData: bundle.manifest.canonicalBytes,
           identity: identity, session: session,
-          reason: "Open this Mac's saved restored-vault preparation.",
+          reason: "Reopen saved restore preparation on this Mac.",
           validateBeforeSessionInstall: requirePending)
         let key = try session.load(
           vaultID: bundle.intent.destinationCheckpoint.vaultID,
           keyID: bundle.intent.destinationKeyID)
         session.invalidate()
         try requirePending()
+        progress?.emit(.preparationSaved)
         try complete(
           snapshot: snapshot, environment: environment, vaultKey: key, identity: identity,
-          source: source, parent: parent, validateScope: recheck)
+          source: source, parent: parent, validateScope: recheck, progress: progress)
         return .init(
           operationID: owned.reservation.operationID,
           checkpoint: bundle.intent.destinationCheckpoint,
@@ -312,17 +318,22 @@ struct V3RecoveryRestoreService {
   private func complete(
     snapshot: V3RecoveryVerifiedSnapshot, environment: V3RecoveryRestoreEnvironment, vaultKey: Data,
     identity: any V3DeviceWrappedVaultKeyUnwrapping, source: VaultRootDirectoryHandle,
-    parent: VaultRootDirectoryHandle, validateScope: () throws -> Void
+    parent: VaultRootDirectoryHandle, validateScope: () throws -> Void,
+    progress: KeyRecoveryProgress?
   ) throws {
     let sourceID = snapshot.selection.anchor.floor.vaultID
     try validateScope()
     if !environment.hasSelectedConfiguration {
+      progress?.emit(.publishingRestoredVault)
+      try validateScope()
       _ = try V3RecoveryRestorePublisher(
         journal: journal, limits: limits, observer: PublicationObserver(observer: observer),
         writeObserver: writeObserver
       ).publish(
         sourceVaultID: sourceID, snapshot: snapshot, environment: environment, vaultKey: vaultKey,
         identity: identity, validateScope: validateScope)
+      progress?.emit(.activatingRestoredVault)
+      try validateScope()
       _ = try V3RecoveryRestoreSelectionInstaller(
         journal: journal, checkpoints: checkpoints, cache: cache, identities: identities,
         observer: SelectionObserver(observer: observer), writeObserver: writeObserver,
@@ -332,6 +343,7 @@ struct V3RecoveryRestoreService {
         destination: environment.destination, parent: parent, configStore: configStore,
         validateScope: validateScope)
     }
+    if environment.hasSelectedConfiguration { progress?.emit(.activatingRestoredVault) }
     guard
       try V3RecoveryRestoreFinalizer(
         journal: journal, checkpoints: checkpoints, cache: cache, identities: identities,

@@ -6,8 +6,11 @@ import Testing
 /// Exercises actual NSXPC encoding/callbacks on an anonymous test endpoint.
 /// This is protocol interoperability, not production signing/UI qualification.
 struct RecoveryProgressXPCTests {
-  @Test func additiveSelectorCarriesScopedProgressAndFinalReplyOverXPC() throws {
-    let service = Service()
+  @Test(arguments: [false, true])
+  func additiveSelectorCarriesScopedProgressAndFinalReplyOverXPC(restore: Bool) throws {
+    let expected = KeyRecoveryStage.hardwareStages + (restore
+      ? [.preparingRestoredVault, .preparationSaved, .publishingRestoredVault, .activatingRestoredVault] : [])
+    let service = Service(stages: expected)
     let delegate = Delegate(service: service)
     let listener = NSXPCListener.anonymous()
     listener.delegate = delegate
@@ -39,14 +42,14 @@ struct RecoveryProgressXPCTests {
       }
     var stages: [KeyRecoveryStage] = []
     let deadline = DispatchTime.now() + .seconds(10)
-    while stages.count < 3 {
+    while stages.count < expected.count {
       guard wake.wait(timeout: deadline) == .success else {
         Issue.record("No progress callback arrived over the anonymous XPC endpoint")
         return
       }
       stages += progress.take()
     }
-    #expect(stages == KeyRecoveryStage.allCases)
+    #expect(stages == expected)
     service.allowReply.signal()
     #expect(response.semaphore.wait(timeout: deadline) == .success)
     let result = response.result()
@@ -69,6 +72,8 @@ struct RecoveryProgressXPCTests {
   }
 
   private final class Service: NSObject, KeyXPCProtocol, @unchecked Sendable {
+    let stages: [KeyRecoveryStage]
+    init(stages: [KeyRecoveryStage]) { self.stages = stages }
     weak var connection: NSXPCConnection?
     let allowReply = DispatchSemaphore(value: 0)
     func sendRequest(_ data: NSData, withReply reply: @escaping (NSData?, NSString?) -> Void) {
@@ -83,7 +88,7 @@ struct RecoveryProgressXPCTests {
         reply(nil, "Invalid fixture request")
         return
       }
-      for stage in KeyRecoveryStage.allCases {
+      for stage in stages {
         let event = KeyRecoveryProgressEvent(operationID: operationID as UUID, stage: stage)
         guard let data = try? JSONEncoder().encode(event) else { return }
         sink.recoveryProgress(data as NSData)

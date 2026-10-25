@@ -4,12 +4,39 @@ import Foundation
 /// completion of registration/restore; only the service's final reply does.
 public enum KeyRecoveryStage: String, Codable, Sendable, CaseIterable {
   case authenticating, touchRequired, hardwareCompleted
+  case preparingRestoredVault, openingSavedPreparation, preparationSaved
+  case publishingRestoredVault, activatingRestoredVault
+
+  static let hardwareStages: [Self] = [.authenticating, .touchRequired, .hardwareCompleted]
+
+  /// A bounded acyclic presentation sequence shared by sender and receiver.
+  /// Registration ends after hardware approval; restore/resume take distinct
+  /// branches before converging on complete saved preparation.
+  func canFollow(_ previous: Self?) -> Bool {
+    switch (previous, self) {
+    case (nil, .authenticating), (.authenticating?, .touchRequired),
+      (.touchRequired?, .hardwareCompleted),
+      (.hardwareCompleted?, .preparingRestoredVault),
+      (.hardwareCompleted?, .openingSavedPreparation),
+      (.preparingRestoredVault?, .preparationSaved),
+      (.openingSavedPreparation?, .preparationSaved),
+      (.preparationSaved?, .publishingRestoredVault),
+      (.preparationSaved?, .activatingRestoredVault),
+      (.publishingRestoredVault?, .activatingRestoredVault): true
+    default: false
+    }
+  }
 
   public var instruction: String {
     switch self {
     case .authenticating: "Approve the recovery key in the macOS dialog. Enter your PIN only there."
     case .touchRequired: "Touch your flashing YubiKey's metal contact now."
     case .hardwareCompleted: "Hardware approval completed. Finishing the recovery request."
+    case .preparingRestoredVault: "Mac approval: Prepare restored vault on this Mac. Complete recovery preparation has not been saved yet."
+    case .openingSavedPreparation: "Mac approval: Reopen saved restore preparation on this Mac."
+    case .preparationSaved: "Complete encrypted recovery preparation is saved. An interrupted restore can now be explicitly resumed."
+    case .publishingRestoredVault: "Mac approval: Publish prepared restored vault. This uses the saved preparation."
+    case .activatingRestoredVault: "Finishing restored-vault verification and activation. Further Mac approval may be required."
     }
   }
 }
@@ -24,7 +51,7 @@ public struct KeyRecoveryProgressEvent: Codable, Sendable {
 public final class KeyRecoveryProgress: @unchecked Sendable {
   public let operationID: UUID
   private let lock = NSLock()
-  private var next = 0
+  private var previous: KeyRecoveryStage?
   private var closed = false
   private let receive: @Sendable (KeyRecoveryProgressEvent) -> Void
 
@@ -35,9 +62,8 @@ public final class KeyRecoveryProgress: @unchecked Sendable {
 
   func emit(_ stage: KeyRecoveryStage) {
     let accepted = lock.withLock {
-      guard !closed, next < KeyRecoveryStage.allCases.count,
-        KeyRecoveryStage.allCases[next] == stage else { return false }
-      next += 1
+      guard !closed, stage.canFollow(previous) else { return false }
+      previous = stage
       return true
     }
     if accepted { receive(.init(operationID: operationID, stage: stage)) }

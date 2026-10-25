@@ -65,13 +65,13 @@ final class KeyXPCConnectionEndState: @unchecked Sendable {
     func recoveryProgress(_ event: NSData)
 }
 
-/// XPC callbacks enqueue at most three finite stages. User callbacks run only
+/// XPC callbacks enqueue a bounded acyclic sequence. User callbacks run only
 /// on send's calling thread and never after it returns, including after timeout.
 final class KeyXPCRecoveryProgressReceiver: NSObject, KeyXPCRecoveryProgressProtocol, @unchecked Sendable {
     let operationID = UUID()
     private let lock = NSLock()
     private var open = true
-    private var next = 0
+    private var previous: KeyRecoveryStage?
     private var pending: [KeyRecoveryStage] = []
     private let wake: DispatchSemaphore
     init(wake: DispatchSemaphore) { self.wake = wake }
@@ -80,9 +80,8 @@ final class KeyXPCRecoveryProgressReceiver: NSObject, KeyXPCRecoveryProgressProt
               let event = try? JSONDecoder().decode(KeyRecoveryProgressEvent.self, from: data as Data),
               event.operationID == operationID else { return }
         let accepted = lock.withLock {
-            guard open, next < KeyRecoveryStage.allCases.count,
-                  KeyRecoveryStage.allCases[next] == event.stage else { return false }
-            next += 1
+            guard open, event.stage.canFollow(previous) else { return false }
+            previous = event.stage
             pending.append(event.stage)
             return true
         }
