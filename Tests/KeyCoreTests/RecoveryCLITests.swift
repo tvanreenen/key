@@ -4,6 +4,21 @@ import Testing
 @testable import KeyCore
 
 struct RecoveryCLITests {
+  @Test(arguments: ["restore", "resume", "prepare", "finish", "resume-export"])
+  func dashPrefixedRecipientIsAValue(command: String) throws {
+    let recipient = Base64URL.encode(Data([0xf8]) + Data(repeating: 0, count: 31))
+    #expect(recipient.hasPrefix("-"))
+    let credential = ["--token", "fixture", "--recipient", recipient]
+    let arguments: [String]
+    if command == "restore" || command == "resume" {
+      arguments = ["recovery", command, "--source", "/source", "--destination", "/new"]
+        + credential + (command == "restore" ? ["--name", "New Mac"] : [])
+    } else {
+      arguments = ["recovery", "register", command] + credential
+        + (command == "finish" ? [] : ["--export-anchor", "public.json"])
+    }
+    _ = try CLIParser.parse(arguments: arguments)
+  }
   private static let recipient = Base64URL.encode(Data(repeating: 7, count: 32))
   private enum Stop: Error { case interrupted }
   private typealias Fixture = V3RecoveryRestoreServiceTests.Fixture
@@ -165,7 +180,7 @@ struct RecoveryCLITests {
     let initialIO = MemoryIO(stdinIsTTY: false)
     let initialApp = application(f, transport: initialTransport, io: initialIO)
     let initial = initialApp.run(arguments: fixtureArguments(f, resume: false))
-    #expect((initial == EXIT_SUCCESS) == !interrupted)
+    #expect((initial == EXIT_SUCCESS) == !interrupted, "\(initialIO.stderr)")
     #expect(initialTransport.requests.count == 1 && f.provider.requests == 1)
     #expect(f.identities.creates.value == 1)
     if interrupted {

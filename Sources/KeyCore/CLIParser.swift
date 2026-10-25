@@ -345,7 +345,7 @@ private struct KeyArguments: ParsableCommand {
 
         struct CredentialOptions: ParsableArguments {
             @Option(name: .customLong("token"), help: "Complete explicitly selected connected token ID.") var tokens: [String]
-            @Option(name: .customLong("recipient"), help: "Complete recovery recipient ID from credential inspection.") var recipients: [String]
+            @Option(name: .customLong("recipient"), parsing: .unconditionalSingleValue, help: "Complete recovery recipient ID from credential inspection.") var recipients: [String]
             mutating func validate() throws {
                 guard tokens.count == 1, recipients.count == 1 else {
                     throw ValidationError("Provide --token and --recipient exactly once each.")
@@ -462,7 +462,7 @@ private struct KeyArguments: ParsableCommand {
             var destinations: [String]
             @Option(name: .customLong("token"), help: "Exact connected token ID. Required exactly once; never automatically selected.")
             var tokens: [String]
-            @Option(name: .customLong("recipient"), help: "Complete recovery recipient ID, not a certificate fingerprint. Required exactly once.")
+            @Option(name: .customLong("recipient"), parsing: .unconditionalSingleValue, help: "Complete recovery recipient ID, not a certificate fingerprint. Required exactly once.")
             var recipients: [String]
 
             mutating func validate() throws {
