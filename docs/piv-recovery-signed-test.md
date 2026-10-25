@@ -5,6 +5,43 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Build24 accepted and ticket verified; detailed receipt pending, 2026-10-25
+
+Normal universal PreviewRelease build24 was archived from clean source
+`8fa8b0ddd24affafc66e8d7643414a5f0f0ec9f3`, including both approval-cue and
+incomplete-attempt commits. Recovery was enabled only in copied host/helper
+Info.plists, with no diagnostic replacement. Exact identifiers/team, hardened
+runtime, helper entitlements in both slices, strict signatures and ZIP roundtrip
+passed. Apple accepted submission `f1ed4c59-5ac8-4ea6-be9e-60455a4a6f0a` for the
+submitted ZIP pinned locally by SHA256
+`65504eb3256bfea39ba2ed55c5a9932451b2a4a1d5235edee86a3550e66ddc66`.
+
+The subsequent detailed-log lookup returned exit69, reporting no password item
+for `key-notary`. Both the default lookup and an explicit login-Keychain lookup
+failed. Read-only checks confirmed the login Keychain is the search/default
+path and reports unlocked; why the earlier upload/wait succeeded but log lookup
+failed is unresolved. No credential values, profile/settings changes, unlock
+request or resubmission occurred. The owner was asked to retrieve the same log
+from Terminal, without recreating credentials or sharing passwords.
+
+Independent of that receipt lookup, the exact submitted candidate was extracted,
+stapled and validated against Apple's ticket; Gatekeeper, strict signatures,
+unchanged executable/Info.plist bytes and final transfer-ZIP roundtrip passed.
+The final ZIP SHA256 is
+`14170fc3df0cf241235d5896970818f8e72da8c478ffc1de80e01b1d177b9587`.
+Detailed receipt/archive-digest inspection and any warning review remain pending;
+do not claim an issues-free Apple log or completed final receipt gate yet.
+`finish-after-log.py` performs that gate once the owner supplies the downloaded
+log, without resubmitting or repeating stapling.
+
+Protected installed apps, Stable config, Preview support and explicitly scoped
+disposable vault files match before/after snapshots, including retained
+reservation `3ec1cec1-50da-4200-b9d9-31956003cef4`. Build23 remains installed.
+No installation, product launch, recovery authentication, abandonment, token
+operation/write, actual-vault traversal or public release occurred. Raw evidence
+and the package stay ignored under
+`tmp/piv-recovery/approval-incomplete-build24-2026-10-25/`.
+
 ## Local approval cues and incomplete-attempt handling implemented, 2026-10-25
 
 The local source now distinguishes Mac preparation, reopening, publication and
