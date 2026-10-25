@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration remains pending; notarized diagnostic build21 startup/read-only checks and one staged synthetic pass recorded, owner confirmed one PIN then cue/touch; product staging/progress integration, failure/cancellation and native activation/restore qualification remain; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; product ACL staging, scoped progress and native touch UI implemented/software-tested; disposable registration remains pending and diagnostic build21 remains installed; signed product UI/cancellation, activation and restore acceptance remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -906,6 +906,33 @@ rollback/pending setup; do not automatically restart/retry. Next is product
 integration of scoped ACL staging/touch progress and signed product acceptance,
 including failure/cancellation cases and pending registration. Further hardware
 operations remain separate approvals.
+
+#### Product staging/progress and touch window implemented, 2026-10-25
+
+The tested actual-key ACL sequence now runs in the product agreement adapter,
+with further PIN dialogs disabled for ECDH and fixed failure categories. Scoped
+progress is composed through registration and restore/resume. The helper owns
+the touch window; the CLI reports finite progress on stderr. An additive XPC
+selector retains existing role/signature policy and refuses legacy hardware
+dispatch. Work leaves the XPC delivery queue so disconnect can cancel its host
+scope; progress never authorizes publication or extends deadlines. No vault-format
+or persistent configuration change. See the [contract](piv-recovery-contract.md#staged-approval-and-request-scoped-presentation).
+
+Full standard software tests passed serially (1772 plus six), with a final 48
+affected-boundary tests passing after CFError guard parity. Stable/Preview builds,
+universal PreviewRelease, isolation, help and packaging/script checks pass; touch
+layout was rendered offscreen. A pre-existing dash-prefixed recipient parser
+failure was reproduced/fixed with five deterministic cases. Parallel timing-limit
+failures and a strict Release dependency-flag conflict were resolved by explicit
+serial testing and normal repository Release flags; neither test deadlines nor
+dependency sources were relaxed. Evidence remains ignored under
+`tmp/piv-recovery/product-staging-validation/` and adjacent logs.
+
+Installed diagnostic build21, protected state, actual vault and YubiKey were not
+changed. No signing, installation, native test or registration finish. This is
+the implementation review/testing point: next prepare a matching signed product
+Preview for real window/cancellation and pending-registration acceptance, then
+restore qualification. Product feature gates remain unchanged.
 
 ## Architecture ownership
 

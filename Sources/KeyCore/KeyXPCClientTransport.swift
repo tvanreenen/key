@@ -28,6 +28,7 @@ final class KeyXPCReplyState: @unchecked Sendable {
         }
         return (data, error)
     }
+    var hasResult: Bool { lock.withLock { isCompleted } }
 }
 
 final class KeyXPCConnectionEndState: @unchecked Sendable {
@@ -55,7 +56,42 @@ final class KeyXPCConnectionEndState: @unchecked Sendable {
 
 @objc public protocol KeyXPCProtocol {
     func sendRequest(_ requestData: NSData, withReply reply: @escaping (NSData?, NSString?) -> Void)
+    func sendRecoveryRequest(_ requestData: NSData, operationID: NSUUID,
+                             withReply reply: @escaping @Sendable (NSData?, NSString?) -> Void)
     func completeShutdown()
+}
+
+@objc public protocol KeyXPCRecoveryProgressProtocol {
+    func recoveryProgress(_ event: NSData)
+}
+
+/// XPC callbacks enqueue at most three finite stages. User callbacks run only
+/// on send's calling thread and never after it returns, including after timeout.
+final class KeyXPCRecoveryProgressReceiver: NSObject, KeyXPCRecoveryProgressProtocol, @unchecked Sendable {
+    let operationID = UUID()
+    private let lock = NSLock()
+    private var open = true
+    private var next = 0
+    private var pending: [KeyRecoveryStage] = []
+    private let wake: DispatchSemaphore
+    init(wake: DispatchSemaphore) { self.wake = wake }
+    func recoveryProgress(_ data: NSData) {
+        guard data.length <= 1_024,
+              let event = try? JSONDecoder().decode(KeyRecoveryProgressEvent.self, from: data as Data),
+              event.operationID == operationID else { return }
+        let accepted = lock.withLock {
+            guard open, next < KeyRecoveryStage.allCases.count,
+                  KeyRecoveryStage.allCases[next] == event.stage else { return false }
+            next += 1
+            pending.append(event.stage)
+            return true
+        }
+        if accepted { wake.signal() }
+    }
+    func take() -> [KeyRecoveryStage] {
+        lock.withLock { let values = pending; pending.removeAll(); return values }
+    }
+    func close() { lock.withLock { open = false; pending.removeAll() } }
 }
 
 public final class KeyXPCClientTransport: KeyServiceTransport {
@@ -75,9 +111,20 @@ public final class KeyXPCClientTransport: KeyServiceTransport {
     }
 
     public func send(_ request: KeyServiceRequest) throws -> KeyServiceResponse {
+        try send(request, progress: { _ in })
+    }
+
+    public func send(_ request: KeyServiceRequest, progress: @escaping (KeyRecoveryStage) -> Void) throws -> KeyServiceResponse {
         let requestData = try encoder.encode(request)
+        let replyState = KeyXPCReplyState()
+        let progressReceiver = KeyXPCRecoveryProgressReceiver(wake: replyState.semaphore)
+        defer { progressReceiver.close() }
         let connection = NSXPCConnection(machServiceName: machServiceName, options: [])
         connection.remoteObjectInterface = NSXPCInterface(with: KeyXPCProtocol.self)
+        if request.supportsRecoveryProgress {
+            connection.exportedInterface = NSXPCInterface(with: KeyXPCRecoveryProgressProtocol.self)
+            connection.exportedObject = progressReceiver
+        }
         #if DEBUG
         let signingPolicy = KeyXPCCodeSigningPolicy.development
         #else
@@ -92,9 +139,11 @@ public final class KeyXPCClientTransport: KeyServiceTransport {
         let connectionEndState = KeyXPCConnectionEndState()
         connection.interruptionHandler = {
             connectionEndState.complete()
+            replyState.complete(data: nil, error: "The helper connection was interrupted. Preserve recovery state; no retry was made.")
         }
         connection.invalidationHandler = {
             connectionEndState.complete()
+            replyState.complete(data: nil, error: "The helper connection closed. Preserve recovery state; no retry was made.")
         }
         connection.resume()
         var invalidatesOnReturn = true
@@ -104,8 +153,6 @@ public final class KeyXPCClientTransport: KeyServiceTransport {
             }
         }
 
-        let replyState = KeyXPCReplyState()
-
         let remote = connection.remoteObjectProxyWithErrorHandler { error in
             replyState.complete(data: nil, error: error.localizedDescription)
         }
@@ -114,20 +161,29 @@ public final class KeyXPCClientTransport: KeyServiceTransport {
             throw AppError.service("Failed to connect to the Key service.")
         }
 
-        proxy.sendRequest(requestData as NSData) { responseData, errorMessage in
+        let receiveReply: @Sendable (NSData?, NSString?) -> Void = { responseData, errorMessage in
+            progressReceiver.close()
             replyState.complete(data: responseData as Data?, error: errorMessage as String?)
         }
-
-        if let timeoutSeconds = request.responseTimeoutSeconds {
-            if replyState.semaphore.wait(timeout: .now() + .seconds(timeoutSeconds)) == .timedOut {
+        if request.supportsRecoveryProgress {
+            // Additive selector: an older helper fails before dispatch. Never
+            // fall back to an un-staged request after an uncertain reply.
+            proxy.sendRecoveryRequest(requestData as NSData,
+                operationID: progressReceiver.operationID as NSUUID, withReply: receiveReply)
+        } else {
+            proxy.sendRequest(requestData as NSData, withReply: receiveReply)
+        }
+        let deadline = request.responseTimeoutSeconds.map { DispatchTime.now() + .seconds($0) } ?? .distantFuture
+        while !replyState.hasResult {
+            for stage in progressReceiver.take() { progress(stage) }
+            if replyState.semaphore.wait(timeout: deadline) == .timedOut {
                 connection.invalidate()
                 throw AppError.service(
-                    "Timed out after \(timeoutSeconds) seconds waiting for the Key service to handle \(request.operationName)."
+                    "Timed out waiting for the Key service to handle \(request.operationName)."
                 )
             }
-        } else {
-            replyState.semaphore.wait()
         }
+        progressReceiver.close()
 
         let result = replyState.result()
         if let capturedError = result.error {

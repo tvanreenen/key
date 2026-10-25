@@ -2213,6 +2213,53 @@ Before lookup, the receiver requires reported generated origin and explicit PIN
 cached touch and imported origin are not accepted by the initial adapter. This
 is a Key support policy, not a claim that every excluded vendor option is unsafe.
 
+### Staged approval and request-scoped presentation
+
+Before ECDH, the provider obtains the selected native key's actual
+`SecAccessControl` object. Missing access control fails closed; Key does not
+construct a replacement ACL. It evaluates `.useKeyKeyExchange` through the same
+`LAContext` used for noninteractive lookup, then sets `interactionNotAllowed`
+before admitting the one exchange. It does not supply a PIN credential or use
+`isCredentialSet` as evidence of PIN acceptance. Cancelled, expired or late
+approval cannot authorize a later exchange; invalidation wakes the local approval
+waiter without relying on prompt termination or a timely framework callback.
+
+Presentation has three finite stages: authenticating, touch required, and hardware
+completed. The touch stage follows successful actual-ACL evaluation, not a timer,
+log observation or touch-sensor claim. Stages contain an ephemeral request UUID
+and enum only. They are not persisted authority, consent, proof of enforcement or
+completion of registration/restore. Existing cryptographic, scope and publication
+checks still determine the final service response.
+
+The full CLI uses an additive XPC selector and exported progress callback on its
+existing mutually authenticated connection. Only restore/resume and registration
+finish use it; utility/status callers remain unauthorized. The helper accepts one
+such request per connection and dispatches work away from the XPC delivery queue
+so disconnect cancellation can run. The existing host scope retains its captured
+generation, cancellation and absolute deadline. Progress does not extend deadlines.
+Receiver validation binds the UUID, stage order and closure, discarding duplicate,
+unknown, late and oversized messages. Limits are 1KiB per progress payload and
+64KiB for the public recovery request; these are processing bounds, not claims to
+cap framework allocation. CLI callbacks run on the sending thread, write stderr
+only and cannot run after send returns. The final reply remains authoritative.
+
+Hardware requests from an older CLI are refused before host dispatch; a new CLI
+does not fall back to the old selector after an unsupported or uncertain reply.
+Deploy matching CLI/helper bundles. No vault format or persistent configuration
+changes are introduced by this channel.
+
+The helper owns a Cancel-only native touch window with no PIN field. It appears
+after approval and closes after the exchange or request termination. Cancel
+invalidates that connection's scope; an already admitted native operation may
+still drain, but its stopped result cannot publish authority. Presentation is
+closed on every return path. A terminal-only cue and an additional utility-host
+prompt service were considered; helper ownership keeps presentation with native
+execution without adding another privileged role or consent handoff. The helper
+uses Apple's [accessory activation role](https://developer.apple.com/documentation/appkit/nsapplication/activationpolicy-swift.enum)
+through `LSUIElement`; experimental recovery runs the AppKit event loop. The alert
+completes [its native layout](https://developer.apple.com/documentation/appkit/nsalert/layout())
+before direct nonmodal presentation. Ordinary feature gates remain unchanged.
+
 The caller waits until explicit cancellation or an absolute deadline, defaulting
 to 60 seconds for the scope. Stopped or late results are discarded. Context
 invalidation requests cancellation of authentication; it does not prove native
@@ -2227,8 +2274,11 @@ completion. They do not qualify native query delivery, physical identity, PIN or
 touch enforcement, prompt cancellation, or hardware session/cache behavior.
 Configured-policy checks are implemented; actual PIN/touch enforcement,
 protected setup, signed-product capability and actual
-hardware qualification remain 807 requirements. Neither adapter has a product
-caller; an absent or unrecognized anchor is not permission to register or restore.
+hardware qualification remain acceptance requirements. Gated registration and
+restore callers now compose this adapter. A signed diagnostic staging pass is
+not qualification of the product touch window, cancellation, repeatability or
+cross-Mac behavior. An absent or unrecognized anchor is not permission to register
+or restore.
 
 ### Owner operated setup boundary
 

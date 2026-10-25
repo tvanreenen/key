@@ -316,7 +316,7 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
       else { throw PIVRecoveryAgreementError.invalidBinding }
       var error: Unmanaged<CFError>?
       defer { if let error { _ = error.takeRetainedValue() } }
-      guard let bytes = SecKeyCopyExternalRepresentation(publicReference, &error) as Data? else {
+      guard let bytes = SecKeyCopyExternalRepresentation(publicReference, &error) as Data?, error == nil else {
         throw PIVRecoveryAgreementError.invalidBinding
       }
       _ = try P256.KeyAgreement.PublicKey(x963Representation: bytes)
@@ -379,7 +379,7 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
     guard
       let value = SecKeyCopyKeyExchangeResult(
         key.reference, .ecdhKeyExchangeStandard, peerReference, [:] as CFDictionary, &error
-      ) as Data?
+      ) as Data?, error == nil
     else { throw PIVRecoveryAgreementError.providerFailure }
     return value
   }
@@ -418,7 +418,7 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
       kSecAttrKeyClass as String: kSecAttrKeyClassPublic,
       kSecAttrKeySizeInBits as String: 256,
     ]
-    guard let key = SecKeyCreateWithData(bytes as CFData, attributes as CFDictionary, &error) else {
+    guard let key = SecKeyCreateWithData(bytes as CFData, attributes as CFDictionary, &error), error == nil else {
       throw PIVRecoveryAgreementError.invalidPeer
     }
     return key

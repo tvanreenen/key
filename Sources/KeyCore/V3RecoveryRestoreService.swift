@@ -84,11 +84,11 @@ struct V3RecoveryRestoreService {
     source: VaultRootDirectoryHandle, parent: VaultRootDirectoryHandle, name: String,
     deviceName: String, observation: PIVRecoveryTokenObservation,
     cancellation: PIVRecoveryCancellation = PIVRecoveryCancellation(),
-    deadline: DispatchTime = .now() + .seconds(60)
+    deadline: DispatchTime = .now() + .seconds(60), progress: KeyRecoveryProgress? = nil
   ) throws -> V3RecoveryRestoreReport {
     try begin(
       source: source, parent: parent, name: name, deviceName: deviceName, observation: observation,
-      cancellation: cancellation, deadline: deadline, finish: false)
+      cancellation: cancellation, deadline: deadline, progress: progress, finish: false)
   }
 
   @available(macOS 26.0, *)
@@ -96,22 +96,22 @@ struct V3RecoveryRestoreService {
     source: VaultRootDirectoryHandle, parent: VaultRootDirectoryHandle, name: String,
     deviceName: String, observation: PIVRecoveryTokenObservation,
     cancellation: PIVRecoveryCancellation = PIVRecoveryCancellation(),
-    deadline: DispatchTime = .now() + .seconds(60)
+    deadline: DispatchTime = .now() + .seconds(60), progress: KeyRecoveryProgress? = nil
   ) throws -> V3RecoveryRestoreReport {
     try begin(
       source: source, parent: parent, name: name, deviceName: deviceName, observation: observation,
-      cancellation: cancellation, deadline: deadline, finish: true)
+      cancellation: cancellation, deadline: deadline, progress: progress, finish: true)
   }
 
   @available(macOS 26.0, *)
   private func begin(
     source: VaultRootDirectoryHandle, parent: VaultRootDirectoryHandle, name: String,
     deviceName: String, observation: PIVRecoveryTokenObservation,
-    cancellation: PIVRecoveryCancellation, deadline: DispatchTime, finish: Bool
+    cancellation: PIVRecoveryCancellation, deadline: DispatchTime, progress: KeyRecoveryProgress?, finish: Bool
   ) throws -> V3RecoveryRestoreReport {
     try withSnapshot(
       source: source, parent: parent, observation: observation,
-      cancellation: cancellation, deadline: deadline,
+      cancellation: cancellation, deadline: deadline, progress: progress,
       preflight: { anchor in
         try journal.requireConfigurationRoot(configStore.unconfiguredRestoreRoot())
         guard isValidV3DeviceDisplayName(deviceName) else {
@@ -209,13 +209,13 @@ struct V3RecoveryRestoreService {
     source: VaultRootDirectoryHandle, destination: VaultRootDirectoryHandle,
     parent: VaultRootDirectoryHandle, observation: PIVRecoveryTokenObservation,
     cancellation: PIVRecoveryCancellation = PIVRecoveryCancellation(),
-    deadline: DispatchTime = .now() + .seconds(60)
+    deadline: DispatchTime = .now() + .seconds(60), progress: KeyRecoveryProgress? = nil
   ) throws -> V3RecoveryRestoreReport {
     var pending: V3RecoveryRestorePending?
     var captured: V3RecoveryRestoreEnvironment?
     return try withSnapshot(
       source: source, parent: parent, observation: observation,
-      cancellation: cancellation, deadline: deadline,
+      cancellation: cancellation, deadline: deadline, progress: progress,
       preflight: { anchor in
         try journal.requireConfigurationRoot(configStore.restoreCompletionRoot())
         guard let owned = try journal.loadForCompletion(sourceVaultID: anchor.floor.vaultID) else {
@@ -349,7 +349,7 @@ struct V3RecoveryRestoreService {
   private func withSnapshot<T>(
     source: VaultRootDirectoryHandle, parent: VaultRootDirectoryHandle,
     observation: PIVRecoveryTokenObservation, cancellation: PIVRecoveryCancellation,
-    deadline: DispatchTime, preflight: (V3RecoveryAnchor) throws -> Void,
+    deadline: DispatchTime, progress: KeyRecoveryProgress?, preflight: (V3RecoveryAnchor) throws -> Void,
     validateSelection: (V3RecoveryPublicSelection) throws -> Void = { _ in },
     consume:
       @escaping (VaultTransactionMutationContext, V3RecoveryVerifiedSnapshot, () throws -> Void)
@@ -379,7 +379,7 @@ struct V3RecoveryRestoreService {
       let verifier = V3RecoverySnapshotVerifier(source: store, limits: limits)
       try requireAuthentication()
       return try agreement.withReceiver(
-        observation: observation, cancellation: cancellation, deadline: deadline
+        observation: observation, cancellation: cancellation, deadline: deadline, progress: progress
       ) { receiver in
         let snapshot = try verifier.open(selection, boundAnchor: anchor, receiver: receiver)
         try requireAuthentication()

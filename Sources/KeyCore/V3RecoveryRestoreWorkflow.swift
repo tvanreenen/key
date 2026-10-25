@@ -127,11 +127,11 @@ struct V3RecoveryRestoreWorkflow {
     if let deviceName {
       report = try service.restore(
         source: source, parent: parent, name: name, deviceName: deviceName,
-        observation: observation, cancellation: scope.cancellation, deadline: scope.deadline)
+        observation: observation, cancellation: scope.cancellation, deadline: scope.deadline, progress: scope.progress)
     } else if let destination {
       report = try service.resume(
         source: source, destination: destination, parent: parent, observation: observation,
-        cancellation: scope.cancellation, deadline: scope.deadline)
+        cancellation: scope.cancellation, deadline: scope.deadline, progress: scope.progress)
     } else {
       throw V3RecoveryRestoreError.invalidIntent
     }

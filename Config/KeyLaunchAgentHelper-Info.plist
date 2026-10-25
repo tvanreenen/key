@@ -32,7 +32,7 @@
 	<string>$(KEY_QUALIFICATION_NAMESPACE)</string>
 	<key>LaunchAgentPlistName</key>
 	<string>$(KEY_LAUNCH_AGENT_PLIST_NAME)</string>
-	<key>LSBackgroundOnly</key>
+	<key>LSUIElement</key>
 	<true/>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>

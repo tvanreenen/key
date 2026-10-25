@@ -301,7 +301,8 @@ public final class KeyCLIApplication {
             io.writeStderr("If possession verification is reached, enter PIN only in the macOS dialog and physically touch the key when it flashes. Cancel unexpected prompts. No automatic retry is made.\n")
         }
         do {
-            let response = try transport.send(.recoveryRegistration(request))
+            let serviceRequest = KeyServiceRequest.recoveryRegistration(request)
+            let response = try sendRecovery(serviceRequest)
             guard response.exitCode == EXIT_SUCCESS else {
                 if let message = response.errorMessage { io.writeStderr(message + "\n") }
                 writeRegistrationFailureGuidance()
@@ -389,7 +390,7 @@ public final class KeyCLIApplication {
         try resolved.validate()
         io.writeStderr("If source authentication is reached, Key requests one source-key hardware operation. Enter PIN only in the macOS dialog; physically touch the key when it flashes. Cancel unexpected prompts. No automatic retry will be made.\n")
         do {
-            let response = try transport.send(.recovery(resolved))
+            let response = try sendRecovery(.recovery(resolved))
             let result = try handle(response, for: .recovery(resolved))
             if result != EXIT_SUCCESS { writeRecoveryFailureGuidance() }
             return result
@@ -401,6 +402,13 @@ public final class KeyCLIApplication {
 
     private func writeRecoveryFailureGuidance() {
         io.writeStderr("Leave source, destination, local records and configuration intact. Do not start another restore or delete state to retry. A failed or lost reply does not establish whether selection completed. Use `key recovery resume` with the exact original selectors if a saved attempt remains; if resume refuses, preserve state for inspection. See `key recovery resume --help`.\n")
+    }
+
+    private func sendRecovery(_ request: KeyServiceRequest) throws -> KeyServiceResponse {
+        guard request.supportsRecoveryProgress else { return try transport.send(request) }
+        return try transport.send(request, progress: { [io] stage in
+            io.writeStderr(stage.instruction + "\n")
+        })
     }
 
     private func executeShareCommand(

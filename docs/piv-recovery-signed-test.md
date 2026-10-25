@@ -5,7 +5,43 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## UX side investigation: first signed-helper staged synthetic test passed, 2026-10-25
+## Product staging and touch UI implemented; native acceptance pending, 2026-10-25
+
+The real registration-finish and restore/resume paths now carry scoped progress
+into actual-key ACL approval and one noninteractive ECDH. The helper owns a native
+Cancel-only touch window after approval, with AppKit layout checked offscreen.
+The CLI writes correlated progress to stderr; only the final service response
+determines completion. Disconnect/lock/deadline cancellation, closed progress,
+one-use agreement and durable publication checks remain in force. The additive
+XPC selector requires matching CLI/helper bundles; legacy hardware requests are
+refused before dispatch. See the [contract](piv-recovery-contract.md#staged-approval-and-request-scoped-presentation).
+
+Standard software tests passed serially: 1772 KeyCore tests and six canonical-JSON
+tests. A final 48-test focused run passed after strict native CFError guards were
+aligned with the diagnostic probe. This includes actual anonymous XPC callback
+interoperability, cancellation before/after approval, late approval refusal,
+bounded/correlated progress and CLI final-response handling. A valid dash-prefixed
+recipient exposed an existing parser defect; five deterministic cases reproduce
+it before the two option declarations were fixed. Validation remains strict.
+
+Stable/Preview Debug builds, bundle isolation, CLI help, install-safety and release
+script checks pass. Universal PreviewRelease builds with normal repository flags;
+both CLI/helper architectures were checked. Global warnings-as-errors conflicted
+with the dependency's warning suppression, so that attempt was replaced by the
+normal Release build; code warnings are absent. The initial unconstrained parallel
+suite hit existing short synchronization timeouts and was stopped; the complete
+serialized run passed without relaxing those tests. Raw logs and the offscreen
+render stay ignored under `tmp/piv-recovery/product-staging-validation/` and
+adjacent `product-staging-*.log` files.
+
+No new product was signed, notarized, installed or launched, and no hardware test
+or registration finish ran. Installed diagnostic build21 and protected-file
+hashes remain unchanged. Its staged attempt remains spent. Next is review and a
+matching signed product Preview candidate for native window/cancellation and
+pending-registration acceptance, followed by restore qualification. The earlier
+diagnostic success does not establish this product UI's runtime behavior.
+
+## Earlier UX checkpoint: first signed-helper staged synthetic test passed, 2026-10-25
 
 The owner separately approved one isolated staged synthetic test. Exact installed
 build21 hashes, the same running helper PID19584/launch count1, unchanged protected

@@ -197,7 +197,7 @@ struct KeyRecoveryRegistrationWorkflow: Sendable {
           if case .finish = request {
             let commit = try service.finish(
               observation: observation, currentVaultKey: authentication.key,
-              cancellation: scope.cancellation, deadline: scope.deadline)
+              cancellation: scope.cancellation, deadline: scope.deadline, progress: scope.progress)
             result = completed(commit.checkpoint, cleanup: commit.cleanupPending)
           } else {
             let exported: V3RecoveryRegistrationExport

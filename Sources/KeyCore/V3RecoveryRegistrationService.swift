@@ -175,6 +175,7 @@ struct V3RecoveryRegistrationService: Sendable {
     observation: PIVRecoveryTokenObservation, currentVaultKey: Data,
     cancellation: PIVRecoveryCancellation = PIVRecoveryCancellation(),
     deadline: DispatchTime = .now() + .seconds(60),
+    progress: KeyRecoveryProgress? = nil,
     afterCheckpointAdvance: (V3ManifestCheckpoint, Data) throws -> Void = { _, _ in }
   ) throws -> V3RecoveryRegistrationCommit {
     try owner.perform(.registerRecoveryRecipient) { _ in
@@ -202,7 +203,7 @@ struct V3RecoveryRegistrationService: Sendable {
         checkpoint: checkpoint, currentVaultKey: currentVaultKey, candidate: preparation)
       try requireCheckpoint(checkpoint)
       return try agreement.withReceiver(
-        observation: observation, cancellation: cancellation, deadline: deadline
+        observation: observation, cancellation: cancellation, deadline: deadline, progress: progress
       ) { receiver in
         try validator.withCompletionKey(
           preparation, checkpoint: checkpoint, parent: initial.base,
