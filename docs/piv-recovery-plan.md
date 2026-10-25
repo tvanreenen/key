@@ -99,10 +99,20 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and independent Air restore, with token-free exact secret/TOTP and fresh-helper reopening on both; earlier one PIN/touch UI confirmed on both; Mini PIN cancellation passed, later touch-window cancellation unresolved (owner saw only PIN); saved-preparation/resume, timeout/disconnect, backup-token and remaining history acceptance remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and independent Air restore, with token-free exact secret/TOTP and fresh-helper reopening on both; Mini PIN cancellation and build23 visible touch-window Cancel passed; earlier Mac cancellation preserved an incomplete reservation and explicit resume refused before authentication, with opaque diagnostics; complete-preparation/resume, timeout/disconnect, backup-token and remaining history acceptance remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
+
+The 2026-10-25 Mini cancellation checkpoint exposed a guidance/diagnostic gap:
+the intended later Mac cancellation actually stopped at the first saved-wrapper
+check, leaving a reservation without complete preparation. That attempt remains
+preserved and cannot qualify successful resume. Before continuing that acceptance
+case, clarify preparation/publication progress, explain incomplete-attempt
+refusal, and settle explicit handling of a reservation-only cancellation without
+silently clearing ownership or reconstructing credentials. The
+[signed-test record](piv-recovery-signed-test.md) separates owner observations,
+system-log evidence and remaining acceptance work.
 
 Dependencies identify the implemented contracts needed to finish a package;
 they do not require every later physical qualification before coding starts.

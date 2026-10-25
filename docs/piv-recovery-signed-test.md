@@ -5,6 +5,46 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Mini build23 touch Cancel passed; later-cancellation target not reached, 2026-10-25
+
+One owner-guided build23 request returned `Recovery was cancelled`, exit1 after
+15.308 seconds. The owner confirmed the touch window appeared visibly after the
+PIN dialog closed and its Cancel button was clicked without physically touching
+the key. No destination, configuration or new restore journal was created.
+The admitted native key-exchange call returned separately10.238 seconds after
+the logical cancellation reply; its completion was observed before public token
+postchecks. PIN/PUK counters remained3/3, protected source/earlier disposable
+vaults and Stable matched, and normal Preview lock stopped the helper. This
+qualifies the Mini touch-window Cancel path, not immediate native-call abortion.
+
+A subsequent explicitly guided request approved source PIN/touch and stopped at
+a Mac wrapper check, exit1 after18.582 seconds. The owner believed the later
+prepared-vault prompt was cancelled. However, the helper log records user
+cancellation of `Verify this Mac's saved restored-vault access.`; no context for
+the later prepared-vault check was requested. Filesystem evidence agrees: only
+reservation `3ec1cec1-50da-4200-b9d9-31956003cef4` exists, the destination is empty,
+configuration is absent and no complete preparation was saved. The prompt
+guidance did not reliably distinguish these stages; do not count this as the
+intended complete-preparation cancellation or a successful resumable attempt.
+
+One explicit negative resume with the original selectors refused in0.044 seconds
+without any authentication-stage callback. Its opaque
+`KeyCore.V3RecoveryRestoreServiceError error 5` is consistent with the inspected
+incomplete-preparation preflight, but does not explain that state to the user.
+The harness's expectation of an explanatory diagnostic failed; it did not rerun
+the request. Independent postchecks then verified the unchanged reservation,
+empty destination, absence of configuration/preparation, protected files and
+PIN/PUK3/3; normal Preview lock stopped the helper. Opaque Keychain ownership and
+the incomplete attempt remain intact; no cleanup, reconstruction or automatic
+retry occurred. No actual-vault traversal or token write occurred.
+
+Successful resume from complete encrypted preparation is still pending. Before
+another attempt, clarify preparation/publication progress and incomplete-attempt
+diagnostics/handling; a reservation alone must not authorize reconstruction.
+Raw evidence is ignored under
+`tmp/piv-recovery/cancellation-resume-mini-2026-10-25/`, specifically
+`touch-cancel-build23/` and `saved-preparation/`.
+
 ## Mini build23 installation and public preflight passed, 2026-10-25
 
 The exact notarized build23 was installed on the Mini after normal Preview-only
