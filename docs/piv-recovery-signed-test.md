@@ -5,6 +5,34 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Build23 touch-cue visibility candidate notarized, 2026-10-25
+
+Normal PreviewRelease build23 was archived from clean source
+`9f9872f4a04be5b878b2b90dbc8e16e94bd77276`. Its only product-source difference
+from build22 is the touch-window visibility fix described below. Recovery was
+enabled only in copied host/helper Info.plists, with no diagnostic replacement.
+Developer ID identifiers/team, hardened runtime, universal arm64/x86_64 slices,
+exact helper entitlements in both slices, accessory UI metadata, strict deep
+signatures and ZIP roundtrip passed.
+
+Apple accepted submission `908bd701-ec68-4bc0-950b-dee4d2a7f47f` with no issues.
+Its log matches the submitted ZIP's SHA256
+`d1aab95228d93491cfc32391f960c1f427af1e1c46eb0531591b6351673f6952`.
+The ticket was stapled to a separate extracted copy; ticket validation,
+Gatekeeper, signatures and final transfer-ZIP roundtrip all passed. Executable
+and Info.plist bytes still match the submitted candidate.
+The final transfer ZIP's SHA256 is
+`e600810430a4a1ce9855496154893a261d43456e37670c40c56cf40a9fe97edb`.
+
+Installed Stable/Preview, Stable config, Preview support records and the
+explicitly scoped disposable vault files match their preparation snapshots.
+No installation, product launch, helper restart, authentication, token operation,
+actual-vault traversal or public release occurred. Installed Preview remains
+build22. Build23's signed UI/cancellation acceptance is pending; next install it
+on the Mini and guide a fresh observed touch-window Cancel test before proceeding
+to saved-preparation cancellation/resume. Raw artifacts and final ZIP remain
+ignored under `tmp/piv-recovery/product-touch-build23-2026-10-25/`.
+
 ## Mini cancellation checks: PIN passed; touch-window case unresolved, 2026-10-25
 
 The exact installed build22 was tested on the Mini using the published-files-only
