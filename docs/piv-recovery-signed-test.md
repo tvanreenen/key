@@ -5,6 +5,47 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Local approval cues and incomplete-attempt handling implemented, 2026-10-25
+
+The local source now distinguishes Mac preparation, reopening, publication and
+activation in bounded request progress, with distinct native reasons for
+`Prepare restored vault on this Mac`, `Reopen saved restore preparation on this
+Mac` and `Publish prepared restored vault`. Complete saved preparation is
+announced separately after confirmation, never for a reservation alone. Progress
+does not authorize an operation, extend a deadline or replace the final reply.
+Anonymous XPC and real software workflow tests cover the initial/resume branches,
+skipped publication after selection, early interruption and ordering/closure.
+
+Incomplete resume now explains its state and reports the source vault and
+original operation IDs. The new gated `recovery abandon` route takes those IDs
+and the original source/destination paths. It bypasses token/private-key adapters
+and releases only the exact reservation pin after checking physical bindings,
+unselected config, no preparation pin/file and an empty original destination.
+Files, the directory and Mac credentials remain. Prepared, changed, unavailable
+or conflicting attempts refuse; nothing is automatically retried or recreated.
+The [contract](piv-recovery-contract.md#explicit-abandonment-before-complete-restore-preparation)
+records the boundary, alternatives and retained-file behavior.
+
+The broader software regression passed120 tests in11 suites. The final targeted
+pass exercised52 tests; its sole issue was an existing CLI assertion for the
+preservation message's wording. That wording was retained, and the complete
+13-test CLI suite then passed. The remaining final targeted suites passed,
+including the new exact-ID diagnostics, no-token abandonment, prepared/invalid
+state refusals, changed ownership and resume-stage behavior. The helper builds
+successfully and diff checks pass. These checks use disposable files/software
+keys and test XPC endpoints, not installed product authentication.
+
+Protected before/after hashes match for installed Stable/Preview, Stable config,
+Preview support (including reservation `3ec1cec1-50da-4200-b9d9-31956003cef4`),
+the source fixtures and earlier disposable restores. No installed app was changed
+or launched, no real Mac authentication/token operation occurred, and the current
+incomplete attempt was not abandoned or modified. No actual-vault traversal.
+Raw logs/snapshots remain ignored under
+`tmp/piv-recovery/approval-incomplete-implementation-2026-10-25/`.
+
+The new source still needs a signed candidate and observed product acceptance.
+Build23 remains installed; its previous native results below are unchanged.
+
 ## Mini build23 touch Cancel passed; later-cancellation target not reached, 2026-10-25
 
 One owner-guided build23 request returned `Recovery was cancelled`, exit1 after

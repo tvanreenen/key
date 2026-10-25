@@ -386,22 +386,33 @@ public final class KeyCLIApplication {
                 source: path(source), destination: path(destination), tokenID: token,
                 recipientID: recipient
             )
+        case .abandon(let source, let destination, let vault, let operation):
+            resolved = .abandon(source: path(source), destination: path(destination),
+                sourceVaultID: vault, operationID: operation)
         }
         try resolved.validate()
-        io.writeStderr("If source authentication is reached, Key requests one source-key hardware operation. Enter PIN only in the macOS dialog; physically touch the key when it flashes. Cancel unexpected prompts. No automatic retry will be made.\n")
+        if resolved.isAbandonment {
+            io.writeStderr("Only the exact incomplete local reservation can be released. Files and Mac credentials are retained. No Mac authentication or token operation is requested.\n")
+        } else {
+            io.writeStderr("If source authentication is reached, Key requests one source-key hardware operation. Enter PIN only in the macOS dialog; physically touch the key when it flashes. Cancel unexpected prompts. No automatic retry will be made.\n")
+        }
         do {
             let response = try sendRecovery(.recovery(resolved))
             let result = try handle(response, for: .recovery(resolved))
-            if result != EXIT_SUCCESS { writeRecoveryFailureGuidance() }
+            if result != EXIT_SUCCESS { writeRecoveryFailureGuidance(abandonment: resolved.isAbandonment) }
             return result
         } catch {
-            writeRecoveryFailureGuidance()
+            writeRecoveryFailureGuidance(abandonment: resolved.isAbandonment)
             throw error
         }
     }
 
-    private func writeRecoveryFailureGuidance() {
-        io.writeStderr("Leave source, destination, local records and configuration intact. Do not start another restore or delete state to retry. A failed or lost reply does not establish whether selection completed. Use `key recovery resume` with the exact original selectors if a saved attempt remains; if resume refuses, preserve state for inspection. See `key recovery resume --help`.\n")
+    private func writeRecoveryFailureGuidance(abandonment: Bool = false) {
+        if abandonment {
+            io.writeStderr("Preserve the source, destination, files and local records. A failed or lost abandonment reply does not establish whether the reservation was released. Inspect the original attempt; no automatic retry or replacement restore was made.\n")
+            return
+        }
+        io.writeStderr("Leave source, destination, local records and configuration intact. Do not start another restore or delete state to retry. A failed or lost reply does not establish whether selection completed. Use `key recovery resume` with the exact original selectors if a saved attempt remains. Only an exact verified incomplete reservation can be explicitly released through `key recovery abandon`; otherwise preserve state for inspection. See `key recovery resume --help`.\n")
     }
 
     private func sendRecovery(_ request: KeyServiceRequest) throws -> KeyServiceResponse {

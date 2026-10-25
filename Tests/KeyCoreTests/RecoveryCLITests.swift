@@ -4,6 +4,49 @@ import Testing
 @testable import KeyCore
 
 struct RecoveryCLITests {
+  @Test func explicitAbandonmentResolvesPathsAndDoesNotUseHardwareProgressOrCredentialInput() throws {
+    let vault = "018f4d38-7d5a-7b20-b0f1-97d6e96c5000", operation = VaultTransactionOperationID().rawValue
+    let args = ["recovery", "abandon", "--source", "./source", "--destination", "./empty",
+      "--vault-id", vault, "--operation", operation]
+    #expect(try CLIParser.parse(arguments: args) == .recovery(.abandon(source: "./source",
+      destination: "./empty", sourceVaultID: vault, operationID: operation)))
+    let io = MemoryIO(stdinIsTTY: false, onReadLine: { Issue.record("No credential or terminal input is needed") })
+    let transport = MemoryTransport { request in
+      #expect(request == .recovery(.abandon(source: "/base/source", destination: "/base/empty",
+        sourceVaultID: vault, operationID: operation)))
+      #expect(!request.supportsRecoveryProgress)
+      return .success("Reservation released; files retained.\n")
+    }
+    let app = KeyCLIApplication(transport: transport, io: io, clipboard: MemoryClipboard(),
+      currentDirectory: { URL(fileURLWithPath: "/base") })
+    #expect(app.run(arguments: args) == EXIT_SUCCESS && transport.requests.count == 1)
+    #expect(!io.stderr.contains("Enter PIN") && io.stdout.contains("files retained"))
+    for option in ["--source", "--destination", "--vault-id", "--operation"] {
+      let offset = try #require(args.firstIndex(of: option))
+      var missing = args; missing.removeSubrange(offset...(offset+1))
+      assertUsage(missing)
+      assertUsage(args + [option, args[offset+1]])
+      var malformed = args; malformed[offset+1] = ""
+      assertUsage(malformed)
+    }
+    for option in ["--token", "--recipient", "--pin", "--force", "--yes"] {
+      assertUsage(args + [option, "fixture"])
+    }
+  }
+
+  @Test func abandonmentProtocolAndRestartMessageDoNotClaimVaultSelection() throws {
+    let action = KeyRecoveryRequest.abandon(source: "/source", destination: "/empty",
+      sourceVaultID: "018f4d38-7d5a-7b20-b0f1-97d6e96c5000", operationID: VaultTransactionOperationID().rawValue)
+    let request = KeyServiceRequest.recovery(action)
+    #expect(try JSONDecoder().decode(KeyServiceRequest.self, from: JSONEncoder().encode(request)) == request)
+    #expect(request.requiresHelperShutdownAfterSuccess && !request.supportsRecoveryProgress)
+    #expect(KeyXPCClientRole.fullCLI.authorizes(request) && !KeyXPCClientRole.utilityStatus.authorizes(request))
+    let message = KeyXPCClientTransport.helperRestartTimeoutError(for: request,
+      helperName: "Fixture Agent", timeoutSeconds: 30).localizedDescription
+    #expect(message.contains("reservation was released") && message.contains("no vault was selected"))
+    #expect(!message.contains("restored vault is selected"))
+  }
+
   @Test(arguments: ["restore", "resume", "prepare", "finish", "resume-export"])
   func dashPrefixedRecipientIsAValue(command: String) throws {
     let recipient = Base64URL.encode(Data([0xf8]) + Data(repeating: 0, count: 31))

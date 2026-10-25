@@ -21,6 +21,14 @@ enum CLIHelp {
     Listing does not prove possession, compatibility, registration or restorable contents. Use the exact token ID with key recovery review --source <directory> --token <token-id>. Public observations may change if a key is removed or replaced; restore rechecks them independently. --json prints the same observations for scripts, not a readiness or approval signal.
     """
 
+    static let recoveryAbandon = """
+    Gated local cancellation for a restore that stopped before complete encrypted preparation was saved. Supply the original --source and --destination, the complete source --vault-id and the original --operation ID shown by the incomplete-resume diagnostic. No hardware key, PIN, touch or Mac private-key operation is required.
+
+    Key verifies the exact locally owned reservation, original physical folders, absence of configuration and preparation, and an empty destination before releasing that reservation. Changed, missing or invalid records, another operation, any prepared restore, selected configuration or destination data cause refusal. Resume a completely prepared restore instead.
+
+    This does not delete files, the empty destination or saved Mac credentials. Retained files alone grant no permission to resume. A later new restore must explicitly choose a new missing destination; abandonment never retries or starts one. After a failed or lost reply, preserve all state for inspection rather than deleting it or assuming completion.
+    """
+
     static let recoveryCredential = """
     Gated public inspection of one explicitly selected token. Use the exact --token from recovery tokens. Reads the slot 9d credential, required reported P-256/generated/PIN-always/touch-always policy and anchor occupancy; returns the complete recipient ID even before registration. No PIN/touch, entry read, setup intent or token write is requested. Public metadata is not attestation or proof of possession, protected administration or recoverability.
     """
@@ -72,7 +80,7 @@ enum CLIHelp {
 
     Provide the original --source, --destination, --token and complete --recipient. Do not supply a new Mac name. Key requires the exact locally owned attempt and existing folders, credentials, preparation and completion state. It never recreates missing state, adopts another attempt or falls back to restore. A completed attempt whose ownership records are cleared cannot be resumed again as proof of success.
 
-    If the helper reports that it is restarting, run key lock, then key status. Status alone does not prove completion or clear saved ownership. Resume explicitly when a saved attempt remains. If no complete preparation is available or resume refuses changed or missing state, stop and preserve it for inspection; do not delete records or folders to force a retry. No PIN or hardware operation is automatically retried.
+    If the helper reports that it is restarting, run key lock, then key status. Status alone does not prove completion or clear saved ownership. Resume explicitly when a saved attempt remains. If no complete preparation was saved, resume explains the original source vault and operation IDs: inspect key recovery abandon --help for explicit release of that exact incomplete reservation. Changed, missing or invalid records still require inspection; do not delete records or folders to force a retry. No PIN or hardware operation is automatically retried.
     """
 
     static let overview = """

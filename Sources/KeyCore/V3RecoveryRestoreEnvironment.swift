@@ -236,6 +236,22 @@ struct V3RecoveryRestoreEnvironment: Sendable {
     try Self.requireAbsentConfiguration(configuration)
   }
 
+  /// Only abandonment of an unselected, reservation-only attempt uses this.
+  /// Nothing is removed, including the empty destination itself.
+  func requireEmptyDestination() throws {
+    try requireUnselectedConfiguration()
+    try requireCurrent(locations)
+    try destination.withFileDescriptor { descriptor in
+      let listing = openat(descriptor, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+      guard listing >= 0 else { throw V3RecoveryRestoreError.locationChanged }
+      defer { close(listing) }
+      guard case .names(_, let count) = directoryEntryNames(descriptor: listing, maximumCount: 1), count == 0 else {
+        throw AppError.operationRefused("The restore destination contains data. It cannot be abandoned as an incomplete empty attempt. Preserve it for inspection.")
+      }
+    }
+    try requireCurrent(locations)
+  }
+
   /// Called only after fresh trust and ordinary-read verification. Retrying a
   /// selected environment verifies/synchronizes exact bytes without rewriting.
   func selectConfiguration(

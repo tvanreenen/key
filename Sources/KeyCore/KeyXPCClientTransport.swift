@@ -249,6 +249,8 @@ public final class KeyXPCClientTransport: KeyServiceTransport {
             return AppError.service("Key rotation returned success, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Preserve all state and inspect status after restart; do not request a replacement rotation.")
         case .recoveryRegistration:
             return AppError.service("Recovery setup returned success, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Preserve all state and inspect registration status after restart; do not start replacement setup.")
+        case .recovery(let action) where action.isAbandonment:
+            return AppError.service("The incomplete reservation was released, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Files were retained and no vault was selected. Inspect after restart; do not assume another restore started.")
         case .recovery:
             return AppError.service("The restored vault is selected, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Run `key status` after it restarts. Do not start another restore.")
         case .share(.accept), .shareInDirectory(.accept, _):

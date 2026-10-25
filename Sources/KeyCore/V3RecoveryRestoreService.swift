@@ -1,9 +1,22 @@
 import CryptoKit
 import Foundation
 
-enum V3RecoveryRestoreServiceError: Error, Equatable {
+enum V3RecoveryRestoreServiceError: Error, Equatable, LocalizedError {
   case recognizedAnchorRequired, identityUnavailable, savedIdentityMismatch, wrapperMismatch
-  case noPendingRestore, incompletePreparation
+  case noPendingRestore
+  case incompletePreparation(vaultID: String, operationID: VaultTransactionOperationID)
+
+  var errorDescription: String? {
+    switch self {
+    case .recognizedAnchorRequired: "The selected recovery key has no recognized vault anchor."
+    case .identityUnavailable: "This Mac's saved restored-vault credentials are unavailable. Preserve the attempt for inspection."
+    case .savedIdentityMismatch: "This Mac's saved restored-vault credentials do not match the attempt. Preserve it for inspection."
+    case .wrapperMismatch: "This Mac's saved restored-vault access did not match the prepared key. Preserve the attempt for inspection."
+    case .noPendingRestore: "No locally owned restore attempt was found. No replacement restore was started."
+    case .incompletePreparation(let vault, let operation):
+      "This restore stopped before complete encrypted preparation was saved and cannot be resumed. Source vault ID: \(vault). Restore operation ID: \(operation). Preserve its records. Use `key recovery abandon --help` to explicitly release only this incomplete attempt; do not delete state to retry."
+    }
+  }
 }
 
 enum V3RecoveryRestoreServicePhase: Equatable, Sendable {
@@ -226,7 +239,8 @@ struct V3RecoveryRestoreService {
         }
         guard let bundle = owned.preparation, owned.reservationOwnership.phase == .recoverable
         else {
-          throw V3RecoveryRestoreServiceError.incompletePreparation
+          throw V3RecoveryRestoreServiceError.incompletePreparation(
+            vaultID: anchor.floor.vaultID, operationID: owned.reservation.operationID)
         }
         let environment = try V3RecoveryRestoreEnvironment.reopenForCompletion(
           source: source, destination: destination, parent: parent, configStore: configStore,
@@ -256,7 +270,7 @@ struct V3RecoveryRestoreService {
       },
       consume: { _, snapshot, recheck in
         guard let owned = pending, let bundle = owned.preparation, let environment = captured else {
-          throw V3RecoveryRestoreServiceError.incompletePreparation
+          throw V3RecoveryRestoreServiceError.noPendingRestore
         }
         let sourceID = snapshot.selection.anchor.floor.vaultID
         func requirePending() throws {

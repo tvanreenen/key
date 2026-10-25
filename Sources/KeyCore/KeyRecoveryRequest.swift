@@ -156,11 +156,17 @@ public enum KeyRecoveryRequest: Codable, Equatable, Sendable {
     deviceName: String)
   case resume(
     source: String, destination: String, tokenID: String, recipientID: String)
+  case abandon(
+    source: String, destination: String, sourceVaultID: String, operationID: String)
 
   static let maximumDurationSeconds = 90
 
   var isInitialRestore: Bool {
     if case .restore = self { true } else { false }
+  }
+
+  var isAbandonment: Bool {
+    if case .abandon = self { true } else { false }
   }
 
   func validate() throws {
@@ -174,6 +180,13 @@ public enum KeyRecoveryRequest: Codable, Equatable, Sendable {
       (source, destination, tokenID, recipientID) = (from, to, token, digest)
     case .resume(let from, let to, let token, let digest):
       (source, destination, tokenID, recipientID) = (from, to, token, digest)
+    case .abandon(let from, let to, let vault, let operation):
+      guard [from, to].allSatisfy({ $0.hasPrefix("/") && $0.utf8.count <= 4_096 && !$0.utf8.contains(0) }),
+        isValidV3UUID(vault), (try? VaultTransactionOperationID(validating: operation)) != nil
+      else {
+        throw AppError.operationRefused("Abandon requires absolute original source/destination paths and complete source vault and operation IDs.")
+      }
+      return
     }
     guard
       [source, destination].allSatisfy({

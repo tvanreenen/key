@@ -108,9 +108,14 @@ The 2026-10-25 Mini cancellation checkpoint exposed a guidance/diagnostic gap:
 the intended later Mac cancellation actually stopped at the first saved-wrapper
 check, leaving a reservation without complete preparation. That attempt remains
 preserved and cannot qualify successful resume. Before continuing that acceptance
-case, clarify preparation/publication progress, explain incomplete-attempt
-refusal, and settle explicit handling of a reservation-only cancellation without
-silently clearing ownership or reconstructing credentials. The
+case, the local implementation now distinguishes prepare/reopen/publish Mac
+approvals, reports complete saved preparation separately, explains incomplete
+resume with exact source/operation IDs, and adds explicit exact-operation
+abandonment for an unselected reservation with no preparation and an empty
+original destination. It preserves files/credentials and performs no token
+operation. Software qualification is recorded with the implementation; signed
+product acceptance remains pending. The retained Mini attempt has not been
+abandoned or modified. The
 [signed-test record](piv-recovery-signed-test.md) separates owner observations,
 system-log evidence and remaining acceptance work.
 

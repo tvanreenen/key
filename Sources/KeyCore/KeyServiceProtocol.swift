@@ -69,7 +69,8 @@ public enum KeyServiceRequest: Codable, Equatable, Sendable {
 
     public var supportsRecoveryProgress: Bool {
         switch self {
-        case .recovery, .recoveryRegistration(.finish): true
+        case .recovery(let request): !request.isAbandonment
+        case .recoveryRegistration(.finish): true
         default: false
         }
     }

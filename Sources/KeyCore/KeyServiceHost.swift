@@ -244,6 +244,9 @@ public final class KeyServiceHost {
                     throw AppError.operationRefused("Restore requires an unconfigured Mac and never replaces its selected vault.")
                 }
             }
+            if request.isAbandonment, try hasConfiguration() {
+                throw AppError.operationRefused("Abandonment requires an unconfigured Mac and never changes its selected vault.")
+            }
             try recoveryLock.withLock {
                 try scope.requireCurrent()
                 activeRecovery = scope.id
@@ -258,6 +261,13 @@ public final class KeyServiceHost {
             recoveryPending = true
             let response = try recovery.recover(request, scope)
             try scope.requireCurrent()
+            if request.isAbandonment, response.exitCode == EXIT_SUCCESS {
+                guard try !hasConfiguration() else {
+                    throw AppError.operationRefused("A vault configuration appeared during abandonment. Preserve state for inspection.")
+                }
+                restartPending = true
+                return response
+            }
             if response.exitCode == EXIT_SUCCESS, try !hasConfiguration() {
                 throw AppError.operationRefused("Recovery returned without selecting a vault. Leave the attempt intact and explicitly resume; do not start another restore.")
             }

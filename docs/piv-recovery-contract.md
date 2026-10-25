@@ -1993,13 +1993,51 @@ before and after the preparation becomes durable. A final reload checks that the
 records still match. These observations do not replace the future service's
 serialized mutation owner, current authentication scope or lock-generation checks.
 
-The journal itself has no private-key caller, cleanup, publication, checkpoint,
-configuration selection or product resume route. Software tests use real
+The journal performs no private-key call, file/credential deletion, publication,
+checkpoint installation or configuration selection. Software tests use real
 disposable filesystem writes and software keys, including a fresh journal reader,
 independently opened handles and a new destination wrapper opening. They do not
 qualify a separate OS process, native credential provenance, the new Keychain
 namespaces or physical-token behavior. Interrupted partial reservations remain
-pending for later explicit reconciliation; they are not silently abandoned.
+pending until explicit reconciliation; they are not silently abandoned.
+
+### Explicit abandonment before complete restore preparation
+
+`key recovery abandon --source <original-source> --destination <original-target>
+--vault-id <source-vault-id> --operation <original-operation-id>` is a gated,
+local-only release of a reservation. It does not continue preparation, create
+replacement credentials or start another restore. Controlled reconstruction
+from a reservation was rejected because it would bypass the complete saved-byte
+requirement for resume. Automatic cleanup was rejected because cancellation or
+a lost reply is not proof of the saved stage.
+
+The full CLI supplies explicit public locations and complete IDs. The ordinary
+runtime must be absent and configuration unselected. Under the existing host
+barrier and restore mutation owner, the workflow opens the supplied source,
+destination and parent independently and matches their paths/physical identities
+and the configuration root to the locally pinned reservation. The journal checks
+the exact operation, canonical reservation digest and both ownership stores.
+Source contents need not be decrypted or reverified for this local release:
+it grants no access/publication authority and retains every file.
+Any preparation pin, preparation directory entry (including a placeholder, link
+or directory), selected config, destination data or invalid/missing evidence
+refuses abandonment. Absence requires `fstatat` with no-follow semantics returning
+`ENOENT`, rather than the repository's broader unavailable classification.
+
+Only the exact reservation pin is removed with compare-and-swap, with scope,
+ownership, configuration and location checks around that boundary. The source,
+destination directory, reservation file and Mac credentials remain. No token
+inventory, token read, private-key operation, trust insertion or configuration
+selection occurs. A later restore explicitly chooses a new missing destination
+and creates a fresh operation. Complete prepared attempts continue to require
+authenticated resume; changed/missing state still requires inspection. Repeating
+abandonment without ownership never retrospectively claims completion.
+
+A successful reply requires the normal helper shutdown handshake. Lost replies,
+concurrent changes or shutdown failures require inspection; the CLI does not
+automatically repeat abandonment or claim a vault was selected. Retained
+unreferenced files/credentials are deliberately outside this release operation;
+no broad credential cleanup or state-format migration is introduced.
 
 ### Implemented restore publication and exact reconciliation
 
@@ -2224,8 +2262,16 @@ before admitting the one exchange. It does not supply a PIN credential or use
 approval cannot authorize a later exchange; invalidation wakes the local approval
 waiter without relying on prompt termination or a timely framework callback.
 
-Presentation has three finite stages: authenticating, touch required, and hardware
-completed. The touch stage follows successful actual-ACL evaluation, not a timer,
+Hardware presentation has three stages: authenticating, touch required, and
+hardware completed. Restore then announces Mac preparation (or reopening saved
+preparation on resume), complete preparation saved, publication and activation.
+The latter stages form a bounded acyclic sequence with explicit initial/resume
+branches; selected completion skips publication. The saved-preparation stage is
+emitted only after complete preparation is confirmed, never after a reservation
+alone. Native Mac reasons distinguish `Prepare restored vault on this Mac`,
+`Reopen saved restore preparation on this Mac` and `Publish prepared restored
+vault`; further activation checks may still request Mac approval. No fixed Mac
+prompt count is promised. The touch stage follows successful actual-ACL evaluation, not a timer,
 log observation or touch-sensor claim. Stages contain an ephemeral request UUID
 and enum only. They are not persisted authority, consent, proof of enforcement or
 completion of registration/restore. Existing cryptographic, scope and publication
@@ -2247,6 +2293,12 @@ Hardware requests from an older CLI are refused before host dispatch; a new CLI
 does not fall back to the old selector after an unsupported or uncertain reply.
 Deploy matching CLI/helper bundles. No vault format or persistent configuration
 changes are introduced by this channel.
+
+Local-only abandonment uses the ordinary request selector and emits no hardware
+progress. Older helpers refuse the new request case rather than falling back to
+restore. Deploy matching binaries for the complete new Mac presentation sequence;
+older progress consumers may omit newly introduced presentation events. These
+events remain distinct from the authoritative final response.
 
 The helper owns a Cancel-only native touch window with no PIN field. It appears
 after approval and closes after the exchange or request termination. Cancel

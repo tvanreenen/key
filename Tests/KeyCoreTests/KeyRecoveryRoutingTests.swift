@@ -13,7 +13,10 @@ struct KeyRecoveryRoutingTests {
     source: "/backup", destination: "/new-vault", tokenID: "selected-token",
     recipientID: recipient)
 
-  @Test(arguments: [restore, resume])
+  private static let abandon = KeyRecoveryRequest.abandon(source: "/backup", destination: "/new-vault",
+    sourceVaultID: "018f4d38-7d5a-7b20-b0f1-97d6e96c5000", operationID: "018f4d38-7d5a-7b20-b0f1-97d6e96c5001")
+
+  @Test(arguments: [restore, resume, abandon])
   func publicRequestsRoundTripWithoutCredentialsAndRequireBoundedReplyAndRestart(
     action: KeyRecoveryRequest
   ) throws {
@@ -31,7 +34,7 @@ struct KeyRecoveryRoutingTests {
     let message = KeyXPCClientTransport.helperRestartTimeoutError(
       for: request, helperName: "Key Agent", timeoutSeconds: 30
     ).localizedDescription
-    #expect(message.contains("Do not start another restore"))
+    #expect(action.isAbandonment ? message.contains("no vault was selected") : message.contains("Do not start another restore"))
   }
 
   @Test(arguments: 0 ..< 9)
@@ -63,7 +66,21 @@ struct KeyRecoveryRoutingTests {
     #expect(host.handle(.initializeVault(path: "/init")) == .success("Initialized"))
   }
 
-  @Test(arguments: [restore, resume])
+  @Test(arguments: 0..<4)
+  func malformedAbandonmentNeverReachesTheCapability(variant: Int) {
+    let host = makeHost(recover: { _, _ in
+      Issue.record("Invalid abandonment must not reach recovery")
+      return .success()
+    })
+    let request = KeyRecoveryRequest.abandon(source: variant == 0 ? "relative" : "/source",
+      destination: variant == 1 ? "/empty\0" : "/empty",
+      sourceVaultID: variant == 2 ? "prefix" : "018f4d38-7d5a-7b20-b0f1-97d6e96c5000",
+      operationID: variant == 3 ? "" : "018f4d38-7d5a-7b20-b0f1-97d6e96c5001")
+    #expect(host.handle(.recovery(request)).exitCode != EXIT_SUCCESS)
+    #expect(host.handle(.initializeVault(path: "/init")) == .success("Initialized"))
+  }
+
+  @Test(arguments: [restore, resume, abandon])
   func disabledCapabilityDoesNotReadConfigurationOrComposeAnything(action: KeyRecoveryRequest) {
     let host = KeyServiceHost(
       hasConfiguration: {
@@ -102,6 +119,7 @@ struct KeyRecoveryRoutingTests {
         return .success("Finished")
       })
     #expect(host.handle(.recovery(Self.restore)).exitCode != EXIT_SUCCESS)
+    #expect(host.handle(.recovery(Self.abandon)).exitCode != EXIT_SUCCESS)
     #expect(state.calls == 0)
     #expect(host.handle(.recovery(Self.resume)) == .success("Finished"))
     #expect(host.handle(.list).errorMessage?.contains("restarting") == true)
