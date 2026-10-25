@@ -5,7 +5,38 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## UX side investigation: build21 helper startup and read-only inspection passed, 2026-10-25
+## UX side investigation: first signed-helper staged synthetic test passed, 2026-10-25
+
+The owner separately approved one isolated staged synthetic test. Exact installed
+build21 hashes, the same running helper PID19584/launch count1, unchanged protected
+files, fresh public state and a noninteractive key/ACL preflight passed. One request
+completed through the signed CLI/helper, exit0, with no automatic retry or helper
+restart. Its complete reply records five ordered events: noninteractive key check,
+access-control start, access-control success, agreement start and synthetic match.
+ACL evaluation completed at14:45:15 UTC; one native exchange with additional PIN
+dialogs disabled matched the software peer at14:45:17 UTC. No vault authority was
+involved. `pin_credential_present` remained false and was diagnostic only.
+
+The owner confirmed one PIN dialog closed, followed by the cue/flash and physical
+touch. This supports the intended PIN-then-touch handoff in one signed helper run
+on arm64 macOS27.0.1 (26A434). It is not direct touch-event detection, enforcement,
+repeatability, cancellation, cross-Mac or end-to-end recovery qualification. The
+native core's inherited generic caution text does not change this scoped result.
+
+Public postchecks match credential, anchor and policies with PIN/PUK3/3. Installed
+executables, full disposable-vault/Stable-app snapshots, configs, export and
+encrypted pending bundle are unchanged. No registration finish, key write or
+actual-vault operation occurred. Raw evidence remains ignored under
+`tmp/piv-recovery/signed-helper-staged-2026-10-25/`. Build21 remains temporarily
+installed, with ordinary Preview commands disabled. Its one staged attempt is
+spent; do not restart/retry automatically. Preserve rollback and pending setup.
+
+Next is product integration of actual-key ACL staging and scoped touch progress,
+followed by signed product acceptance, including cancellation/failure cases and
+the pending registration. Do not infer product readiness from this diagnostic run
+or run another hardware/authentication operation without its own approval.
+
+## Earlier UX checkpoint: build21 helper startup and read-only inspection passed, 2026-10-25
 
 After approved public/state preflight and a verified original-app rollback copy,
 the exact notarized build21 installed. Signatures, ticket, Gatekeeper, complete

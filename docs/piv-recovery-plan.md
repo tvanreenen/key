@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration remains pending; two standalone staged-auth passes recorded; notarized diagnostic build21 installed with helper startup/read-only ACL inspection passed; signed staged authentication, UI/native activation and restore qualification remain; Air retains earlier diagnostic |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; disposable registration remains pending; notarized diagnostic build21 startup/read-only checks and one staged synthetic pass recorded, owner confirmed one PIN then cue/touch; product staging/progress integration, failure/cancellation and native activation/restore qualification remain; Air retains earlier diagnostic |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -886,6 +886,26 @@ installed with normal Preview commands disabled. Evidence and rollback are ignor
 under `tmp/piv-recovery/signed-helper-build21-install-2026-10-25/`. Next is separately
 approved one isolated staged PIN/touch synthetic test in this helper, preserving
 pending registration. Authentication/UI/reliability/recovery remain unqualified.
+
+#### First signed-helper staged synthetic test passed, 2026-10-25
+
+One owner-approved request in installed diagnostic build21 evaluated the actual
+key ACL, then performed one native synthetic exchange with further PIN dialogs
+disabled. The complete signed CLI/helper reply passed; the owner confirmed one
+PIN dialog closed before cue/flash and physical touch. The same helper process
+remained running with one launch. No retry/restart or vault authority was involved.
+This supports one signed-context handoff observation, not direct touch detection,
+enforcement, repeatability, cancellation, cross-Mac or full recovery qualification.
+
+Public postchecks match credential/anchor/policies and PIN/PUK3/3. Installed and
+protected file hashes remain unchanged; no registration finish, key write or
+actual-vault operation occurred. Evidence is ignored under
+`tmp/piv-recovery/signed-helper-staged-2026-10-25/`. Diagnostic build21 remains
+installed with normal commands disabled and its staged attempt spent. Preserve
+rollback/pending setup; do not automatically restart/retry. Next is product
+integration of scoped ACL staging/touch progress and signed product acceptance,
+including failure/cancellation cases and pending registration. Further hardware
+operations remain separate approvals.
 
 ## Architecture ownership
 
