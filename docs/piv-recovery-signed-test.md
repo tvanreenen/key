@@ -5,7 +5,36 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Product build22 installed on Mini; public preflight passed, 2026-10-25
+## First real product registration and touch UI passed on Mini, 2026-10-25
+
+One separately approved finish request completed through exact installed build22
+on arm64 macOS27.0.1 (26A434), from19:47:31 to19:47:57 UTC, exit0. The actual
+product reported approval, touch and hardware completion once each, then committed
+the disposable vault's recovery registration with cleanup pending false. Manifest:
+`y6x1_pue0dRG8eWNQhMamkzdy2qkPVWV_HSkwjvH0w4`.
+The owner affirmed the expected PIN-close/touch-window foreground/physical-touch/
+automatic-dismissal sequence and separately confirmed exactly one YubiKey PIN
+dialog. This is owner observation, not a direct touch signal or enforcement test.
+
+Public postchecks show no pending operation and successful signed source review
+for the expected recipient/new registration/head. Exactly one manifest and two
+encrypted entry versions were added; their hashes match the committed manifest.
+All prior disposable-vault and Stable-app files, installed code, both configs and
+public export match. The journal clears local ownership and retains the encrypted
+preparation for audit. Public token state and exact anchor match with PIN/PUK3/3.
+No token write, actual-vault traversal, automatic retry or second authentication.
+The normal success shutdown handshake completed; subsequent public-only checks
+used a fresh normal helper, not another private operation.
+
+Raw evidence is ignored under `tmp/piv-recovery/product-touch-build22-finish-2026-10-25/`.
+An initially incorrect file-delta check was corrected against the product's
+entry-publication/ownership-cleanup code, using captured successful public results;
+no finish was repeated or product code changed. Recovery is now active for this
+disposable source. Do not replay its old pending setup. Cancellation, timeout,
+disconnect, restore/resume, backup-token and two-Mac qualification remain. Next is
+a separately approved restore test into a fresh disposable destination.
+
+## Earlier: product build22 installed on Mini; public preflight passed, 2026-10-25
 
 The exact notarized build22 installed on the Mini through the existing Preview
 installer after preserving and verifying a complete build21 rollback. Installed

@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; product ACL staging, scoped progress and native touch UI implemented/software-tested; matching notarized product build22 installed on Mini, public preflight passed; disposable registration remains pending; native UI/cancellation, activation, restore and two-Mac acceptance remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; real notarized product build22 completed first disposable Mini registration with owner-confirmed one PIN/touch-window flow; public postchecks passed and pending ownership cleared; cancellation, restore/resume, backup-token and two-Mac acceptance remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -967,6 +967,23 @@ evidence and rollback stay ignored under
 approved one-attempt disposable finish for live PIN/touch-window acceptance;
 cancellation, restore/resume and two-Mac qualification remain. `REC-812` stays
 in progress.
+
+#### First real product registration and staged UI passed, 2026-10-25
+
+One approved build22 finish request activated the disposable Mini source, exit0,
+with no cleanup pending. The owner affirmed the expected touch-window handoff and
+dismissal and explicitly confirmed one YubiKey PIN dialog. Public postchecks pass:
+new signed registration/head, no pending operation, unchanged public token state
+with PIN/PUK3/3, and the exact expected one-manifest/two-encrypted-entry additions.
+Existing vault files, Stable app, installed code, configs and public export match.
+The encrypted preparation remains inert for audit; its local ownership is cleared.
+No key write, actual-vault traversal, retry or second authentication occurred.
+
+Evidence stays ignored under `tmp/piv-recovery/product-touch-build22-finish-2026-10-25/`.
+This is one successful real registration/UI run, not cancellation, enforcement or
+restore qualification. `REC-812` remains in progress. Next is separately approved
+restore into a fresh disposable destination, then the remaining failure-mode and
+two-Mac acceptance. Do not replay the completed registration's old pending setup.
 
 ## Architecture ownership
 
