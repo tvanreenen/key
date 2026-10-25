@@ -5,6 +5,26 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Mini build23 installation and public preflight passed, 2026-10-25
+
+The exact notarized build23 was installed on the Mini after normal Preview-only
+quit/helper unregistration. A byte-identical, trust-verified build22 rollback was
+retained. Installed executable hashes, complete bundle-copy comparison, ticket,
+Gatekeeper and strict signatures passed. The running helper maps the expected
+installed executable, with parent bundle version23.
+
+Preview remains unconfigured. Its support-root identity and saved records,
+Stable app/config, original disposable source, published-files-only source copy
+and earlier disposable restores match their snapshots. Public-only product
+token/credential/source review and vendor metadata checks passed, recognizing the
+expected anchor/recipient/head with PIN/PUK counters3/3. No authentication or
+YubiKey write was requested, and no actual-vault traversal occurred.
+
+The owner is being asked for readiness before one fresh build23 touch-window
+Cancel attempt. Neither that observed cancellation nor later saved-preparation
+cancellation/resume passes yet. Raw installation/preflight evidence and rollback
+remain ignored under `tmp/piv-recovery/product-touch-build23-install-2026-10-25/`.
+
 ## Build23 touch-cue visibility candidate notarized, 2026-10-25
 
 Normal PreviewRelease build23 was archived from clean source
