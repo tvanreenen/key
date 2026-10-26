@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and independent Air restore, with token-free exact secret/TOTP and fresh-helper reopening on both; Mini PIN and visible touch-window cancellation passed; build24 exact incomplete-reservation release, distinct Mac cues, complete-preparation Publish cancellation, fresh-helper exact-byte resume and token-free post-resume secret/TOTP/fresh-helper reads passed; five Mac approvals observed on resume; timeout/disconnect, backup-token and remaining history acceptance remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and independent Air restore, with token-free exact secret/TOTP and fresh-helper reopening on both; Mini PIN and visible touch-window cancellation passed; build24 exact incomplete-reservation release, distinct Mac cues, complete-preparation Publish cancellation, fresh-helper exact-byte resume, token-free post-resume secret/TOTP/fresh-helper reads and safe missing-touch failure passed; five Mac approvals observed on resume; disconnect/application-deadline, backup-token and remaining history acceptance remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -124,8 +124,14 @@ cancellation/resume acceptance now passes. The owner observed one YubiKey
 PIN/touch followed by five Mac approvals on resume; review that UX cost without
 silently removing verification boundaries. On 2026-10-26, token-free post-resume
 secret/TOTP reads passed before and after normal helper shutdown, with distinct
-processes and nonempty IORegistry USB absence checks. Remaining native cases
-stay separately scoped. The
+processes and nonempty IORegistry USB absence checks. One later owner-guided
+missing-touch attempt stopped after 23.231 seconds with no destination, selection
+or saved-attempt file changes; normal helper shutdown and unchanged public token
+metadata/PIN/PUK3/3 passed. This qualifies missing-touch failure, not an identified
+provider error or the separate 90-second application deadline. The completed
+resumed vault and its selection/cache are preserved; Preview is unconfigured
+with the helper stopped. Disconnect and remaining native cases stay separately
+scoped. The
 [signed-test record](piv-recovery-signed-test.md) separates owner observations,
 system-log evidence and remaining acceptance work.
 

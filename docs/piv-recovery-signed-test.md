@@ -5,6 +5,45 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Mini build24 missing-touch failure stopped safely, 2026-10-26
+
+The completed resumed vault `a7354dc7-6278-4041-b453-4c209e55178a` and its
+contents remain intact. After normal Preview quit/helper unregistration, its
+selection and checkpoint cache were moved byte-for-byte into the ignored test
+folder's `completed-preview-selection/`. The original support-root identity,
+saved journals and Mac credentials were retained. Installed build24 hashes,
+helper registration and actual executable image were verified; ordinary status
+confirmed Preview unconfigured without authentication. A local registration
+guard initially expected an absolute executable path, but ServiceManagement
+reports a bundle-relative program identifier. That guard stopped before any
+status/authentication request; the observed identifier and parent/version/signing
+constraints were checked before the one status request and executable inspection.
+
+After explicit owner readiness, fresh public token/credential/source review and
+vendor metadata checks passed. One installed product restore targeted a new,
+missing disposable destination. The owner confirmed exactly one approved PIN
+dialog, no physical touch or Cancel click, the touch window closing itself and
+no Mac vault-approval prompt. The request reached touch-required progress, then
+reported that the key operation did not complete: exit 1 after 23.231 seconds.
+No automatic retry or cancellation was injected. This qualifies the observed
+missing-touch failure path; the product's generic error does not identify the
+provider error or establish expiration of the separate 90-second request deadline.
+
+The destination remains missing and Preview configuration absent. All support
+and saved-attempt file hashes are unchanged. Source, installed apps, Stable
+config, prior successful disposable vaults and selection backups match their
+baselines. Normal lock stopped the helper before public token postchecks;
+logical failure alone was not treated as proof of native-operation termination.
+Public credential/anchor/policy metadata match and PIN/PUK counters remain 3/3.
+No actual-vault traversal, token write, credential deletion, forced process stop
+or resume/abandon operation occurred. Preview remains unconfigured with the
+helper stopped; the completed resumed vault's selection/cache backup is retained.
+
+Raw evidence remains ignored under
+`tmp/piv-recovery/build24-touch-timeout-2026-10-26/`. Disconnect, application
+deadline, independent backup-token and remaining history/lifecycle qualification
+are separate cases; no further authentication is implied by this result.
+
 ## Mini build24 resumed-vault token-free reads and reopening passed, 2026-10-26
 
 Read-only preflight verified the installed build24 hashes, original physical
