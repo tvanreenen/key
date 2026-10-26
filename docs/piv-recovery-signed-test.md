@@ -5,6 +5,47 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Direct-operation authentication ownership control prepared, 2026-10-26
+
+Further review of Apple's
+[published token key-operation path](https://github.com/apple-oss-distributions/Security/blob/db15acbe6a7f257a859ad9a3bb86097bfe0679d9/OSX/sec/Security/SecCTKKey.m#L444)
+shows operation-owned authentication and lifecycle notifications. This supplies
+a distinct hypothesis: a direct token agreement request may cancel differently
+from separate ACL preapproval. Reference source is not proof of the installed
+binary or of a cleanup fix. The reference also includes native registered-card
+retry handling; one application API call cannot guarantee one lower-level
+framework attempt. No application retry is added.
+
+A separate signed control is prepared for the exact disposable certificate/key,
+with a fixed public P-256 test point and no vault authority. This is a scope
+change from ACL-only controls: it can request one `SecKeyCopyKeyExchangeResult`
+call, without an explicit ACL evaluation. The intended watched test leaves PIN
+and touch unanswered and requests context invalidation after 20 seconds. Any
+returned agreement bytes are discarded without printing, persistence or use.
+No key generation, token write/reset/admin operation or actual-vault access is
+supported. New explicit owner authorization/readiness is required before running.
+
+The cancellation timer covers key-reference lookup as well as the admitted
+operation. Logs distinguish lookup, direct-call entry/return, invalidation and
+normal completion. Exact token/class/type/size/public-point/algorithm checks
+precede admission; cancellation before admission stops the operation. Context/key
+and native worker remain retained until the native call actually returns and
+the 80-second retention interval ends. A pending-worker notice at 100 seconds
+does not force termination or permit card postchecking. If a blank PIN dialog
+remains, owner Cancel may be needed to let the native worker return. Public
+postchecking still requires confirmed UI closure and normal control exit.
+
+Compile, strict Developer ID signature/entitlements, fixed-public-peer import,
+error redaction/depth checks, default/refusal guards and passive protected hashes
+pass. No token lookup, authentication or agreement has run during preparation.
+An early return/missing PIN or PIN blocked in lookup before agreement entry is
+inconclusive for operation-owned cancellation. Even a positive result would need
+security and touch-cue UX review: direct authentication does not establish a
+separate PIN-completion callback. No production change follows from preparation;
+PIV cleanup stays blocking. Raw source/app/guards and the unexecuted approval-gated
+launcher remain ignored under
+`tmp/piv-recovery/pin-cancellation-direct-operation-2026-10-26/`.
+
 ## Matched-method Mac ACL prompt also cancels cleanly, 2026-10-26
 
 One owner-approved local Mac ACL comparison evaluated the in-memory biometric
