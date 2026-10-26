@@ -5,6 +5,41 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Fresh unbound context also leaves PIN UI; Mac-biometry comparison prepared, 2026-10-26
+
+One owner-approved corrected control passed the metadata guards and evaluated
+the exact ACL in a fresh context never supplied to a Keychain query. No token
+private-key reference was requested. Its 20-second timer fired at approximately
+21 seconds at whole-second resolution; the actual callback returned
+LocalAuthentication appCancel(-9). Context and ACL stayed retained through the
+approximately 84-second lifetime, about 63 seconds beyond callback.
+
+The owner observed exactly one unanswered PIN dialog still visible and then
+confirmed cancelling it blank after normal exit. The observation was recorded
+after the retention-end event, so its callback-time timing is not independently
+established. Only after closure and exit, one public postcheck confirmed unchanged
+metadata/PIN/PUK3/3; protected hashes match and Preview25's helper remains stopped.
+No retry, key agreement, token write or actual-vault access occurred. This run
+supplies no cancellation fix from changing the lookup/context sequence; none is
+applied to production. Raw events/observations and `result.json` remain ignored
+under `tmp/piv-recovery/pin-cancellation-fresh-context-typed-2026-10-26/`.
+
+The next prepared comparison uses the same diagnostic identity, entitlements,
+background dispatch and context lifetime with ordinary Mac Touch ID policy
+evaluation instead of PIV ACL evaluation. It has no Keychain/token/vault API,
+checks Touch ID availability before evaluation, and stops without fallback if
+unavailable. This follows Apple's
+[policy-evaluation surface](https://developer.apple.com/documentation/localauthentication/lacontext/evaluatepolicy(_:localizedreason:reply:))
+and [availability guidance](https://developer.apple.com/documentation/localauthentication/lacontext/canevaluatepolicy(_:error:)).
+An observed Mac-dialog dismissal would narrow the difference to the PIV path
+in these runs, not prove provider fault; persistence would motivate broader
+LocalAuthentication/harness investigation. Missing UI, early failure or accidental
+approval is inconclusive. Compile, Developer ID signature/entitlements and
+no-native default/refusal checks pass. No authentication has run in this lane.
+It requires renewed owner readiness to leave the Mac prompt and Touch ID sensor
+untouched. Automatic PIN cleanup stays blocking. Raw preparation remains ignored
+under `tmp/piv-recovery/pin-cancellation-mac-biometry-2026-10-26/`.
+
 ## Metadata inspection confirms numeric representation; corrected control prepared, 2026-10-26
 
 One separately owner-authorized metadata-only inspection completed normally.
