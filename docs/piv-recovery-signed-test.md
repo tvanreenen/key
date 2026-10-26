@@ -5,6 +5,45 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Owner keeps PIN cleanup blocking; isolated controls prepared, 2026-10-26
+
+The owner explicitly declined accepting manual Cancel as a Preview limitation.
+Automatic PIN-dialog cleanup remains blocking; CLI-disconnect testing stays
+deferred. No new authentication has occurred during this investigation.
+
+Apple's published Security reference implementation externalizes supplied
+contexts during
+[SecItem query preparation](https://github.com/apple-oss-distributions/Security/blob/db15acbe6a7f257a859ad9a3bb86097bfe0679d9/OSX/sec/Security/SecItem.m#L1418)
+and can reconstruct a separate context for a
+[token-backed key session](https://github.com/apple-oss-distributions/Security/blob/db15acbe6a7f257a859ad9a3bb86097bfe0679d9/OSX/sec/Security/SecCTKKey.m#L132).
+That supports investigating context ownership/lifetime; it does not establish
+the installed macOS binary's implementation or the cause of the remaining UI.
+The apparent rebinding route, `SecKeySetParameter`, is declared
+[private SPI](https://github.com/apple-oss-distributions/Security/blob/db15acbe6a7f257a859ad9a3bb86097bfe0679d9/keychain/headers/SecKeyPriv.h#L968)
+and absent from the public SDK headers. It was ruled out and not used.
+
+A separate local arm64 control app was compiled with public APIs and signed
+with the existing Developer ID, a unique diagnostic bundle ID and the helper
+smart-card/Preview-group entitlement set. It cannot open vault data, collect a PIN,
+perform key agreement/signing, generate/import a key or write to the token.
+Only its non-UI default/refusal paths were executed; they exit before lookup
+or authentication. Strict signature/identity/entitlement checks pass. It is not
+a replacement Preview build, notarized transfer or native test result.
+
+The first planned control constructs context/looks up the exact pinned test
+key on a background queue, then evaluates and invalidates there. It invalidates
+after 20 seconds but retains context, ACL and key handle through an 80-second
+event loop. A second separately approved lane would retain the same objects
+but dispatch evaluation/invalidation on the main thread. Neither lane has run.
+The different diagnostic app identity limits inference: a positive control still
+needs confirmation in the actual helper. No retention delay or speculative
+threading change was added to production. Next requires owner readiness for
+one background-retention control with the PIN left unanswered; any card postcheck
+waits for owner-confirmed UI closure and control-process exit.
+
+Raw source, signed local app, guard checks, hashes and primary-source notes stay
+ignored under `tmp/piv-recovery/pin-cancellation-investigation-2026-10-26/`.
+
 ## Build25 deadline and cancellation callback pass; system PIN UI still remains, 2026-10-26
 
 On the Mini, one owner-approved installed build25 restore reached an unanswered
