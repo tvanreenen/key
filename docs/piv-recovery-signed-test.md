@@ -5,6 +5,32 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Signed build25 CLI disconnect cancels pending recovery, 2026-10-26
+
+One owner-approved installed-product restore used the frozen disposable source
+and a missing destination. After the owner confirmed one unanswered PIN dialog,
+the test wrapper verified its owned CLI and sent SIGTERM only to that process.
+The CLI exited with signal 15 at 47.051 seconds, before the application deadline.
+The installed helper logged context invalidation and the actual appCancel(-9)
+callback. No touch stage, destination, Preview configuration or protected-file
+change followed. The helper and provider were not signalled.
+
+The owner manually cancelled the remaining blank PIN dialog and confirmed it
+closed, with no PIN entry, physical touch or Mac vault approval. Only after this
+confirmation, normal helper shutdown and one public-only postcheck passed:
+metadata was unchanged and PIN/PUK counters remained 3/3. The diagnostic log
+client then exited normally. No retry, token write or actual-vault access occurred.
+Raw logs, observations, snapshots and `verification-result.json` remain ignored
+under `tmp/piv-recovery/build25-cli-disconnect-2026-10-26/`.
+
+This passes the observed lost-client cancellation case under the accepted Preview
+manual-dismissal limitation. The separate late-PIN timeout case below also passed.
+Neither run exercised a native late-positive callback or established a lower-level
+hardware-attempt count. Automatic PIN-dialog dismissal remains unqualified.
+`REC-812` still requires the remaining signed history/lifecycle acceptance cases;
+backup-token and release qualification are separate gates. No new authentication,
+product build or publication follows from recording these results.
+
 ## Signed build25 late PIN after timeout does not resume recovery, 2026-10-26
 
 One owner-approved installed-product restore used the frozen disposable source
@@ -28,9 +54,8 @@ callback and no late positive callback, so this is not native qualification of
 every positive-callback race; existing software regressions cover that boundary.
 No lower-level hardware-attempt count is inferred. Raw request, observations,
 logs, snapshots and `verification-result.json` remain ignored under
-`tmp/piv-recovery/build25-late-pin-2026-10-26/`. CLI-disconnect qualification is
-still prepared but unrun and requires fresh connection/readiness. No new product
-build or external submission is involved.
+`tmp/piv-recovery/build25-late-pin-2026-10-26/`. The subsequent CLI-disconnect
+result is recorded above. No new product build or external submission is involved.
 
 ## Manual dismissal accepted for Preview; late-PIN/disconnect cases prepared, 2026-10-26
 

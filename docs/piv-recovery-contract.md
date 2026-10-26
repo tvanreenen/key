@@ -2364,10 +2364,16 @@ Normal guidance remains to Cancel the remaining dialog without a PIN, then
 explicitly start a fresh request. Manual UI closure precedes further token use.
 
 This disposition does not qualify lost-client or late-approval behavior by
-itself. Signed-product tests of one post-timeout PIN submission and CLI
-disconnection remain required with disposable data, no touch/Mac approval and
-unchanged destination/configuration/state. No automatic retry, PIN collection,
-provider termination, private API or direct-operation production workaround is
+itself. Subsequent installed build25 tests passed one post-timeout PIN submission
+and one owned-CLI disconnection with disposable data, no touch/Mac approval and
+unchanged destination/configuration/state. The timeout case produced no follow-on
+Key prompt after late PIN submission; the disconnected case required manual
+Cancel of the blank PIN dialog. Both observed actual appCancel callbacks, normal
+helper shutdown after owner-confirmed UI closure and unchanged public metadata
+and PIN/PUK counters. Neither exercised a native late-positive callback; software
+regressions cover that race boundary. These scoped results do not qualify every
+native provider behavior or automatic UI dismissal. No automatic retry, PIN
+collection, provider termination, private API or direct-operation production workaround is
 introduced. No external report or support submission is planned. Subsequent
 release qualification must describe the known limitation accurately.
 
