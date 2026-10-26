@@ -9,11 +9,14 @@ owns package status and the [contract](piv-recovery-contract.md) owns security l
 
 The registered disposable source was backed up and reselected without deleting
 prior Preview records or selection backups. With the YubiKey unplugged, ordinary
-commands replaced its secret and TOTP seed, then committed one vault-key rotation.
+commands changed its secret and re-saved its existing synthetic TOTP seed, then
+committed one vault-key rotation.
 The rotation changed the key, epoch authority and recovery wrappers while retaining
 the recipient and recovery generation. A further secret edit and a new entry after
 rotation passed exact readback, including TOTP checked against the seed and read
-interval. Normal lock and a fresh helper reopened the source with the token absent.
+interval. The TOTP edit reused the original seed, so this case verifies TOTP
+continuity, not seed replacement. Normal lock and a fresh helper reopened the
+source with the token absent.
 All older encrypted source objects were preserved.
 
 Only published manifests and encrypted entries were copied into a frozen source:
@@ -26,7 +29,7 @@ inherited recovery registration. The source and frozen copy were unchanged.
 
 After confirmed UI closure, normal helper shutdown and one public-only token
 postcheck passed unchanged metadata and PIN/PUK 3/3. The owner unplugged the key.
-Ordinary reads then recovered the latest secret, changed TOTP seed and entry added
+Ordinary reads then recovered the latest secret, synthetic TOTP and entry added
 after rotation exactly. A second normal lock/fresh-helper cycle repeated those
 checks successfully. Source backups, earlier disposable state, saved selections,
 Stable app/config and installed code were preserved; the final helper is stopped.
