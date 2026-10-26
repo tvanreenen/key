@@ -5,7 +5,7 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
-## Build24 accepted and ticket verified; detailed receipt pending, 2026-10-25
+## Build24 notarization and detailed receipt verified, 2026-10-25
 
 Normal universal PreviewRelease build24 was archived from clean source
 `8fa8b0ddd24affafc66e8d7643414a5f0f0ec9f3`, including both approval-cue and
@@ -24,15 +24,23 @@ failed is unresolved. No credential values, profile/settings changes, unlock
 request or resubmission occurred. The owner was asked to retrieve the same log
 from Terminal, without recreating credentials or sharing passwords.
 
+The owner then downloaded the receipt using that existing profile in Terminal.
+Inspection confirmed the original job ID, archive filename and exact SHA256,
+Accepted status and `issues: null`. The deferred finalizer reverified submitted
+and final checksums plus protected snapshots, then recorded completed candidate
+metadata. Elevated agent retries, including direct system `xcrun` without login
+shell setup, had still failed; Terminal success establishes profile usability in
+that context, but the precise agent lookup restriction remains unresolved.
+
 Independent of that receipt lookup, the exact submitted candidate was extracted,
 stapled and validated against Apple's ticket; Gatekeeper, strict signatures,
 unchanged executable/Info.plist bytes and final transfer-ZIP roundtrip passed.
 The final ZIP SHA256 is
 `14170fc3df0cf241235d5896970818f8e72da8c478ffc1de80e01b1d177b9587`.
-Detailed receipt/archive-digest inspection and any warning review remain pending;
-do not claim an issues-free Apple log or completed final receipt gate yet.
-`finish-after-log.py` performs that gate once the owner supplies the downloaded
-log, without resubmitting or repeating stapling.
+Detailed receipt/archive-digest inspection and warning review are complete, with
+no reported issues. `finish-after-log.py` completed the final gate without
+resubmitting or repeating stapling. Build24 is ready for installation; signed
+product UI/abandonment/resume acceptance is still pending.
 
 Protected installed apps, Stable config, Preview support and explicitly scoped
 disposable vault files match before/after snapshots, including retained
