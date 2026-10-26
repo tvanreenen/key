@@ -50,7 +50,8 @@ struct V3RecoveryKeyRotationService: Sendable {
   /// Authenticated review data only. This neither saves approval nor signs,
   /// generates a key or reserves durable work. Execution rechecks the checkpoint.
   func prepare() throws -> V3RecoveryKeyRotationCommit {
-    try loadCurrent().commit
+    let current = try loadCurrent()
+    return .init(checkpoint: current.checkpoint, envelope: current.envelope)
   }
 
   /// Resume exact ciphertext without signing or generating another epoch. Public
@@ -120,19 +121,9 @@ struct V3RecoveryKeyRotationService: Sendable {
         expectedOwner: identity.publicIdentity, expectedAnchor: state.anchorData)
       switch outcome {
       case .completed, .alreadyCompleted:
-        try requireNoPending()
-        try requireCheckpoint(state.candidateCheckpoint)
-        let envelope = checked.candidate.envelope
-        try V3RecoveryEpochBoundary().verifyCurrentAuthentication(envelope, vaultKey: nextKey)
-        let current = try objects.observe(
-          checkpoint: state.candidateCheckpoint, expectedBase: envelope.canonicalBytes)
-        _ = try V3EntrySnapshotValidator(limits: limits).plaintexts(
-          fields: envelope.body.fields, entries: current.entries, vaultKey: nextKey)
-        try requireNoPending()
-        try requireCheckpoint(state.candidateCheckpoint)
-        try session.install(
-          nextKey, vaultID: vaultID, keyID: envelope.body.fields.keyID,
-          authenticationTicket: ticket)
+        try lifecycle.installCommitted(
+          checked.candidate.envelope, vaultKey: nextKey, continuing: ticket
+        ) { _ in try lifecycle.requireNoPending() }
       case .nothingToRecover, .abandoned:
         session.invalidate()
       }
@@ -225,8 +216,8 @@ struct V3RecoveryKeyRotationService: Sendable {
   }
 
   private func requireRecoveryState(_ state: V3ContentTransactionRecoveryState) throws {
-    try requireNoAuthorityWork()
-    try requireCheckpoint(state.currentCheckpoint)
+    try lifecycle.requireNoAuthorityWork()
+    try lifecycle.requireCheckpoint(state.currentCheckpoint)
     guard try ownership.loadRecoveryAnchor(vaultID: vaultID) == state.anchorData else {
       throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: vaultID)
     }
@@ -263,42 +254,29 @@ struct V3RecoveryKeyRotationService: Sendable {
       guard expectedCheckpoint.vaultID == vaultID else {
         throw V3RecoveryKeyRotationError.invalidCandidate
       }
-      try requireCheckpoint(expectedCheckpoint)
+      try lifecycle.requireCheckpoint(expectedCheckpoint)
       let base = try loadCurrent()
-      guard base.commit.checkpoint == expectedCheckpoint else {
+      guard base.checkpoint == expectedCheckpoint else {
         throw V3ImmutableTransactionError.expectedHeadsChanged
       }
-      let nextKey = try freshKey(excluding: base.commit.envelope.body.fields.keyID)
+      let nextKey = try freshKey(excluding: base.envelope.body.fields.keyID)
       let candidate = try V3RecoveryKeyRotationBuilder(limits: limits).build(
-        checkpoint: expectedCheckpoint, parent: base.commit.envelope,
+        checkpoint: expectedCheckpoint, parent: base.envelope,
         currentEntries: base.source.entries, currentVaultKey: base.key, nextVaultKey: nextKey,
         owner: identity, reason: "Change the vault's encryption key without changing access.")
-      // A signer may present authentication UI. Recheck before another private
-      // operation, and do not continue from a session locked during that UI.
-      try requireNoPending()
-      try requireCheckpoint(expectedCheckpoint)
-      let fresh = try objects.observe(
-        checkpoint: expectedCheckpoint, expectedBase: base.commit.envelope.canonicalBytes)
-      try session.requireCurrent(base.ticket)
-      guard fresh == base.source,
-        try session.load(vaultID: vaultID, keyID: base.commit.envelope.body.fields.keyID)
-          == base.key
-      else { throw V3RecoveryValidationError.sourceChanged }
+      // A signer may present authentication UI; retain the original session.
+      try lifecycle.revalidate(base)
 
       let commit = try publisher(operationID).publish(
         candidate, currentVaultKey: base.key, nextVaultKey: nextKey, identity: identity,
         reason: "Verify this Mac can open the changed vault encryption key.")
 
-      try requireCommittedState(commit, previous: expectedCheckpoint, operationID: operationID)
-      try V3RecoveryEpochBoundary().verifyCurrentAuthentication(commit.envelope, vaultKey: nextKey)
-      let current = try objects.observe(
-        checkpoint: commit.checkpoint, expectedBase: commit.envelope.canonicalBytes)
-      _ = try V3EntrySnapshotValidator(limits: limits).plaintexts(
-        fields: commit.envelope.body.fields, entries: current.entries, vaultKey: nextKey)
-      try requireCommittedState(commit, previous: expectedCheckpoint, operationID: operationID)
-      try session.install(
-        nextKey, vaultID: vaultID, keyID: commit.envelope.body.fields.keyID,
-        authenticationTicket: base.ticket)
+      try lifecycle.installCommitted(
+        commit.envelope, vaultKey: nextKey, continuing: base.ticket
+      ) { pending in
+        try verifyCommittedOwnership(
+          pending, commit: commit, previous: expectedCheckpoint, operationID: operationID)
+      }
       return commit
     } catch {
       // Failure is not proof that commitment failed. Retain the old session only
@@ -311,49 +289,27 @@ struct V3RecoveryKeyRotationService: Sendable {
     }
   }
 
-  private struct Base {
-    let commit: V3RecoveryKeyRotationCommit
-    let key: Data
-    let source: V3ExactTransitionRepositoryState
-    let ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
-  }
   private var objects: V3ExactTransitionRepository { .init(source: store, limits: limits) }
-
-  private func loadCurrent() throws -> Base {
-    try requireNoPending()
-    guard isValidV3UUID(vaultID), identity.vaultID == vaultID,
-      let bytes = try checkpoints.loadCheckpoint(vaultID: vaultID), bytes.count <= 1_024,
-      let checkpoint = try? V3ManifestCheckpoint(canonicalBytes: bytes),
-      checkpoint.vaultID == vaultID
-    else { throw V3RecoveryKeyRotationError.invalidOwner }
-    let manifest = try objects.readManifest(checkpoint.envelopeDigest)
-    let envelope = try V3RecoveryManifestCodec().parseEnvelope(manifest)
-    guard
-      envelope.body.fields.devices.contains(
-        .init(identity: identity.publicIdentity, status: .active))
-    else { throw V3RecoveryKeyRotationError.invalidOwner }
-    let ticket = session.beginAuthentication()
-    let key = try session.load(vaultID: vaultID, keyID: envelope.body.fields.keyID)
-    try V3RecoveryContentMutationValidator(limits: limits).validateParent(
-      envelope, checkpoint: checkpoint, vaultKey: key)
-    let source = try objects.observe(checkpoint: checkpoint, expectedBase: manifest)
-    _ = try V3EntrySnapshotValidator(limits: limits).plaintexts(
-      fields: envelope.body.fields, entries: source.entries, vaultKey: key)
-    try requireNoPending()
-    try requireCheckpoint(checkpoint)
-    try session.requireCurrent(ticket)
-    return .init(
-      commit: .init(checkpoint: checkpoint, envelope: envelope), key: key, source: source,
-      ticket: ticket)
+  private var lifecycle: V3RecoveryLifecycleContext {
+    .init(
+      vaultID: vaultID, identity: identity.publicIdentity, session: session, source: store,
+      checkpoints: checkpoints, ownership: ownership, registration: registration, adoption: adoption,
+      limits: limits, validateScope: validateScope)
   }
 
-  private func requireCommittedState(
-    _ commit: V3RecoveryKeyRotationCommit, previous: V3ManifestCheckpoint,
+  private func loadCurrent() throws -> V3RecoveryLifecycleContext.Current {
+    guard identity.vaultID == vaultID else { throw V3RecoveryKeyRotationError.invalidOwner }
+    do { return try lifecycle.current(continuing: session.beginAuthentication()) }
+    catch V3RecoveryLifecycleContextError.invalidOwner {
+      throw V3RecoveryKeyRotationError.invalidOwner
+    }
+  }
+
+  private func verifyCommittedOwnership(
+    _ pending: Data?, commit: V3RecoveryKeyRotationCommit, previous: V3ManifestCheckpoint,
     operationID: VaultTransactionOperationID
   ) throws {
-    try requireNoAuthorityWork()
-    try requireCheckpoint(commit.checkpoint)
-    if let bytes = try ownership.loadRecoveryAnchor(vaultID: vaultID) {
+    if let bytes = pending {
       // Best-effort cleanup may retain only this exact committed rotation.
       guard bytes.count <= 1_024,
         let anchor = try? V3ImmutableTransactionRecoveryAnchor(canonicalBytes: bytes),
@@ -377,30 +333,5 @@ struct V3RecoveryKeyRotationService: Sendable {
       if try V3VaultKeyID.derive(vaultKey: key, vaultID: vaultID) != currentID { return key }
     }
     throw V3RecoveryKeyRotationError.invalidCandidate
-  }
-  private func requireCheckpoint(_ checkpoint: V3ManifestCheckpoint) throws {
-    try validateScope()
-    guard try checkpoints.loadCheckpoint(vaultID: vaultID) == checkpoint.canonicalBytes else {
-      throw V3ImmutableTransactionError.expectedHeadsChanged
-    }
-  }
-  private func requireNoAuthorityWork() throws {
-    try validateScope()
-    guard try registration.loadRecoveryAnchor(vaultID: vaultID) == nil,
-      try adoption.loadRecoveryAnchor(vaultID: vaultID) == nil
-    else { throw V3RecoveryContentPublicationError.otherMutationPending }
-  }
-  private func requireNoPending() throws {
-    try requireNoAuthorityWork()
-    if let bytes = try ownership.loadRecoveryAnchor(vaultID: vaultID) {
-      guard bytes.count <= 1_024,
-        let anchor = try? V3ImmutableTransactionRecoveryAnchor(canonicalBytes: bytes),
-        anchor.vaultID == vaultID
-      else {
-        throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: vaultID)
-      }
-      throw V3ImmutableTransactionRecoveryError.interruptedTransactionPending(
-        operationID: anchor.operationID.rawValue)
-    }
   }
 }
