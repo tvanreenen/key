@@ -5,6 +5,30 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Fresh-context control stopped at metadata guard; cancellation remains untested, 2026-10-26
+
+One owner-approved launch passed public preflight, then stopped during metadata
+preparation before ACL evaluation. The generic refusal and empty event log do
+not identify the exact failed guard. The owner confirmed no dialog appeared.
+Normal exit and that confirmation preceded one public-only postcheck: expected
+metadata, PIN/PUK3/3, protected hashes and stopped Preview25 helper pass. No
+evaluation, key agreement, token write or retry occurred. This is inconclusive
+setup evidence, not evidence for or against fresh-context cancellation. The
+attempt and `result.json` remain preserved in the fresh-context raw directory.
+
+Apple's
+[published key-reference implementation](https://github.com/apple-oss-distributions/Security/blob/db15acbe6a7f257a859ad9a3bb86097bfe0679d9/OSX/sec/Security/SecCTKKey.m#L224)
+converts numeric key-class/type attributes to strings. Our attributes-only guard
+expects strings. A return-type mismatch is therefore a concrete setup hypothesis,
+not a diagnosed result. A separate signed inspector now reports only query status,
+container/field types, count and binding-match booleans. It has no policy-evaluation,
+token-private-key-reference, crypto, credential-setting or token-write path.
+Compile, signature/entitlements and no-native refusal checks pass; it has not
+queried the token. A separately authorized single metadata inspection is needed
+before changing validation or preparing another authentication attempt. Raw
+preparation stays ignored under
+`tmp/piv-recovery/pin-cancellation-attribute-inspection-2026-10-26/`.
+
 ## Online investigation leads to attributes-first/fresh-context control, 2026-10-26
 
 Targeted Apple documentation/forum searches did not locate a directly matching
