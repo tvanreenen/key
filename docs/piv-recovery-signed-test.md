@@ -5,6 +5,36 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Native authentication build25 signed and packaged; not submitted, 2026-10-26
+
+The normal universal PreviewRelease product was archived from clean pinned
+source `85ee569b0487dfcf78fa4e186295c8c63f394fcc`, including the callback lifetime
+fix and bounded native diagnostics. Version is 0.2.0 with archive-only build
+override 25; no project version, release tag or default feature gate changed.
+The base archive keeps recovery disabled. Only the copied candidate's host and
+helper plists enable local recovery, with no diagnostic helper replacement.
+
+Existing Developer ID certificate `14E20BC6A127E95F2C34B22E276A76EC8E48755E`,
+team `9Q355KSV85`, signed the candidate. Exact Preview identifiers, hardened
+runtime/timestamps, strict deep/all-architecture signatures, helper smart-card
+and Preview-only keychain entitlements, accessory role and arm64/x86_64 images
+passed. Complete ZIP extraction preserves the bundle byte-for-byte and passes
+signature checks. The review ZIP SHA256 is
+`c167d8947c419d3e9bac2227ab6e6146086579e468a387ee0d9557be34b0d611`.
+
+The accepted build24 ZIP was preserved byte-identically as rollback, SHA256
+`14170fc3df0cf241235d5896970818f8e72da8c478ffc1de80e01b1d177b9587`.
+Expanded protected snapshots include installed apps/config/support and prior
+disposable vaults/selection backups and match before/after. Installed build24
+remains unchanged; Preview stays unconfigured with its helper stopped. No actual
+vault traversal, token API/write, new authentication, installation, launch or
+notarization submission occurred. Native log delivery/PIN-dialog dismissal
+remain unqualified. Next is notarization of this exact candidate, followed by
+separate installation and observed deadline retest; CLI-disconnect stays held.
+
+Raw candidate, hashes, signing reports, protected snapshots and rollback remain
+ignored under `tmp/piv-recovery/native-authentication-build25-2026-10-26/`.
+
 ## Native authentication lifetime fixed in source; signed retest pending, 2026-10-26
 
 The native session previously completed its local approval waiter during
