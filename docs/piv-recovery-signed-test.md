@@ -5,6 +5,31 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Build25 notarization and distribution checks passed, 2026-10-26
+
+One submission of the exact build25 review ZIP was accepted by Apple:
+`f28c0b5e-9dac-46ab-926b-b13316e5cf99`. The detailed log was retrieved and
+inspected; job ID, archive filename and submitted SHA256
+`c167d8947c419d3e9bac2227ab6e6146086579e468a387ee0d9557be34b0d611`
+match, with `issues: null`. No resubmission or credential changes were needed.
+
+The ticket was stapled to an isolated extracted copy. Ticket validation,
+Gatekeeper, strict signatures and both-architecture release checks pass.
+Executables and host/helper plists remain byte-identical to the submitted
+candidate. The final transfer ZIP was extracted again; ticket/Gatekeeper and
+signature checks pass and the complete bundle compares byte-for-byte. Final ZIP
+SHA256 is `787d0259ddf133e4dd9788dcba5206df997797d7ccb1935502c2c3c73932b1aa`.
+
+Protected snapshots match, including installed apps/config/support and prior
+disposable vaults/selection backups. Build24 and its accepted rollback remain
+intact. No installation, launch, new vault/token authentication, token API/write
+or actual-vault traversal occurred. This is distribution qualification only;
+runtime log delivery and automatic PIN-dialog cleanup still need the observed
+build25 deadline retest after separate installation. CLI-disconnect stays held.
+
+Receipt, accepted log, final ZIP and verification evidence remain ignored under
+`tmp/piv-recovery/native-authentication-build25-2026-10-26/notarization/`.
+
 ## Native authentication build25 signed and packaged; not submitted, 2026-10-26
 
 The normal universal PreviewRelease product was archived from clean pinned
