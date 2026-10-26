@@ -5,6 +5,40 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Released-key-handle control still requires blank Cancel, 2026-10-26
+
+One separately owner-approved run released the temporary Mac-side `SecKey`
+handle and drained lookup temporaries before evaluation. Events confirm no key
+reference retained throughout the background evaluation/cancellation lane. The
+20-second timer fired after approximately 21 seconds at whole-second resolution;
+the real callback returned LocalAuthentication `appCancel`(-9). Context and ACL
+remained retained through the approximately 84-second control lifetime, about
+63 seconds after callback.
+
+The owner observed exactly one unanswered PIN dialog and reported it still
+visible before the retention-end event. After normal control exit, the owner
+cancelled the blank dialog and confirmed closure. Only then did one public-only
+postcheck run: metadata and PIN/PUK3/3 are unchanged, protected files match, and
+Preview25's helper remains stopped. No token write, key agreement, actual-vault
+access or automatic retry occurred. Raw events, launch record, owner observation,
+public postcheck and `result.json` stay ignored under
+`tmp/piv-recovery/pin-cancellation-released-handle-2026-10-26/`.
+
+This control supplies no successful cleanup from releasing the client key handle.
+It does not establish what framework-internal references remain or assign fault
+to macOS, the PIV provider or the device. Together, the background-retention,
+main-thread and released-handle runs reproduce the unresolved UI behavior in a
+local app without the vault/restore or key-agreement paths. No speculative
+production change follows. The owner-required automatic-cleanup gate stays
+blocking and CLI-disconnect testing remains deferred.
+
+A local reproduction report is prepared alongside the ignored control evidence
+for further investigation of the macOS authentication path. It separates the
+real cancelled evaluation from owner-observed UI persistence, records the
+negative controls and their limits, and omits opaque credential/context IDs and
+device serial numbers. Nothing has been submitted externally, and no additional
+authentication attempt is scheduled.
+
 ## Main-thread control still leaves PIN UI; key-handle comparison prepared, 2026-10-26
 
 One separately owner-approved run used the original signed control binary with
