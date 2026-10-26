@@ -5,6 +5,52 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Main-thread control still leaves PIN UI; key-handle comparison prepared, 2026-10-26
+
+One separately owner-approved run used the original signed control binary with
+background context construction/lookup, but main-thread evaluation and
+invalidation. Its 20-second timer fired after approximately 21 seconds at
+whole-second resolution. The real callback returned LocalAuthentication
+`appCancel`(-9) on the main thread. Context, ACL and key handle remained retained
+through the approximately 84-second lifetime, about 63 seconds after callback.
+
+The owner reported the blank PIN dialog still visible while the control was
+still retaining its objects, then manually cancelled it before the control
+exited. These observations were recorded before the retention-end event. This
+run provides no successful cleanup from changing evaluation/invalidation to the
+main thread. It does not establish a universal provider cause, and no threading
+or retention workaround was added to production. Automatic cleanup stays blocking.
+
+After confirmed UI closure and normal process exit, one public-only postcheck
+confirmed unchanged metadata and PIN/PUK3/3. Protected files match. Preview25 was
+not replaced and its helper remains stopped; no key agreement, vault access,
+token write or automatic retry occurred. Events, observations and
+`main-result.json` remain ignored under
+`tmp/piv-recovery/pin-cancellation-investigation-2026-10-26/`.
+
+A bounded, app-filtered system-log read from that existing run records the
+supplied authentication context being externalized and another context being
+reconstructed for the token-key handle. The PIN UI transition follows explicit
+ACL evaluation. Invalidation is acknowledged and the original evaluation
+returns appCancel, while the owner still sees the dialog. These observations
+support investigating ownership of the temporary key handle; they do not prove
+that the reconstructed context causes the remaining UI or that a daemon crashed.
+Private logging was not enabled. Opaque context/credential identifiers remain
+in ignored local evidence and are omitted from this record.
+
+A separate local comparison now releases the temporary Mac-side `SecKey` handle
+and drains lookup temporaries before evaluating the same ACL. It retains the
+original context and ACL, uses background evaluation/invalidation, and performs
+no token cryptography or writes. It uses ordinary reference lifetime management,
+with no private API or token deletion. Compile, Developer ID signature,
+entitlement and noninteractive default/refusal checks pass. Its source and app
+are separate from the preserved original control; installed Preview is unchanged.
+The comparison has not run and requires fresh owner readiness. A missing PIN
+dialog or failed evaluation would not count as successful cleanup. Even a
+positive result would need confirmation in the production helper. Raw preparation
+stays ignored under
+`tmp/piv-recovery/pin-cancellation-released-handle-2026-10-26/`.
+
 ## Retained-object background control did not demonstrate PIN cleanup, 2026-10-26
 
 One separately owner-approved local control evaluated the pinned key's ACL and
