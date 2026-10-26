@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and independent Air restore, with token-free exact secret/TOTP and fresh-helper reopening on both; Mini PIN and visible touch-window cancellation passed; build24 exact incomplete-reservation release, distinct Mac cues, complete-preparation Publish cancellation, fresh-helper exact-byte resume, token-free post-resume secret/TOTP/fresh-helper reads, safe missing-touch failure and physical token-removal failure passed; five Mac approvals observed on resume; unanswered-PIN deadline enforced but native PIN-dialog cleanup failed; premature native-waiter release fixed with callback diagnostics and software/build checks, build25 notarized with ticket/Gatekeeper checks passing, installation/native retest pending; CLI-disconnect testing held; backup-token and remaining history acceptance remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and independent Air restore, with token-free exact secret/TOTP and fresh-helper reopening on both; Mini PIN and visible touch-window cancellation passed; build24 exact incomplete-reservation release, distinct Mac cues, complete-preparation Publish cancellation, fresh-helper exact-byte resume, token-free post-resume secret/TOTP/fresh-helper reads, safe missing-touch failure and physical token-removal failure passed; five Mac approvals observed on resume; unanswered-PIN deadline enforced but native PIN-dialog cleanup failed; premature native-waiter release fixed with callback diagnostics and software/build checks, build25 notarized and installed on Mini with non-authenticating checks passing, observed deadline retest pending; CLI-disconnect testing held; backup-token and remaining history acceptance remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -158,8 +158,14 @@ unchanged. Its accepted build24 rollback ZIP is preserved. Apple subsequently
 accepted the exact build25 archive as f28c0b5e-9dac-46ab-926b-b13316e5cf99, with
 a matching detailed log and no issues. Ticket, Gatekeeper, strict signatures
 and final ZIP roundtrip pass; protected state matches. No installation or new
-authentication occurred. Separate installation and an observed deadline retest
-are next; macOS PIN-dialog dismissal remains unqualified. The
+authentication occurred. Exact build25 was then installed on the Mini using
+normal Preview lifecycle and the existing installer, with a verified build24
+app rollback retained. Installed hashes/signatures/tickets and helper mapping
+pass; unconfigured status and normal lock/stopped helper pass without
+authentication. Protected state outside the expected Preview app replacement
+matches. A guarded deadline retest and fresh missing destination are prepared;
+owner readiness, native log capture and UI observation are next. No further
+authentication has started; macOS PIN-dialog dismissal remains unqualified. The
 [signed-test record](piv-recovery-signed-test.md) separates owner observations,
 system-log evidence and remaining acceptance work.
 

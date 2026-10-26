@@ -5,6 +5,34 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Build25 installed on Mini; authentication retest not started, 2026-10-26
+
+The exact receipt-verified notarized build25 was installed with normal Preview
+quit/helper unregistration and the existing atomic installer. A complete,
+byte-identical, ticket/Gatekeeper-verified copy of the previous installed build24
+is retained for rollback, in addition to its accepted ZIP. Installed executables
+match build25's receipt; bundle comparison, strict all-architecture signatures,
+ticket and Gatekeeper checks pass.
+
+Normal app startup registered helper build25. One ordinary status request
+confirmed Preview unconfigured, without authentication. The running helper's
+executable mapped to the expected installed path; normal lock then stopped it.
+Expanded protected snapshots match outside the expected Preview app replacement,
+including Stable/config/support and prior disposable vaults/selection backups.
+The original support-root identity is retained. No actual-vault traversal,
+configuration reset, vault/token authentication or token API/write occurred.
+
+A fresh missing destination and guarded deadline harness are prepared. Passive
+USB topology confirms the key connected; no native request or log capture has
+started. Next requires owner readiness to leave one PIN dialog unanswered.
+Capture native lifecycle events across expiry and obtain the owner's UI report
+before any card postcheck; helper exit alone is not proof of dialog cleanup.
+Runtime callback/log delivery and automatic PIN-dialog dismissal remain open.
+CLI-disconnect remains held. Raw installation/rollback and test preparation
+remain ignored under
+`tmp/piv-recovery/native-authentication-build25-install-2026-10-26/` and
+`tmp/piv-recovery/build25-deadline-2026-10-26/`.
+
 ## Build25 notarization and distribution checks passed, 2026-10-26
 
 One submission of the exact build25 review ZIP was accepted by Apple:
