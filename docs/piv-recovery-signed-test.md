@@ -5,6 +5,34 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Mini build24 physical token removal stopped recovery safely, 2026-10-26
+
+Read-only preflight confirmed unchanged protected files, preserved prior
+disposable vaults/selection backups, unconfigured Preview, installed build24
+and its stopped helper. No further selection reset or movement was needed.
+After explicit owner readiness, fresh public token/credential/source review
+and vendor metadata checks passed. One restore targeted another missing
+disposable destination. The owner confirmed exactly one approved PIN dialog,
+unplugging when the touch window appeared without physical touch or Cancel,
+the window closing itself and no Mac vault-approval prompt.
+
+The request reached touch-required progress, then failed after 8.315 seconds,
+exit 1, without automatic retry. The destination remains missing and Preview
+configuration absent; all support/saved-attempt and protected file hashes match.
+Prior source/vaults/selection backups remain intact. Normal lock stopped the
+helper. Nonempty IORegistry USB topology then showed four XHCI controllers,
+eleven nodes and no YubiKey. After separate owner-confirmed reconnect, one
+public-only vendor postcheck confirmed unchanged key/certificate/anchor/policy
+metadata and PIN/PUK counters at 3/3. Protected hashes still match afterward.
+
+This qualifies safe failure after physical token removal during the touch wait.
+The generic product error does not identify the native cause, qualify an XPC
+client disconnect or establish application-deadline expiration. No further
+authentication, token write, actual-vault traversal, credential deletion,
+forced stop, resume or abandon occurred. Preview stays unconfigured with its
+helper stopped; the key is reconnected. Raw evidence stays ignored under
+`tmp/piv-recovery/build24-disconnect-2026-10-26/`.
+
 ## Mini build24 missing-touch failure stopped safely, 2026-10-26
 
 The completed resumed vault `a7354dc7-6278-4041-b453-4c209e55178a` and its
