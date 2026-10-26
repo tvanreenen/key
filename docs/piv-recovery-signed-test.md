@@ -5,6 +5,38 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Ordinary Mac prompt cancels cleanly; PIV-path difference reproduced, 2026-10-26
+
+One owner-approved Mac-biometry comparison found Touch ID available and performed
+one biometry-only policy evaluation. Its 20-second timer fired after approximately
+21 seconds at whole-second resolution. The actual callback returned
+LocalAuthentication appCancel(-9), while the owner observed exactly one unanswered
+Mac prompt close automatically. That observation was recorded before the
+retention-end event. Context remained retained through the approximately 84-second
+lifetime, about 63 seconds beyond callback; the control exited normally.
+
+Passive protected hashes match and Preview25's helper remains stopped. This
+control has no Keychain/token/vault API, so no token/counter postcheck was run;
+PIN/PUK3/3 remains the last verified result from the preceding PIV postcheck.
+There was no retry, production replacement or protected action after approval.
+Events, owner observation and `result.json` remain ignored under
+`tmp/piv-recovery/pin-cancellation-mac-biometry-2026-10-26/`.
+
+Ordinary Mac biometry UI therefore dismisses in this signed diagnostic harness,
+where the PIV ACL PIN UI remained visible in the separate controls despite the
+same appCancel callback. This narrows the observed difference to the PIV ACL
+path versus the biometry policy path. The methods/mechanisms differ, so it does
+not identify a faulty component or exclude an ACL-specific integration issue.
+It does not qualify PIV automatic cleanup, which remains blocking. No lookup,
+threading or lifetime change is applied to production from these results.
+
+A local Apple-facing report draft now records this paired comparison, minimal
+API sequences, environment, limits and questions about documented PIV UI
+cancellation. It omits opaque context/credential references, token selectors,
+certificate pins, serial numbers and account identifiers. Nothing is submitted
+externally; no further authentication is scheduled. The draft remains ignored
+alongside the comparison evidence as `apple-report-draft.md`.
+
 ## Fresh unbound context also leaves PIN UI; Mac-biometry comparison prepared, 2026-10-26
 
 One owner-approved corrected control passed the metadata guards and evaluated
