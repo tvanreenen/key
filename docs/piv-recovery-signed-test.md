@@ -5,6 +5,35 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Retained-object background control did not demonstrate PIN cleanup, 2026-10-26
+
+One separately owner-approved local control evaluated the pinned key's ACL and
+requested invalidation on background threads. It performed no key agreement or
+vault access. The 20-second timer fired after approximately 22 seconds at the
+recorded whole-second resolution. The actual callback again returned
+LocalAuthentication `appCancel`(-9). Context, ACL and key handle were deliberately
+retained through the approximately 84-second control lifetime, about 62 seconds
+after callback. The owner reported the unanswered PIN dialog still visible and
+then confirmed cancelling it blank; no automatic cleanup was demonstrated.
+
+The observation was recorded after the retention-end event and was not
+independently timestamped at the callback. Together with the different diagnostic
+app identity, that limits causal conclusions; this is not a complete exclusion
+of every lifetime-related explanation. It supplies no evidence for adding a
+retention delay to production. Automatic cleanup remains blocking.
+
+After owner-confirmed UI closure and normal control-process exit, one public-only
+postcheck confirmed unchanged key/certificate/anchor/policies and PIN/PUK3/3.
+Protected files match, installed Preview25 was not replaced, and its helper stays
+stopped. No authentication/read retry, token write or actual-vault traversal
+occurred. The first lane's source, events, owner observations and result remain
+ignored under `tmp/piv-recovery/pin-cancellation-investigation-2026-10-26/`.
+
+The next prepared lane uses the same signed binary, background context
+construction/lookup and object retention, changing only evaluation/invalidation
+dispatch to the main thread. Its wrapper preserves first-lane evidence and
+requires renewed owner readiness. It has not run; CLI-disconnect remains deferred.
+
 ## Owner keeps PIN cleanup blocking; isolated controls prepared, 2026-10-26
 
 The owner explicitly declined accepting manual Cancel as a Preview limitation.
