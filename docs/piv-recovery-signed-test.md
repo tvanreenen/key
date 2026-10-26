@@ -5,6 +5,39 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Manual dismissal accepted for Preview; late-PIN/disconnect cases prepared, 2026-10-26
+
+The owner accepts manual dismissal as a temporary Preview limitation and does
+not intend to send material externally. Support/report/package preparation is
+stopped; its unsubmitted local drafts remain ignored. The earlier automatic-UI
+cleanup blocker is replaced for this Preview checkpoint by explicit manual
+cleanup guidance. Automatic dismissal is still not a pass or an implemented
+promise. Permanent cancellation, late-result refusal and no resumed publication
+remain requirements; late PIN entry can still affect token authentication or
+retry counters and is not normal user guidance.
+
+Two missing disposable destinations are prepared for installed build25, with
+installed/protected hashes matching and Preview unconfigured/helper stopped:
+one late-PIN-after-confirmed-timeout case and one owned-CLI-disconnect case.
+Only passive preparation ran; no token API, authentication or reset occurred.
+Fresh public inventory/credential/source/policy/counter checks precede dispatch.
+Single-use markers, bounded helper log capture and unchanged source/destination/
+selection snapshots guard each case. Scripts parse, but neither native case has
+run or passed. All earlier disposable vaults/selections remain preserved.
+
+The late-PIN case leaves the dialog unanswered until the CLI's explicit timeout,
+native cancellation and absence of publication are confirmed. Only on a later
+instruction does the owner submit one known-correct PIN, without touch or Mac
+vault approval. Any wrong-PIN indication stops without retry. The disconnect
+case waits for owner-confirmed PIN UI, then terminates only its verified owned
+test CLI with SIGTERM; it never signals the helper or provider. Both require
+confirmed UI closure before normal helper shutdown and one public postcheck.
+Unexpected follow-on Key prompts or publication are failures, not accepted UI
+limitations. Fresh owner readiness is required before either authentication.
+Raw preparation stays ignored under
+`tmp/piv-recovery/build25-late-pin-2026-10-26/` and
+`tmp/piv-recovery/build25-cli-disconnect-2026-10-26/`.
+
 ## Direct operation also stays pending until owner Cancel, 2026-10-26
 
 One explicitly owner-authorized direct-operation comparison passed public

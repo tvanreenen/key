@@ -2352,6 +2352,25 @@ external UI state. Qualification waits for owner-confirmed dialog closure
 the timeout message gives the same manual-cleanup guidance. Automatic PIN-dialog
 dismissal is an unresolved platform/UX qualification, not an implemented promise.
 
+On 2026-10-26 the owner accepted manual dismissal as a temporary Preview
+limitation and stopped support-submission work. Automatic UI dismissal is not
+required for this Preview checkpoint; permanent cancellation and late-result
+refusal remain required. Once the request is cancelled or expired, a later
+approval cannot revive it or admit a new agreement step. An already-started
+native operation may finish, but its late result must be discarded. The system
+PIN dialog can still process credentials independently: a late PIN submission
+is not promised to be inert, and an incorrect PIN may consume a device attempt.
+Normal guidance remains to Cancel the remaining dialog without a PIN, then
+explicitly start a fresh request. Manual UI closure precedes further token use.
+
+This disposition does not qualify lost-client or late-approval behavior by
+itself. Signed-product tests of one post-timeout PIN submission and CLI
+disconnection remain required with disposable data, no touch/Mac approval and
+unchanged destination/configuration/state. No automatic retry, PIN collection,
+provider termination, private API or direct-operation production workaround is
+introduced. No external report or support submission is planned. Subsequent
+release qualification must describe the known limitation accurately.
+
 Scripted tests cover binding checks, session ordering, scope closure,
 cancellation, deadline, removal, anchor changes, and exclusion until delayed
 completion. They do not qualify native query delivery, physical identity, PIN or
