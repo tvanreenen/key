@@ -5,6 +5,27 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Mini build24 explicit incomplete-reservation release passed, 2026-10-25
+
+After direct owner permission superseded preservation of only this disposable
+reservation, one installed build24 `recovery abandon` request addressed source
+vault `8b67cabc-7c4a-4eae-a67e-edc06cf47ea4`, its original source/destination and
+operation `3ec1cec1-50da-4200-b9d9-31956003cef4`. The authoritative reply confirms
+release of that exact incomplete operation; normal helper shutdown completed.
+All protected file hashes match. The source, empty destination, original
+reservation file and saved Mac credentials were retained; only local reservation
+ownership was released. No authentication, token operation/write, actual-vault
+traversal, automatic retry or replacement restore occurred.
+
+The first local validation invocation used an incorrect nested JSON anchor field
+and stopped before its dispatch marker or any request. The check was corrected
+against the actual anchor codec (`sourceAnchor.vaultID`) before the single
+product request. This was not a second release or authentication attempt.
+Raw evidence remains ignored under
+`tmp/piv-recovery/approval-incomplete-build24-release-2026-10-25/`.
+Next is a separately guided fresh disposable restore: approve Prepare, then
+cancel Publish after complete preparation is saved, followed by exact resume.
+
 ## Mini build24 installed; non-authenticating checks passed, 2026-10-25
 
 The exact receipt-verified build24 was installed on the Mini using normal
