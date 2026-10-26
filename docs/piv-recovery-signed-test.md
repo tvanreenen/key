@@ -1,9 +1,44 @@
 # Signed Preview two-Mac acceptance checklist
 
-Prepared 2026-10-22, updated 2026-10-25 for `REC-812`. This checklist records
+Prepared 2026-10-22, updated 2026-10-26 for `REC-812`. This checklist records
 scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
+
+## Mini build24 resumed-vault token-free reads and reopening passed, 2026-10-26
+
+Read-only preflight verified the installed build24 hashes, original physical
+location bindings and selection of resumed disposable vault
+`a7354dc7-6278-4041-b453-4c209e55178a`. Protected state matched the prior resume
+receipt. The owner confirmed the YubiKey unplugged and readiness to watch for
+Mac authentication. On macOS27.0.1 (26A434), ordinary health reported ready with
+two entries/no issues. Both the exact synthetic secret, including its newline,
+and TOTP against the known seed within the actual read interval matched.
+
+Normal lock stopped the first helper; subsequent ordinary secret/TOTP reads
+passed through a distinct helper, PID57013 replacing56773. Both mapped the
+installed build24 executable. TOTP had one counter candidate in each read,
+counter59767173. Final normal lock stopped the helper, with no subsequent vault
+request. No secret, seed or generated TOTP value/fingerprint was printed or
+persisted. Sensitive outputs stayed in memory; logs retain metadata/results only.
+Process freshness does not establish an exact user prompt count; that observation
+is separate from the data/process acceptance.
+
+The initial USB safety guard rejected an empty legacy `SPUSBDataType` result
+before any app/authentication request. Available profiler types include
+`SPUSBHostDataType`, not that legacy name. Direct IORegistry USB topology then
+provided the four absence checks: each showed four XHCI controllers, eleven
+nodes and no YubiKey. A nonempty controller topology was required; an unavailable
+or empty inventory was never counted as proof of absence. The stopped marker was
+preserved separately; no authentication or entry read was retried.
+
+Source and resumed published files, prior successful vault/selection backup,
+installed Stable/Preview, Stable config and Preview support hashes match their
+baselines. No recovery command, token API/write, entry mutation, actual-vault
+traversal, forced process stop or configuration reset occurred. This qualifies
+same-Mac ordinary use after exact resume without the token; independent Air
+recovery remains scoped to its earlier results. Raw evidence stays ignored under
+`tmp/piv-recovery/build24-resumed-ordinary-2026-10-26/`.
 
 ## Mini build24 complete-preparation cancellation and exact resume passed, 2026-10-25
 
