@@ -5,6 +5,53 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Signed build25 independent Air recovery of edited/rotated history, 2026-10-26
+
+The Air received the exact notarized build25 and only published encrypted source
+files: ten manifest versions, twelve encrypted entry versions and three current
+entries. No source Mac credentials, configuration, checkpoints, setup journals,
+plaintext fixtures or TOTP seed were supplied. Its existing disposable vault,
+source, journals and backups were preserved; the old Preview app and selected
+config/cache have verified recoverable backups. Installed signatures, ticket,
+Gatekeeper, both architecture slices and smartcard entitlement passed.
+
+Public key/source checks matched the recipient, recognized anchor, reported
+policies and expected current head. One restore into a missing destination
+succeeded in 42.430 seconds. The owner confirmed exactly one PIN dialog, physical
+touch, expected window behavior and closed dialogs. The three-entry destination
+has fresh vault/key/authority/device/entry IDs and no inherited recovery
+registration. This is independent recovery of the Mini's edited and rotated
+source, not recovery through the older Air-restored vault's credentials.
+
+After owner-confirmed unplug, both secret outputs matched their expected exact
+byte fingerprints, including newlines, on ordinary and fresh-helper passes.
+Health was ready with three entries, no issues/conflicts and no pending operation.
+Normal lock stopped helper PID 44295; the repeat used PID 44485 with the exact
+installed build25 image. Public token inventories were empty before and after.
+The final helper is stopped; source, old test state, selection backups, Stable
+app/config and the new destination's published files/config were preserved.
+
+The Mini independently checked both TOTP fingerprints against its retained
+synthetic seed and the actual read intervals using standard-library HMAC-SHA1.
+Repository public vectors passed; each observation had exactly one candidate
+counter, 59768031, and matched. Neither seed nor code was printed or transferred.
+This verifies TOTP continuity; the earlier edit reused the original seed.
+
+The public-inventory wrapper correction consumed saved output rather than
+repeating inventory. An extra sandboxed USB-registry probe then failed before
+restore dispatch; coordinating diagnosis reproduced the permission difference,
+and one elevated read-only Air probe succeeded. The original failed diagnostic
+is preserved. Exactly one restore was dispatched, with no retry/resume, token
+write, actual-vault access or product change.
+
+Raw packet identity, retrieved Air summaries, owner observations and independent
+`air-totp-verification.json` remain ignored under
+`tmp/piv-recovery/build25-air-edited-history-2026-10-26/`. Full native records stay
+in the Air's `piv-air-test` evidence directory. Its original TOTP-pending summary
+is preserved; the completed parent comparison is a separate local record. This
+closes the narrow independent edited/rotated-history case, not backup-token,
+remaining lifecycle or release qualification.
+
 ## Signed build25 recovery after edits and key rotation on Mini, 2026-10-26
 
 The registered disposable source was backed up and reselected without deleting
@@ -46,8 +93,9 @@ snapshots and `verification-result.json` remain ignored under
 This qualifies the observed same-Mac signed-product edit/rotation/recovery path.
 Original source Mac credentials remain in the local Preview Keychain, so it does
 not establish independent-device recovery of this newer history. Earlier Air
-recovery covered the pre-edit source. Next is independent Air recovery of this
-edited/rotated copy; backup-token and other lifecycle/release gates remain.
+recovery covered the pre-edit source. The subsequent independent Air result above
+qualifies this edited/rotated copy; backup-token and other lifecycle/release gates
+remain.
 
 ## Signed build25 CLI disconnect cancels pending recovery, 2026-10-26
 

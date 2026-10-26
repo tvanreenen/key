@@ -96,10 +96,10 @@ are the implementation packages, not new names for already completed probes.
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; selector, snapshot verifier and restore input integration implemented and reviewed; signed native provenance and physical acceptance remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; integrated workflow implemented/reviewed with host-lock regression fixed; protected administration and signed physical qualification remain |
-| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; build25 Mini ordinary edits and postrotation add/edit recovered exactly; signed branch/resolution and independent edited-history acceptance remain |
-| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes recorded; build25 Mini token-free rotation and same-Mac recovery passed with unchanged recipient/generation; independent rotated-history and remaining device/recipient lifecycle acceptance remain |
+| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; build25 ordinary edits and postrotation add/edit recovered exactly on Mini and independently on Air, with token-free fresh-helper reads; signed branch/resolution acceptance remains |
+| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes recorded; build25 Mini token-free rotation with unchanged recipient/generation and independent Air recovery of its later history passed; remaining device/recipient lifecycle acceptance remains |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; signed Mini registration/restore and independent Air restore passed, with token-free exact secret/TOTP and fresh-helper reopening on both; Mini PIN/touch cancellation, missing touch, physical removal, deadline/late PIN, owned-CLI disconnect and exact saved-attempt resume passed; build25 Mini ordinary edits, one key rotation, postrotation add/edit, full-history restore and token-free reopening passed; manual PIN-dialog dismissal accepted for Preview; independent Air edited/rotated-history recovery, backup-token and remaining history/lifecycle acceptance remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; signed Mini registration/restore and independent Air restore passed, with token-free exact secret/TOTP and fresh-helper reopening on both; Mini PIN/touch cancellation, missing touch, physical removal, deadline/late PIN, owned-CLI disconnect and exact saved-attempt resume passed; build25 ordinary edits, one token-free key rotation and postrotation add/edit recovered on Mini and independently on Air, with exact secret/TOTP and token-free fresh-helper reads; manual PIN-dialog dismissal accepted for Preview; backup-token and remaining history/lifecycle acceptance remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -328,9 +328,19 @@ secret/TOTP and the postrotation entry matched exactly, including after normal
 lock and fresh-helper reopening with the token absent. Public metadata and
 PIN/PUK 3/3 were unchanged; previous test state, selections, Stable state and
 installed code were preserved. The helper is stopped. This is same-Mac evidence;
-original source credentials still exist locally. Independent Air recovery of this
-edited/rotated history is next. Backup-token and remaining lifecycle/release gates
-stay open; no new build, token write or actual-vault access was involved.
+original source credentials still exist locally. A subsequent independent Air
+test recovered the same ten-version/three-entry history through exact installed
+build25 in 42.430 seconds, with one owner-observed PIN/touch. No source credentials,
+configuration, checkpoints or plaintext fixtures were transferred. Both latest
+secret outputs matched twice with the token absent, including after normal
+lock/fresh-helper reopening. Independent parent comparison also verified both
+TOTP fingerprints against the retained seed/read intervals; this qualifies seed
+continuity, not replacement. Old Air state and backups, source, Stable app/config
+and new destination published/config files were preserved; the final helper is
+stopped. The sandboxed USB diagnostic failure and successful elevated read are
+retained separately from the single successful restore. This closes the narrow
+independent edited/rotated-history case. Backup-token and remaining lifecycle/
+release gates stay open; no token write or actual-vault access was involved.
 
 Dependencies identify the implemented contracts needed to finish a package;
 they do not require every later physical qualification before coding starts.
