@@ -5,6 +5,35 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Matched-method Mac ACL prompt also cancels cleanly, 2026-10-26
+
+One owner-approved local Mac ACL comparison evaluated the in-memory biometric
+ACL with `evaluateAccessControl` and `.useKeyKeyExchange`, matching PIV's method
+and approval operation. The 20-second timer fired after approximately 22 seconds
+at whole-second resolution. The actual callback returned LocalAuthentication
+appCancel(-9); the owner observed exactly one unanswered Mac prompt close
+automatically. Context/ACL stayed retained through the approximately 84-second
+lifetime, about 62 seconds beyond callback. Normal exit was confirmed. The
+owner report was recorded after retention ended, so the precise dismissal time
+relative to callback is not independently established.
+
+Passive protected hashes match and Preview25's helper remains stopped. No key
+was generated/stored, and no Keychain query, token/vault operation or retry ran.
+No token/counter postcheck was needed for this no-token control; the preceding
+PIV postcheck remains the last verified PIN/PUK3/3 result. Raw events,
+observation and `result.json` remain ignored under
+`tmp/piv-recovery/pin-cancellation-mac-acl-2026-10-26/`.
+
+Both ordinary Mac policy evaluation and this matched-method local Mac ACL
+evaluation now have observed automatic UI closure in the harness, where the
+actual PIV ACL PIN UI remained visible. Matching method/operation removes that
+specific confound from the preceding comparison, narrowing the difference to
+the PIV ACL/constraint path. It does not identify the faulty component, rule out
+all integration differences, or qualify PIV cleanup. The local Apple-facing
+report draft now includes the third comparison and these limits. Nothing is
+submitted externally, no further authentication is scheduled, and automatic PIV
+cleanup stays blocking. No production workaround is applied from this result.
+
 ## Matched-method local Mac ACL control prepared, 2026-10-26
 
 The successful Mac comparison used `evaluatePolicy`; PIV uses
