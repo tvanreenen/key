@@ -2320,6 +2320,18 @@ return and cleanup, or pending public-read completion. Process termination clear
 local state but does not establish the token's authentication-cache state.
 Native provider failures expose a fixed category, not arbitrary diagnostic text.
 
+Access-control evaluation uses the actual framework reply as its completion
+boundary. Context invalidation is idempotent and does not synthesize a reply or
+release the waiting native worker/card lease. The caller can still stop waiting
+at its deadline or cancellation; late positive/duplicate replies cannot restore
+permission or start touch/agreement. This uses the existing worker and process
+gate rather than adding a separate native process or passing leases into the
+provider interface. If the framework never replies, the process gate stays busy.
+Helper exit does not prove dismissal of a separately hosted system PIN dialog.
+The build24 unanswered-PIN test observed such a remaining dialog; timeout guidance
+requires cancelling it without entering a PIN before using the key again. Native
+dialog dismissal remains unqualified until a separately observed retest.
+
 Scripted tests cover binding checks, session ordering, scope closure,
 cancellation, deadline, removal, anchor changes, and exclusion until delayed
 completion. They do not qualify native query delivery, physical identity, PIN or

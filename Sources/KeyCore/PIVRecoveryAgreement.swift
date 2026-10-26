@@ -30,7 +30,7 @@ extension PIVRecoveryAgreementError: LocalizedError {
     case .alreadyRequested: "This recovery request cannot start another key operation."
     case .scopeClosed: "The recovery request is no longer active."
     case .cancelled: "Recovery was cancelled. Preserve saved recovery state; no automatic retry was made."
-    case .deadlineExceeded: "The recovery request timed out. Preserve saved recovery state; no automatic retry was made."
+    case .deadlineExceeded: "The recovery request timed out. Preserve saved recovery state; no automatic retry was made. Cancel any remaining macOS PIN dialog without entering a PIN before using the key again."
     case .providerFailure: "The recovery key operation did not complete. No automatic retry was made."
     case .accessControlUnavailable: "macOS did not expose this key's access-control policy. No authentication or agreement was attempted."
     case .authenticationFailed: "macOS did not approve the recovery key. No key agreement was requested."
@@ -259,7 +259,7 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
   private var authenticating = false
   private var approved = false
   private let owner = UUID()
-  private let approval = Approval()
+  private let approval = PIVRecoveryAuthenticationReply()
 
   init() {
     context.interactionNotAllowed = true
@@ -273,8 +273,7 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
       return true
     }
     if shouldInvalidate {
-      approval.complete(false)
-      context.invalidate()
+      approval.invalidate { context.invalidate() }
     }
   }
 
@@ -346,7 +345,7 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
       authenticating = true
       context.interactionNotAllowed = false
       // Evaluate this key's actual ACL, never a replacement or PIN credential.
-      // The callback touches only Approval, so even an inline reply is safe.
+      // The callback touches only the reply, so even an inline reply is safe.
       context.evaluateAccessControl(accessControl, operation: .useKeyKeyExchange,
         localizedReason: "Approve the selected Key vault recovery credential") { [approval] success, error in
           approval.complete(success && error == nil)
@@ -389,26 +388,6 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
     return (value as! SecAccessControl)
   }
 
-  /// Invalidating the session wakes the waiter even when the native callback
-  /// does not return promptly. A late/duplicate callback cannot revive it.
-  private final class Approval: @unchecked Sendable {
-    private let lock = NSLock()
-    private let ready = DispatchSemaphore(value: 0)
-    private var result: Bool?
-    func complete(_ success: Bool) {
-      let first = lock.withLock {
-        guard result == nil else { return false }
-        result = success
-        return true
-      }
-      if first { ready.signal() }
-    }
-    func wait() -> Bool {
-      ready.wait()
-      return lock.withLock { result == true }
-    }
-  }
-
   private static func importPublicKey(_ bytes: Data) throws -> SecKey {
     _ = try P256.KeyAgreement.PublicKey(x963Representation: bytes)
     var error: Unmanaged<CFError>?
@@ -432,5 +411,40 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
     let isP256PrivateKey: Bool
     let supportsStandardECDH: Bool
     let accessControl: SecAccessControl?
+  }
+}
+
+/// Joins one native authentication callback while retaining the worker's card
+/// lease. The enclosing request owns its separate bounded cancellation wait.
+final class PIVRecoveryAuthenticationReply: @unchecked Sendable {
+  private let lock = NSLock()
+  private let ready = DispatchSemaphore(value: 0)
+  private var result: Bool?
+  private var invalidated = false
+
+  func invalidate(_ invalidateContext: () -> Void) {
+    let first = lock.withLock {
+      guard !invalidated else { return false }
+      invalidated = true
+      return true
+    }
+    // Requesting cancellation is not observing native completion. Only the
+    // framework callback may release wait() and therefore the operation lease.
+    if first { invalidateContext() }
+  }
+
+  func complete(_ success: Bool) {
+    let first = lock.withLock {
+      guard result == nil else { return false }
+      result = success && !invalidated
+      return true
+    }
+    if first { ready.signal() }
+  }
+
+  /// One native worker waits; duplicate replies cannot release another waiter.
+  func wait() -> Bool {
+    ready.wait()
+    return lock.withLock { result == true && !invalidated }
   }
 }
