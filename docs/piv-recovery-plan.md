@@ -96,10 +96,10 @@ are the implementation packages, not new names for already completed probes.
 | `REC-806` | Token-anchored history selection and complete snapshot verification | 805 | In progress; selector, snapshot verifier and restore input integration implemented and reviewed; signed native provenance and physical acceptance remain |
 | `REC-807` | Product token binding, external administration, and credential lifecycle | 804 | In progress; reader, scoped agreement and configured key-policy checks implemented; all administration stays in owner-run vendor tools; external workflow, capabilities and physical qualification remain |
 | `REC-808` | Authenticated registration and status, including interruption reconciliation | 805, 806, 807 | In progress; integrated workflow implemented/reviewed with host-lock regression fixed; protected administration and signed physical qualification remain |
-| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
-| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
+| `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; build25 Mini ordinary edits and postrotation add/edit recovered exactly; signed branch/resolution and independent edited-history acceptance remain |
+| `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes recorded; build25 Mini token-free rotation and same-Mac recovery passed with unchanged recipient/generation; independent rotated-history and remaining device/recipient lifecycle acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and independent Air restore, with token-free exact secret/TOTP and fresh-helper reopening on both; Mini PIN and visible touch-window cancellation passed; build24 exact incomplete-reservation release, distinct Mac cues, complete-preparation Publish cancellation, fresh-helper exact-byte resume, token-free post-resume secret/TOTP/fresh-helper reads, safe missing-touch failure and physical token-removal failure passed; five Mac approvals observed on resume; unanswered-PIN deadline enforced but native PIN-dialog cleanup failed; premature native-waiter release fixed with callback diagnostics and software/build checks, build25 deadline and real appCancel callback verified, but system PIN UI still requires manual Cancel; owner accepts manual dismissal as a temporary Preview limitation; retained-object background, main-thread and released-key-handle controls still required manual Cancel; attributes-first/fresh-context still leaves PIN UI; ordinary Mac-biometry policy and matched-method Mac ACL dismiss automatically; direct-operation comparison also stays pending until owner Cancel; no automatic cleanup fix established; signed late-PIN timeout refusal and owned-CLI-disconnect cancellation passed with unchanged state and public metadata/PIN/PUK3/3; backup-token and remaining history/lifecycle acceptance remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; signed Mini registration/restore and independent Air restore passed, with token-free exact secret/TOTP and fresh-helper reopening on both; Mini PIN/touch cancellation, missing touch, physical removal, deadline/late PIN, owned-CLI disconnect and exact saved-attempt resume passed; build25 Mini ordinary edits, one key rotation, postrotation add/edit, full-history restore and token-free reopening passed; manual PIN-dialog dismissal accepted for Preview; independent Air edited/rotated-history recovery, backup-token and remaining history/lifecycle acceptance remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -316,6 +316,21 @@ acceptance, independent backup-token and release qualification remain separate
 gates. No product rebuild or support handoff is involved. The
 [signed-test record](piv-recovery-signed-test.md) separates owner observations,
 system-log evidence and remaining acceptance work.
+
+The next installed build25 Mini history test passed ordinary secret/TOTP edits,
+one token-free key rotation and further add/edit operations after rotation.
+An encrypted backup preserves the original source; all old published objects
+remain unchanged. The rotation changed key/epoch authority and recovery wrappers
+while preserving the recipient and recovery generation. A frozen copy with ten
+manifest versions and three current entries restored into a missing disposable
+folder with exactly one owner-observed PIN dialog and physical touch. Latest
+secret/TOTP and the postrotation entry matched exactly, including after normal
+lock and fresh-helper reopening with the token absent. Public metadata and
+PIN/PUK 3/3 were unchanged; previous test state, selections, Stable state and
+installed code were preserved. The helper is stopped. This is same-Mac evidence;
+original source credentials still exist locally. Independent Air recovery of this
+edited/rotated history is next. Backup-token and remaining lifecycle/release gates
+stay open; no new build, token write or actual-vault access was involved.
 
 Dependencies identify the implemented contracts needed to finish a package;
 they do not require every later physical qualification before coding starts.

@@ -5,6 +5,47 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Signed build25 recovery after edits and key rotation on Mini, 2026-10-26
+
+The registered disposable source was backed up and reselected without deleting
+prior Preview records or selection backups. With the YubiKey unplugged, ordinary
+commands replaced its secret and TOTP seed, then committed one vault-key rotation.
+The rotation changed the key, epoch authority and recovery wrappers while retaining
+the recipient and recovery generation. A further secret edit and a new entry after
+rotation passed exact readback, including TOTP checked against the seed and read
+interval. Normal lock and a fresh helper reopened the source with the token absent.
+All older encrypted source objects were preserved.
+
+Only published manifests and encrypted entries were copied into a frozen source:
+ten manifest versions and three current entries. One installed build25 restore
+into a missing disposable destination succeeded in 29.501 seconds. The owner
+confirmed exactly one PIN dialog, physical touch, expected touch-window dismissal
+and closed dialogs. Source history required no additional hardware approvals.
+The destination has fresh vault, key, authority, device and entry IDs, with no
+inherited recovery registration. The source and frozen copy were unchanged.
+
+After confirmed UI closure, normal helper shutdown and one public-only token
+postcheck passed unchanged metadata and PIN/PUK 3/3. The owner unplugged the key.
+Ordinary reads then recovered the latest secret, changed TOTP seed and entry added
+after rotation exactly. A second normal lock/fresh-helper cycle repeated those
+checks successfully. Source backups, earlier disposable state, saved selections,
+Stable app/config and installed code were preserved; the final helper is stopped.
+No entry values were logged, token writes requested or actual-vault files accessed.
+
+Preparation retained two harness stops: an empty existing cache directory was
+initially refused before any change; after correcting that guard, the first
+public-only XPC request closed during helper startup. Normal helper startup and
+explicit readiness checks completed preparation before any authentication or
+edit. Neither rotation nor restore was retried. Raw scripts, observations,
+snapshots and `verification-result.json` remain ignored under
+`tmp/piv-recovery/build25-edits-rotation-2026-10-26/`.
+
+This qualifies the observed same-Mac signed-product edit/rotation/recovery path.
+Original source Mac credentials remain in the local Preview Keychain, so it does
+not establish independent-device recovery of this newer history. Earlier Air
+recovery covered the pre-edit source. Next is independent Air recovery of this
+edited/rotated copy; backup-token and other lifecycle/release gates remain.
+
 ## Signed build25 CLI disconnect cancels pending recovery, 2026-10-26
 
 One owner-approved installed-product restore used the frozen disposable source
