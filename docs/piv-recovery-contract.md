@@ -2326,11 +2326,22 @@ release the waiting native worker/card lease. The caller can still stop waiting
 at its deadline or cancellation; late positive/duplicate replies cannot restore
 permission or start touch/agreement. This uses the existing worker and process
 gate rather than adding a separate native process or passing leases into the
-provider interface. If the framework never replies, the process gate stays busy.
+provider interface. Waking the worker early while retaining a lease elsewhere
+would require another ownership handoff; retaining the existing worker keeps
+that lifetime with the native call. If the framework never replies, the process
+gate stays busy.
 Helper exit does not prove dismissal of a separately hosted system PIN dialog.
 The build24 unanswered-PIN test observed such a remaining dialog; timeout guidance
 requires cancelling it without entering a PIN before using the key again. Native
 dialog dismissal remains unqualified until a separately observed retest.
+
+Native authentication lifecycle diagnostics use the current bundle's logging
+subsystem and category `PIVAuthentication`. Fixed events distinguish evaluation
+start, context-invalidation request/return and the actual framework callback.
+Callback fields are success/error booleans, a LocalAuthentication-domain boolean
+and a numeric code. No native error text/userInfo, PIN, key/certificate/token
+identifier, peer point, secret or vault path is logged. These events identify
+callback delivery, not proof that a system dialog has closed.
 
 Scripted tests cover binding checks, session ordering, scope closure,
 cancellation, deadline, removal, anchor changes, and exclusion until delayed

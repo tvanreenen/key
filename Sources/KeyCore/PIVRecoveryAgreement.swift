@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import LocalAuthentication
+import OSLog
 import Security
 
 enum PIVRecoveryAgreementError: Error, Equatable {
@@ -260,6 +261,8 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
   private var approved = false
   private let owner = UUID()
   private let approval = PIVRecoveryAuthenticationReply()
+  private let logger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "work.tvr.key", category: "PIVAuthentication")
 
   init() {
     context.interactionNotAllowed = true
@@ -273,7 +276,11 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
       return true
     }
     if shouldInvalidate {
-      approval.invalidate { context.invalidate() }
+      approval.invalidate {
+        logger.notice("Native authentication context invalidation requested")
+        context.invalidate()
+        logger.notice("Native authentication context invalidation returned")
+      }
     }
   }
 
@@ -346,8 +353,14 @@ private final class PIVNativeAgreementSession: PIVRecoveryAgreementSession, @unc
       context.interactionNotAllowed = false
       // Evaluate this key's actual ACL, never a replacement or PIN credential.
       // The callback touches only the reply, so even an inline reply is safe.
+      logger.notice("Native access-control evaluation started")
       context.evaluateAccessControl(accessControl, operation: .useKeyKeyExchange,
-        localizedReason: "Approve the selected Key vault recovery credential") { [approval] success, error in
+        localizedReason: "Approve the selected Key vault recovery credential") { [approval, logger] success, error in
+          // Fixed labels/booleans and numeric code only; never native text.
+          let native = error as NSError?
+          let localAuthentication = native?.domain == LAError.errorDomain
+          let code = native?.code ?? 0
+          logger.notice("Native authentication callback received: success=\(success, privacy: .public), error=\(error != nil, privacy: .public), local-authentication=\(localAuthentication, privacy: .public), code=\(code, privacy: .public)")
           approval.complete(success && error == nil)
         }
     }

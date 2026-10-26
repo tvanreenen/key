@@ -5,6 +5,47 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Native authentication lifetime fixed in source; signed retest pending, 2026-10-26
+
+The native session previously completed its local approval waiter during
+invalidation, before receiving the real framework callback. That could release
+the process's card-operation lease and mutate the context's interaction setting
+while native authentication remained unresolved. The source fix in `87e311d`
+keeps that worker/lease until the actual callback arrives. The outer request
+still returns at cancellation/deadline; late approval cannot start touch or
+agreement, duplicate callbacks cannot revive the request, and invalidation stays
+idempotent. No provider-interface, persistent-format or token-policy change was
+needed. If the callback never returns, the process gate remains busy. This
+corrects premature local release; it does not establish the cause or repair of
+the observed external PIN dialog. Timeout text now instructs cancelling any
+remaining PIN dialog without entering a PIN before using the key again.
+
+Three software regressions exercise the native reply coordinator and the
+composed operation lease, including late positive/negative callbacks after
+cancellation/deadline and inline invalidation callbacks. With the old synthetic
+completion preserved during extraction, two regressions failed with nine
+issues; all three passed after removing it. A combined run initially failed
+short worker-entry/synchronization waits, including in existing tests. With
+test-level parallelism explicitly disabled, all 72 tests across agreement,
+reader, progress, anonymous XPC and recovery-routing suites passed. Explicit
+in-test races remain active; no production deadline or unrelated test timeout
+was changed. The final rebuilt run passed in 11.085 seconds.
+
+Native-only diagnostics distinguish evaluation start, invalidation request and
+return, and actual authentication callback delivery. Logs use the bundle
+subsystem/category `PIVAuthentication`, fixed labels, booleans and a numeric
+error code; no native descriptions/userInfo, PIN, token/key/certificate IDs,
+secret, peer point or vault path. These compiled paths have not yet been
+exercised in a new signed native run and do not prove UI dismissal.
+
+The normal PreviewRelease host, CLI and helper build succeeds for arm64 and
+x86_64 with signing disabled in an isolated ignored directory. No build was
+installed/launched, signed/notarized, or used for further authentication. The
+installed build24 and its failed UI-cleanup observation remain unchanged.
+Next is preparing a signed diagnostic candidate and a separately observed
+deadline retest before the CLI-disconnect test. Raw evidence remains ignored
+under `tmp/piv-recovery/native-authentication-lifetime-2026-10-26/`.
+
 ## Mini build24 deadline enforced; unanswered PIN dialog remained, 2026-10-26
 
 After explicit owner readiness and fresh public preflight, one disposable
