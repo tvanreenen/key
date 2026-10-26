@@ -5,6 +5,29 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Mini build24 installed; non-authenticating checks passed, 2026-10-25
+
+The exact receipt-verified build24 was installed on the Mini using normal
+Preview-only quit/helper unregistration and the existing installer. A complete,
+byte-identical, ticket/Gatekeeper-verified build23 rollback remains. Installed
+executable hashes, bundle comparison, strict signatures and ticket checks pass.
+The registered/running helper reports parent bundle version24 and maps the
+expected installed executable. The CLI exposes the new abandonment help; an
+ordinary status request confirms Preview remains unconfigured.
+
+The configuration-root identity, Preview support files, Stable app/config,
+scoped disposable sources and earlier restores match the protected snapshots.
+Reservation `3ec1cec1-50da-4200-b9d9-31956003cef4` still has SHA256
+`4f08e3c0f59996853bfddea06e2b0198f6eb40d82335ddf3d9a9c0bd52dc9db1`;
+its original destination remains empty and no complete preparation exists.
+No recovery, abandonment, Mac/YubiKey authentication, token operation/write or
+actual-vault traversal occurred. Native approval-cue/abandonment/resume acceptance
+remains open. The owner is being asked for explicit permission before releasing
+this disposable reservation, because the prior instruction was to preserve it.
+
+Raw installation/postcheck evidence and rollback remain ignored under
+`tmp/piv-recovery/approval-incomplete-build24-install-2026-10-25/`.
+
 ## Build24 notarization and detailed receipt verified, 2026-10-25
 
 Normal universal PreviewRelease build24 was archived from clean source
