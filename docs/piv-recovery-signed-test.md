@@ -5,6 +5,50 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Online investigation leads to attributes-first/fresh-context control, 2026-10-26
+
+Targeted Apple documentation/forum searches did not locate a directly matching
+documented PIV PIN-UI cleanup fix; that is not an exhaustive absence claim.
+[Apple's WWDC22 authorization example](https://developer.apple.com/videos/play/wwdc2022/10108/)
+reads the key's ACL with an attributes-only query, evaluates it in a fresh
+context, then obtains the key reference using the approved context. It demonstrates
+Secure Enclave authorization, not a PIV cancellation guarantee.
+
+Our three previous controls instead supplied the evaluation context to a
+private-key-reference lookup before evaluating the ACL. Dropping the handle did
+not test a context that had never been supplied to that lookup. Apple's
+[published reference result processing](https://github.com/apple-oss-distributions/Security/blob/db15acbe6a7f257a859ad9a3bb86097bfe0679d9/OSX/sec/Security/SecItem.m#L1127)
+also distinguishes attributes-only results from token-value/reference work and
+[returned-reference creation](https://github.com/apple-oss-distributions/Security/blob/db15acbe6a7f257a859ad9a3bb86097bfe0679d9/OSX/sec/Security/SecItem.m#L1269).
+This supports testing whether pre-evaluation query binding contributes to
+cancellation ownership. It does not prove that binding caused the remaining UI
+or that the reference code exactly matches the installed OS.
+
+A separate local control now reads only attributes for the exact token, pinned
+public-key label and private-P256 metadata. It retains the actual ACL, invalidates
+and releases its separate noninteractive lookup context, drains lookup
+temporaries, then creates the evaluation context. That fresh context is never
+passed to a Keychain query. No token private-key reference is requested. The
+background evaluation, 20-second invalidation, 80-second context/ACL lifetime,
+100-second outer bound, diagnostic identity and entitlements match the preceding
+control where applicable. All previous evidence and installed Preview25 remain
+unchanged. No production code changed.
+
+Compile, Developer ID signature/identity/entitlements, default/invalid/incomplete
+argument refusal checks and passive protected hashes pass. Only those no-native
+paths have run; no token lookup or authentication occurred during preparation.
+The guarded launcher requires renewed owner readiness and fresh public preflight.
+One actual unanswered PIN dialog must appear for a valid comparison. Real
+appCancel plus owner-observed automatic UI closure would support further
+production investigation; appCancel with a visible dialog would supply no fix.
+Missing UI, lookup failure or early evaluation failure is inconclusive. No
+agreement follows any outcome, and public card postchecking waits for confirmed
+UI closure and normal control exit. Automatic cleanup remains blocking.
+
+Source, signed app, source notes, hashes, guards and the unexecuted one-shot
+launcher stay ignored under
+`tmp/piv-recovery/pin-cancellation-fresh-context-2026-10-26/`.
+
 ## Released-key-handle control still requires blank Cancel, 2026-10-26
 
 One separately owner-approved run released the temporary Mac-side `SecKey`
