@@ -5,6 +5,40 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Direct operation also stays pending until owner Cancel, 2026-10-26
+
+One explicitly owner-authorized direct-operation comparison passed public
+preflight and exact key selection, then entered one application agreement API
+call without separate ACL preapproval. Context invalidation was requested and
+returned after approximately 21 seconds at whole-second resolution. The owner
+observed exactly one unanswered PIN dialog still visible; the native operation
+had not returned when that observation was recorded.
+
+After the owner cancelled the blank dialog, the native call returned
+LocalAuthentication userCancel(-2), with no agreement result, approximately
+76 seconds after entry and 55 seconds after invalidation. Context/key/worker
+remained retained until actual return and retention completion; the control
+exited normally at approximately 84 seconds, without forced termination. One
+application API invocation and no app retry are recorded; the framework's
+internal low-level attempt count is not established. No key generation, token
+configuration change or actual-vault access occurred.
+
+Only after owner-confirmed UI closure, native return and normal exit, one
+public-only postcheck confirmed unchanged metadata and PIN/PUK3/3. Protected
+hashes match and Preview25's helper remains stopped. Raw events, observation,
+launch and `result.json` remain ignored under
+`tmp/piv-recovery/pin-cancellation-direct-operation-2026-10-26/`.
+
+This demonstrates no cleanup fix from direct operation-owned authentication.
+In this run the PIV work was still awaiting the UI, rather than merely leaving
+a stale window after native completion. Together with clean ordinary Mac policy
+and matched-method local Mac ACL dismissal, it supports investigating cancellation
+propagation in the PIV path. It does not prove an OS/provider defect or exclude
+an unsupported API-handoff assumption. No supported app-side cleanup fix is
+established. The local report draft includes this result; nothing is submitted
+externally, no further authentication is scheduled, and PIV cleanup remains
+blocking. No production change follows from this control.
+
 ## Direct-operation authentication ownership control prepared, 2026-10-26
 
 Further review of Apple's

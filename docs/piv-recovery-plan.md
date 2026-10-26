@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and independent Air restore, with token-free exact secret/TOTP and fresh-helper reopening on both; Mini PIN and visible touch-window cancellation passed; build24 exact incomplete-reservation release, distinct Mac cues, complete-preparation Publish cancellation, fresh-helper exact-byte resume, token-free post-resume secret/TOTP/fresh-helper reads, safe missing-touch failure and physical token-removal failure passed; five Mac approvals observed on resume; unanswered-PIN deadline enforced but native PIN-dialog cleanup failed; premature native-waiter release fixed with callback diagnostics and software/build checks, build25 deadline and real appCancel callback verified, but system PIN UI still requires manual Cancel; owner keeps automatic cleanup blocking; retained-object background, main-thread and released-key-handle controls still required manual Cancel; attributes-first/fresh-context still leaves PIN UI; ordinary Mac-biometry policy and matched-method Mac ACL dismiss automatically; direct-operation ownership comparison prepared, not authorized/run; CLI-disconnect deferred; backup-token and remaining history acceptance remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and independent Air restore, with token-free exact secret/TOTP and fresh-helper reopening on both; Mini PIN and visible touch-window cancellation passed; build24 exact incomplete-reservation release, distinct Mac cues, complete-preparation Publish cancellation, fresh-helper exact-byte resume, token-free post-resume secret/TOTP/fresh-helper reads, safe missing-touch failure and physical token-removal failure passed; five Mac approvals observed on resume; unanswered-PIN deadline enforced but native PIN-dialog cleanup failed; premature native-waiter release fixed with callback diagnostics and software/build checks, build25 deadline and real appCancel callback verified, but system PIN UI still requires manual Cancel; owner keeps automatic cleanup blocking; retained-object background, main-thread and released-key-handle controls still required manual Cancel; attributes-first/fresh-context still leaves PIN UI; ordinary Mac-biometry policy and matched-method Mac ACL dismiss automatically; direct-operation comparison also stays pending until owner Cancel; no supported cleanup fix established; CLI-disconnect deferred; backup-token and remaining history acceptance remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -267,9 +267,19 @@ discarded. Native framework retry behavior is outside the client's control and
 not claimed absent. The timed worker covers lookup/operation, refuses post-cancel
 admission and stays alive until actual native return plus retention completion;
 no forced timeout exit permits an early card postcheck. Compile/signature,
-public-peer/redaction and default/refusal checks pass; no token lookup/auth or
-agreement has run. A working cancellation result would still need security and
-PIN-to-touch cue review before any implementation. No production change follows
+public-peer/redaction and default/refusal checks passed before new explicit
+owner authorization for one direct-operation cancellation attempt. Exact lookup
+passed and one application agreement call started. Invalidation at about21s
+left the PIN UI visible and native call pending. Owner blank Cancel then yielded
+userCancel(-2), no agreement result, at about76s; worker retention and normal
+exit completed at about84s. No app retry/forced termination occurred; native
+low-level attempt count is not established. Only afterward, one public postcheck
+passed metadata/PIN/PUK3/3 and protected hashes; helper remains stopped. This
+supplies no direct-path cleanup fix and shows the PIV native work still awaiting
+UI cancellation, not merely a stale post-completion window. Cancellation
+propagation remains a platform/integration question, without proven component
+fault. Local report updated; nothing submitted externally and no further auth
+scheduled. No supported app-side fix is established. PIV cleanup remains blocking. No production change follows
 without a demonstrated result and subsequent helper qualification.
 Production build25 remains unchanged and CLI-disconnect stays deferred. The
 [signed-test record](piv-recovery-signed-test.md) separates owner observations,
