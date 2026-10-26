@@ -6,7 +6,8 @@ enum V3RecoveryLifecycleContextError: Error {
 
 /// Shared state validation for already-admitted profile-3 lifecycle operations.
 /// Services retain approval policy, private operations, publication, exact resume
-/// selection and failure handling. This context never authenticates or retries.
+/// selection and failure handling. This context never requests native approval
+/// or retries an operation.
 struct V3RecoveryLifecycleContext: Sendable {
   struct Current: Sendable {
     let checkpoint: V3ManifestCheckpoint
