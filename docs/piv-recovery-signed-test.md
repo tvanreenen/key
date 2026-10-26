@@ -5,6 +5,57 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Mini build24 complete-preparation cancellation and exact resume passed, 2026-10-25
+
+The first build24 attempt completed a full two-entry disposable restore after
+the owner approved everything, exit0 in20.521 seconds. This was preserved as
+successful restore evidence, not counted as cancellation. Passive checks confirmed
+fresh authority IDs, exact ciphertext digests and a permanent device-wrapped
+profile without inherited recovery registration. Vault
+`ec38fc5d-e3b4-488f-b6f6-29309dfbfa2f` remains intact. Its Preview selection/cache
+were backed up before another fresh disposable attempt; original support-root
+identity and inert completed journals were retained. The first unconfigured
+status check reported a closed helper connection; a separate read-only check
+after verified build24 registration passed. No failed authentication was retried.
+
+On the explicitly renewed attempt the owner approved source PIN/touch and
+`Prepare restored vault on this Mac`, then confirmed cancelling
+`Publish prepared restored vault`. The request stopped after the complete-saved
+and Publish progress stages, exit1 in22.801 seconds, without reaching activation.
+Configuration remained absent and the new destination empty. Both exact records
+remained for operation `d523f9a4-1da4-4e4a-9d79-77ba1d4c2515`, reserving vault
+`a7354dc7-6278-4041-b453-4c209e55178a`. Passive checks confirmed canonical bundle,
+manifest/entry digests, source/location bindings and unchanged prior records.
+Normal lock stopped the helper without changing saved records or ownership.
+This qualifies complete-preparation cancellation, unlike the earlier
+reservation-only cancellation. Parsing alone was not treated as cryptographic
+authority; explicit resume still performed the native ownership/crypto checks.
+
+The owner then separately approved one explicit resume with the exact original
+source/destination/token/recipient. It succeeded through a fresh helper, selected
+the original reserved vault and completed normal helper shutdown. The retained
+reservation and preparation files are byte-identical; published genesis and both
+entry objects are byte-identical to the saved bundle. Operation, vault, key,
+device and entry IDs match. No new identity or resealing was substituted. Source,
+prior successful vaults/selection backup, installed code and Stable state match;
+only the expected new selection and checkpoint cache were added to local files.
+The resulting vault remains permanent device-wrapped with no recovery key
+registered. Public token checks report unchanged expected state and PIN/PUK3/3.
+No actual-vault traversal, token write or automatic retry occurred.
+
+The owner confirmed YubiKey PIN/touch followed by **five Mac approvals** during
+resume. These are separate local wrapper/trust/activation checks, not additional
+YubiKey approvals. The count is an observed UX cost to review; this acceptance
+does not relax those checks or promise a fixed prompt count. Ordinary entry reads
+after this completed resume were not requested in this run; earlier two-Mac
+ordinary-access qualification remains separately scoped below.
+
+Raw evidence remains ignored under
+`tmp/piv-recovery/approval-incomplete-build24-resume-2026-10-25/` and
+`tmp/piv-recovery/approval-incomplete-build24-resume-retest-2026-10-25/`.
+The latter contains saved preparation, exact-resume and public postcheck receipts;
+the first contains the preserved complete vault and its selection/cache backup.
+
 ## Mini build24 explicit incomplete-reservation release passed, 2026-10-25
 
 After direct owner permission superseded preservation of only this disposable
