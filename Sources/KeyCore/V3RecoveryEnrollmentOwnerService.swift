@@ -51,7 +51,9 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
   }
 
   func prepare(invitationDigest: Data, at unixTime: UInt64) throws -> V3RecoveryEnrollmentReview {
-    try loadBase(invitationDigest: invitationDigest, at: unixTime).review
+    try loadBase(
+      invitationDigest: invitationDigest, at: unixTime,
+      continuing: session.beginAuthentication()).review
   }
 
   func approve(
@@ -63,42 +65,33 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
       guard expectedCheckpoint.vaultID == vaultID else {
         throw V3RecoveryDeviceEnrollmentError.invalidCandidate
       }
-      try requireCheckpoint(expectedCheckpoint)
+      try lifecycle.requireCheckpoint(expectedCheckpoint)
       let ticket = session.beginAuthentication()
-      let base = try loadBase(invitationDigest: invitationDigest, at: unixTime)
+      let base = try loadBase(
+        invitationDigest: invitationDigest, at: unixTime, continuing: ticket)
       guard base.review.checkpoint == expectedCheckpoint,
         approvedTranscriptDigest.count == 32,
         base.review.transcript.digest == approvedTranscriptDigest
       else { throw V3RecoveryDeviceEnrollmentError.invalidCeremony }
       try session.requireCurrent(ticket)
-      let nextKey = try freshKey(excluding: base.envelope.body.fields.keyID)
+      let nextKey = try freshKey(excluding: base.current.envelope.body.fields.keyID)
       let candidate = try V3RecoveryDeviceEnrollmentBuilder(limits: limits).build(
-        checkpoint: expectedCheckpoint, parent: base.envelope, currentEntries: base.source.entries,
-        state: base.ceremony, currentVaultKey: base.key, nextVaultKey: nextKey, owner: identity,
+        checkpoint: expectedCheckpoint, parent: base.current.envelope,
+        currentEntries: base.current.source.entries,
+        state: base.ceremony, currentVaultKey: base.current.key, nextVaultKey: nextKey, owner: identity,
         at: unixTime,
         reason: "Give the Mac whose code you compared access and change the vault key.")
-      try session.requireCurrent(ticket)
-      try requireNoPending()
-      try requireCheckpoint(expectedCheckpoint)
       try requireSameCeremony(base.ceremony, consumed: false)
-      guard
-        try objects.observe(
-          checkpoint: expectedCheckpoint, expectedBase: base.envelope.canonicalBytes)
-          == base.source,
-        try session.load(vaultID: vaultID, keyID: base.envelope.body.fields.keyID) == base.key
-      else { throw V3RecoveryValidationError.sourceChanged }
+      try lifecycle.revalidate(base.current)
       let publisher = publisher(operationID)
       let commit = try publisher.publish(
         candidate, state: base.ceremony, approvedTranscriptDigest: approvedTranscriptDigest,
-        currentVaultKey: base.key, nextVaultKey: nextKey,
+        currentVaultKey: base.current.key, nextVaultKey: nextKey,
         identity: SessionBoundUnwrapper(base: identity, session: session, ticket: ticket),
         at: unixTime, reason: "Verify this Mac can open the approved enrollment's new vault key.")
-      try requireCommitted(
-        commit.envelope, ceremony: base.ceremony, vaultKey: nextKey, operationID: operationID,
-        publisher: publisher)
-      try session.install(
-        nextKey, vaultID: vaultID, keyID: commit.envelope.body.fields.keyID,
-        authenticationTicket: ticket)
+      try installCommitted(
+        commit.envelope, ceremony: base.ceremony, vaultKey: nextKey, continuing: ticket,
+        operationID: operationID, publisher: publisher)
       return commit
     } catch {
       // Never install from an error, undo commitment or erase pending approval.
@@ -167,13 +160,10 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
         expectedAnchor: state.anchorData)
       switch outcome {
       case .completed, .alreadyCompleted:
-        try requireNoPending()
-        try requireCommitted(
+        try lifecycle.requireNoPending()
+        try installCommitted(
           checked.candidate.envelope, ceremony: ceremony, vaultKey: nextKey,
-          operationID: state.intent.operationID, publisher: publisher)
-        try session.install(
-          nextKey, vaultID: vaultID,
-          keyID: checked.candidate.envelope.body.fields.keyID, authenticationTicket: ticket)
+          continuing: ticket, operationID: state.intent.operationID, publisher: publisher)
       case .nothingToRecover, .abandoned: session.invalidate()
       }
       return outcome
@@ -186,21 +176,27 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
   private struct Base {
     let review: V3RecoveryEnrollmentReview
     let ceremony: V3EnrollmentCeremonyState
-    let envelope: V3RecoveryManifestEnvelope
-    let key: Data
-    let source: V3ExactTransitionRepositoryState
+    let current: V3RecoveryLifecycleContext.Current
   }
   private var objects: V3ExactTransitionRepository { .init(source: store, limits: limits) }
   private var snapshots: V3EntrySnapshotValidator { .init(limits: limits) }
+  private var lifecycle: V3RecoveryLifecycleContext {
+    .init(
+      vaultID: vaultID, identity: identity.publicIdentity, session: session, source: store,
+      checkpoints: checkpoints, ownership: ownership, registration: registration, adoption: adoption,
+      limits: limits, validateScope: {})
+  }
 
-  private func loadBase(invitationDigest: Data, at unixTime: UInt64) throws -> Base {
-    try requireNoPending()
+  private func loadBase(
+    invitationDigest: Data, at unixTime: UInt64,
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  ) throws -> Base {
+    try lifecycle.requireNoPending()
     let ceremony = try loadCeremony(invitationDigest)
     let compared = try transcript(ceremony)
     let checkpoint = try V3ManifestCheckpoint(
-      vaultID: vaultID,
-      envelopeDigest: compared.invitation.parentManifestDigest)
-    try requireCheckpoint(checkpoint)
+      vaultID: vaultID, envelopeDigest: compared.invitation.parentManifestDigest)
+    try lifecycle.requireCheckpoint(checkpoint)
     let envelope = try V3RecoveryManifestCodec().parseEnvelope(
       objects.readManifest(checkpoint.envelopeDigest))
     let policy = V3RecoveryDeviceEnrollmentValidator(limits: limits)
@@ -208,20 +204,20 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
       ceremony, checkpoint: checkpoint, parent: envelope,
       expectedOwner: identity.publicIdentity, at: unixTime)
     _ = try policy.resultingDevices(
-      parent: envelope.body.fields.devices,
-      joining: compared.joinRequest.joiningDevice)
-    let key = try session.load(vaultID: vaultID, keyID: envelope.body.fields.keyID)
-    try V3RecoveryContentMutationValidator(limits: limits).validateParent(
-      envelope, checkpoint: checkpoint, vaultKey: key)
-    let source = try objects.observe(checkpoint: checkpoint, expectedBase: envelope.canonicalBytes)
-    _ = try snapshots.plaintexts(
-      fields: envelope.body.fields, entries: source.entries, vaultKey: key)
-    try requireNoPending()
-    try requireCheckpoint(checkpoint)
+      parent: envelope.body.fields.devices, joining: compared.joinRequest.joiningDevice)
+    let current: V3RecoveryLifecycleContext.Current
+    do { current = try lifecycle.current(continuing: ticket) }
+    catch V3RecoveryLifecycleContextError.invalidOwner {
+      throw V3RecoveryDeviceEnrollmentError.invalidOwner
+    }
+    guard current.checkpoint == checkpoint, current.envelope == envelope else {
+      throw V3RecoveryValidationError.sourceChanged
+    }
     try requireSameCeremony(ceremony, consumed: false)
+    try session.requireCurrent(ticket)
     return .init(
       review: .init(checkpoint: checkpoint, transcript: compared), ceremony: ceremony,
-      envelope: envelope, key: key, source: source)
+      current: current)
   }
 
   private struct RecoverySource {
@@ -306,53 +302,40 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
       checked.source, observed.source, candidateDigest: state.intent.candidateManifestDigest)
   }
 
-  private func requireCommitted(
+  private func installCommitted(
     _ envelope: V3RecoveryManifestEnvelope, ceremony: V3EnrollmentCeremonyState,
-    vaultKey: Data, operationID: VaultTransactionOperationID,
-    publisher: V3RecoveryDeviceEnrollmentPublisher
+    vaultKey: Data, continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket,
+    operationID: VaultTransactionOperationID, publisher: V3RecoveryDeviceEnrollmentPublisher
   ) throws {
-    let checkpoint = try V3ManifestCheckpoint(vaultID: vaultID, envelopeDigest: envelope.digest)
-    try requireNoAuthorityWork()
-    try requireCheckpoint(checkpoint)
-    try requireSameCeremony(ceremony, consumed: true)
-    try V3RecoveryEpochBoundary().verifyCurrentAuthentication(envelope, vaultKey: vaultKey)
-    let source = try objects.observe(checkpoint: checkpoint, expectedBase: envelope.canonicalBytes)
-    _ = try snapshots.plaintexts(
-      fields: envelope.body.fields, entries: source.entries, vaultKey: vaultKey)
-    // Initial publication may leave exact committed cleanup pending. That is
-    // not permission to install a session over a different local operation.
-    let pending = try ownership.loadRecoveryAnchor(vaultID: vaultID)
-    if let pending {
-      let addresses = try envelope.body.fields.entries.map {
-        try V3RecoveryMergeMutationValidator.address($0)
-      }.sorted(by: entryObjectKeyPrecedes)
-      let expectedIntent = try V3ImmutableTransactionRecoveryIntent(
-        operationID: operationID, kind: .enrollDevice, vaultID: vaultID,
-        expectedCheckpoint: .init(
-          vaultID: vaultID, envelopeDigest: transcript(ceremony).invitation.parentManifestDigest),
-        expectedHeads: [transcript(ceremony).invitation.parentManifestDigest],
-        candidateManifestDigest: envelope.digest,
-        stagedEntries: addresses.map { .init(entryID: $0.entryID, digest: $0.digest) },
-        enrollmentTranscriptDigest: transcript(ceremony).digest)
-      guard pending.count <= 1_024,
-        let anchor = try? V3ImmutableTransactionRecoveryAnchor(canonicalBytes: pending),
-        anchor.vaultID == vaultID, anchor.operationID == operationID,
-        anchor.intentDigest == Data(SHA256.hash(data: expectedIntent.canonicalBytes))
-      else { throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: vaultID) }
-      guard
-        case .ready(let selected) = try publisher.prepareInterruptedTransaction(
-          vaultID: vaultID,
-          state: ceremony, approvedTranscriptDigest: transcript(ceremony).digest,
-          expectedOwner: identity.publicIdentity, expectedAnchor: pending),
-        selected.alreadyCommitted, selected.intent.operationID == operationID,
-        selected.manifestData == envelope.canonicalBytes
-      else { throw V3RecoveryValidationError.sourceChanged }
-    }
-    try requireNoAuthorityWork()
-    try requireSameCeremony(ceremony, consumed: true)
-    try requireCheckpoint(checkpoint)
-    guard try ownership.loadRecoveryAnchor(vaultID: vaultID) == pending else {
-      throw V3RecoveryValidationError.sourceChanged
+    try lifecycle.installCommitted(envelope, vaultKey: vaultKey, continuing: ticket) { pending in
+      try requireSameCeremony(ceremony, consumed: true)
+      if let pending {
+        let addresses = try envelope.body.fields.entries.map {
+          try V3RecoveryMergeMutationValidator.address($0)
+        }.sorted(by: entryObjectKeyPrecedes)
+        let expectedIntent = try V3ImmutableTransactionRecoveryIntent(
+          operationID: operationID, kind: .enrollDevice, vaultID: vaultID,
+          expectedCheckpoint: .init(
+            vaultID: vaultID, envelopeDigest: transcript(ceremony).invitation.parentManifestDigest),
+          expectedHeads: [transcript(ceremony).invitation.parentManifestDigest],
+          candidateManifestDigest: envelope.digest,
+          stagedEntries: addresses.map { .init(entryID: $0.entryID, digest: $0.digest) },
+          enrollmentTranscriptDigest: transcript(ceremony).digest)
+        guard pending.count <= 1_024,
+          let anchor = try? V3ImmutableTransactionRecoveryAnchor(canonicalBytes: pending),
+          anchor.vaultID == vaultID, anchor.operationID == operationID,
+          anchor.intentDigest == Data(SHA256.hash(data: expectedIntent.canonicalBytes))
+        else { throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: vaultID) }
+        guard
+          case .ready(let selected) = try publisher.prepareInterruptedTransaction(
+            vaultID: vaultID,
+            state: ceremony, approvedTranscriptDigest: transcript(ceremony).digest,
+            expectedOwner: identity.publicIdentity, expectedAnchor: pending),
+          selected.alreadyCommitted, selected.intent.operationID == operationID,
+          selected.manifestData == envelope.canonicalBytes
+        else { throw V3RecoveryValidationError.sourceChanged }
+      }
+      try requireSameCeremony(ceremony, consumed: true)
     }
   }
 
@@ -389,9 +372,9 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
     _ state: V3ContentTransactionRecoveryState,
     ceremony: V3EnrollmentCeremonyState
   ) throws {
-    try requireNoAuthorityWork()
+    try lifecycle.requireNoAuthorityWork()
     try requireSameCeremony(ceremony, consumed: false)
-    try requireCheckpoint(state.currentCheckpoint)
+    try lifecycle.requireCheckpoint(state.currentCheckpoint)
     guard try ownership.loadRecoveryAnchor(vaultID: vaultID) == state.anchorData else {
       throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: vaultID)
     }
@@ -420,26 +403,6 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
       if try V3VaultKeyID.derive(vaultKey: key, vaultID: vaultID) != currentID { return key }
     }
     throw V3RecoveryDeviceEnrollmentError.invalidCandidate
-  }
-  private func requireCheckpoint(_ checkpoint: V3ManifestCheckpoint) throws {
-    guard try checkpoints.loadCheckpoint(vaultID: vaultID) == checkpoint.canonicalBytes
-    else { throw V3ImmutableTransactionError.expectedHeadsChanged }
-  }
-  private func requireNoAuthorityWork() throws {
-    guard try registration.loadRecoveryAnchor(vaultID: vaultID) == nil,
-      try adoption.loadRecoveryAnchor(vaultID: vaultID) == nil
-    else { throw V3RecoveryContentPublicationError.otherMutationPending }
-  }
-  private func requireNoPending() throws {
-    try requireNoAuthorityWork()
-    if let bytes = try ownership.loadRecoveryAnchor(vaultID: vaultID) {
-      guard bytes.count <= 1_024,
-        let anchor = try? V3ImmutableTransactionRecoveryAnchor(canonicalBytes: bytes),
-        anchor.vaultID == vaultID
-      else { throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: vaultID) }
-      throw V3ImmutableTransactionRecoveryError.interruptedTransactionPending(
-        operationID: anchor.operationID.rawValue)
-    }
   }
   private func publisher(_ operationID: VaultTransactionOperationID)
     -> V3RecoveryDeviceEnrollmentPublisher
