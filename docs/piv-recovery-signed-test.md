@@ -5,6 +5,30 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Metadata inspection confirms numeric representation; corrected control prepared, 2026-10-26
+
+One separately owner-authorized metadata-only inspection completed normally.
+The query succeeded with exactly one attributes dictionary. Key class and key
+type were numbers: their canonical numeric strings match the expected constants,
+while the original String-only casts fail. Token selector, certificate-derived
+application label, P-256 size and actual ACL type all match. This identifies a
+setup guard error in the disposable control, not a cancellation result. The
+inspector cannot request authentication, token crypto or writes. Protected hashes
+match and Preview25's helper remains stopped. No read retry occurred. PIN/PUK3/3
+was last verified in the preceding postcheck; this no-authentication inspection
+did not reread those counters. Fixed-field summary and `result.json` stay ignored
+under `tmp/piv-recovery/pin-cancellation-attribute-inspection-2026-10-26/`.
+
+A separately prepared copy of the fresh-context control now accepts exactly the
+expected string or numeric constant and rejects booleans and other values. The
+token/label/P-256/ACL guards and attributes-first, separate-context sequence are
+unchanged. Compile, Developer ID signature/entitlements, default/refusal guards,
+22 offline representation cases and protected hashes pass. The failed control
+and inspector are preserved; no production code changed. The corrected native
+test has not run and needs renewed owner readiness. Cancellation remains untested
+for this sequence and automatic cleanup stays blocking. Raw preparation remains
+ignored under `tmp/piv-recovery/pin-cancellation-fresh-context-typed-2026-10-26/`.
+
 ## Fresh-context control stopped at metadata guard; cancellation remains untested, 2026-10-26
 
 One owner-approved launch passed public preflight, then stopped during metadata

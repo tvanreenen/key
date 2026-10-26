@@ -99,7 +99,7 @@ are the implementation packages, not new names for already completed probes.
 | `REC-809` | Recovery coverage through ordinary edits, branches, and resolution | 805, 808 | In progress; mutation/runtime composition implemented/reviewed with cumulative publication-budget regressions fixed; signed native acceptance remains |
 | `REC-810` | Recovery coverage through key/device/recipient changes | 805, 808, 809 | In progress; internal publication/resume, owner/adoption sessions, exact review, full reseal catch-up and reciprocal lifecycle/software recovery checks are implemented; independent lifecycle AI review and its two rotation fixes are recorded; user confirmation and shipping product/native acceptance remain |
 | `REC-811` | Integrated new-vault restore and authenticated resume | 806 | In progress; complete gated restore/resume implementation and integrated AI review recorded; signed separate-process and physical acceptance remain |
-| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and independent Air restore, with token-free exact secret/TOTP and fresh-helper reopening on both; Mini PIN and visible touch-window cancellation passed; build24 exact incomplete-reservation release, distinct Mac cues, complete-preparation Publish cancellation, fresh-helper exact-byte resume, token-free post-resume secret/TOTP/fresh-helper reads, safe missing-touch failure and physical token-removal failure passed; five Mac approvals observed on resume; unanswered-PIN deadline enforced but native PIN-dialog cleanup failed; premature native-waiter release fixed with callback diagnostics and software/build checks, build25 deadline and real appCancel callback verified, but system PIN UI still requires manual Cancel; owner keeps automatic cleanup blocking; retained-object background, main-thread and released-key-handle controls still required manual Cancel; attributes-first/fresh-context launch stopped before authentication at metadata guard; metadata-type inspection prepared; CLI-disconnect deferred; backup-token and remaining history acceptance remain |
+| `REC-812` | CLI/helper integration and meaningful signed Preview vertical slice | 807, 808, 809, 810, 811 | In progress; build22 passed Mini registration/restore and independent Air restore, with token-free exact secret/TOTP and fresh-helper reopening on both; Mini PIN and visible touch-window cancellation passed; build24 exact incomplete-reservation release, distinct Mac cues, complete-preparation Publish cancellation, fresh-helper exact-byte resume, token-free post-resume secret/TOTP/fresh-helper reads, safe missing-touch failure and physical token-removal failure passed; five Mac approvals observed on resume; unanswered-PIN deadline enforced but native PIN-dialog cleanup failed; premature native-waiter release fixed with callback diagnostics and software/build checks, build25 deadline and real appCancel callback verified, but system PIN UI still requires manual Cancel; owner keeps automatic cleanup blocking; retained-object background, main-thread and released-key-handle controls still required manual Cancel; attributes-first/fresh-context metadata guard failure diagnosed as numeric representation; corrected control prepared; CLI-disconnect deferred; backup-token and remaining history acceptance remain |
 | `REC-813` | Independent backup-token and full lifecycle qualification | 812 | Planned |
 | `REC-814` | Security, OS/provider compatibility, and release qualification | 812, 813 | Planned |
 | `REC-815` | Opt-in adoption, Stable publication, and support handoff | 814 | Planned |
@@ -211,15 +211,22 @@ created context never supplied to a Keychain query. Compile, signature, no-nativ
 guards and protected hashes passed before one owner-approved launch. That
 launch stopped during guarded metadata preparation, before evaluation; the owner
 confirmed no dialog. One later public postcheck passed expected metadata,
-PIN/PUK3/3, protected hashes and stopped helper. The exact failed guard is not
-yet diagnosed; cancellation remains untested for this sequence. Apple's reference
+PIN/PUK3/3, protected hashes and stopped helper. At that checkpoint the exact
+failed guard was unknown; cancellation remains untested for this sequence. Apple's reference
 key-object implementation normalizes numeric class/type attributes to strings,
 providing a setup hypothesis for the attributes-only path. A separate signed,
 metadata-only type inspector is prepared and has no authentication/crypto/write
 path; compile/signature/no-native guards pass, but no metadata query has run.
-Its single inspection requires separate authorization; no automatic retry or
-validation relaxation follows the inconclusive attempt. No production change
-follows without a demonstrated result and subsequent helper qualification.
+One separately authorized metadata inspection then confirmed numeric class/type
+constants matching the expected values; String-only casts failed while all other
+checked metadata/ACL bindings matched. Passive files/helper checks pass; there
+was no authentication path or read retry. A separately prepared control copy now
+accepts exact numeric/string constants and rejects booleans/invalid values.
+Compile, signature, no-native guards and 22 offline representation cases pass;
+original evidence is preserved and no production code changed. The corrected
+fresh-context cancellation attempt has not run and requires renewed owner
+readiness. No production change follows without a demonstrated result and
+subsequent helper qualification.
 Production build25 remains unchanged and CLI-disconnect stays deferred. The
 [signed-test record](piv-recovery-signed-test.md) separates owner observations,
 system-log evidence and remaining acceptance work.
