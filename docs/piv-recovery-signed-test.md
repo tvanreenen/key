@@ -5,6 +5,40 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Matched-method local Mac ACL control prepared, 2026-10-26
+
+The successful Mac comparison used `evaluatePolicy`; PIV uses
+`evaluateAccessControl`. Their difference does not yet distinguish the API method
+from the PIV constraint/provider path. A separate control now evaluates a local,
+in-memory biometric ACL with the same `evaluateAccessControl` method and
+`.useKeyKeyExchange` approval operation as the PIV control. It requests no key
+exchange and generates/stores no key or item. The local ACL is never substituted
+for a token's actual ACL or used to authorize a protected action.
+
+[Chromium's published Touch ID implementation](https://chromium.googlesource.com/chromium/src/+/lkgr/device/fido/mac/touch_id_context.mm)
+constructs an ACL and evaluates it separately; its example uses signing rather
+than key exchange. Apple's
+[published ACL construction](https://github.com/apple-oss-distributions/Security/blob/db15acbe6a7f257a859ad9a3bb86097bfe0679d9/OSX/sec/Security/SecAccessControl.m#L238)
+applies the private-key-use constraint to compute-key approval as well as signing.
+Those sources justify the control, not a cancellation prediction or a claim
+about the exact installed implementation. `LAAuthenticationView` was also reviewed:
+its SDK supports ACL evaluation but describes biometric/watch UI, without
+establishing PIV PIN support. Reader-interaction cancellation remains scoped to
+caller-created reader operations, not a demonstrated handle to this managed UI.
+
+The new lane uses `[.privateKeyUsage, .biometryAny]`, a fresh context with no prior
+policy evaluation, background evaluation/invalidation and the same 20/80/100-second
+timing, diagnostic identity and entitlements. It contains no Keychain query,
+storage, token/vault or cryptographic-key API. Compile, strict Developer ID
+signature/entitlements, in-memory ACL construction, noninteractive default/refusal
+guards and passive protected hashes pass. The preceding controls are preserved.
+No authentication has run; a single watched Mac-prompt attempt needs renewed
+owner readiness. An automatically closing Mac ACL prompt would narrow the
+remaining difference to the PIV ACL/constraint path; persistence would motivate
+method-specific investigation. Missing UI/early failure is inconclusive. PIV
+cleanup stays blocking. Raw preparation remains ignored under
+`tmp/piv-recovery/pin-cancellation-mac-acl-2026-10-26/`.
+
 ## Ordinary Mac prompt cancels cleanly; PIV-path difference reproduced, 2026-10-26
 
 One owner-approved Mac-biometry comparison found Touch ID available and performed
