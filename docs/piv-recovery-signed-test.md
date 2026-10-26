@@ -5,6 +5,50 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Build25 deadline and cancellation callback pass; system PIN UI still remains, 2026-10-26
+
+On the Mini, one owner-approved installed build25 restore reached an unanswered
+PIN dialog after fresh public checks passed. The request returned its explicit
+deadline error after 90.021 seconds, exit 1. No touch-required or destination
+Mac-approval progress occurred; no destination/configuration or saved-attempt
+file was created. Expanded protected hashes match.
+
+The filtered native trace contains one evaluation-start event, one context
+invalidation request, one actual callback and one invalidation-return event.
+At expiry the real callback reports `success=false`, `error=true`,
+`local-authentication=true`, `code=-9` (`appCancel`), before invalidation returns.
+The helper image matches the installed build25. This verifies delivery of the
+new native diagnostics and confirms policy cancellation reached the framework.
+The owner nevertheless reported the unanswered system PIN dialog still visible.
+Automatic dialog dismissal therefore still fails. The earlier worker-lifetime
+fix addresses premature local completion but did not resolve this UI behavior;
+neither callback acknowledgement nor helper exit proves downstream UI completion.
+
+No card postcheck or helper lock was performed while awaiting that observation.
+The owner then cancelled the blank PIN dialog and confirmed it closed. Only our
+identified diagnostic log client was interrupted, then normal lock stopped the
+helper. One public-only vendor postcheck now passed: exact expected key,
+certificate, anchor and policies unchanged, PIN/PUK counters 3/3. Protected
+files, prior test vaults/backups and installed hashes still match. No automatic
+authentication/read retry, token write or actual-vault traversal occurred.
+
+The inspected public cancellation surfaces did not establish another handle for
+this managed PIN dialog. `TKTokenAuthOperation` belongs to the token provider's
+authentication protocol. Apple's
+[smart-card interaction cancellation](https://developer.apple.com/documentation/cryptotokenkit/tksmartcarduserinteraction/cancel())
+applies to an interaction object the caller starts and may be unsupported;
+[reader PIN interactions](https://developer.apple.com/documentation/cryptotokenkit/tksmartcarduserinteraction)
+are a different surface from the current Security/LocalAuthentication evaluation.
+No replacement provider, custom PIN collection or speculative new build was
+introduced. The exact downstream owner/cause remains unconfirmed. Record the
+system-dialog behavior as an open compatibility/UX issue, not a passing gate.
+The CLI-disconnect test remains deferred pending that disposition.
+
+Installed build25 remains unconfigured with its helper stopped and the key
+connected. Raw trace, owner reports, OS/version, preserved-state checks and the
+partial qualification receipt remain ignored under
+`tmp/piv-recovery/build25-deadline-2026-10-26/`.
+
 ## Build25 installed on Mini; authentication retest not started, 2026-10-26
 
 The exact receipt-verified notarized build25 was installed with normal Preview

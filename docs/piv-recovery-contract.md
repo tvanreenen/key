@@ -2343,6 +2343,15 @@ and a numeric code. No native error text/userInfo, PIN, key/certificate/token
 identifier, peer point, secret or vault path is logged. These events identify
 callback delivery, not proof that a system dialog has closed.
 
+The signed build25 Mini deadline test observed the actual LocalAuthentication
+`appCancel` callback while its unanswered system PIN dialog remained visible.
+Joining that callback therefore proves policy-API completion, not completion of
+every downstream token/provider interaction. The process gate cannot attest to
+external UI state. Qualification waits for owner-confirmed dialog closure
+(manual Cancel with no PIN if necessary) before helper shutdown/card postchecks;
+the timeout message gives the same manual-cleanup guidance. Automatic PIN-dialog
+dismissal is an unresolved platform/UX qualification, not an implemented promise.
+
 Scripted tests cover binding checks, session ordering, scope closure,
 cancellation, deadline, removal, anchor changes, and exclusion until delayed
 completion. They do not qualify native query delivery, physical identity, PIN or
