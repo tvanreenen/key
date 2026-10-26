@@ -5,6 +5,33 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Signed build25 late PIN after timeout does not resume recovery, 2026-10-26
+
+One owner-approved installed-product restore used the frozen disposable source
+and a missing destination. PIN remained unanswered through the explicit timeout
+at 90.029 seconds. Passive checks confirmed actual native invalidation/appCancel,
+no touch/Mac approval stage, absent destination/configuration and unchanged
+protected hashes before the later PIN instruction.
+
+The owner then submitted the known-correct PIN once in the existing dialog and
+reported it closed with no follow-on Key prompt. A separate confirmation records
+no physical touch and no Mac vault approval. The second passive check again
+found destination/configuration absent and protected files unchanged. Only after
+confirmed UI closure, normal helper shutdown and one public-only postcheck
+confirmed unchanged metadata and PIN/PUK3/3. Only the identified diagnostic log
+client was stopped; no helper/provider was forcibly terminated. No app retry,
+token write or actual-vault access occurred.
+
+This passes the observed late-submission refusal case under the accepted Preview
+manual-dismissal limitation. The native log contains one original appCancel
+callback and no late positive callback, so this is not native qualification of
+every positive-callback race; existing software regressions cover that boundary.
+No lower-level hardware-attempt count is inferred. Raw request, observations,
+logs, snapshots and `verification-result.json` remain ignored under
+`tmp/piv-recovery/build25-late-pin-2026-10-26/`. CLI-disconnect qualification is
+still prepared but unrun and requires fresh connection/readiness. No new product
+build or external submission is involved.
+
 ## Manual dismissal accepted for Preview; late-PIN/disconnect cases prepared, 2026-10-26
 
 The owner accepts manual dismissal as a temporary Preview limitation and does
