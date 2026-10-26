@@ -5,6 +5,46 @@ scoped evidence, not passing end-to-end recovery qualification. Use disposable
 data only. The [implementation plan](piv-recovery-plan.md)
 owns package status and the [contract](piv-recovery-contract.md) owns security limits.
 
+## Mini build24 deadline enforced; unanswered PIN dialog remained, 2026-10-26
+
+After explicit owner readiness and fresh public preflight, one disposable
+restore was left at its unanswered system PIN dialog. The product returned the
+explicit request-timeout error after 90.024 seconds, exit 1. No touch-required
+or destination Mac-approval progress occurred. The destination remains missing,
+Preview configuration absent, and support/saved-attempt and protected file
+hashes match. Normal lock stopped the helper, with last exit code 0. Prior
+disposable vaults, source, selection backups, installed apps and Stable config
+remain intact. There was no automatic authentication retry or token write.
+
+The owner reported still seeing the unanswered PIN dialog after the timeout
+and helper shutdown. Automatic system-dialog dismissal therefore **failed**;
+this is not a passing end-to-end deadline case. One public-only vendor metadata
+postcheck, started after normal helper shutdown, also timed out after 45 seconds
+while that dialog remained. It was not retried. Post-test PIN/PUK counters are
+not established; only the pretest 3/3 readings are available. The owner then
+cancelled the blank PIN dialog and confirmed it closed. Passive hashes still
+match after this manual cleanup. No new authentication attempt followed.
+
+Code inspection confirms timeout requests `LAContext.invalidate()`. Apple's
+[documented invalidation API](https://developer.apple.com/documentation/localauthentication/lacontext/invalidate())
+stops pending policy evaluations, but this observation does not establish why
+the smart-card dialog remained. The native session currently wakes its local
+approval waiter before context invalidation; that local completion must not be
+confused with observing the framework's real callback or dismissal of its UI.
+Trace the invalidation/callback lifecycle before choosing a change. Helper exit
+alone is insufficient evidence that an external PIN dialog or provider work has
+finished, as this run demonstrates. Do not automatically start another card read
+or authentication to resolve the ambiguity.
+
+Two existing software-only regressions passed: late approval after cancellation
+cannot start touch/agreement, and a pending provider remains excluded after
+cancellation/deadline (2 tests, 1.010 seconds, existing build). These verify the
+scripted adapter boundaries, not native callback delivery or OS-dialog cleanup.
+No production fix, replacement candidate or native retest is claimed. Hold the
+CLI-disconnect authentication test until this cleanup issue is investigated.
+Raw evidence and the partial-result receipt remain ignored under
+`tmp/piv-recovery/build24-deadline-2026-10-26/`.
+
 ## Mini build24 physical token removal stopped recovery safely, 2026-10-26
 
 Read-only preflight confirmed unchanged protected files, preserved prior
