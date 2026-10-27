@@ -58,7 +58,7 @@ struct V3RecoveryEnrollmentOwnerWorkflow: V3EnrollmentWorkflowServicing, Sendabl
       vaultID: vaultID,
       parentManifestDigest: context.current.checkpoint.envelopeDigest,
       invitingDevice: identity.publicIdentity,
-      nonce: Data((0..<32).map { _ in UInt8.random(in: .min ... .max) }), expiresAt: unixTime + 600)
+      nonce: Data((0 ..< 32).map { _ in UInt8.random(in: .min ... .max) }), expiresAt: unixTime + 600)
     try context.revalidate()
     try validateScope()
     let signed = try V3EnrollmentMessageAuthenticator().sign(

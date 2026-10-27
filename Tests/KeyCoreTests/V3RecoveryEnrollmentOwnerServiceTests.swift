@@ -31,7 +31,7 @@ struct V3RecoveryEnrollmentOwnerServiceTests {
     #expect(try f.savedState().phase == .awaitingComparison && f.disk.ownership.value == nil)
   }
 
-  @Test(arguments: 0..<14, [false, true])
+  @Test(arguments: 0 ..< 14, [false, true])
   func requestCancellationStopsAtEveryPublicationBoundary(phase: Int, sessionOnly: Bool) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
