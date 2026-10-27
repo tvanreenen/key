@@ -306,13 +306,14 @@ struct V3RecoveryRegistrationService: Sendable {
     _ = try journal.resumeAndExport(
       checkpoint: checkpoint, parent: initial.base, currentEntries: initial.entries,
       currentVaultKey: currentKey, nextVaultKey: nextKey, expectedOwner: identity.publicIdentity)
+    let ownership = try journal.requirePending(preparation)
     for entry in preparation.stagedEntries {
-      try requirePending(preparation)
+      try journal.requireOwnership(ownership, vaultID: vaultID)
       try objectStore.stageEntry(
         entry.canonicalBytes, entryID: entry.context.entryID,
         digest: Data(SHA256.hash(data: entry.canonicalBytes)), operationID: operation)
     }
-    try requirePending(preparation)
+    try journal.requireOwnership(ownership, vaultID: vaultID)
     try objectStore.stageManifest(
       preparation.candidate.canonicalBytes, digest: preparation.candidate.digest,
       operationID: operation)
@@ -323,7 +324,7 @@ struct V3RecoveryRegistrationService: Sendable {
     try revalidateToken()
     try checkCancellation(cancellation)
     for (index, entry) in preparation.stagedEntries.enumerated() {
-      try requirePending(preparation)
+      try journal.requireOwnership(ownership, vaultID: vaultID)
       try objectStore.publishStagedEntry(
         entry.canonicalBytes, entryID: entry.context.entryID,
         digest: Data(SHA256.hash(data: entry.canonicalBytes)), operationID: operation)
