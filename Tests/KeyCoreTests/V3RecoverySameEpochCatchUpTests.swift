@@ -33,6 +33,36 @@ struct V3RecoverySameEpochCatchUpTests {
     #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
   }
 
+  @Test(arguments: [false, true])
+  func sessionChangeDuringObservationStopsCatchUpBeforeCheckpointCAS(reinstall: Bool) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let child = try f.build(.remove(name: "fixture/totp"))
+    try f.seed(child.envelope, entries: child.stagedEntries)
+    let session = V3DeviceWrappedVaultKeySessionStore()
+    try session.install(Core.nextKey, vaultID: Core.vaultID, keyID: f.parent.body.fields.keyID)
+    let ticket = session.beginAuthentication()
+    let source = Source(f.store) { count in
+      if count == 1 {
+        session.invalidate()
+        if reinstall {
+          try session.install(
+            Core.nextKey, vaultID: Core.vaultID, keyID: f.parent.body.fields.keyID)
+        }
+      }
+    }
+    let checkpoints = CheckpointRace(f.checkpoints) {}
+    #expect(throws: V3DeviceWrappedVaultKeySessionError.unavailable) {
+      try service(
+        f, checkpoints: checkpoints, source: source,
+        validateScope: { try session.requireCurrent(ticket) }
+      )
+      .advanceOneStep(from: floor(f), vaultKey: Core.nextKey)
+    }
+    #expect(checkpoints.calls.value == 0 && f.checkpoints.value == f.checkpoint.canonicalBytes)
+    #expect(f.ownership.value == nil)
+  }
+
   @Test func coordinatedUnchangedFloorReturnsWithoutCheckpointReplacement() throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -660,14 +690,15 @@ struct V3RecoverySameEpochCatchUpTests {
     _ f: Fixture, checkpoints: (any V3ManifestCheckpointStoring)? = nil,
     source: (any V3ImmutableObjectReading)? = nil, cache: (any V3CheckpointManifestCaching)? = nil,
     limits: V3ManifestRepositoryLimits = .standard, maximumParentEdges: Int = 16_384,
-    owner: (any VaultTransactionMutationOwning)? = nil
+    owner: (any VaultTransactionMutationOwning)? = nil,
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) -> V3RecoverySameEpochCatchUpService {
     V3RecoverySameEpochCatchUpService(
       mutationOwner: owner ?? VaultTransactionMutationOwner(), source: source ?? f.store,
       checkpointStore: checkpoints ?? f.checkpoints, recoveryAnchorStore: f.ownership,
       registrationAnchorStore: f.registration, adoptionAnchorStore: f.adoption,
       cache: cache ?? f.cache,
-      limits: limits, maximumParentEdges: maximumParentEdges)
+      limits: limits, maximumParentEdges: maximumParentEdges, validateScope: validateScope)
   }
   private func publishChain(_ f: Fixture) throws
     -> (V3RecoveryContentCommit, V3RecoveryContentCommit)

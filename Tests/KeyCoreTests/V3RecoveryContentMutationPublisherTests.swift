@@ -76,6 +76,57 @@ struct V3RecoveryContentMutationPublisherTests {
     #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
   }
 
+  @Test(arguments: 0..<12)
+  func invalidatedSessionStopsAtEachPublicationBoundaryAndAllowsExplicitResume(phase: Int) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let session = V3DeviceWrappedVaultKeySessionStore()
+    try session.install(Core.nextKey, vaultID: Core.vaultID, keyID: f.parent.body.fields.keyID)
+    let ticket = session.beginAuthentication()
+    let recorded = Phases()
+    let candidate = try f.build(.edit(name: "fixture/secret", type: .secret, plaintext: "saved"))
+    #expect(throws: V3DeviceWrappedVaultKeySessionError.unavailable) {
+      try f.publisher(
+        observer: Observer {
+          recorded.append($0)
+          if $0 == Self.phases[phase] { session.invalidate() }
+        }, validateScope: { try session.requireCurrent(ticket) }
+      )
+      .publish(candidate, vaultKey: Core.nextKey)
+    }
+    // Read-only validation may finish after a write that raced with lock;
+    // no subsequent durable phase may begin under the invalidated grant.
+    let durable: (V3ImmutableTransactionPhase) -> Bool = {
+      $0 != .publishedEntriesValidated && $0 != .publishedManifestValidated
+    }
+    #expect(recorded.value.filter(durable) == Self.phases.prefix(phase + 1).filter(durable))
+    #expect(!session.hasResidentKey)
+    #expect((f.checkpoints.value != f.checkpoint.canonicalBytes) == (phase >= 10))
+    #expect((f.ownership.value == nil) == (phase == 11))
+    // A new, explicit authenticated operation may reconcile the saved prefix.
+    try session.install(Core.nextKey, vaultID: Core.vaultID, keyID: f.parent.body.fields.keyID)
+    let resumed = session.beginAuthentication()
+    let outcome = try f.publisher(validateScope: { try session.requireCurrent(resumed) })
+      .recoverInterruptedTransaction(vaultID: Core.vaultID, vaultKey: Core.nextKey)
+    if phase < 4 {
+      #expect(outcome == .abandoned(operationID: f.operationID))
+      #expect(f.checkpoints.value == f.checkpoint.canonicalBytes)
+    } else {
+      #expect(
+        outcome
+          == (phase == 11
+            ? .nothingToRecover
+            : (phase == 10
+              ? .alreadyCompleted(operationID: f.operationID)
+              : .completed(operationID: f.operationID))))
+      #expect(
+        f.checkpoints.value
+          == (try V3ManifestCheckpoint(
+            vaultID: Core.vaultID, envelopeDigest: candidate.envelope.digest)).canonicalBytes)
+    }
+    #expect(f.ownership.value == nil)
+  }
+
   @Test func failedCheckpointCASResumesTheAlreadyPublishedCandidate() throws {
     let f = try Fixture()
     defer { f.remove() }

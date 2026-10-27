@@ -47,6 +47,34 @@ struct V3RecoveryMergeMutationPublisherTests {
     #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
   }
 
+  @Test(arguments: [false, true])
+  func invalidatedSessionStopsMergeBeforeStagingAndPreservesItsOwnedIntent(automatic: Bool) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let candidate = try candidate(f, automatic: automatic)
+    let session = V3DeviceWrappedVaultKeySessionStore()
+    try session.install(Core.nextKey, vaultID: Core.vaultID, keyID: f.parent.body.fields.keyID)
+    let ticket = session.beginAuthentication()
+    let phases = Phases()
+    #expect(throws: V3DeviceWrappedVaultKeySessionError.unavailable) {
+      try publisher(
+        f,
+        observer: Observer {
+          phases.append($0)
+          if $0 == .recoveryArmed { session.invalidate() }
+        }, validateScope: { try session.requireCurrent(ticket) }
+      )
+      .publish(candidate, vaultKey: Core.nextKey)
+    }
+    #expect(phases.value == Array(Self.phases.prefix(3)))
+    #expect(f.checkpoints.value == f.checkpoint.canonicalBytes && f.ownership.value != nil)
+    #expect(!FileManager.default.fileExists(atPath: f.manifestURL(candidate.envelope.digest).path))
+    #expect(
+      try publisher(f).recoverInterruptedTransaction(
+        vaultID: Core.vaultID, vaultKey: Core.nextKey) == .abandoned(operationID: f.operationID))
+    #expect(f.ownership.value == nil)
+  }
+
   @Test(arguments: [false, true], 0 ..< 12)
   func everyDurableBoundaryResumesExactCandidateOrAbandonsUnpublishedStaging(
     automatic: Bool, phase: Int
@@ -593,13 +621,14 @@ struct V3RecoveryMergeMutationPublisherTests {
   private func publisher(
     _ f: Fixture,
     observer: any V3ImmutableTransactionPhaseObserving = V3NoopContentTransactionPhaseObserver(),
-    limits: V3ManifestRepositoryLimits = .standard
+    limits: V3ManifestRepositoryLimits = .standard,
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) -> V3RecoveryMergeMutationPublisher {
     V3RecoveryMergeMutationPublisher(
       mutationOwner: VaultTransactionMutationOwner(makeOperationID: { f.operationID }),
       objectStore: f.store, checkpointStore: f.checkpoints, recoveryAnchorStore: f.ownership,
       registrationAnchorStore: f.registration, adoptionAnchorStore: f.adoption, cache: f.cache,
-      limits: limits, phaseObserver: observer)
+      limits: limits, phaseObserver: observer, validateScope: validateScope)
   }
 
   private func interrupt(_ f: Fixture, candidate: V3RecoveryMergeMutationCandidate) throws {

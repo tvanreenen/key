@@ -91,13 +91,14 @@ enum V3RecoveryPublicationTestSupport {
     func publisher(
       observer: any V3ImmutableTransactionPhaseObserving = V3NoopContentTransactionPhaseObserver(),
       limits: V3ManifestRepositoryLimits = .standard,
-      owner: (any VaultTransactionMutationOwning)? = nil
+      owner: (any VaultTransactionMutationOwning)? = nil,
+      validateScope: @escaping @Sendable () throws -> Void = {}
     ) -> V3RecoveryContentMutationPublisher {
       V3RecoveryContentMutationPublisher(
         mutationOwner: owner ?? VaultTransactionMutationOwner(makeOperationID: { operationID }),
         objectStore: store, checkpointStore: checkpoints, recoveryAnchorStore: ownership,
         registrationAnchorStore: registration, adoptionAnchorStore: adoption, cache: cache,
-        limits: limits, phaseObserver: observer)
+        limits: limits, phaseObserver: observer, validateScope: validateScope)
     }
     func seed(_ envelope: V3RecoveryManifestEnvelope, entries: [V3EncryptedEntry]) throws {
       let operation = VaultTransactionOperationID()

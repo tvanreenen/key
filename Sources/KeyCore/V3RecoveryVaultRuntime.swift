@@ -137,7 +137,7 @@ struct V3RecoveryVaultRuntime:
     name: String, secret: String, type: SecretEntryType, operationID: VaultTransactionOperationID
   ) throws {
     _ = try normalizedV3EntryName(name)
-    try withMutation(operationID) {
+    try withMutation(operationID) { mutations in
       try mutations.add(name: name, secret: secret, type: type, operationID: operationID)
     }
   }
@@ -145,7 +145,7 @@ struct V3RecoveryVaultRuntime:
     name: String, secret: String, type: SecretEntryType, operationID: VaultTransactionOperationID
   ) throws {
     _ = try normalizedV3EntryName(name)
-    try withMutation(operationID) {
+    try withMutation(operationID) { mutations in
       try mutations.edit(name: name, secret: secret, type: type, operationID: operationID)
     }
   }
@@ -154,7 +154,7 @@ struct V3RecoveryVaultRuntime:
   ) throws {
     _ = try normalizedV3EntryName(source)
     _ = try normalizedV3EntryName(destination)
-    try withMutation(operationID) {
+    try withMutation(operationID) { mutations in
       try mutations.copy(
         source: source, destination: destination, overwrite: overwrite, operationID: operationID)
     }
@@ -164,19 +164,21 @@ struct V3RecoveryVaultRuntime:
   ) throws {
     _ = try normalizedV3EntryName(source)
     _ = try normalizedV3EntryName(destination)
-    try withMutation(operationID) {
+    try withMutation(operationID) { mutations in
       try mutations.move(
         source: source, destination: destination, overwrite: overwrite, operationID: operationID)
     }
   }
   func remove(name: String, operationID: VaultTransactionOperationID) throws {
     _ = try normalizedV3EntryName(name)
-    try withMutation(operationID) { try mutations.remove(name: name, operationID: operationID) }
+    try withMutation(operationID) { mutations in
+      try mutations.remove(name: name, operationID: operationID)
+    }
   }
   func resolve(_ resolutions: [VaultConflictResolution], operationID: VaultTransactionOperationID)
     throws
   {
-    try withMutation(operationID) {
+    try withMutation(operationID) { mutations in
       try mutations.resolve(resolutions, operationID: operationID)
     }
   }
@@ -231,7 +233,8 @@ struct V3RecoveryVaultRuntime:
 
   private func conflictDetails() throws -> [VaultConflictDetail] {
     try withRead { prepared, operationID in
-      let result = try mutations.conflicts(operationID: operationID)
+      let result = try mutations.continuingSession(prepared.context.authenticationTicket())
+        .conflicts(operationID: operationID)
       try prepared.context.revalidate()
       return result
     }
@@ -258,7 +261,7 @@ struct V3RecoveryVaultRuntime:
 
   private func withMutation<T>(
     _ operationID: VaultTransactionOperationID,
-    _ operation: () throws -> T
+    _ operation: (V3RecoveryVaultMutationService) throws -> T
   ) throws -> T {
     try translatingV3RecoveryRuntimeErrors {
       let prepared = try prepare(
@@ -267,7 +270,7 @@ struct V3RecoveryVaultRuntime:
       // The existing mutation reconciler distinguishes automatic merges from
       // unresolved conflicts. Do not reject every multi-head graph here.
       let ticket = try prepared.context.authenticationTicket()
-      let result = try operation()
+      let result = try operation(mutations.continuingSession(ticket))
       // Ordinary publication may advance the checkpoint but not the key epoch.
       // A cancellation after durable publication cannot undo the saved bytes.
       try session.requireCurrent(ticket)
@@ -291,7 +294,7 @@ struct V3RecoveryVaultRuntime:
           explicitly: explicitly, continuing: admission)
         continuation = try pending.authenticationTicket()
         let key = try pending.loadVaultKey()
-        try mutations.reconcilePendingContent(
+        try mutations.continuingSession(continuation).reconcilePendingContent(
           operationID: operationID, vaultKey: key, expectedAnchor: pending.anchor.canonicalBytes)
         // Reconciliation can advance the checkpoint, but cannot replace the
         // same-epoch session or turn cancellation into a fresh authentication.
