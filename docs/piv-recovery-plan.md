@@ -151,12 +151,14 @@ Review copy describes final code, not the investigation chronology.
 | [76](https://github.com/tvanreenen/key/pull/76) | `codex/recovery-restore`: configured workflow integration | `0ffaee7` |
 | [77](https://github.com/tvanreenen/key/pull/77) | `codex/recovery-native-integration`: native fixes, interruption handling and qualification | `93303c3` |
 | [78](https://github.com/tvanreenen/key/pull/78) | `codex/recovery-lifecycle-context`: shared state checks with separate approval policies | `70d2333` |
+| [79](https://github.com/tvanreenen/key/pull/79) | `codex/recovery-test-support`: shared software fixtures independent of test suites | `edd3346` |
 
 Published heads have successful Stable, Preview and helper-security checks.
-Test-support cleanup follows on `codex/recovery-test-support` above 78. Shared
-software fixtures live in `Tests/KeyCoreTests/Support`; scenarios and independent
-expectations remain in their suites. Capability-interface cleanup is the next
-separate architectural follow-up. Existing stack history is preserved. Use
+Capability cleanup follows on `codex/recovery-read-capability` above 79. Exact
+checkpoint readers expose read policy without mutation or graph requirements;
+composed runtimes retain those separate policies. The three selected
+architecture cleanups are implemented in these follow-ups; final review and
+release acceptance remain separate. Existing stack history is preserved. Use
 `gh stack` for propagation and publication. Readiness is tracked on each PR;
 neither review nor green CI enables the shipping recovery gates.
 
