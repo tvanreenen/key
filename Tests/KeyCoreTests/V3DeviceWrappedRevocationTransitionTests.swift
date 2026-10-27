@@ -1396,7 +1396,7 @@ private enum RevocationWorkflowFailure: Sendable {
 }
 
 private struct FailingRevocationWorkflow:
-    V3DeviceWrappedRevocationWorkflowServicing
+    V3DeviceRevocationWorkflowServicing
 {
     let failure: RevocationWorkflowFailure
 
@@ -1407,11 +1407,11 @@ private struct FailingRevocationWorkflow:
         try fail()
     }
 
-    func revoke(
+    func revokeReviewed(
         deviceID _: String,
         confirmationToken _: String,
         operationID _: VaultTransactionOperationID
-    ) throws -> V3DeviceWrappedTrustedCheckpoint {
+    ) throws -> V3ManifestCheckpoint {
         try fail()
     }
 

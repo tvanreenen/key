@@ -58,7 +58,9 @@ extension KeyRecoverySharingCapability {
           "Recovery-capable vaults require macOS 26 or later in this experimental build.")
       }
       switch request {
-      case .devices, .invitations, .invite, .requests, .compare, .approve: break
+      case .devices, .invitations, .invite, .requests, .compare, .approve,
+        .reviewRevocation, .revoke:
+        break
       case .accept(let requestedVaultID, let invitationID, _):
         guard requestedVaultID == vaultID else { throw V3EnrollmentCeremonyStateError.wrongRole }
         let exchange = V3EnrollmentExchangeCoordinator(
@@ -120,20 +122,22 @@ extension KeyRecoverySharingCapability {
         identityLoader: V3ScopedDeviceIdentityLoader(base: identities, validate: validate),
         session: session, transactionOwnershipStore: transaction,
         registrationOwnershipStore: registration, adoptionOwnershipStore: adoption)
+      _ = scope.cancellation.register { session.invalidate() }
+      let loadOwner: @Sendable () throws -> V3RecoveryAuthorityChangeService.Identity = {
+        try validate()
+        guard
+          let identity = try identities.loadIdentity(
+            vaultID: vaultID, reason: "Use this Mac's vault access credentials.")
+        else { throw V3RecoveryEnrollmentAdoptionError.identityUnavailable }
+        try validate()
+        return V3ScopedEnrollmentIdentity(base: identity, validate: validate)
+      }
       let workflow = V3RecoveryEnrollmentOwnerWorkflow(
         vaultID: vaultID, unlock: unlock, session: session,
         exchange: V3EnrollmentExchangeCoordinator(
           mailbox: V3FilesystemEnrollmentMailbox(rootHandle: root), stateStore: ceremonies),
         ownership: transaction,
-        loadIdentity: {
-          try validate()
-          guard
-            let identity = try identities.loadIdentity(
-              vaultID: vaultID, reason: "Use this Mac's vault access credentials.")
-          else { throw V3RecoveryEnrollmentAdoptionError.identityUnavailable }
-          try validate()
-          return V3ScopedEnrollmentIdentity(base: identity, validate: validate)
-        },
+        loadIdentity: loadOwner,
         makeService: { identity in
           V3RecoveryEnrollmentOwnerService(
             vaultID: vaultID, identity: identity, session: session, objectStore: source,
@@ -141,13 +145,41 @@ extension KeyRecoverySharingCapability {
             registrationAnchorStore: registration, adoptionAnchorStore: adoption,
             ceremonyStore: ceremonies, cache: cache, validateScope: validate)
         }, validateScope: validate)
-      return .init(changesCheckpoint: request.isEnrollmentApproval) {
+      let revocation = V3RecoveryDeviceRevocationWorkflow(
+        session: session, loadIdentity: loadOwner,
+        authenticate: { operationID in
+          try validate()
+          let opened = try unlock.authenticatedReadContext(
+            reason: "Unlock the vault to review or remove a Mac's access.")
+          let identity = try loadOwner()
+          let ticket = try opened.authenticationTicket()
+          let result = try V3RecoveryCatchUpCoordinator(
+            mutationOwner: DirectVaultTransactionMutationOwner(operationID: operationID),
+            identity: identity, session: session, source: source, checkpointStore: checkpoints,
+            recoveryAnchorStore: transaction, registrationAnchorStore: registration,
+            adoptionAnchorStore: adoption, cache: cache, validateScope: validate
+          ).catchUp(from: opened.current, continuing: ticket, allowStale: false)
+          guard case .verified(.current(let current, _)) = result.selection else {
+            throw VaultUXServiceError.catchUpContentConflict
+          }
+          try result.revalidatePublishedSource()
+          try validate()
+          return try unlock.continuedReadContext(current: current, ticket: result.ticket)
+        },
+        makeService: { identity in
+          .init(
+            vaultID: vaultID, identity: identity, session: session,
+            objectStore: source, checkpointStore: checkpoints, recoveryAnchorStore: transaction,
+            registrationAnchorStore: registration, adoptionAnchorStore: adoption,
+            cache: cache, validateScope: validate)
+        }, validateScope: validate)
+      return .init(changesCheckpoint: request.changesDeviceCheckpoint) {
         defer { session.invalidate() }
         try validate()
         return KeyServiceHandler(
           keyStore: keyStore, entryStore: EntryStore(rootURL: root.rootURL),
           mutationOwner: VaultTransactionMutationOwner(), enrollmentService: workflow,
-          configuredVaultID: vaultID
+          revocationService: revocation, configuredVaultID: vaultID
         ).handle(.share(request))
       }
     }
@@ -168,6 +200,11 @@ struct V3ScopedDeviceIdentityLoader: V3DeviceWrappedIdentityLoading {
 }
 
 extension KeyShareRequest {
-  fileprivate var isEnrollmentApproval: Bool { if case .approve = self { true } else { false } }
+  fileprivate var changesDeviceCheckpoint: Bool {
+    switch self {
+    case .approve, .reviewRevocation, .revoke: true
+    default: false
+    }
+  }
   fileprivate var isEnrollmentAcceptance: Bool { if case .accept = self { true } else { false } }
 }

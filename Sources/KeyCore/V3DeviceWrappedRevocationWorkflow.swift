@@ -64,17 +64,17 @@ enum V3DeviceWrappedRevocationWorkflowError:
     }
 }
 
-protocol V3DeviceWrappedRevocationWorkflowServicing: Sendable {
+protocol V3DeviceRevocationWorkflowServicing: Sendable {
     func review(
         revoking deviceID: String,
         operationID: VaultTransactionOperationID
     ) throws -> V3VaultDeviceRevocationReview
 
-    func revoke(
+    func revokeReviewed(
         deviceID: String,
         confirmationToken: String,
         operationID: VaultTransactionOperationID
-    ) throws -> V3DeviceWrappedTrustedCheckpoint
+    ) throws -> V3ManifestCheckpoint
 }
 
 /// Keeps human confirmation separate from cryptographic publication.
@@ -87,15 +87,12 @@ protocol V3DeviceWrappedRevocationWorkflowServicing: Sendable {
 /// still produce the user's confirmation token. The revocation service
 /// independently revalidates that same plan at commit time.
 struct V3DeviceWrappedRevocationWorkflow:
-    V3DeviceWrappedRevocationWorkflowServicing,
+    V3DeviceRevocationWorkflowServicing,
     Sendable
 {
     typealias CatchUp = @Sendable (
         VaultTransactionOperationID
     ) throws -> V3DeviceWrappedCatchUpCoordinatorOutcome
-
-    private static let confirmationDomain =
-        "work.tvr.key/v3/device-revocation-confirmation"
 
     private let service: any V3DeviceWrappedRevocationServicing
     private let catchUp: CatchUp?
@@ -117,7 +114,7 @@ struct V3DeviceWrappedRevocationWorkflow:
             operationID: operationID
         )
         try requireCaughtUp(operationID: operationID)
-        return review(for: try service.prepare(revoking: deviceID))
+        return V3DeviceRevocationReviewBinding().review(for: try service.prepare(revoking: deviceID))
     }
 
     func revoke(
@@ -125,7 +122,7 @@ struct V3DeviceWrappedRevocationWorkflow:
         confirmationToken: String,
         operationID: VaultTransactionOperationID
     ) throws -> V3DeviceWrappedTrustedCheckpoint {
-        guard isCanonicalConfirmationToken(confirmationToken) else {
+        guard V3DeviceRevocationReviewBinding().isCanonicalConfirmationToken(confirmationToken) else {
             throw V3DeviceWrappedRevocationWorkflowError
                 .invalidConfirmationToken
         }
@@ -145,7 +142,7 @@ struct V3DeviceWrappedRevocationWorkflow:
         try requireCaughtUp(operationID: operationID)
         let plan = try service.prepare(revoking: deviceID)
         guard plan.revokedDevice.identity.deviceID == deviceID,
-              self.confirmationToken(
+              V3DeviceRevocationReviewBinding().confirmationToken(
                   checkpoint: plan.expectedCheckpoint,
                   authorizingDeviceID:
                     plan.authorizingDevice.identity.deviceID,
@@ -158,6 +155,14 @@ struct V3DeviceWrappedRevocationWorkflow:
         return try service.revoke(plan, operationID: operationID)
     }
 
+    func revokeReviewed(
+        deviceID: String, confirmationToken: String,
+        operationID: VaultTransactionOperationID
+    ) throws -> V3ManifestCheckpoint {
+        try revoke(deviceID: deviceID, confirmationToken: confirmationToken,
+                   operationID: operationID).checkpoint
+    }
+
     private func requireRecovered(
         _ recovery: V3DeviceWrappedRevocationRecoveryResult,
         deviceID: String,
@@ -167,7 +172,7 @@ struct V3DeviceWrappedRevocationWorkflow:
               let trusted = recovery.trustedCheckpoint,
               recovery.vaultKey != nil,
               plan.revokedDevice.identity.deviceID == deviceID,
-              self.confirmationToken(
+              V3DeviceRevocationReviewBinding().confirmationToken(
                   checkpoint: plan.expectedCheckpoint,
                   authorizingDeviceID:
                     plan.authorizingDevice.identity.deviceID,
@@ -191,7 +196,12 @@ struct V3DeviceWrappedRevocationWorkflow:
         }
     }
 
-    private func review(
+}
+
+/// One profile-independent binding between the displayed decision and execution.
+struct V3DeviceRevocationReviewBinding {
+    private static let confirmationDomain = "work.tvr.key/v3/device-revocation-confirmation"
+    func review(
         for plan: V3DeviceWrappedRevocationPlan
     ) -> V3VaultDeviceRevocationReview {
         V3VaultDeviceRevocationReview(
@@ -211,7 +221,7 @@ struct V3DeviceWrappedRevocationWorkflow:
         )
     }
 
-    private func summary(
+    func summary(
         _ device: V3DeviceWrappedManifestDevice
     ) -> V3VaultDeviceSummary {
         V3VaultDeviceSummary(
@@ -221,13 +231,13 @@ struct V3DeviceWrappedRevocationWorkflow:
         )
     }
 
-    private func isCanonicalConfirmationToken(_ value: String) -> Bool {
+    func isCanonicalConfirmationToken(_ value: String) -> Bool {
         value.utf8.count == 64 && value.utf8.allSatisfy {
             ($0 >= 48 && $0 <= 57) || ($0 >= 97 && $0 <= 102)
         }
     }
 
-    private func confirmationToken(
+    func confirmationToken(
         checkpoint: V3ManifestCheckpoint,
         authorizingDeviceID: String,
         revokedDeviceID: String
