@@ -9,7 +9,7 @@ struct V3EpochSigningKeyTests {
   private static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
   private static let transitionID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b4"
   private static let otherID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b5"
-  private static let vaultKey = Data((0..<32).map(UInt8.init))
+  private static let vaultKey = Data((0 ..< 32).map(UInt8.init))
   private static let fixturePublicKey =
     "BG_wO5SSQc4drdQ1GeaWDgqFtBppoFwygQOqK84VlMoWPE91OlW_AdxT9sCwx-7ni0DG_30lqW4igrmJzvccFEo"
 
@@ -238,7 +238,7 @@ struct V3EpochSigningKeyTests {
     #expect(
       try P256.Signing.PrivateKey(rawRepresentation: Data(repeating: 1, count: 32))
         .publicKey.x963Representation == publicKey)
-    let protectedKey = Data((0..<60).map(UInt8.init))
+    let protectedKey = Data((0 ..< 60).map(UInt8.init))
     let capsule = try V3EpochSigningKeyCapsule(
       publicKey: publicKey, protectedSigningKey: protectedKey)
     let expected =

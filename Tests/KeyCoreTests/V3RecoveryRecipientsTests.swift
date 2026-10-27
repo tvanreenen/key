@@ -200,7 +200,7 @@ struct V3RecoveryRecipientsTests {
   func boundsAndEveryTruncatedPrefixFailClosed() throws {
     let fixture = try Self.fixture()
     let bytes = fixture.canonicalBytes
-    for count in 0..<bytes.count {
+    for count in 0 ..< bytes.count {
       #expect(throws: (any Error).self) {
         try V3RecoveryRosterCodec().parseCanonical(Data(bytes.prefix(count)))
       }
@@ -242,7 +242,7 @@ struct V3RecoveryRecipientsTests {
     #expect(throws: V3RecoveryRecipientError.invalidStructure) {
       try V3RecoveryRosterCodec().decode(tooManyWrappers)
     }
-    let largestRecipients = try (1...V3RecoveryRoster.maximumRecipients).map { index in
+    let largestRecipients = try (1 ... V3RecoveryRoster.maximumRecipients).map { index in
       try V3RecoveryRecipient(
         registrationID: String(format: "018f4d38-7d5a-7b20-b0f1-%012x", index),
         publicKey: P256.KeyAgreement.PrivateKey(
@@ -273,7 +273,7 @@ struct V3RecoveryRecipientsTests {
   private static func fixture() throws -> V3RecoveryRoster {
     let record = try recipient()
     let wrapped = try V3HPKEWrappedVaultKey(
-      encapsulatedKey: record.publicKey, ciphertext: Data(0..<48))
+      encapsulatedKey: record.publicKey, ciphertext: Data(0 ..< 48))
     return try V3RecoveryRoster(
       generationID: generation, recipients: [record],
       wrappedKeys: [

@@ -24,7 +24,7 @@ struct V3RecoveryHistoryTests {
     #expect(receiver.calls == 1)
     #expect(snapshot.entries.map(\.name) == ["fixture/secret", "fixture/totp"])
     #expect(snapshot.entries.map(\.plaintext) == ["current value", "JBSWY3DPEHPK3PXP"])
-    #expect(f.source.entryReadCount == 4)  // initial reads plus exact revalidation
+    #expect(f.source.entryReadCount == 4) // initial reads plus exact revalidation
   }
 
   @Test
@@ -267,7 +267,7 @@ struct V3RecoveryHistoryTests {
         anchor: f.anchor, credentialPublicKey: f.recipient.publicKey)
     }
     f.source.hideFromListing(b.digest)
-    f.source.extraObjectCount = 1  // Two listed digests plus a non-object directory name.
+    f.source.extraObjectCount = 1 // Two listed digests plus a non-object directory name.
     #expect(throws: V3RecoveryValidationError.resourceLimit) {
       try V3RecoveryHistorySelector(source: f.source, limits: Self.limits(objects: 3)).select(
         anchor: f.anchor(at: b), credentialPublicKey: f.recipient.publicKey)
@@ -354,7 +354,7 @@ struct V3RecoveryHistoryTests {
   @Test
   func payloadSemanticsContextUTF8AndAEADAreCheckedAfterOneOpen() throws {
     guard #available(macOS 26.0, *) else { return }
-    for kind in 0..<4 {
+    for kind in 0 ..< 4 {
       let f = try RecoveryGraphFixture()
       let keyID = f.origin.body.fields.keyID
       let context = try V3EntryAuthenticationContext(

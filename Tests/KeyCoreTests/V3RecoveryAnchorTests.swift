@@ -57,7 +57,7 @@ struct V3RecoveryAnchorTests {
     #expect(throws: V3RecoveryAnchorError.invalidEncoding) {
       try V3RecoveryAnchorCodec().parseCanonical(Data(repeating: 0x20, count: 1_025))
     }
-    for length in 0..<bytes.count {
+    for length in 0 ..< bytes.count {
       #expect(throws: (any Error).self) {
         try V3RecoveryAnchorCodec().parseCanonical(Data(bytes.prefix(length)))
       }

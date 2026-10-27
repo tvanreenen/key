@@ -662,7 +662,7 @@ struct PIVRecoveryAuthorityDesignTests {
 
   private struct Fixture {
     let originalOwner: Device
-    let keys = (0..<3).map { _ in SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) } }
+    let keys = (0 ..< 3).map { _ in SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) } }
     let path: [V3DeviceWrappedManifestEnvelope]
     let entryObjects: [V3EncryptedEntry]
     let finalEntry: V3EncryptedEntry
@@ -682,7 +682,7 @@ struct PIVRecoveryAuthorityDesignTests {
       ]
       var encrypted = try #require(genesis.entries.first).encryptedEntry
       var objects = [encrypted]
-      for epoch in 0..<3 {
+      for epoch in 0 ..< 3 {
         if epoch > 0 {
           let parent = try #require(manifests.last)
           let checkpoint = try V3ManifestCheckpoint(

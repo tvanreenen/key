@@ -14,8 +14,8 @@ struct V3RecoveryManifestTests {
   private static let generationID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b6"
   private static let registrationID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b7"
   private static let entryID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b8"
-  private static let oldKey = Data(0..<32)
-  private static let nextKey = Data(32..<64)
+  private static let oldKey = Data(0 ..< 32)
+  private static let nextKey = Data(32 ..< 64)
 
   @Test
   func experimentalBodyAndProjectionHaveExactCanonicalFixtures() throws {
@@ -30,7 +30,7 @@ struct V3RecoveryManifestTests {
       wrappedKeys: [
         V3DeviceWrappedManifestKey(
           recipientDeviceID: signer.publicIdentity.deviceID,
-          wrappedKey: V3HPKEWrappedVaultKey(encapsulatedKey: pointBytes, ciphertext: Data(0..<48)))
+          wrappedKey: V3HPKEWrappedVaultKey(encapsulatedKey: pointBytes, ciphertext: Data(0 ..< 48)))
       ],
       entries: [
         .init(
@@ -39,12 +39,12 @@ struct V3RecoveryManifestTests {
           ciphertextDigest: Base64URL.encode(Data(repeating: 0x11, count: 32)))
       ])
     let proof = try V3RecoveryEpochTransitionProof(
-      parentEnvelopeDigest: Data(0..<32),
+      parentEnvelopeDigest: Data(0 ..< 32),
       signature: Data(repeating: 1, count: 64))
     let body = try V3RecoveryManifestBody(
       fields: fields,
       epochSigningKey: V3EpochSigningKeyCapsule(
-        publicKey: pointBytes, protectedSigningKey: Data(0..<60)),
+        publicKey: pointBytes, protectedSigningKey: Data(0 ..< 60)),
       transitionProof: proof,
       recovery: V3RecoveryRoster(generationID: Self.generationID, recipients: [], wrappedKeys: []))
     // Fixed software public points and box-shaped bytes, not valid ciphertexts
@@ -64,7 +64,7 @@ struct V3RecoveryManifestTests {
     let expectedInput =
       "work.tvr.key/v3/epoch-transition-authorization/v1\0{\"manifest\":\(unsigned),\"parents\":[\"\(parent)\"]}"
     #expect(
-      try V3RecoveryEpochBoundary.signatureInput(body: body, parents: [Data(0..<32)])
+      try V3RecoveryEpochBoundary.signatureInput(body: body, parents: [Data(0 ..< 32)])
         == Data(expectedInput.utf8))
   }
 
@@ -468,7 +468,7 @@ struct V3RecoveryManifestTests {
   func canonicalAndInputBudgetsFailClosedBeforeDomainUse() throws {
     let fixture = try Fixture()
     let bytes = fixture.origin.body.canonicalBytes
-    for count in 0..<bytes.count {
+    for count in 0 ..< bytes.count {
       #expect(throws: (any Error).self) {
         try V3RecoveryManifestCodec().parseCanonicalBody(Data(bytes.prefix(count)))
       }

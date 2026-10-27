@@ -29,11 +29,11 @@ enum PIVPublicObjectCodec {
       var length = Int(first)
       if first & 0x80 != 0 {
         let count = Int(first & 0x7f)
-        guard (1...2).contains(count), count <= bytes.count - offset,
+        guard (1 ... 2).contains(count), count <= bytes.count - offset,
           bytes[offset] != 0
         else { throw PIVPublicObjectError.invalidResponse }
         length = 0
-        for _ in 0..<count {
+        for _ in 0 ..< count {
           length = (length << 8) | Int(bytes[offset])
           offset += 1
         }
@@ -44,14 +44,14 @@ enum PIVPublicObjectCodec {
       guard length <= bytes.count - offset, values[tag] == nil else {
         throw PIVPublicObjectError.invalidResponse
       }
-      values[tag] = Data(bytes[offset..<(offset + length)])
+      values[tag] = Data(bytes[offset ..< (offset + length)])
       offset += length
     }
     return values
   }
 
   static func object(_ response: Data, maximumBytes: Int) throws -> Data {
-    guard (0...65_536).contains(maximumBytes) else {
+    guard (0 ... 65_536).contains(maximumBytes) else {
       throw PIVPublicObjectError.invalidResponse
     }
     // A three-byte BER length is needed when the certificate container is

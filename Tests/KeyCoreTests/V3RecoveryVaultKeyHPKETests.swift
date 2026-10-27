@@ -10,7 +10,7 @@ struct V3RecoveryVaultKeyHPKETests {
   private static let generation = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b5"
   private static let registration = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b6"
   private static let otherID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b7"
-  private static let vaultKey = Data(0..<32)
+  private static let vaultKey = Data(0 ..< 32)
 
   @Test
   func contextAndDomainInputsHaveExactFixtures() throws {

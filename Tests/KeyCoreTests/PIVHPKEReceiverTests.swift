@@ -41,12 +41,12 @@ struct PIVHPKEReceiverTests {
   @Test
   func softwareSenderRoundTripsAndRejectsChangedInputs() throws {
     guard #available(macOS 26.0, *) else { return }
-    for _ in 0..<16 {
+    for _ in 0 ..< 16 {
       let key = P256.KeyAgreement.PrivateKey()
       let receiver = try Self.receiver(key)
       let info = Data("key/piv-receiver/software-test/v1".utf8)
       let aad = Data(UUID().uuidString.utf8)
-      let message = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+      let message = Data((0 ..< 32).map { _ in UInt8.random(in: 0 ... 255) })
       var sender = try HPKE.Sender(
         recipientKey: key.publicKey, ciphersuite: .P256_SHA256_AES_GCM_256, info: info)
       let ciphertext = try sender.seal(message, authenticating: aad)
@@ -126,7 +126,7 @@ struct PIVHPKEReceiverTests {
     #expect(bytes.count.isMultiple(of: 2))
     var result = Data()
     for index in stride(from: 0, to: bytes.count, by: 2) {
-      let pair = String(decoding: bytes[index..<(index + 2)], as: UTF8.self)
+      let pair = String(decoding: bytes[index ..< (index + 2)], as: UTF8.self)
       result.append(try #require(UInt8(pair, radix: 16)))
     }
     return result

@@ -7,7 +7,7 @@ struct PIVPublicObjectCodecTests {
   @Test
   func framingBoundsAndEveryTruncatedPrefixFailClosed() throws {
     let wrapped = Self.tlv(0x53, Data(repeating: 0x42, count: 1_024))
-    for count in 0..<wrapped.count {
+    for count in 0 ..< wrapped.count {
       #expect(throws: PIVPublicObjectError.invalidResponse) {
         try PIVPublicObjectCodec.object(Data(wrapped.prefix(count)), maximumBytes: 1_024)
       }

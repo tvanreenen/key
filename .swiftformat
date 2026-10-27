@@ -2,5 +2,5 @@
 --swift-version 6.2
 --indent 4
 --linebreaks lf
---exclude .build,DerivedData,build
+--exclude .build,DerivedData,build,tmp
 --rules consecutiveBlankLines,consecutiveSpaces,linebreakAtEndOfFile,linebreaks,spaceAroundBraces,spaceAroundBrackets,spaceAroundGenerics,spaceAroundOperators,spaceInsideBraces,spaceInsideBrackets,spaceInsideGenerics,spaceInsideParens,trailingSpace
