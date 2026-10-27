@@ -11,8 +11,8 @@ enum V3RecoveryRegistrationTestSupport {
   static let generationID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b5"
   static let entryID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b6"
   static let totpID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b7"
-  static let oldKey = Data(0..<32)
-  static let nextKey = Data(32..<64)
+  static let oldKey = Data(0 ..< 32)
+  static let nextKey = Data(32 ..< 64)
 
   enum FixtureError: Error { case cancelled }
 
