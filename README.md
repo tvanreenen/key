@@ -422,6 +422,9 @@ in fresh derived data, rather than reusing a build that would bypass extraction.
 That build explicitly disables compile caches and the Swift integrated driver,
 as required by CodeQL's manual Swift tracing setup. These settings apply only
 to analysis; ordinary product builds retain the project's compiler settings.
+Analysis uses a generic macOS destination with `ARCHS=arm64`, avoiding runnable
+destination lookup under CodeQL's x86_64 tracer. Product checks still select
+the runner's actual arm64 Mac and execute the resulting bundled CLIs.
 Its analysis/upload job and GitHub's **Code scanning results / CodeQL** check
 are distinct: after the first hosted run, require both the `Verify` check names
 above and the CodeQL results check in the repository's merge rules. Configure

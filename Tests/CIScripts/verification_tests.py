@@ -128,6 +128,11 @@ class ProductBuildInvocationTests(unittest.TestCase):
                 args = capture.read_text().splitlines()
                 self.assertIn("CODE_SIGNING_ALLOWED=NO", args)
                 self.assertIn("ARCHS=arm64", args)
+                destination = args[args.index("-destination") + 1]
+                self.assertEqual(
+                    destination,
+                    "generic/platform=macOS" if operation == "codeql" else "platform=macOS,arch=arm64",
+                )
                 for flag in (
                     "COMPILATION_CACHE_ENABLE_CACHING=NO",
                     "SWIFT_ENABLE_COMPILE_CACHE=NO",

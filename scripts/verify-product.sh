@@ -28,7 +28,11 @@ cd "${repo_root}"
 case "${operation}" in
   build|codeql)
     extraction_settings=()
+    build_destination='platform=macOS,arch=arm64'
     if [[ "${operation}" == codeql ]]; then
+      # The x86_64 CodeQL tracer can make Xcode enumerate only a Rosetta
+      # "My Mac" destination. Analysis builds do not need a runnable device.
+      build_destination='generic/platform=macOS'
       # CodeQL must observe compiler subprocesses instead of in-process or
       # cached compilation. Keep these tracing settings out of product builds.
       extraction_settings=(
@@ -42,7 +46,7 @@ case "${operation}" in
       -project Key.xcodeproj \
       -scheme "${scheme}" \
       -configuration "${configuration}" \
-      -destination 'platform=macOS,arch=arm64' \
+      -destination "${build_destination}" \
       -derivedDataPath "${derived_data}" \
       -onlyUsePackageVersionsFromResolvedFile \
       ARCHS=arm64 \
