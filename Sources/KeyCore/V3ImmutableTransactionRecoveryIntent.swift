@@ -324,10 +324,10 @@ private func validRecoveryMergeResolution(_ resolution: VaultConflictResolution)
     let conflict = Array(resolution.conflictID.utf8)
     let version = Array(resolution.versionID.utf8)
     return conflict.count == 66 && resolution.conflictID.hasPrefix("c-")
-        && conflict.dropFirst(2).allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
-        && (16...64).contains(version.count)
+        && conflict.dropFirst(2).allSatisfy { (48 ... 57).contains($0) || (97 ... 102).contains($0) }
+        && (16 ... 64).contains(version.count)
         && version.allSatisfy {
-            (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0)
+            (48 ... 57).contains($0) || (65 ... 90).contains($0) || (97 ... 122).contains($0)
                 || $0 == 45 || $0 == 95
         }
 }

@@ -47,7 +47,7 @@ struct V3RecoveryMergeMutationPublisherTests {
     #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: [false, true], 0..<12)
+  @Test(arguments: [false, true], 0 ..< 12)
   func everyDurableBoundaryResumesExactCandidateOrAbandonsUnpublishedStaging(
     automatic: Bool, phase: Int
   ) throws {
@@ -445,7 +445,7 @@ struct V3RecoveryMergeMutationPublisherTests {
         == .completed(operationID: f.operationID))
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func tighterProjectedLimitsRefuseBeforeCreatingLocalIntent(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }

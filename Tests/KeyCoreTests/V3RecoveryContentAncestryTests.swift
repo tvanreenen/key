@@ -5,19 +5,19 @@ import Testing
 
 struct V3RecoveryContentAncestryTests {
   @Test func boundedDagPolicyMatchesIndependentSetBasedReferenceForEverySixNodeDag() throws {
-    let nodes = (0..<6).map { Data([UInt8($0)]) }
+    let nodes = (0 ..< 6).map { Data([UInt8($0)]) }
     var checked = 0
     // Every non-root node has a nonempty predecessor subset. This enumerates
     // all 9,765 rooted, labelled, topologically ordered six-node DAGs.
-    for a in 1..<2 {
-      for b in 1..<4 {
-        for c in 1..<8 {
-          for d in 1..<16 {
-            for e in 1..<32 {
+    for a in 1 ..< 2 {
+      for b in 1 ..< 4 {
+        for c in 1 ..< 8 {
+          for d in 1 ..< 16 {
+            for e in 1 ..< 32 {
               let masks = [0, a, b, c, d, e]
               let incoming = Dictionary(
                 uniqueKeysWithValues: nodes.enumerated().map { i, node in
-                  (node, (0..<i).filter { masks[i] & (1 << $0) != 0 }.map { nodes[$0] })
+                  (node, (0 ..< i).filter { masks[i] & (1 << $0) != 0 }.map { nodes[$0] })
                 })
               let policy = try V3RecoveryContentAncestry(
                 floor: nodes[0], order: nodes, parents: incoming)
@@ -60,7 +60,7 @@ struct V3RecoveryContentAncestryTests {
     #expect(checked == 9_765)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func malformedOrderAndParentEdgesRefuse(variant: Int) throws {
     let a = Data([0])
     let b = Data([1])

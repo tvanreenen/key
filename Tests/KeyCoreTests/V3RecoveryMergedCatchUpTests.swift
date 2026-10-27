@@ -117,7 +117,7 @@ struct V3RecoveryMergedCatchUpTests {
     #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func everyParentAndSnapshotMustAuthenticateBeforeAnyCheckpointAdvance(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -172,7 +172,7 @@ struct V3RecoveryMergedCatchUpTests {
     #expect(f.checkpoints.value == f.checkpoint.canonicalBytes)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func everyPendingNamespaceIsRecheckedBeforeMergeCheckpointCas(namespace: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -380,7 +380,7 @@ struct V3RecoveryMergedCatchUpTests {
         && reader.value == merged.checkpoint.canonicalBytes)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func requiredBelowCheckpointManifestsAndNewBranchSnapshotsFailClosed(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -488,7 +488,7 @@ struct V3RecoveryMergedCatchUpTests {
     #expect(writes.values == [merged.checkpoint.canonicalBytes])
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func expandedObservationRetainsSourcePendingAndCheckpointGuards(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -505,7 +505,7 @@ struct V3RecoveryMergedCatchUpTests {
       if count == 2 {
         switch variant {
         case 0: try FileManager.default.removeItem(at: f.manifestURL(b.envelope.digest))
-        case 1...3: stores[variant - 1].value = Data([1])
+        case 1 ... 3: stores[variant - 1].value = Data([1])
         default: reader.value = winner.canonicalBytes
         }
       }
@@ -516,7 +516,7 @@ struct V3RecoveryMergedCatchUpTests {
     #expect(reader.value == (variant == 4 ? winner.canonicalBytes : a.checkpoint.canonicalBytes))
   }
 
-  @Test(arguments: [false, true], 0..<3)
+  @Test(arguments: [false, true], 0 ..< 3)
   func lateBranchMergeResumesWithTheExactAdvancedCheckpointAndCandidate(automatic: Bool, phase: Int)
     throws
   {

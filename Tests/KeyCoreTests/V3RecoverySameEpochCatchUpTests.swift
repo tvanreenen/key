@@ -111,7 +111,7 @@ struct V3RecoverySameEpochCatchUpTests {
     #expect(current.checkpoint == last.checkpoint && count == 1)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func coordinatedPendingWorkAfterFirstCASBlocksEveryNamespace(namespace: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -340,7 +340,7 @@ struct V3RecoverySameEpochCatchUpTests {
       service(f, checkpoints: other).advanceOneStep(from: floor(f), vaultKey: Core.nextKey))
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func everyLocalPendingNamespaceBlocksCatchUp(namespace: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -439,7 +439,7 @@ struct V3RecoverySameEpochCatchUpTests {
       result.envelope == child.envelope && f.checkpoints.value == result.checkpoint.canonicalBytes)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func missingOrChangedForwardObjectsDoNotAdvanceTrust(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -468,7 +468,7 @@ struct V3RecoverySameEpochCatchUpTests {
     #expect(f.checkpoints.value == f.checkpoint.canonicalBytes && f.ownership.value == nil)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func authenticationCoverageProofAndRevisionErrorsAreRefused(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -628,7 +628,7 @@ struct V3RecoverySameEpochCatchUpTests {
     }
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func malformedInventoryCannotHideVisibleForwardState(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }

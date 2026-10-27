@@ -181,7 +181,7 @@ struct V3RecoveryVaultMutationServiceTests {
     #expect(f.ownership.value == nil)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func ordinaryPinnedInterruptionResumesBeforeTheRequestedChange(phase: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -235,7 +235,7 @@ struct V3RecoveryVaultMutationServiceTests {
     #expect(f.ownership.value == nil)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func unavailableOrMalformedPinnedIntentCannotTriggerGuessedRecovery(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -330,7 +330,7 @@ struct V3RecoveryVaultMutationServiceTests {
     #expect(f.checkpoints.value == f.checkpoint.canonicalBytes && f.ownership.value == nil)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func exactSessionBindingAndInvalidationRefuseWithoutCreatingOrUnwrappingAKey(variant: Int) throws
   {
     let f = try Fixture()
@@ -355,7 +355,7 @@ struct V3RecoveryVaultMutationServiceTests {
     #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func missingOrChangedCurrentProviderObjectsCannotBeBypassedBySessionOrCache(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }

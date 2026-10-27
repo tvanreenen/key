@@ -174,7 +174,7 @@ struct V3RecoveryMergeMutationTests {
     try requirePreservedAuthority(candidate, f: f)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func incompleteDuplicateUnknownAndStaleChoicesRefuseConstruction(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -250,7 +250,7 @@ struct V3RecoveryMergeMutationTests {
     }
   }
 
-  @Test(arguments: 0..<6)
+  @Test(arguments: 0 ..< 6)
   func exactHeadsCheckpointKindMetadataAndStagingAreIndependentlyChecked(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }

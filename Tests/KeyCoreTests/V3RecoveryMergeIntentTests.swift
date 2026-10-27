@@ -44,7 +44,7 @@ struct V3RecoveryMergeIntentTests {
     #expect(decoded.expectedHeads == heads)
   }
 
-  @Test(arguments: 0..<11)
+  @Test(arguments: 0 ..< 11)
   func malformedMergeContextRefusesBeforePersisting(variant: Int) throws {
     let context: [VaultConflictResolution]?
     let kind: VaultTransactionMutationKind
@@ -112,7 +112,7 @@ struct V3RecoveryMergeIntentTests {
     }
   }
 
-  @Test(arguments: 0..<7)
+  @Test(arguments: 0 ..< 7)
   func strictCanonicalVersionedSchemaRejectsUnknownMissingAndSubstitutedFields(variant: Int) throws
   {
     let intent = try make(kind: .resolveConflict, choices: [choice])

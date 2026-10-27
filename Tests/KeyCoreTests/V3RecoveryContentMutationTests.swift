@@ -13,7 +13,7 @@ struct V3RecoveryContentMutationTests {
   private static let newID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c1"
   private static let copyID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c2"
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func everyEditPreservesAuthorityAndCoverageWithoutPrivateDeviceOrTokenCalls(operation: Int) throws
   {
     let f = try Fixture()
@@ -108,7 +108,7 @@ struct V3RecoveryContentMutationTests {
     #expect(core.owner.signatures == 0 && core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<10)
+  @Test(arguments: 0 ..< 10)
   func invalidInputsCannotConstructAnEdit(variant: Int) throws {
     let f = try Fixture()
     let source = try f.entry("fixture/secret").canonicalBytes
@@ -136,7 +136,7 @@ struct V3RecoveryContentMutationTests {
     #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func wrongParentKeyAndIncompleteCurrentSnapshotAreRefused(variant: Int) throws {
     let f = try Fixture()
     var entries = f.entries
@@ -173,7 +173,7 @@ struct V3RecoveryContentMutationTests {
     }
   }
 
-  @Test(arguments: 0..<8)
+  @Test(arguments: 0 ..< 8)
   func changedEpochAndCoverageAreNotOrdinaryEdits(variant: Int) throws {
     let f = try Fixture()
     let candidate = try f.build(try f.request(1))
@@ -257,7 +257,7 @@ struct V3RecoveryContentMutationTests {
     #expect(throws: (any Error).self) { try f.validate(changed) }
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func stagedCoverageMustBeExactAndOperationKindMustMatch(variant: Int) throws {
     let f = try Fixture()
     let original = try f.build(try f.request(1))

@@ -238,7 +238,7 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
       maximumBytes: V3ImmutableTransactionRecoveryIntent.maximumBytes)
     {
     case .unavailable where anchor.phase == .prepared:
-      merge = false  // Shared kernel may abandon this locally reserved, unstaged operation.
+      merge = false // Shared kernel may abandon this locally reserved, unstaged operation.
     case .unavailable: throw VaultUXServiceError.vaultIncomplete
     case .available(let bytes):
       guard bytes.count <= V3ImmutableTransactionRecoveryIntent.maximumBytes,
@@ -296,7 +296,7 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
     }
   }
   private func freshEntryID(_ base: Base) throws -> String {
-    for _ in 0..<16 {
+    for _ in 0 ..< 16 {
       let id = makeEntryID()
       guard isValidV3UUID(id) else { throw V3DeviceWrappedContentMutationError.invalidEntryID }
       if !base.current.envelope.body.fields.entries.contains(where: { $0.entryID == id }) {

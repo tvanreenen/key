@@ -38,7 +38,7 @@ struct V3RecoveryContentMutationPublisherTests {
     #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<12)
+  @Test(arguments: 0 ..< 12)
   func everyPublicationBoundaryResumesExactBytesOrLeavesOldCheckpoint(phase: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -267,7 +267,7 @@ struct V3RecoveryContentMutationPublisherTests {
   }
 
   @Test func wrongKeyIncompleteStagingAndProjectedLimitsCannotCreateLocalIntent() throws {
-    for variant in 0..<4 {
+    for variant in 0 ..< 4 {
       let f = try Fixture()
       defer { f.remove() }
       let candidate = try f.build(.edit(name: "fixture/secret", type: .secret, plaintext: "saved"))
@@ -293,7 +293,7 @@ struct V3RecoveryContentMutationPublisherTests {
   }
 
   @Test func corruptCurrentEntryAndMutatedIntentAreRefusedOnResume() throws {
-    for variant in 0..<2 {
+    for variant in 0 ..< 2 {
       let f = try Fixture()
       defer { f.remove() }
       let candidate = try f.build(.edit(name: "fixture/secret", type: .secret, plaintext: "saved"))
@@ -338,7 +338,7 @@ struct V3RecoveryContentMutationPublisherTests {
   }
 
   @Test func missingProviderFloorAndInconsistentTypedCandidateCannotStartPublication() throws {
-    for variant in 0..<2 {
+    for variant in 0 ..< 2 {
       let f = try Fixture()
       defer { f.remove() }
       let candidate = try f.build(.remove(name: "fixture/totp"))
