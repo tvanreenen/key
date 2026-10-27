@@ -49,6 +49,8 @@
 		D63F00000000000000000002 /* V3RecoveryReadOnlyVaultRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = D63F00000000000000000001 /* V3RecoveryReadOnlyVaultRuntime.swift */; };
 		D64000000000000000000002 /* V3RecoveryVaultRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = D64000000000000000000001 /* V3RecoveryVaultRuntime.swift */; };
 		D64100000000000000000002 /* KeyRecoveryRegistrationWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D64100000000000000000001 /* KeyRecoveryRegistrationWorkflow.swift */; };
+		C2EAB4DDA76C5C7140686CD3 /* KeyRecoveryRecipientRemovalWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D7E8CAD8074C977EC06D9BE /* KeyRecoveryRecipientRemovalWorkflow.swift */; };
+		99DE329E8552181A762C7990 /* KeyRecoveryRecipientRemovalRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93FC8F2969EF7BCB69FAB956 /* KeyRecoveryRecipientRemovalRequest.swift */; };
 		5553BA96C0EF2F5C72EE744D /* V3RecoveryReplacementDeviceIdentityAuthorityAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE299FAD214853F694A4F92D /* V3RecoveryReplacementDeviceIdentityAuthorityAdapter.swift */; };
 		DA0F206D40FB22F41D2CBCC1 /* KeyRecoveryDeviceReplacementWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5565E02B861CF1625010F934 /* KeyRecoveryDeviceReplacementWorkflow.swift */; };
 		DCC347012D7846F26039B5D3 /* V3RecoveryDeviceRevocationWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B750E9FAE775B961BD70AAF7 /* V3RecoveryDeviceRevocationWorkflow.swift */; };
@@ -315,6 +317,8 @@
 		D63F00000000000000000001 /* V3RecoveryReadOnlyVaultRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryReadOnlyVaultRuntime.swift; sourceTree = "<group>"; };
 		D64000000000000000000001 /* V3RecoveryVaultRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryVaultRuntime.swift; sourceTree = "<group>"; };
 		D64100000000000000000001 /* KeyRecoveryRegistrationWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyRecoveryRegistrationWorkflow.swift; sourceTree = "<group>"; };
+		4D7E8CAD8074C977EC06D9BE /* KeyRecoveryRecipientRemovalWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyRecoveryRecipientRemovalWorkflow.swift; sourceTree = "<group>"; };
+		93FC8F2969EF7BCB69FAB956 /* KeyRecoveryRecipientRemovalRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyRecoveryRecipientRemovalRequest.swift; sourceTree = "<group>"; };
 		CE299FAD214853F694A4F92D /* V3RecoveryReplacementDeviceIdentityAuthorityAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryReplacementDeviceIdentityAuthorityAdapter.swift; sourceTree = "<group>"; };
 		5565E02B861CF1625010F934 /* KeyRecoveryDeviceReplacementWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyRecoveryDeviceReplacementWorkflow.swift; sourceTree = "<group>"; };
 		B750E9FAE775B961BD70AAF7 /* V3RecoveryDeviceRevocationWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryDeviceRevocationWorkflow.swift; sourceTree = "<group>"; };
@@ -714,6 +718,8 @@
 				D63F00000000000000000001 /* V3RecoveryReadOnlyVaultRuntime.swift */,
 				D64000000000000000000001 /* V3RecoveryVaultRuntime.swift */,
 				D64100000000000000000001 /* KeyRecoveryRegistrationWorkflow.swift */,
+				4D7E8CAD8074C977EC06D9BE /* KeyRecoveryRecipientRemovalWorkflow.swift */,
+				93FC8F2969EF7BCB69FAB956 /* KeyRecoveryRecipientRemovalRequest.swift */,
 				CE299FAD214853F694A4F92D /* V3RecoveryReplacementDeviceIdentityAuthorityAdapter.swift */,
 				5565E02B861CF1625010F934 /* KeyRecoveryDeviceReplacementWorkflow.swift */,
 				B750E9FAE775B961BD70AAF7 /* V3RecoveryDeviceRevocationWorkflow.swift */,
@@ -1229,6 +1235,8 @@
 				D63F00000000000000000002 /* V3RecoveryReadOnlyVaultRuntime.swift in Sources */,
 				D64000000000000000000002 /* V3RecoveryVaultRuntime.swift in Sources */,
 				D64100000000000000000002 /* KeyRecoveryRegistrationWorkflow.swift in Sources */,
+				C2EAB4DDA76C5C7140686CD3 /* KeyRecoveryRecipientRemovalWorkflow.swift in Sources */,
+				99DE329E8552181A762C7990 /* KeyRecoveryRecipientRemovalRequest.swift in Sources */,
 				5553BA96C0EF2F5C72EE744D /* V3RecoveryReplacementDeviceIdentityAuthorityAdapter.swift in Sources */,
 				DA0F206D40FB22F41D2CBCC1 /* KeyRecoveryDeviceReplacementWorkflow.swift in Sources */,
 				DCC347012D7846F26039B5D3 /* V3RecoveryDeviceRevocationWorkflow.swift in Sources */,
