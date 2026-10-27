@@ -121,7 +121,7 @@ struct V3RecoveryKeyRotationTests {
       try openWrapper(result.envelope, recipient: recipient, token: f.backupToken) == Core.nextKey)
   }
 
-  @Test(arguments: 0..<6)
+  @Test(arguments: 0 ..< 6)
   func invalidKeysOwnerReasonAndTransitionRefuseBeforeSigning(variant: Int) throws {
     let f = try Fixture(backup: true)
     let other = try Core.Owner()
@@ -137,7 +137,7 @@ struct V3RecoveryKeyRotationTests {
     #expect(f.owner.signatures == 0 && other.signatures == 0 && f.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func incompleteExtraOrSubstitutedCurrentSnapshotRefusesBeforeSigning(variant: Int) throws {
     let f = try Fixture()
     var entries = f.entries
@@ -163,7 +163,7 @@ struct V3RecoveryKeyRotationTests {
     #expect(f.owner.signatures == 0)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func boundedConstructionRefusesBeforeSigning(variant: Int) throws {
     let f = try Fixture(backup: true)
     let limits = [
@@ -175,7 +175,7 @@ struct V3RecoveryKeyRotationTests {
     #expect(f.owner.signatures == 0 && f.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func independentValidationRequiresExactCompleteStagedSnapshot(variant: Int) throws {
     let f = try Fixture(backup: true)
     let result = try build(f)
@@ -285,7 +285,7 @@ struct V3RecoveryKeyRotationTests {
     #expect(identity.calls.value == 1 && f.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func independentPublicationValidationBoundsStagedBytesBeforePrivateWork(variant: Int) throws {
     let f = try Fixture(backup: true)
     let candidate = try build(f)

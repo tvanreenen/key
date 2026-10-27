@@ -519,7 +519,7 @@ struct V3RecoveryAuthorityChangeService: Sendable {
     }
   }
   private func freshKey(excluding current: V3VaultKeyID) throws -> Data {
-    for _ in 0..<16 {
+    for _ in 0 ..< 16 {
       let key = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }
       if try V3VaultKeyID.derive(vaultKey: key, vaultID: vaultID) != current { return key }
     }

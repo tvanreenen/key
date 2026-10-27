@@ -113,7 +113,7 @@ struct V3RecoveryEnrollmentAdoptionTests {
     #expect(f.owner.joiner.unwraps == 0 && f.checkpoints.value == nil)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func interruptionRetainsOnlyExactLocalTrustAndColdRetryFinishes(phase: Int) throws {
     let f = try Fixture()
     defer { f.owner.disk.remove() }
@@ -128,7 +128,7 @@ struct V3RecoveryEnrollmentAdoptionTests {
     #expect(f.ownership.value == nil && f.registration.value == nil && f.adoption.value == nil)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func localWriteFailureNeverInstallsSessionAndCanRetry(variant: Int) throws {
     let f = try Fixture()
     defer { f.owner.disk.remove() }
@@ -145,7 +145,7 @@ struct V3RecoveryEnrollmentAdoptionTests {
     #expect(try adopt(f).checkpoint == f.checkpoint)
   }
 
-  @Test(arguments: 0..<10)
+  @Test(arguments: 0 ..< 10)
   func comparisonIdentityCheckpointAndPendingGuardsRunBeforePrivateOperation(variant: Int) throws {
     let f = try Fixture()
     defer { f.owner.disk.remove() }
@@ -188,7 +188,7 @@ struct V3RecoveryEnrollmentAdoptionTests {
     #expect(f.owner.joiner.unwraps == 1 && f.checkpoints.value == nil && !f.session.hasResidentKey)
   }
 
-  @Test(arguments: 0..<8)
+  @Test(arguments: 0 ..< 8)
   func changesDuringWrapperOperationCannotInstallOrConsume(variant: Int) throws {
     let f = try Fixture()
     defer { f.owner.disk.remove() }
@@ -211,7 +211,7 @@ struct V3RecoveryEnrollmentAdoptionTests {
     #expect(f.local.consumptions == 0)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func lockAtEachLocalBoundaryNeverRevivesSession(phase: Int) throws {
     let f = try Fixture()
     defer { f.owner.disk.remove() }
@@ -223,7 +223,7 @@ struct V3RecoveryEnrollmentAdoptionTests {
     #expect(try adopt(f).checkpoint == f.checkpoint)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func missingApprovalParentOrCurrentCiphertextRefusesBeforePrivateOperation(variant: Int) throws {
     let f = try Fixture()
     defer { f.owner.disk.remove() }
@@ -270,7 +270,7 @@ struct V3RecoveryEnrollmentAdoptionTests {
     #expect(f.owner.joiner.unwraps == 0 && f.checkpoints.value == nil)
   }
 
-  @Test(arguments: 0..<7)
+  @Test(arguments: 0 ..< 7)
   func invalidInventoryNeverReachesAuthentication(variant: Int) throws {
     let f = try Fixture()
     defer { f.owner.disk.remove() }
@@ -280,7 +280,7 @@ struct V3RecoveryEnrollmentAdoptionTests {
     #expect(f.owner.joiner.unwraps == 0 && f.checkpoints.value == nil)
   }
 
-  @Test(arguments: 0..<6)
+  @Test(arguments: 0 ..< 6)
   func objectDepthAndSnapshotBudgetsFailBeforePrivateOperation(variant: Int) throws {
     let f = try Fixture()
     defer { f.owner.disk.remove() }

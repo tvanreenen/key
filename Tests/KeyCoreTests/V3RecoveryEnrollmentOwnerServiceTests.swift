@@ -67,7 +67,7 @@ struct V3RecoveryEnrollmentOwnerServiceTests {
     #expect(f.joiner.unwraps == 0 && f.joiner.signatures == 1)
   }
 
-  @Test(arguments: 0..<14)
+  @Test(arguments: 0 ..< 14)
   func allBoundariesRestartExactRandomEpochAndNeverRepeatComparisonOrSigning(phase: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -149,7 +149,7 @@ struct V3RecoveryEnrollmentOwnerServiceTests {
         && f.disk.core.owner.unwraps == (signing ? 0 : 1))
   }
 
-  @Test(arguments: 0..<9)
+  @Test(arguments: 0 ..< 9)
   func invalidComparisonSessionSourceOrPendingWorkRefusesBeforeSigning(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -179,7 +179,7 @@ struct V3RecoveryEnrollmentOwnerServiceTests {
         && f.disk.checkpoints.value == f.disk.checkpoint.canonicalBytes)
   }
 
-  @Test(arguments: 0..<7)
+  @Test(arguments: 0 ..< 7)
   func changesDuringSigningStopBeforeWrapperVerification(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -342,7 +342,7 @@ struct V3RecoveryEnrollmentOwnerServiceTests {
         && f.disk.checkpoints.value == f.disk.checkpoint.canonicalBytes)
   }
 
-  @Test(arguments: 0..<6)
+  @Test(arguments: 0 ..< 6)
   func changesAfterOldWrapperRefuseBeforeNewPrivateOperation(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -387,7 +387,7 @@ struct V3RecoveryEnrollmentOwnerServiceTests {
         && f.disk.checkpoints.value == f.disk.checkpoint.canonicalBytes)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func invalidSourceOrOwnerRefusesRestartBeforeAuthentication(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -467,7 +467,7 @@ struct V3RecoveryEnrollmentOwnerServiceTests {
     #expect(f.disk.core.owner.unwraps == 4 && session.hasResidentKey && f.local.consumptions == 1)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func changesAfterResumeCheckpointCannotInstallSession(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }

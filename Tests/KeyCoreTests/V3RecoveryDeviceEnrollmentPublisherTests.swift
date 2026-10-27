@@ -60,7 +60,7 @@ struct V3RecoveryDeviceEnrollmentPublisherTests {
     #expect(f.disk.core.owner.unwraps == 1 && f.disk.ownership.value == nil)
   }
 
-  @Test(arguments: 0..<14)
+  @Test(arguments: 0 ..< 14)
   func everyBoundaryResumesExactApprovalWithoutNewComparisonOrSigning(phase: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -243,7 +243,7 @@ struct V3RecoveryDeviceEnrollmentPublisherTests {
       try f.savedState().phase == .consumed && f.disk.core.owner.signatures == f.signatures + 1)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func changedLocalTranscriptConsentOrOwnerRetainsPendingWork(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -267,7 +267,7 @@ struct V3RecoveryDeviceEnrollmentPublisherTests {
     #expect(try resume(f) == .completed(operationID: f.disk.operationID))
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func wrongOrMissingScopedKeyRefusesWithoutConsuming(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -282,7 +282,7 @@ struct V3RecoveryDeviceEnrollmentPublisherTests {
     #expect(try f.savedState().phase == .awaitingComparison && f.disk.ownership.value == pending)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func cancellationOrChangedLocalStateDuringPrivateVerificationNeverArmsIntent(variant: Int) throws
   {
     let f = try Fixture()
@@ -440,7 +440,7 @@ struct V3RecoveryDeviceEnrollmentPublisherTests {
     #expect(g.disk.core.owner.unwraps == 0 && g.disk.ownership.value == nil)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func boundedSourceAndProjectedUsageRefuseBeforePrivateVerification(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }

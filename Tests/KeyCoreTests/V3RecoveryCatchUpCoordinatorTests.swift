@@ -54,7 +54,7 @@ struct V3RecoveryCatchUpCoordinatorTests {
   func sameEpochOnlyAndUnchangedFloorNeedNoPrivateOpening(edits: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
-    for index in 0..<edits { try f.edit("edit \(index)") }
+    for index in 0 ..< edits { try f.edit("edit \(index)") }
     let owner = CountingOwner()
     let result = try current(service(f, owner: owner).catchUp(from: f.floor))
     #expect(result.0.envelope == f.parent)
@@ -166,7 +166,7 @@ struct V3RecoveryCatchUpCoordinatorTests {
     #expect(!f.session.hasResidentKey)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func postContentCommitPendingCheckpointAndSessionRacesRefuse(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -175,7 +175,7 @@ struct V3RecoveryCatchUpCoordinatorTests {
     try f.edit("second edit")
     let cp = Checkpoints(f.local) {
       switch variant {
-      case 0..<3: f.pending[variant].value = Data([1])
+      case 0 ..< 3: f.pending[variant].value = Data([1])
       case 3: f.local.value = Data([1])
       default:
         f.session.invalidate()
@@ -193,7 +193,7 @@ struct V3RecoveryCatchUpCoordinatorTests {
     #expect(f.receiver.unwraps == 0 && !f.session.hasResidentKey)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func wrongFloorIdentityColdSessionAndPendingWorkRefuseBeforeOpening(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }

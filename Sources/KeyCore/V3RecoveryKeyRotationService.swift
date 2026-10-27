@@ -366,7 +366,7 @@ struct V3RecoveryKeyRotationService: Sendable {
   }
 
   private func freshKey(excluding currentID: V3VaultKeyID) throws -> Data {
-    for _ in 0..<16 {
+    for _ in 0 ..< 16 {
       let key = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }
       if try V3VaultKeyID.derive(vaultKey: key, vaultID: vaultID) != currentID { return key }
     }

@@ -40,7 +40,7 @@ struct V3RecoveryRecipientRemovalPublisherTests {
     #expect(f.owner.unwraps == 1)
   }
 
-  @Test(arguments: [false, true], 0..<14)
+  @Test(arguments: [false, true], 0 ..< 14)
   func everyBoundaryResumesPinnedRemovalWithoutNewApprovalOrSigning(last: Bool, phase: Int) throws {
     let f = try Fixture(last: last)
     defer { f.disk.remove() }
@@ -75,7 +75,7 @@ struct V3RecoveryRecipientRemovalPublisherTests {
     #expect(f.disk.ownership.value == nil && f.owner.signatures == 2 && f.owner.unwraps == 1)
   }
 
-  @Test(arguments: 0..<2)
+  @Test(arguments: 0 ..< 2)
   func differentAuthenticatedEpochPoliciesAreNotRecipientRemoval(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -146,7 +146,7 @@ struct V3RecoveryRecipientRemovalPublisherTests {
         && f.disk.checkpoints.value == f.disk.checkpoint.canonicalBytes && f.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func initialLastRemovalRequiresExactAcknowledgementBeforeMacOperation(variant: Int) throws {
     let f = try Fixture(last: variant != 3)
     defer { f.disk.remove() }
@@ -174,7 +174,7 @@ struct V3RecoveryRecipientRemovalPublisherTests {
     #expect(f.owner.unwraps == 0 && f.disk.ownership.value == nil)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func independentlyReviewedPlanCannotBeSubstituted(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -272,7 +272,7 @@ struct V3RecoveryRecipientRemovalPublisherTests {
     #expect(f.owner.signatures == 2 && f.owner.unwraps == 1)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func uncommittedMissingOrWrongKeysAndOwnerRetainIntent(variant: Int) throws {
     let f = try Fixture(last: true)
     defer { f.disk.remove() }
@@ -313,7 +313,7 @@ struct V3RecoveryRecipientRemovalPublisherTests {
     #expect(f.disk.ownership.value == pending && f.disk.checkpoints.value == checkpoint)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func badKeyOwnerOrCheckpointRefusesBeforePrivateOperation(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -346,7 +346,7 @@ struct V3RecoveryRecipientRemovalPublisherTests {
     #expect(f.owner.unwraps == 1 && f.disk.ownership.value == nil)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func changesDuringMacVerificationStopBeforeReservation(variant: Int) throws {
     let f = try Fixture(last: true)
     defer { f.disk.remove() }
@@ -469,7 +469,7 @@ struct V3RecoveryRecipientRemovalPublisherTests {
     #expect(try resume(f) == .abandoned(operationID: f.disk.operationID))
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func visibleBranchDuringPublicationRetainsPendingAndOldCheckpoint(phase: Int) throws {
     let f = try Fixture(last: true)
     defer { f.disk.remove() }
@@ -486,7 +486,7 @@ struct V3RecoveryRecipientRemovalPublisherTests {
       f.disk.ownership.value != nil && f.disk.checkpoints.value == f.disk.checkpoint.canonicalBytes)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func resourceBudgetsRefuseBeforePrivateOperation(variant: Int) throws {
     let f = try Fixture(last: true)
     defer { f.disk.remove() }
@@ -505,7 +505,7 @@ struct V3RecoveryRecipientRemovalPublisherTests {
     #expect(f.owner.unwraps == 0 && f.disk.ownership.value == nil)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func durableRemovalThenOrdinarySaveAllowsOnlyContinuingRecipients(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -513,7 +513,7 @@ struct V3RecoveryRecipientRemovalPublisherTests {
     let (anchors, tokens, digest) = try removalChain(root, variant: variant)
     let store = V3FilesystemTransactionArtifactStore(
       rootHandle: try VaultRootDirectoryHandle(opening: root))
-    for index in 0..<2 {
+    for index in 0 ..< 2 {
       let token = tokens[index]
       if variant == 2 || index == variant {
         #expect(throws: V3RecoveryValidationError.recipientRevoked) {

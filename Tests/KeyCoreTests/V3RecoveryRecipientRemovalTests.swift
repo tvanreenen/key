@@ -82,7 +82,7 @@ struct V3RecoveryRecipientRemovalTests {
     #expect(rotation.envelope.body.recovery.wrappedKeys.isEmpty)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func acknowledgementCannotBeTransferredToAnotherPlan(variant: Int) throws {
     let f = try Fixture(backup: false)
     let plan = try f.plan()
@@ -125,7 +125,7 @@ struct V3RecoveryRecipientRemovalTests {
     #expect(f.core.owner.signatures == f.signatures)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func changedReviewedPlansRefuseBeforeSigning(variant: Int) throws {
     let f = try Fixture()
     let plan = try f.plan()
@@ -168,7 +168,7 @@ struct V3RecoveryRecipientRemovalTests {
     #expect(f.core.owner.signatures == f.signatures + 1 && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<9)
+  @Test(arguments: 0 ..< 9)
   func invalidKeysOwnerReasonAndFreshEpochIdentifiersRefuseBeforeSigning(variant: Int) throws {
     let f = try Fixture()
     #expect(throws: (any Error).self) {
@@ -187,7 +187,7 @@ struct V3RecoveryRecipientRemovalTests {
     #expect(f.core.owner.signatures == f.signatures && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func independentPolicyRejectsAnotherDecisionGenerationOrDeviceRoster(variant: Int) throws {
     let f = try Fixture()
     let plan = try f.plan()
@@ -228,7 +228,7 @@ struct V3RecoveryRecipientRemovalTests {
     #expect(f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func constructionBudgetsRefuseBeforeSigning(variant: Int) throws {
     let f = try Fixture()
     let limits = [
@@ -240,7 +240,7 @@ struct V3RecoveryRecipientRemovalTests {
     #expect(f.core.owner.signatures == f.signatures && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func independentBudgetsRefuseBeforeLocalUnwrap(variant: Int) throws {
     let f = try Fixture()
     let candidate = try f.build()
@@ -252,7 +252,7 @@ struct V3RecoveryRecipientRemovalTests {
     #expect(f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func incompleteSubstitutedAndDuplicateSnapshotsRefuseBeforePrivateWork(variant: Int) throws {
     let f = try Fixture()
     let candidate = try f.build()
@@ -273,7 +273,7 @@ struct V3RecoveryRecipientRemovalTests {
     #expect(f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func localVerificationIsSingleAddressedAndFailureDoesNotRetry(variant: Int) throws {
     let f = try Fixture()
     let candidate = try f.build()
@@ -336,7 +336,7 @@ struct V3RecoveryRecipientRemovalTests {
     }
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func removalThenOrdinarySaveAllowsOnlyRemainingRecipients(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -344,7 +344,7 @@ struct V3RecoveryRecipientRemovalTests {
     let (anchors, tokens, digest) = try removalChain(root, variant: variant)
     let store = V3FilesystemTransactionArtifactStore(
       rootHandle: try VaultRootDirectoryHandle(opening: root))
-    for index in 0..<2 {
+    for index in 0 ..< 2 {
       let token = tokens[index]
       // Variant 0 removes primary, 1 removes backup, 2 removes both.
       if variant == 2 || index == variant {

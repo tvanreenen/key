@@ -20,7 +20,7 @@ struct V3RecoveryAuthorityChangeRecoveryTests {
     .checkpointAdvanced, .cleanupCompleted,
   ]
 
-  @Test(arguments: Action.allCases, 0..<14)
+  @Test(arguments: Action.allCases, 0 ..< 14)
   func coldSessionRestartsEveryBoundaryWithoutSigningOrRenewedConsent(action: Action, phase: Int)
     throws
   {
@@ -153,7 +153,7 @@ struct V3RecoveryAuthorityChangeRecoveryTests {
         && f.owner.unwraps == f.unwraps + 1 + operation)
   }
 
-  @Test(arguments: Action.allCases, 0..<6)
+  @Test(arguments: Action.allCases, 0 ..< 6)
   func changesDuringOldWrapperStopBeforeOpeningNewWrapper(action: Action, variant: Int) throws {
     let f = try Fixture(action)
     defer { f.disk.remove() }
@@ -180,7 +180,7 @@ struct V3RecoveryAuthorityChangeRecoveryTests {
     if variant != 3 { #expect(f.disk.checkpoints.value == f.checkpoint.canonicalBytes) }
   }
 
-  @Test(arguments: Action.allCases, 0..<6)
+  @Test(arguments: Action.allCases, 0 ..< 6)
   func invalidPendingSourceOwnerOrResidentEpochRefusesBeforePrivateWork(
     action: Action, variant: Int
   ) throws {
@@ -211,7 +211,7 @@ struct V3RecoveryAuthorityChangeRecoveryTests {
     #expect(f.owner.unwraps == f.unwraps + 1 && !session.hasResidentKey && other.unwraps == 0)
   }
 
-  @Test(arguments: Action.allCases, 0..<4)
+  @Test(arguments: Action.allCases, 0 ..< 4)
   func selectedAndProjectedBudgetsRefuseBeforeAuthentication(action: Action, variant: Int) throws {
     let f = try Fixture(action)
     defer { f.disk.remove() }
@@ -341,7 +341,7 @@ struct V3RecoveryAuthorityChangeRecoveryTests {
     #expect(f.owner.unwraps == f.unwraps + 1 + operation && f.owner.signatures == f.signatures + 1)
   }
 
-  @Test(arguments: Action.allCases, 0..<6)
+  @Test(arguments: Action.allCases, 0 ..< 6)
   func changesAfterResumeCommitCannotInstallStaleOrLockedSession(action: Action, variant: Int)
     throws
   {
@@ -371,7 +371,7 @@ struct V3RecoveryAuthorityChangeRecoveryTests {
     #expect((f.disk.ownership.value != nil) == (variant >= 2))
   }
 
-  @Test(arguments: Action.allCases, 0..<3)
+  @Test(arguments: Action.allCases, 0 ..< 3)
   func wrongPolicyKindOrMalformedPendingFixtureRefusesBeforePrivateWork(
     action: Action, variant: Int
   ) throws {

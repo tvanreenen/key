@@ -10,7 +10,7 @@ struct V3RecoveryDeviceEnrollmentTests {
   private typealias Core = V3RecoveryRegistrationTests
   private static let now: UInt64 = 4_102_444_800
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func comparedAdditionPreservesValuesAndRecoveryCoverage(variant: Int) throws {
     let f = try Fixture(empty: variant == 1, backup: variant != 2)
     let candidate = try f.build()
@@ -53,7 +53,7 @@ struct V3RecoveryDeviceEnrollmentTests {
     }
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func wrongExpiredOrConsumedCeremonyRefusesBeforeSigning(variant: Int) throws {
     let f = try Fixture()
     let state: V3EnrollmentCeremonyState
@@ -121,7 +121,7 @@ struct V3RecoveryDeviceEnrollmentTests {
     #expect(f.core.owner.signatures == f.ownerSignatures && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func invalidOwnerReasonAndVaultKeysRefuseBeforeSigning(variant: Int) throws {
     let f = try Fixture()
     let other = try Core.Owner()
@@ -154,7 +154,7 @@ struct V3RecoveryDeviceEnrollmentTests {
     #expect(f.core.owner.signatures == before)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func independentValidationBindsExactCeremonyAndTransition(variant: Int) throws {
     let f = try Fixture()
     let candidate = try f.build()
@@ -198,7 +198,7 @@ struct V3RecoveryDeviceEnrollmentTests {
     }
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func constructionBudgetsRefuseBeforeSigning(variant: Int) throws {
     let f = try Fixture()
     let limits = [
@@ -210,7 +210,7 @@ struct V3RecoveryDeviceEnrollmentTests {
     #expect(f.core.owner.signatures == f.ownerSignatures && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func exactRosterPolicyRejectsOtherWellFormedEpochDecisions(variant: Int) throws {
     let f = try Fixture()
     let joined = V3DeviceWrappedManifestDevice(identity: f.joiner.publicIdentity, status: .active)
@@ -268,7 +268,7 @@ struct V3RecoveryDeviceEnrollmentTests {
     #expect(f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func independentBudgetsRejectBeforeLocalUnwrap(variant: Int) throws {
     let f = try Fixture()
     let candidate = try f.build()
@@ -324,7 +324,7 @@ struct V3RecoveryDeviceEnrollmentTests {
       parent.body.fields.devices.allSatisfy { result.envelope.body.fields.devices.contains($0) })
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func incompleteSnapshotsAndWrongKeysRefuseBeforePrivateUnwrap(variant: Int) throws {
     let f = try Fixture()
     let candidate = try f.build()

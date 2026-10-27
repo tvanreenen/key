@@ -46,7 +46,7 @@ struct V3RecoveryKeyRotationPublisherTests {
     #expect(f.core.owner.signatures == 2 && f.core.owner.unwraps == 1)
   }
 
-  @Test(arguments: 0..<14)
+  @Test(arguments: 0 ..< 14)
   func everyPublicationBoundaryResumesExactEpochOrRetainsOldCheckpoint(phase: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -116,7 +116,7 @@ struct V3RecoveryKeyRotationPublisherTests {
       try f.cache.load(for: commit.checkpoint) == .available(candidate.envelope.canonicalBytes))
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func uncommittedResumeRefusesMissingWrongKeysAndWrongOwnerWithoutLosingIntent(variant: Int) throws
   {
     let f = try Fixture()
@@ -137,7 +137,7 @@ struct V3RecoveryKeyRotationPublisherTests {
     #expect(try resume(f) == .completed(operationID: f.operationID))
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func invalidInputsAndCheckpointRefuseBeforePrivateOperationOrReservation(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -364,7 +364,7 @@ struct V3RecoveryKeyRotationPublisherTests {
     #expect(f.ownership.value == nil && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func sourceAndProjectedBudgetsRefuseBeforePrivateOperation(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }

@@ -49,7 +49,7 @@ struct V3RecoveryDeviceRevocationTests {
     #expect(f.core.owner.signatures == f.ownerSignatures + 1 && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func emptyAndUnregisteredVaultsPreserveTheirCoverageState(variant: Int) throws {
     let f = try Fixture(empty: variant == 1, backup: variant != 2)
     let candidate = try f.build()
@@ -100,7 +100,7 @@ struct V3RecoveryDeviceRevocationTests {
       ).count == 2)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func plannerRejectsUnknownRevokedAndSelfSelections(variant: Int) throws {
     let f = try Fixture()
     let unknown = try Core.Owner()
@@ -126,7 +126,7 @@ struct V3RecoveryDeviceRevocationTests {
     #expect(f.owner.signatures == 0 && f.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func changedReviewedPlanRefusesBeforeSigning(variant: Int) throws {
     let f = try Fixture()
     let plan = try f.plan()
@@ -147,7 +147,7 @@ struct V3RecoveryDeviceRevocationTests {
     #expect(f.core.owner.signatures == f.ownerSignatures && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<7)
+  @Test(arguments: 0 ..< 7)
   func invalidKeysOwnerReasonAndTransitionRefuseBeforeSigning(variant: Int) throws {
     let f = try Fixture()
     #expect(throws: (any Error).self) {
@@ -174,7 +174,7 @@ struct V3RecoveryDeviceRevocationTests {
     #expect(f.peer.signatures == f.peerSignatures + 1)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func independentValidationRequiresExactReviewedRosterAndRecoveryGeneration(variant: Int) throws {
     let f = try Fixture()
     let plan = try f.plan()
@@ -201,7 +201,7 @@ struct V3RecoveryDeviceRevocationTests {
     #expect(f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func constructionBudgetsRefuseBeforeSigning(variant: Int) throws {
     let f = try Fixture()
     let limits = [
@@ -213,7 +213,7 @@ struct V3RecoveryDeviceRevocationTests {
     #expect(f.core.owner.signatures == f.ownerSignatures && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func independentBudgetsRefuseBeforeLocalUnwrap(variant: Int) throws {
     let f = try Fixture()
     let candidate = try f.build()
@@ -225,7 +225,7 @@ struct V3RecoveryDeviceRevocationTests {
     #expect(f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func incompleteSubstitutedAndDuplicateSnapshotsRefuseBeforePrivateWork(variant: Int) throws {
     let f = try Fixture()
     let candidate = try f.build()

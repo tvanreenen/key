@@ -45,7 +45,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     #expect(f.owner.unwraps == f.unwraps + 1)
   }
 
-  @Test(arguments: 0..<14)
+  @Test(arguments: 0 ..< 14)
   func everyBoundaryResumesExactReviewedRevocationWithoutSigningAgain(phase: Int) throws {
     let f = try Fixture()
     defer { f.enrollment.disk.remove() }
@@ -112,7 +112,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
         == .completed(operationID: anchor.operationID))
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func independentApprovedPlanMustMatchCandidateExactly(variant: Int) throws {
     let f = try Fixture()
     defer { f.enrollment.disk.remove() }
@@ -169,7 +169,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     #expect(f.owner.signatures == f.signatures + 1 && f.owner.unwraps == f.unwraps + 1)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func uncommittedResumeRefusesMissingOrWrongKeysAndWrongOwnerRetainingIntent(variant: Int) throws {
     let f = try Fixture()
     defer { f.enrollment.disk.remove() }
@@ -188,7 +188,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     #expect(try resume(f) == .completed(operationID: f.enrollment.disk.operationID))
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func invalidKeyOwnerOrCheckpointRefusesBeforeMacOperation(variant: Int) throws {
     let f = try Fixture()
     defer { f.enrollment.disk.remove() }
@@ -332,7 +332,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
         && disk.checkpoints.value == f.checkpoint.canonicalBytes)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func changesDuringMacVerificationStopBeforeReservation(variant: Int) throws {
     let f = try Fixture()
     defer { f.enrollment.disk.remove() }
@@ -474,7 +474,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     #expect(try resume(f) == .completed(operationID: disk.operationID))
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func sourceAndProjectedSnapshotBudgetsRefuseBeforeMacOperation(variant: Int) throws {
     let f = try Fixture()
     defer { f.enrollment.disk.remove() }

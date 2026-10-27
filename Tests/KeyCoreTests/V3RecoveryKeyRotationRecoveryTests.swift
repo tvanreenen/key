@@ -18,7 +18,7 @@ struct V3RecoveryKeyRotationRecoveryTests {
     .checkpointAdvanced, .cleanupCompleted,
   ]
 
-  @Test(arguments: 0..<14)
+  @Test(arguments: 0 ..< 14)
   func freshSessionRestartsEveryPublicationBoundaryWithoutSigningAgain(phase: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -142,7 +142,7 @@ struct V3RecoveryKeyRotationRecoveryTests {
       f.checkpoints.value == f.checkpoint.canonicalBytes && f.core.owner.unwraps == 1 + operation)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func changesDuringOldWrapperRefuseBeforeOpeningNewWrapper(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -167,7 +167,7 @@ struct V3RecoveryKeyRotationRecoveryTests {
     if variant != 3 { #expect(f.checkpoints.value == f.checkpoint.canonicalBytes) }
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func invalidPendingSourceOrOwnerRefusesBeforePrivateOperations(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -336,7 +336,7 @@ struct V3RecoveryKeyRotationRecoveryTests {
         && f.core.owner.signatures == 2)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func changesAfterResumeCommitCannotInstallAStaleOrLockedSession(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }

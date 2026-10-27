@@ -97,7 +97,7 @@ struct V3RecoveryKeyTransitionCatchUpTests {
     #expect(f.local.value == f.floor.checkpoint.canonicalBytes)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func allPendingNamespacesBlockBeforePrivateWork(namespace: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -152,7 +152,7 @@ struct V3RecoveryKeyTransitionCatchUpTests {
     #expect(f.local.value == f.floor.checkpoint.canonicalBytes)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func identityFloorAndResidentEpochMustBeExact(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -174,7 +174,7 @@ struct V3RecoveryKeyTransitionCatchUpTests {
     #expect(f.local.value == (variant == 2 ? Data([1]) : f.floor.checkpoint.canonicalBytes))
   }
 
-  @Test(arguments: [2, 3, 4], 0..<5)
+  @Test(arguments: [2, 3, 4], 0 ..< 5)
   func changingStateAroundObservationAndCASCannotInstallStaleAuthority(read: Int, variant: Int)
     throws
   {
@@ -205,7 +205,7 @@ struct V3RecoveryKeyTransitionCatchUpTests {
     }
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func visibleContentAuthorityAndClosedEpochBranchesRefuseBeforePrivateWork(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -234,7 +234,7 @@ struct V3RecoveryKeyTransitionCatchUpTests {
     #expect(f.receiver.unwraps == 0 && f.local.value == f.floor.checkpoint.canonicalBytes)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func missingCurrentNextOrLaterCiphertextStopsBeforePrivateWork(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -291,7 +291,7 @@ struct V3RecoveryKeyTransitionCatchUpTests {
     #expect(f.local.value == f.floor.checkpoint.canonicalBytes)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func alteredPublicProofsAndUnsupportedRosterFixturesStopBeforePrivateWork(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -472,7 +472,7 @@ struct V3RecoveryKeyTransitionCatchUpTests {
     return (f.disk.anchor, f.disk.core.token, head)
   }
 
-  @Test(arguments: 0..<8)
+  @Test(arguments: 0 ..< 8)
   func wholeHistoryAndCiphertextLimitsRefuseBeforePrivateWork(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -498,7 +498,7 @@ struct V3RecoveryKeyTransitionCatchUpTests {
     #expect(f.receiver.unwraps == 0 && f.local.value == f.floor.checkpoint.canonicalBytes)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func malformedInventoriesCannotHideCompetingWork(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -534,7 +534,7 @@ struct V3RecoveryKeyTransitionCatchUpTests {
     #expect(f.local.value == (winner ? Data([1]) : f.floor.checkpoint.canonicalBytes))
   }
 
-  @Test(arguments: 0..<6)
+  @Test(arguments: 0 ..< 6)
   func postCommitFailureNeverRollsBackOrInstallsAStaleSession(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }

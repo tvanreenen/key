@@ -64,7 +64,7 @@ struct V3RecoveryKeyRotationServiceTests {
     #expect(f.core.owner.signatures == 2 && f.core.owner.unwraps == 1)
   }
 
-  @Test(arguments: 0..<14)
+  @Test(arguments: 0 ..< 14)
   func everyInterruptedBoundaryRetainsOldSessionOrLocksAfterCommit(phase: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -142,7 +142,7 @@ struct V3RecoveryKeyRotationServiceTests {
     #expect(f.core.owner.signatures == 2 && f.core.owner.unwraps == (signing ? 0 : 1))
   }
 
-  @Test(arguments: 0..<7)
+  @Test(arguments: 0 ..< 7)
   func invalidSourceIdentitySessionAndPendingWorkRefuseBeforePrivateOperations(variant: Int) throws
   {
     let f = try Fixture()
@@ -185,7 +185,7 @@ struct V3RecoveryKeyRotationServiceTests {
     #expect(!session.hasResidentKey && f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<6)
+  @Test(arguments: 0 ..< 6)
   func changesDuringSigningRefuseBeforeWrapperVerificationOrReservation(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -268,7 +268,7 @@ struct V3RecoveryKeyRotationServiceTests {
     #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0 && f.ownership.value == nil)
   }
 
-  @Test(arguments: 0..<8)
+  @Test(arguments: 0 ..< 8)
   func changedStateAfterCommitRefusesSessionSwitchWithoutRollback(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }

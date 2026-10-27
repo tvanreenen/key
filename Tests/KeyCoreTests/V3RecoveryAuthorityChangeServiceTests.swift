@@ -98,7 +98,7 @@ struct V3RecoveryAuthorityChangeServiceTests {
     }
   }
 
-  @Test(arguments: Action.allCases, 0..<14)
+  @Test(arguments: Action.allCases, 0 ..< 14)
   func everyBoundaryRetainsOldSessionOrLocksAfterCommit(action: Action, phase: Int) throws {
     let f = try Fixture(action)
     defer { f.disk.remove() }
@@ -178,7 +178,7 @@ struct V3RecoveryAuthorityChangeServiceTests {
       f.owner.signatures == f.signatures + 1 && f.owner.unwraps == f.unwraps + (signing ? 0 : 1))
   }
 
-  @Test(arguments: Action.allCases, 0..<8)
+  @Test(arguments: Action.allCases, 0 ..< 8)
   func invalidSourceSessionIdentityAndPendingWorkRefuseBeforePrivateOperations(
     action: Action, variant: Int
   ) throws {
@@ -226,7 +226,7 @@ struct V3RecoveryAuthorityChangeServiceTests {
     #expect(f.owner.signatures == f.signatures + 1 && f.owner.unwraps == f.unwraps + 1)
   }
 
-  @Test(arguments: Action.allCases, 0..<3)
+  @Test(arguments: Action.allCases, 0 ..< 3)
   func changedIndependentReviewRefusesBeforeSigning(action: Action, variant: Int) throws {
     let f = try Fixture(action)
     defer { f.disk.remove() }
@@ -262,7 +262,7 @@ struct V3RecoveryAuthorityChangeServiceTests {
     #expect(f.owner.signatures == f.signatures && f.owner.unwraps == f.unwraps)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func missingMismatchedOrUnexpectedProtectionLossAcknowledgementRefusesBeforeSigning(variant: Int)
     throws
   {
@@ -293,7 +293,7 @@ struct V3RecoveryAuthorityChangeServiceTests {
         && f.disk.ownership.value == nil)
   }
 
-  @Test(arguments: Action.allCases, 0..<7)
+  @Test(arguments: Action.allCases, 0 ..< 7)
   func changesDuringSigningStopBeforeWrapperVerification(action: Action, variant: Int) throws {
     let f = try Fixture(action)
     defer { f.disk.remove() }
@@ -346,7 +346,7 @@ struct V3RecoveryAuthorityChangeServiceTests {
     #expect(!session.hasResidentKey && f.owner.unwraps == f.unwraps + 1)
   }
 
-  @Test(arguments: Action.allCases, 0..<6)
+  @Test(arguments: Action.allCases, 0 ..< 6)
   func changedPostCommitStateLocksWithoutRollback(action: Action, variant: Int) throws {
     let f = try Fixture(action)
     defer { f.disk.remove() }
@@ -400,7 +400,7 @@ struct V3RecoveryAuthorityChangeServiceTests {
     #expect(!session.hasResidentKey)
   }
 
-  @Test(arguments: Action.allCases, 0..<3)
+  @Test(arguments: Action.allCases, 0 ..< 3)
   func sourceBoundsRefuseBeforeSigning(action: Action, variant: Int) throws {
     let f = try Fixture(action)
     defer { f.disk.remove() }
