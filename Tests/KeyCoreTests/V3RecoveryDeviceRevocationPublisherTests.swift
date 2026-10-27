@@ -7,8 +7,8 @@ import Testing
 /// Actual enrollment/revocation cryptography and contained filesystem storage.
 /// Only local persistence failures, interruption and Mac operations are scripted.
 struct V3RecoveryDeviceRevocationPublisherTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Enrollment = V3RecoveryDeviceEnrollmentPublisherTests
   private typealias Stop = Publication.Stop
   private static let currentKey = Data(repeating: 0x33, count: 32)
@@ -551,7 +551,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     let entries: [V3EntryObjectKey: V3EncryptedEntry]
     let signatures: Int
     let unwraps: Int
-    var owner: V3RecoveryRegistrationTests.Owner { enrollment.disk.core.owner }
+    var owner: V3RecoveryRegistrationTestSupport.Owner { enrollment.disk.core.owner }
     var currentKey: Data { SelfKey.current }
     init(empty: Bool = false) throws {
       enrollment = try Enrollment.Fixture(empty: empty)

@@ -9,7 +9,7 @@ import Testing
 /// a software key. Filesystem materialization is test setup, not a production
 /// content publisher, crash-reconciliation path or enabled product workflow.
 struct V3RecoveryContentMutationTests {
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
   private static let newID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c1"
   private static let copyID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c2"
 

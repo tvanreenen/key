@@ -7,8 +7,8 @@ import Testing
 /// Real random-key generation, epoch crypto, session and contained filesystem
 /// publication. Private identity calls use the established software fixture.
 struct V3RecoveryKeyRotationServiceTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Fixture = Publication.Fixture
   private typealias Stop = Publication.Stop
   private static let phases: [V3ImmutableTransactionPhase] = [

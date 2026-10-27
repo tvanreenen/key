@@ -7,8 +7,8 @@ import Testing
 /// Complete real software publications feed the production observer and sealed
 /// read planner. Executor callbacks exercise the final authority boundary.
 struct V3RecoveryConflictReadTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Publication = V3RecoveryPublicationTestSupport
   private let branches = V3RecoveryManifestReconciliationTests()
 
   @Test(arguments: 0 ..< 4)

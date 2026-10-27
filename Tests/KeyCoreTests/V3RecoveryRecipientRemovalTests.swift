@@ -7,7 +7,7 @@ import Testing
 /// Owned software credentials and disposable storage only. Lifecycle setup is
 /// materialized here; these tests do not provide a removal publisher or consent UI.
 struct V3RecoveryRecipientRemovalTests {
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
   private static let nextKey = Data(repeating: 0x44, count: 32)
   private static let lastKey = Data(repeating: 0x55, count: 32)
 
@@ -374,7 +374,7 @@ struct V3RecoveryRecipientRemovalTests {
   private func removalChain(_ root: URL, variant: Int) throws -> (
     [V3RecoveryAnchor], [P256.KeyAgreement.PrivateKey], Data
   ) {
-    let f = try V3RecoveryContentMutationPublisherTests.Fixture(root: root)
+    let f = try V3RecoveryPublicationTestSupport.Fixture(root: root)
     let backup = try #require(f.core.parent.body.recovery.recipients.first)
     let backupAnchor = try V3RecoveryAnchor(
       floor: .init(vaultID: Core.vaultID, envelopeDigest: f.core.parent.digest),

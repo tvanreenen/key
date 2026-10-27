@@ -7,7 +7,7 @@ import Testing
 /// identities and memory checkpoint/ownership replace only native boundaries.
 struct V3RecoveryRestoreSelectionInstallerTests {
   typealias Base = V3RecoveryRestoreJournalTests
-  typealias Core = V3RecoveryRegistrationTests
+  typealias Core = V3RecoveryRegistrationTestSupport
   typealias Identity = V3RecoveryRestorePublisherTests.Identity
   private enum Stop: Error { case interrupted }
   private static let phases: [V3RecoveryRestoreSelectionPhase] = [
@@ -351,7 +351,7 @@ struct V3RecoveryRestoreSelectionInstallerTests {
     let bundle: V3RecoveryRestoreBundle
     let identity: Identity
     let loader: Loader
-    let checkpoints = V3RecoveryContentMutationPublisherTests.Checkpoints(Data())
+    let checkpoints = V3RecoveryPublicationTestSupport.Checkpoints(Data())
     let cache: V3CheckpointManifestFilesystemCache
     var configURL: URL { f.config.initializationConfigFileURL }
     init(empty: Bool = false) throws {

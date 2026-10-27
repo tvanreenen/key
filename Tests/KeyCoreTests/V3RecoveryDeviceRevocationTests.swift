@@ -7,7 +7,7 @@ import Testing
 /// Owned software credentials and disposable fixtures only. Epoch publication
 /// and checkpoint setup are materialized here, not a revocation service.
 struct V3RecoveryDeviceRevocationTests {
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
   private static let now: UInt64 = 4_102_444_800
   private static let currentKey = Data(repeating: 0x33, count: 32)
   private static let nextKey = Data(repeating: 0x44, count: 32)
@@ -295,7 +295,7 @@ struct V3RecoveryDeviceRevocationTests {
   private func revocationChain(_ root: URL) throws -> (
     [V3RecoveryAnchor], [P256.KeyAgreement.PrivateKey], Data
   ) {
-    let f = try V3RecoveryContentMutationPublisherTests.Fixture(root: root)
+    let f = try V3RecoveryPublicationTestSupport.Fixture(root: root)
     let recipient = try #require(f.core.parent.body.recovery.recipients.first)
     let backupAnchor = try V3RecoveryAnchor(
       floor: .init(vaultID: Core.vaultID, envelopeDigest: f.core.parent.digest),

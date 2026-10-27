@@ -5,7 +5,7 @@ import Testing
 @testable import KeyCore
 
 struct V3RecoveryMergeIntentTests {
-  private static let vaultID = V3RecoveryRegistrationTests.vaultID
+  private static let vaultID = V3RecoveryRegistrationTestSupport.vaultID
   private let heads = [Data(repeating: 1, count: 32), Data(repeating: 2, count: 32)]
   private let choice = VaultConflictResolution(
     conflictID: "c-" + String(repeating: "a", count: 64),

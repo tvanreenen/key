@@ -7,9 +7,9 @@ import Testing
 /// Real crypto, immutable filesystem publication and bounded source inventory.
 /// Local checkpoint/pin CAS and deliberate process interruptions are scripted.
 struct V3RecoveryMergeMutationPublisherTests {
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Fixture = Publication.Fixture
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
   private let branches = V3RecoveryManifestReconciliationTests()
   private static let phases: [V3ImmutableTransactionPhase] = [
     .recoveryAnchorPrepared, .recoveryIntentPersisted, .recoveryArmed,

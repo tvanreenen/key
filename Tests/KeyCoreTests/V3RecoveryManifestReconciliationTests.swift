@@ -7,9 +7,9 @@ import Testing
 /// Independent offline publications use actual immutable stores and crypto.
 /// Reconciliation receives only complete production-observer authentication.
 struct V3RecoveryManifestReconciliationTests {
-  typealias Publication = V3RecoveryContentMutationPublisherTests
+  typealias Publication = V3RecoveryPublicationTestSupport
   typealias Fixture = Publication.Fixture
-  typealias Core = V3RecoveryRegistrationTests
+  typealias Core = V3RecoveryRegistrationTestSupport
   private static let addedID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c1"
   private static let otherID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c2"
 

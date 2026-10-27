@@ -9,8 +9,8 @@ import Testing
 struct V3RecoveryCatchUpCoordinatorTests {
   typealias Epochs = V3RecoveryKeyTransitionCatchUpTests
   private typealias Fixture = Epochs.Fixture
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Publication = V3RecoveryPublicationTestSupport
 
   @Test(arguments: Epochs.Action.allCases, [false, true])
   func publishedLifecycleAndFollowingSaveReachCurrent(action: Epochs.Action, empty: Bool) throws {

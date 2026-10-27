@@ -5,9 +5,9 @@ import Testing
 @testable import KeyCore
 
 struct V3RecoveryMergeMutationTests {
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Fixture = Publication.Fixture
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
   private let branches = V3RecoveryManifestReconciliationTests()
   private static let addedID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c1"
   private static let otherID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c2"

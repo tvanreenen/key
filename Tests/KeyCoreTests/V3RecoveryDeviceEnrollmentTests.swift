@@ -7,7 +7,7 @@ import Testing
 /// Owned software credentials and disposable storage only. Enrollment epochs
 /// are materialized by test setup, not a durable enrollment publisher/service.
 struct V3RecoveryDeviceEnrollmentTests {
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
   private static let now: UInt64 = 4_102_444_800
 
   @Test(arguments: 0 ..< 3)
@@ -395,7 +395,7 @@ struct V3RecoveryDeviceEnrollmentTests {
   private func enrollmentChain(_ root: URL) throws -> (
     [V3RecoveryAnchor], [P256.KeyAgreement.PrivateKey], Data
   ) {
-    let f = try V3RecoveryContentMutationPublisherTests.Fixture(root: root)
+    let f = try V3RecoveryPublicationTestSupport.Fixture(root: root)
     let recipient = try #require(f.core.parent.body.recovery.recipients.first)
     let backupAnchor = try V3RecoveryAnchor(
       floor: .init(vaultID: Core.vaultID, envelopeDigest: f.core.parent.digest),

@@ -8,7 +8,7 @@ import Testing
 /// and publication. Only device-local storage and native card/provider calls are
 /// scripted; no hardware, user vault or installed helper is used.
 struct V3RecoveryRegistrationServiceTests {
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
 
   @Test func statusAuthenticatesAnUnregisteredCheckpointWithoutTokenOrPrivateOperations() throws {
     let f = try Fixture()

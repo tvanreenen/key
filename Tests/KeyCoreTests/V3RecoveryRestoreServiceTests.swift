@@ -7,7 +7,7 @@ import Testing
 /// Actual native-binding adapters, crypto and contained preparation files.
 /// Software card/provider/Mac keys and memory ownership replace native I/O only.
 struct V3RecoveryRestoreServiceTests {
-  typealias Core = V3RecoveryRegistrationTests
+  typealias Core = V3RecoveryRegistrationTestSupport
   typealias Native = V3RecoveryRegistrationServiceTests
   typealias Base = V3RecoveryRestoreJournalTests
   private enum Stop: Error { case interrupted }
@@ -390,7 +390,7 @@ struct V3RecoveryRestoreServiceTests {
   // Immutable config value; concurrent service calls share the real mutation
   // owner. Native fixture callbacks and storage have their own locking.
   struct Fixture: @unchecked Sendable {
-    let source: V3RecoveryContentMutationPublisherTests.Fixture
+    let source: V3RecoveryPublicationTestSupport.Fixture
     let base: URL, parent: URL, configRoot: URL
     let config: KeyConfigStore
     let sourceHandle: VaultRootDirectoryHandle, parentHandle: VaultRootDirectoryHandle
@@ -402,7 +402,7 @@ struct V3RecoveryRestoreServiceTests {
     let owner: VaultTransactionMutationOwner
     let authentication = V3DeviceWrappedVaultKeySessionStore()
     let cancellation = PIVRecoveryCancellation()
-    let checkpoints: V3RecoveryContentMutationPublisherTests.Checkpoints
+    let checkpoints: V3RecoveryPublicationTestSupport.Checkpoints
     let cache: V3CheckpointManifestFilesystemCache
     var destination: URL { parent.appendingPathComponent("restored") }
     init(empty: Bool = false) throws {

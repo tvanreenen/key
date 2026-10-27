@@ -5,7 +5,7 @@ import Testing
 @testable import KeyCore
 
 struct V3RecoveryPublicationBudgetTests {
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
 
   @Test(arguments: [false, true], [false, true])
   func projectionPreservesCumulativeRecoveryLimits(references: Bool, published: Bool) throws {

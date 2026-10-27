@@ -7,8 +7,8 @@ import Testing
 /// Real profile cryptography and contained immutable storage. Only local CAS
 /// failures, cancellation and interruption boundaries are scripted.
 struct V3RecoveryDeviceEnrollmentPublisherTests {
-  typealias Core = V3RecoveryRegistrationTests
-  typealias Publication = V3RecoveryContentMutationPublisherTests
+  typealias Core = V3RecoveryRegistrationTestSupport
+  typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Stop = Publication.Stop
   private static let nextKey = Data(repeating: 0x55, count: 32)
   private static let now: UInt64 = 4_102_444_800

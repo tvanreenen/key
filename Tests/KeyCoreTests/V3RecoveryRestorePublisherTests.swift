@@ -10,7 +10,7 @@ struct V3RecoveryRestorePublisherTests {
   typealias Base = V3RecoveryRestoreJournalTests
   @available(macOS 26.0, *)
   private typealias Fixture = Base.Fixture
-  typealias Core = V3RecoveryRegistrationTests
+  typealias Core = V3RecoveryRegistrationTestSupport
   private enum Stop: Error { case interrupted }
   private static let phases: [V3RecoveryRestorePublicationPhase] = [
     .preparationConfirmed, .deviceWrapperVerified, .entryPublished(index: 0),

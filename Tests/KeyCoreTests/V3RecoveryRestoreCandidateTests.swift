@@ -7,8 +7,8 @@ import Testing
 /// Real filesystem recovery input and existing permanent-genesis crypto. No
 /// destination publication, platform identity, token or configuration operation.
 struct V3RecoveryRestoreCandidateTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Fixture = V3RecoveryContentMutationPublisherTests.Fixture
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Fixture = V3RecoveryPublicationTestSupport.Fixture
   private static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c4800"
   private static let transitionID = "018f4d38-7d5a-7b20-b0f1-97d6e96c4801"
   private static let entryIDs = [

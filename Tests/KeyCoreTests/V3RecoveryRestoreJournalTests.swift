@@ -8,9 +8,9 @@ import Testing
 /// Real contained files and crypto; memory CAS only at the Keychain boundary.
 /// No native credential, real configuration, token or destination publication.
 struct V3RecoveryRestoreJournalTests {
-  typealias Core = V3RecoveryRegistrationTests
-  typealias Source = V3RecoveryContentMutationPublisherTests.Fixture
-  typealias Ownership = V3RecoveryContentMutationPublisherTests.Ownership
+  typealias Core = V3RecoveryRegistrationTestSupport
+  typealias Source = V3RecoveryPublicationTestSupport.Fixture
+  typealias Ownership = V3RecoveryPublicationTestSupport.Ownership
   static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c5000"
   private static let transitionID = "018f4d38-7d5a-7b20-b0f1-97d6e96c5001"
   private static let ids = [

@@ -6,7 +6,7 @@ import Testing
 struct V3RecoveryRestoreTrustInstallerTests {
   private typealias Base = V3RecoveryRestoreJournalTests
   private typealias Identity = V3RecoveryRestorePublisherTests.Identity
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
   private enum Stop: Error { case interrupted }
   private static let phases: [V3RecoveryRestoreTrustPhase] = [
     .publishedSnapshotVerified, .deviceWrapperVerified, .manifestCached,
@@ -221,7 +221,7 @@ struct V3RecoveryRestoreTrustInstallerTests {
     let bundle: V3RecoveryRestoreBundle
     let identity: Identity
     let loader: Loader
-    let checkpoints = V3RecoveryContentMutationPublisherTests.Checkpoints(Data())
+    let checkpoints = V3RecoveryPublicationTestSupport.Checkpoints(Data())
     let cacheRoot: URL
     let cache: V3CheckpointManifestFilesystemCache
     init(empty: Bool = false) throws {

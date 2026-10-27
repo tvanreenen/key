@@ -8,8 +8,8 @@ import Testing
 /// Owned software credentials and real disposable filesystem/crypto only.
 /// Local checkpoint/ownership failures and Mac operations are scripted.
 struct V3RecoveryRecipientRemovalPublisherTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Stop = Publication.Stop
   private static let nextKey = Data(repeating: 0x44, count: 32)
   private static let phases: [V3ImmutableTransactionPhase] = [

@@ -7,7 +7,7 @@ import Testing
 /// Software crypto and disposable filesystem fixtures only. Rotation outputs
 /// are unpublished; chain materialization is test setup, not a rotation service.
 struct V3RecoveryKeyRotationTests {
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
   private typealias Fixture = Core.Fixture
 
   @Test func rotationPreservesAuthorityAndAllEntryValuesWithFreshEpochMaterial() throws {
@@ -357,7 +357,7 @@ struct V3RecoveryKeyRotationTests {
   private func rotationChain(_ root: URL) throws -> (
     [V3RecoveryAnchor], [P256.KeyAgreement.PrivateKey], Data
   ) {
-    let f = try V3RecoveryContentMutationPublisherTests.Fixture(root: root)
+    let f = try V3RecoveryPublicationTestSupport.Fixture(root: root)
     let backupRecipient = try #require(f.core.parent.body.recovery.recipients.first)
     let backupAnchor = try V3RecoveryAnchor(
       floor: .init(vaultID: Core.vaultID, envelopeDigest: f.core.parent.digest),

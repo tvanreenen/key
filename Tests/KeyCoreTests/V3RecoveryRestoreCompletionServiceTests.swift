@@ -7,7 +7,7 @@ import Testing
 /// selection and cleanup. Only native I/O and local ownership/trust are replaced.
 struct V3RecoveryRestoreCompletionServiceTests {
   private typealias Base = V3RecoveryRestoreJournalTests
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
   private typealias Fixture = V3RecoveryRestoreServiceTests.Fixture
   private enum Stop: Error { case interrupted }
   private static let phases: [V3RecoveryRestoreServicePhase] = [
@@ -145,7 +145,7 @@ struct V3RecoveryRestoreCompletionServiceTests {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
     defer { f.remove() }
-    let seen = V3RecoveryRegistrationTests.Counter()
+    let seen = V3RecoveryRegistrationTestSupport.Counter()
     #expect(throws: (any Error).self) {
       try restore(
         f,

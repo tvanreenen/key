@@ -7,9 +7,9 @@ import Testing
 /// Real session binding/invalidation, immutable filesystem/crypto, builders,
 /// publishers, catch-up and resolution. Only local persistence races are scripted.
 struct V3RecoveryVaultMutationServiceTests {
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Fixture = Publication.Fixture
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
   private let branches = V3RecoveryManifestReconciliationTests()
   private static let addedID = "018f4d38-7d5a-7b20-b0f1-97d6e96c85a1"
   private static let copiedID = "018f4d38-7d5a-7b20-b0f1-97d6e96c85a2"

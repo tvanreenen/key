@@ -8,7 +8,7 @@ import Testing
 /// the real helper mutation queue. No shipping hook, native UI or token.
 struct V3RecoveryVaultRuntimeTests {
   private typealias Epochs = V3RecoveryKeyTransitionCatchUpTests
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
 
   @Test func coldUnlockCatchesUpMixedHistoryThenReadsSavesAndReopens() throws {
     let f = try Fixture(cold: true)

@@ -8,8 +8,8 @@ import Testing
 /// Two independent local checkpoints/sessions, actual immutable publication and
 /// software Mac identities. No vault, token, protected store or native UI is used.
 struct V3RecoveryKeyTransitionCatchUpTests {
-  typealias Core = V3RecoveryRegistrationTests
-  typealias Publication = V3RecoveryContentMutationPublisherTests
+  typealias Core = V3RecoveryRegistrationTestSupport
+  typealias Publication = V3RecoveryPublicationTestSupport
   typealias Stop = Publication.Stop
   enum Action: CaseIterable, Sendable {
     case rotation, enrollment, revocation, removal, lastRemoval, addition

@@ -7,7 +7,7 @@ import Testing
 /// No real vault, native Keychain, hardware operation or encrypted file deletion.
 struct V3RecoveryRestoreFinalizerTests {
   private typealias Base = V3RecoveryRestoreJournalTests
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
   @available(macOS 26.0, *)
   private typealias Fixture = V3RecoveryRestoreSelectionInstallerTests.Harness
   private enum Stop: Error { case interrupted }

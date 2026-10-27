@@ -9,7 +9,7 @@ import Testing
 /// Only non-sync local persistence and interruption/sync failures are scripted.
 /// No native authentication, real vault or hardware operation occurs.
 struct V3RecoveryAdoptionServiceTests {
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
 
   @Test func entriesPrecedeManifestAndCheckpointPrecedesSession() throws {
     let f = try Fixture()
@@ -659,7 +659,7 @@ struct V3RecoveryAdoptionServiceTests {
   }
 
   private struct Fixture: Sendable {
-    let core: V3RecoveryProfileAdoptionTests.Fixture
+    let core: V3RecoveryAdoptionTestSupport.Fixture
     let root: URL
     let store: Store
     let checkpoints: Checkpoints
@@ -668,7 +668,7 @@ struct V3RecoveryAdoptionServiceTests {
     let registration = Ownership()
     let mutationOwner = VaultTransactionMutationOwner()
     init() throws {
-      core = try V3RecoveryProfileAdoptionTests.Fixture()
+      core = try V3RecoveryAdoptionTestSupport.Fixture()
       root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
       try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
       store = Store(

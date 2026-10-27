@@ -8,13 +8,11 @@ import Testing
 /// Software construction and completion checks, not product registration or
 /// physical administration qualification. No YubiKey or user vault is accessed.
 struct V3RecoveryRegistrationTests {
-  static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
-  private static let transitionID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b4"
-  private static let generationID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b5"
-  private static let entryID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b6"
-  private static let totpID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b7"
-  static let oldKey = Data(0 ..< 32)
-  static let nextKey = Data(32 ..< 64)
+  private typealias Support = V3RecoveryRegistrationTestSupport
+  private typealias Fixture = Support.Fixture
+  private typealias Owner = Support.Owner
+  private typealias Counter = Support.Counter
+  private typealias FixtureError = Support.FixtureError
 
   @Test func preparesAnExactEncryptedRecipientAdditionAndPublicExport() throws {
     let fixture = try Fixture()
@@ -23,8 +21,8 @@ struct V3RecoveryRegistrationTests {
     #expect(fixture.owner.signatures == 1)
     #expect(fixture.owner.unwraps == 0)
     #expect(body.fields.keyID != fixture.parent.body.fields.keyID)
-    #expect(body.fields.authorityTransitionID != Self.transitionID)
-    #expect(body.recovery.generationID != Self.generationID)
+    #expect(body.fields.authorityTransitionID != Support.transitionID)
+    #expect(body.recovery.generationID != Support.generationID)
     #expect(body.epochSigningKey.publicKey != fixture.parent.body.epochSigningKey.publicKey)
     #expect(body.fields.devices == fixture.parent.body.fields.devices)
     #expect(body.recovery.recipients.count == 1)
@@ -44,10 +42,10 @@ struct V3RecoveryRegistrationTests {
       let current = try #require(fixture.entries[Fixture.address(old)])
       #expect(
         try V3EntryCipher().openPlaintextDataTrusted(
-          current.canonicalBytes, vaultID: Self.vaultID, manifestEntry: old, vaultKey: Self.oldKey)
+          current.canonicalBytes, vaultID: Support.vaultID, manifestEntry: old, vaultKey: Support.oldKey)
           == V3EntryCipher().openPlaintextDataTrusted(
-            resealed.canonicalBytes, vaultID: Self.vaultID, manifestEntry: new,
-            vaultKey: Self.nextKey))
+            resealed.canonicalBytes, vaultID: Support.vaultID, manifestEntry: new,
+            vaultKey: Support.nextKey))
     }
     #expect(throws: V3DeviceWrappedUnlockError.unsupportedProfileVersion(3)) {
       try V3DeviceWrappedManifestEnvelopeCodec().parse(preparation.candidate.canonicalBytes)
@@ -59,16 +57,16 @@ struct V3RecoveryRegistrationTests {
     let bytes = preparation.intent.canonicalBytes
     let decoded = try V3RecoveryRegistrationIntent(canonicalBytes: bytes)
     #expect(decoded == preparation.intent)
-    try decoded.authenticate(currentVaultKey: Self.oldKey)
+    try decoded.authenticate(currentVaultKey: Support.oldKey)
     #expect(throws: V3RecoveryRegistrationError.authenticationFailed) {
-      try decoded.authenticate(currentVaultKey: Self.nextKey)
+      try decoded.authenticate(currentVaultKey: Support.nextKey)
     }
     #expect(throws: V3RecoveryRegistrationError.authenticationFailed) {
       try decoded.authenticate(currentVaultKey: Data())
     }
     let text = String(decoding: bytes, as: UTF8.self)
-    #expect(!text.contains(Base64URL.encode(Self.oldKey)))
-    #expect(!text.contains(Base64URL.encode(Self.nextKey)))
+    #expect(!text.contains(Base64URL.encode(Support.oldKey)))
+    #expect(!text.contains(Base64URL.encode(Support.nextKey)))
     #expect(!text.contains("Software fixture secret"))
     #expect(!text.contains("JBSWY3DPEHPK3PXP"))
     let fields = try #require(CanonicalJSON.parse(bytes).objectValue)
@@ -112,14 +110,14 @@ struct V3RecoveryRegistrationTests {
       with: "018f4d38-7d5a-7b20-b0f1-97d6e96c4400")
     let decoded = try V3RecoveryRegistrationIntent(canonicalBytes: Data(changed.utf8))
     #expect(throws: V3RecoveryRegistrationError.authenticationFailed) {
-      try decoded.authenticate(currentVaultKey: Self.oldKey)
+      try decoded.authenticate(currentVaultKey: Support.oldKey)
     }
     let tag = Base64URL.encode(preparation.intent.authenticationTag)
     let changedTag = text.replacingOccurrences(
       of: tag, with: Base64URL.encode(Data(repeating: 0, count: 32)))
     #expect(throws: V3RecoveryRegistrationError.authenticationFailed) {
       try V3RecoveryRegistrationIntent(canonicalBytes: Data(changedTag.utf8))
-        .authenticate(currentVaultKey: Self.oldKey)
+        .authenticate(currentVaultKey: Support.oldKey)
     }
   }
 
@@ -161,7 +159,7 @@ struct V3RecoveryRegistrationTests {
     }
     var extra = fixture.entries
     let first = try #require(fixture.entries.values.first)
-    extra[V3EntryObjectKey(entryID: Self.entryID, digest: Data(repeating: 0, count: 32))] =
+    extra[V3EntryObjectKey(entryID: Support.entryID, digest: Data(repeating: 0, count: 32))] =
       first
     #expect(throws: V3RecoveryRegistrationError.incompleteSnapshot) {
       try fixture.prepare(entries: extra)
@@ -176,16 +174,16 @@ struct V3RecoveryRegistrationTests {
 
   @Test func wrongParentKeysCheckpointOwnerAndReusedEpochsCannotBePrepared() throws {
     let fixture = try Fixture()
-    #expect(throws: (any Error).self) { try fixture.prepare(currentKey: Self.nextKey) }
-    #expect(throws: (any Error).self) { try fixture.prepare(nextKey: Self.oldKey) }
+    #expect(throws: (any Error).self) { try fixture.prepare(currentKey: Support.nextKey) }
+    #expect(throws: (any Error).self) { try fixture.prepare(nextKey: Support.oldKey) }
     let other = try Owner()
     #expect(throws: V3RecoveryRegistrationError.invalidOwner) { try fixture.prepare(owner: other) }
     #expect(other.signatures == 0)
     #expect(throws: V3RecoveryRegistrationError.invalidCandidate) {
-      try fixture.prepare(transition: Self.transitionID)
+      try fixture.prepare(transition: Support.transitionID)
     }
     #expect(throws: V3RecoveryRegistrationError.invalidCandidate) {
-      try fixture.prepare(generation: Self.generationID)
+      try fixture.prepare(generation: Support.generationID)
     }
     #expect(throws: V3RecoveryRegistrationError.invalidCredential) {
       try fixture.prepare(
@@ -235,10 +233,10 @@ struct V3RecoveryRegistrationTests {
         try V3RecoveryVaultKeyHPKE().unwrap(
           wrapper, recipientPrivateKey: receiver,
           context: V3RecoveryHPKEContext(
-            vaultID: Self.vaultID, keyID: addition.candidate.body.fields.keyID,
+            vaultID: Support.vaultID, keyID: addition.candidate.body.fields.keyID,
             authorityTransitionID: addition.candidate.body.fields.authorityTransitionID,
             recoveryGenerationID: addition.candidate.body.recovery.generationID,
-            recipient: oldRecipient)) == Self.nextKey)
+            recipient: oldRecipient)) == Support.nextKey)
     }
   }
 
@@ -272,14 +270,14 @@ struct V3RecoveryRegistrationTests {
         receiver: fixture.receiver(count: count))
     }
     let checkpoint = try V3ManifestCheckpoint(
-      vaultID: Self.vaultID, envelopeDigest: Data(repeating: 0, count: 32))
+      vaultID: Support.vaultID, envelopeDigest: Data(repeating: 0, count: 32))
     #expect(throws: V3RecoveryRegistrationError.invalidParent) {
       try fixture.complete(
         preparation, checkpoint: checkpoint, receiver: fixture.receiver(count: count))
     }
     #expect(throws: V3RecoveryRegistrationError.authenticationFailed) {
       try fixture.complete(
-        preparation, currentKey: Self.nextKey, receiver: fixture.receiver(count: count))
+        preparation, currentKey: Support.nextKey, receiver: fixture.receiver(count: count))
     }
     #expect(fixture.owner.unwraps == 0 && count.value == 0)
   }
@@ -419,8 +417,8 @@ struct V3RecoveryRegistrationTests {
     #expect(decoded == bundle)
     try fixture.validate(decoded.preparation)
     let text = String(decoding: bundle.canonicalBytes, as: UTF8.self)
-    #expect(!text.contains(Base64URL.encode(Self.oldKey)))
-    #expect(!text.contains(Base64URL.encode(Self.nextKey)))
+    #expect(!text.contains(Base64URL.encode(Support.oldKey)))
+    #expect(!text.contains(Base64URL.encode(Support.nextKey)))
     #expect(!text.contains("Software fixture secret"))
     #expect(!text.contains("JBSWY3DPEHPK3PXP"))
   }
@@ -491,7 +489,7 @@ struct V3RecoveryRegistrationTests {
     defer { disk.remove() }
     let export = try fixture.stage(preparation, journal: disk.journal())
     #expect(export == preparation.exportedAnchor)
-    #expect(try disk.journal().loadPending(vaultID: Self.vaultID) == preparation)
+    #expect(try disk.journal().loadPending(vaultID: Support.vaultID) == preparation)
     #expect(try fixture.resume(journal: disk.journal()) == export)
     #expect(fixture.owner.signatures == 1 && fixture.owner.unwraps == 0)
     let ownership = try V3ImmutableTransactionRecoveryAnchor(
@@ -536,7 +534,7 @@ struct V3RecoveryRegistrationTests {
       #expect(disk.ownership.bytes == ownership)
     } else {
       #expect(try fixture.resume(journal: disk.journal()) == preparation.exportedAnchor)
-      #expect(try disk.journal().loadPending(vaultID: Self.vaultID) == preparation)
+      #expect(try disk.journal().loadPending(vaultID: Support.vaultID) == preparation)
     }
     #expect(fixture.owner.signatures == 1 && fixture.owner.unwraps == 0)
   }
@@ -566,7 +564,7 @@ struct V3RecoveryRegistrationTests {
     try disk.store.persistRegistrationBundle(
       V3RecoveryRegistrationBundle(preparation: preparation).canonicalBytes,
       operationID: preparation.intent.operationID)
-    #expect(try disk.journal().loadPending(vaultID: Self.vaultID) == nil)
+    #expect(try disk.journal().loadPending(vaultID: Support.vaultID) == nil)
     #expect(disk.ownership.bytes == nil)
     #expect(
       V3RecoveryOwnershipNamespace.registration.rawValue
@@ -596,15 +594,15 @@ struct V3RecoveryRegistrationTests {
     _ = try fixture.stage(preparation, journal: disk.journal())
     let ownership = disk.ownership.bytes
     let changedCheckpoint = try V3ManifestCheckpoint(
-      vaultID: Self.vaultID, envelopeDigest: preparation.candidate.digest)
+      vaultID: Support.vaultID, envelopeDigest: preparation.candidate.digest)
     #expect(throws: V3RecoveryRegistrationError.invalidParent) {
       try fixture.resume(journal: disk.journal(), checkpoint: changedCheckpoint)
     }
     #expect(throws: (any Error).self) {
-      try fixture.resume(journal: disk.journal(), currentKey: Self.nextKey)
+      try fixture.resume(journal: disk.journal(), currentKey: Support.nextKey)
     }
     #expect(throws: (any Error).self) {
-      try fixture.resume(journal: disk.journal(), nextKey: Self.oldKey)
+      try fixture.resume(journal: disk.journal(), nextKey: Support.oldKey)
     }
     #expect(throws: V3RecoveryRegistrationError.invalidOwner) {
       try fixture.resume(journal: disk.journal(), owner: Owner().publicIdentity)
@@ -613,7 +611,7 @@ struct V3RecoveryRegistrationTests {
       try fixture.resume(journal: disk.journal(), entries: [:])
     }
     #expect(disk.ownership.bytes == ownership)
-    #expect(try disk.journal().loadPending(vaultID: Self.vaultID) == preparation)
+    #expect(try disk.journal().loadPending(vaultID: Support.vaultID) == preparation)
   }
 
   @Test func invalidPreparationCannotReserveLocalOwnership() throws {
@@ -681,7 +679,7 @@ struct V3RecoveryRegistrationTests {
     for bytes in [Data("invalid".utf8), Data(repeating: 0, count: 1_025)] {
       disk.ownership.bytes = bytes
       #expect(throws: V3RecoveryRegistrationJournalError.invalidOwnership) {
-        try disk.journal().loadPending(vaultID: Self.vaultID)
+        try disk.journal().loadPending(vaultID: Support.vaultID)
       }
       #expect(disk.ownership.bytes == bytes)
     }
@@ -690,14 +688,14 @@ struct V3RecoveryRegistrationTests {
       intentDigest: Data(SHA256.hash(data: preparation.intent.canonicalBytes)), phase: .recoverable
     ).canonicalBytes
     #expect(throws: V3RecoveryRegistrationJournalError.invalidOwnership) {
-      try disk.journal().loadPending(vaultID: Self.vaultID)
+      try disk.journal().loadPending(vaultID: Support.vaultID)
     }
     disk.ownership.bytes = try V3ImmutableTransactionRecoveryAnchor(
-      operationID: preparation.intent.operationID, vaultID: Self.vaultID,
+      operationID: preparation.intent.operationID, vaultID: Support.vaultID,
       intentDigest: Data(repeating: 0, count: 32), phase: .recoverable
     ).canonicalBytes
     #expect(throws: V3RecoveryRegistrationJournalError.invalidPreparation) {
-      try disk.journal().loadPending(vaultID: Self.vaultID)
+      try disk.journal().loadPending(vaultID: Support.vaultID)
     }
   }
 
@@ -780,7 +778,7 @@ struct V3RecoveryRegistrationTests {
       return result
     }
     #expect(successes == 1)
-    let pending = try #require(try disk.journal().loadPending(vaultID: Self.vaultID))
+    let pending = try #require(try disk.journal().loadPending(vaultID: Support.vaultID))
     #expect(pending == first || pending == second)
     #expect(try fixture.resume(journal: disk.journal()) == pending.exportedAnchor)
   }
@@ -823,7 +821,7 @@ struct V3RecoveryRegistrationTests {
     try FileManager.default.createDirectory(at: disk.root, withIntermediateDirectories: true)
     let expected = VaultRootDirectoryHandleError.configuredRootChanged(
       path: disk.root.path(percentEncoded: false))
-    #expect(throws: expected) { try disk.journal().loadPending(vaultID: Self.vaultID) }
+    #expect(throws: expected) { try disk.journal().loadPending(vaultID: Support.vaultID) }
     #expect(throws: expected) {
       try disk.store.persistRegistrationBundle(
         V3RecoveryRegistrationBundle(preparation: preparation).canonicalBytes,
@@ -839,13 +837,13 @@ struct V3RecoveryRegistrationTests {
     let disk = try JournalFixture()
     defer { disk.remove() }
     _ = try fixture.stage(preparation, journal: disk.journal())
-    let pending = try #require(try disk.journal().loadPending(vaultID: Self.vaultID))
+    let pending = try #require(try disk.journal().loadPending(vaultID: Support.vaultID))
     let count = Counter()
     try fixture.complete(pending, receiver: fixture.receiver(count: count))
     let bytes = try Data(contentsOf: disk.bundleURL(preparation.intent.operationID))
     let ownership = disk.ownership.bytes
     _ = try fixture.resume(journal: disk.journal())
-    let reloaded = try #require(try disk.journal().loadPending(vaultID: Self.vaultID))
+    let reloaded = try #require(try disk.journal().loadPending(vaultID: Support.vaultID))
     try fixture.complete(reloaded, receiver: fixture.receiver(count: count))
     #expect(count.value == 2)
     #expect(fixture.owner.unwraps == 2)
@@ -874,7 +872,7 @@ struct V3RecoveryRegistrationTests {
     let anchor = try V3ImmutableTransactionRecoveryAnchor(
       canonicalBytes: #require(disk.ownership.bytes))
     #expect(anchor.phase == .prepared)
-    #expect(try disk.journal().loadPending(vaultID: Self.vaultID) == preparation)
+    #expect(try disk.journal().loadPending(vaultID: Support.vaultID) == preparation)
     #expect(try fixture.resume(journal: disk.journal()) == preparation.exportedAnchor)
     #expect(fixture.owner.signatures == 1)
   }
@@ -961,276 +959,4 @@ struct V3RecoveryRegistrationTests {
     func remove() { try? FileManager.default.removeItem(at: root) }
   }
 
-  enum FixtureError: Error { case cancelled }
-
-  final class Counter: @unchecked Sendable {
-    private let lock = NSLock()
-    private var count = 0
-    var value: Int { lock.withLock { count } }
-    func increment() { lock.withLock { count += 1 } }
-  }
-
-  final class Owner: V3EnrollmentMessageSigning, V3DeviceWrappedVaultKeyUnwrapping,
-    @unchecked Sendable
-  {
-    let vaultID = V3RecoveryRegistrationTests.vaultID
-    let signingKey = P256.Signing.PrivateKey()
-    let wrappingKey = P256.KeyAgreement.PrivateKey()
-    let publicIdentity: V3EnrollmentDeviceIdentity
-    private let lock = NSLock()
-    private var signed = 0
-    private var unwrapped = 0
-    var cancelSigning = false
-    var cancelUnwrap = false
-    var onUnwrap: @Sendable () throws -> Void = {}
-    var signatures: Int { lock.withLock { signed } }
-    var unwraps: Int { lock.withLock { unwrapped } }
-    init() throws {
-      publicIdentity = try V3EnrollmentDeviceIdentity(
-        displayName: "Software Mac fixture",
-        signingPublicKey: signingKey.publicKey.x963Representation,
-        wrappingPublicKey: wrappingKey.publicKey.x963Representation)
-    }
-    func signature(for input: Data, reason _: String) throws -> Data {
-      lock.withLock { signed += 1 }
-      if cancelSigning { throw FixtureError.cancelled }
-      return try signingKey.signature(for: input).rawRepresentation
-    }
-    func unwrapDeviceWrappedVaultKey(
-      _ wrappedKey: V3HPKEWrappedVaultKey, context: V3VaultKeyHPKEContext, reason _: String
-    ) throws -> Data {
-      lock.withLock { unwrapped += 1 }
-      try onUnwrap()
-      if cancelUnwrap { throw FixtureError.cancelled }
-      return try V3VaultKeyHPKE().unwrap(
-        wrappedKey, recipientPrivateKey: wrappingKey, context: context)
-    }
-  }
-
-  struct Fixture: Sendable {
-    let owner: Owner
-    let token = P256.KeyAgreement.PrivateKey()
-    let backupToken = P256.KeyAgreement.PrivateKey()
-    let parent: V3RecoveryManifestEnvelope
-    let checkpoint: V3ManifestCheckpoint
-    let entries: [V3EntryObjectKey: V3EncryptedEntry]
-    var credential: PIVRecoveryKeyMetadata { metadata() }
-
-    init(empty: Bool = false, backup: Bool = false, secretRevision: UInt64 = 4) throws {
-      owner = try Owner()
-      let keyID = try V3VaultKeyID.derive(
-        vaultKey: V3RecoveryRegistrationTests.oldKey, vaultID: V3RecoveryRegistrationTests.vaultID)
-      let sealed =
-        try empty
-        ? []
-        : [
-          V3EntryCipher().seal(
-            "Software fixture secret e\u{301}\r\n",
-            context: V3EntryAuthenticationContext(
-              vaultID: V3RecoveryRegistrationTests.vaultID,
-              entryID: V3RecoveryRegistrationTests.entryID,
-              name: "fixture/secret", type: .secret, keyID: keyID, revision: secretRevision),
-            vaultKey: V3RecoveryRegistrationTests.oldKey),
-          V3EntryCipher().seal(
-            "JBSWY3DPEHPK3PXP",
-            context: V3EntryAuthenticationContext(
-              vaultID: V3RecoveryRegistrationTests.vaultID,
-              entryID: V3RecoveryRegistrationTests.totpID,
-              name: "fixture/totp", type: .totp, keyID: keyID, revision: 2),
-            vaultKey: V3RecoveryRegistrationTests.oldKey),
-        ]
-      entries = Dictionary(
-        uniqueKeysWithValues: try sealed.map {
-          (try Self.address(V3ResealedEntry(encryptedEntry: $0).manifestEntry), $0)
-        })
-      let fields = try V3DeviceWrappedManifestFields(
-        vaultID: V3RecoveryRegistrationTests.vaultID, keyID: keyID,
-        authorityTransitionID: V3RecoveryRegistrationTests.transitionID,
-        devices: [.init(identity: owner.publicIdentity, status: .active)],
-        wrappedKeys: [
-          V3DeviceWrappedManifestKey(
-            recipientDeviceID: owner.publicIdentity.deviceID,
-            wrappedKey: V3VaultKeyHPKE().wrap(
-              vaultKey: V3RecoveryRegistrationTests.oldKey,
-              recipientPublicKey: owner.publicIdentity.wrappingPublicKey,
-              context: V3VaultKeyHPKEContext(
-                vaultID: V3RecoveryRegistrationTests.vaultID, keyID: keyID,
-                authorityTransitionID: V3RecoveryRegistrationTests.transitionID,
-                recipientDeviceID: owner.publicIdentity.deviceID, wrappingProfile: .recovery)))
-        ], entries: sealed.map { V3ResealedEntry(encryptedEntry: $0).manifestEntry })
-      let recipient = try V3RecoveryRecipient(
-        registrationID: UUID().uuidString.lowercased(),
-        publicKey: backupToken.publicKey.x963Representation,
-        slot: .keyManagement, status: .active)
-      let roster = try V3RecoveryRoster(
-        generationID: V3RecoveryRegistrationTests.generationID,
-        recipients: backup ? [recipient] : [],
-        wrappedKeys: backup
-          ? [
-            V3RecoveryVaultKeyHPKE().wrap(
-              vaultKey: V3RecoveryRegistrationTests.oldKey,
-              context: V3RecoveryHPKEContext(
-                vaultID: V3RecoveryRegistrationTests.vaultID, keyID: keyID,
-                authorityTransitionID: V3RecoveryRegistrationTests.transitionID,
-                recoveryGenerationID: V3RecoveryRegistrationTests.generationID, recipient: recipient
-              ))
-          ] : [])
-      parent = try V3RecoveryEpochBoundary().encode(
-        body: V3RecoveryManifestBody(
-          fields: fields,
-          epochSigningKey: V3EpochSigningKeyCipher().prepare(
-            context: V3EpochSigningKeyContext(
-              vaultID: V3RecoveryRegistrationTests.vaultID, keyID: keyID,
-              authorityTransitionID: V3RecoveryRegistrationTests.transitionID),
-            vaultKey: V3RecoveryRegistrationTests.oldKey), transitionProof: nil, recovery: roster),
-        parents: [], vaultKey: V3RecoveryRegistrationTests.oldKey, authorizations: [])
-      checkpoint = try V3ManifestCheckpoint(
-        vaultID: V3RecoveryRegistrationTests.vaultID, envelopeDigest: parent.digest)
-    }
-
-    func metadata(
-      pin: PIVRecoveryKeyMetadata.PINPolicy = .always,
-      touch: PIVRecoveryKeyMetadata.TouchPolicy = .always,
-      origin: PIVRecoveryKeyMetadata.Origin = .generated, publicKey: Data? = nil
-    ) -> PIVRecoveryKeyMetadata {
-      PIVRecoveryKeyMetadata(
-        publicKey: publicKey ?? token.publicKey.x963Representation,
-        pinPolicy: pin, touchPolicy: touch, origin: origin)
-    }
-
-    func prepare(
-      occupancy: PIVRecoveryAnchorOccupancy = .absent, credential: PIVRecoveryKeyMetadata? = nil,
-      entries: [V3EntryObjectKey: V3EncryptedEntry]? = nil,
-      currentKey: Data = V3RecoveryRegistrationTests.oldKey,
-      nextKey: Data = V3RecoveryRegistrationTests.nextKey, owner: Owner? = nil,
-      transition: String = UUID().uuidString.lowercased(),
-      generation: String = UUID().uuidString.lowercased(),
-      limits: V3ManifestRepositoryLimits = .standard
-    ) throws -> V3RecoveryRegistrationPreparation {
-      try V3RecoveryRegistrationBuilder(limits: limits).prepare(
-        checkpoint: checkpoint, parent: parent, currentEntries: entries ?? self.entries,
-        currentVaultKey: currentKey, nextVaultKey: nextKey,
-        credential: credential ?? self.credential,
-        occupancy: occupancy, owner: owner ?? self.owner, reason: "Software registration fixture",
-        authorityTransitionID: transition, generationID: generation)
-    }
-
-    func validate(_ preparation: V3RecoveryRegistrationPreparation) throws {
-      try V3RecoveryRegistrationValidator().validate(
-        preparation, checkpoint: checkpoint, parent: parent, currentEntries: entries,
-        currentVaultKey: V3RecoveryRegistrationTests.oldKey,
-        nextVaultKey: V3RecoveryRegistrationTests.nextKey,
-        expectedOwner: owner.publicIdentity)
-    }
-
-    func stage(
-      _ preparation: V3RecoveryRegistrationPreparation, journal: V3RecoveryRegistrationJournal
-    ) throws -> Data {
-      try journal.stageAndExport(
-        preparation, checkpoint: checkpoint, parent: parent, currentEntries: entries,
-        currentVaultKey: V3RecoveryRegistrationTests.oldKey,
-        nextVaultKey: V3RecoveryRegistrationTests.nextKey,
-        expectedOwner: owner.publicIdentity)
-    }
-
-    func resume(
-      journal: V3RecoveryRegistrationJournal, checkpoint: V3ManifestCheckpoint? = nil,
-      entries: [V3EntryObjectKey: V3EncryptedEntry]? = nil,
-      currentKey: Data = V3RecoveryRegistrationTests.oldKey,
-      nextKey: Data = V3RecoveryRegistrationTests.nextKey, owner: V3EnrollmentDeviceIdentity? = nil
-    ) throws -> Data {
-      try journal.resumeAndExport(
-        checkpoint: checkpoint ?? self.checkpoint, parent: parent,
-        currentEntries: entries ?? self.entries,
-        currentVaultKey: currentKey, nextVaultKey: nextKey,
-        expectedOwner: owner ?? self.owner.publicIdentity)
-    }
-
-    func changingSecret(
-      _ preparation: V3RecoveryRegistrationPreparation, to plaintext: String
-    ) throws -> V3RecoveryRegistrationPreparation {
-      let old = preparation.candidate.body
-      let context = try #require(
-        preparation.stagedEntries.first {
-          $0.context.entryID == V3RecoveryRegistrationTests.entryID
-        }
-      ).context
-      let changed = try V3EntryCipher().seal(
-        plaintext, context: context, vaultKey: V3RecoveryRegistrationTests.nextKey)
-      let staged = preparation.stagedEntries.map {
-        $0.context.entryID == context.entryID ? changed : $0
-      }
-      let fields = try V3DeviceWrappedManifestFields(
-        vaultID: old.fields.vaultID, keyID: old.fields.keyID,
-        authorityTransitionID: old.fields.authorityTransitionID, devices: old.fields.devices,
-        wrappedKeys: old.fields.wrappedKeys,
-        entries: staged.map { V3ResealedEntry(encryptedEntry: $0).manifestEntry })
-      let candidate = try V3RecoveryEpochBoundary().authorize(
-        candidate: V3RecoveryManifestBody(
-          fields: fields, epochSigningKey: old.epochSigningKey, transitionProof: nil,
-          recovery: old.recovery), parent: parent,
-        currentVaultKey: V3RecoveryRegistrationTests.oldKey,
-        nextVaultKey: V3RecoveryRegistrationTests.nextKey, signer: owner,
-        reason: "Software content comparison fixture")
-      let anchor = try V3RecoveryAnchor(
-        floor: V3VaultHead(vaultID: old.fields.vaultID, envelopeDigest: candidate.digest),
-        recipientID: preparation.intent.anchor.recipientID,
-        registrationID: preparation.intent.anchor.registrationID, slot: .keyManagement)
-      let addresses = try staged.map {
-        V3ImmutableTransactionRecoveryEntry(
-          entryID: $0.context.entryID,
-          digest: try #require(Base64URL.decodeCanonical($0.ciphertextDigest)))
-      }.sorted { $0.entryID < $1.entryID }
-      let intent = try V3RecoveryRegistrationIntent(
-        operationID: preparation.intent.operationID, expectedCheckpoint: checkpoint,
-        ownerDeviceID: owner.publicIdentity.deviceID, publicKey: preparation.intent.publicKey,
-        anchor: anchor, stagedEntries: addresses,
-        currentVaultKey: V3RecoveryRegistrationTests.oldKey)
-      return V3RecoveryRegistrationPreparation(
-        intent: intent, candidate: candidate, stagedEntries: staged)
-    }
-
-    @available(macOS 26.0, *)
-    func complete(
-      _ preparation: V3RecoveryRegistrationPreparation, anchor: V3RecoveryAnchor? = nil,
-      credential: PIVRecoveryKeyMetadata? = nil, checkpoint: V3ManifestCheckpoint? = nil,
-      entries: [V3EntryObjectKey: V3EncryptedEntry]? = nil,
-      currentKey: Data = V3RecoveryRegistrationTests.oldKey, receiver: PIVHPKEReceiver
-    ) throws {
-      try V3RecoveryRegistrationValidator().verifyForCompletion(
-        preparation, checkpoint: checkpoint ?? self.checkpoint, parent: parent,
-        currentEntries: entries ?? self.entries, currentVaultKey: currentKey, identity: owner,
-        credential: credential ?? self.credential,
-        installedAnchor: anchor ?? preparation.intent.anchor,
-        receiver: receiver, reason: "Software completion fixture")
-    }
-
-    @available(macOS 26.0, *)
-    func receiver(count: Counter) throws -> PIVHPKEReceiver {
-      try PIVHPKEReceiver(publicBytes: credential.publicKey) { peer in
-        count.increment()
-        return try token.sharedSecretFromKeyAgreement(
-          with: P256.KeyAgreement.PublicKey(x963Representation: peer)
-        ).withUnsafeBytes { Data($0) }
-      }
-    }
-
-    static func address(_ entry: V3ManifestEntry) throws -> V3EntryObjectKey {
-      V3EntryObjectKey(
-        entryID: entry.entryID,
-        digest: try #require(Base64URL.decodeCanonical(entry.ciphertextDigest)))
-    }
-
-    static func limits(
-      entries: Int = 16_384, entryBytes: Int = 16 * 1_024 * 1_024,
-      totalBytes: Int = 256 * 1_024 * 1_024, manifestBytes: Int = 2 * 1_024 * 1_024
-    ) -> V3ManifestRepositoryLimits {
-      V3ManifestRepositoryLimits(
-        maximumManifestObjects: 4_096, maximumHistoryDepth: 1_024,
-        maximumReferencedEntryObjects: entries, maximumManifestBytes: manifestBytes,
-        maximumEntryBytes: min(entryBytes, totalBytes),
-        maximumTotalManifestBytes: 64 * 1_024 * 1_024,
-        maximumTotalEntryBytes: totalBytes)
-    }
-  }
 }

@@ -7,8 +7,8 @@ import Testing
 /// Actual epoch cryptography, random keys, in-memory sessions and contained
 /// filesystem publication. Only local failures and Mac identity UI are scripted.
 struct V3RecoveryAuthorityChangeServiceTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Revocation = V3RecoveryDeviceRevocationPublisherTests
   private typealias Stop = Publication.Stop
   enum Action: CaseIterable, Sendable { case revoke, remove, removeLast }
@@ -420,7 +420,7 @@ struct V3RecoveryAuthorityChangeServiceTests {
 
   struct Fixture: Sendable {
     let action: Action
-    let disk: V3RecoveryContentMutationPublisherTests.Fixture
+    let disk: V3RecoveryPublicationTestSupport.Fixture
     let parent: V3RecoveryManifestEnvelope
     let checkpoint: V3ManifestCheckpoint
     let entries: [V3EntryObjectKey: V3EncryptedEntry]
@@ -428,7 +428,7 @@ struct V3RecoveryAuthorityChangeServiceTests {
     let deviceID: String?
     let signatures: Int
     let unwraps: Int
-    var owner: V3RecoveryRegistrationTests.Owner { disk.core.owner }
+    var owner: V3RecoveryRegistrationTestSupport.Owner { disk.core.owner }
     init(_ action: Action, empty: Bool = false) throws {
       self.action = action
       if action == .revoke {
