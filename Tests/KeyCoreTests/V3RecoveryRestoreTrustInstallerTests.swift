@@ -4,8 +4,8 @@ import Testing
 @testable import KeyCore
 
 struct V3RecoveryRestoreTrustInstallerTests {
-  private typealias Base = V3RecoveryRestoreJournalTests
-  private typealias Identity = V3RecoveryRestorePublisherTests.Identity
+  private typealias Base = V3RecoveryRestoreJournalTestSupport
+  private typealias Identity = V3RecoveryRestoreIdentityTestSupport.Identity
   private typealias Core = V3RecoveryRegistrationTestSupport
   private enum Stop: Error { case interrupted }
   private static let phases: [V3RecoveryRestoreTrustPhase] = [
@@ -18,8 +18,8 @@ struct V3RecoveryRestoreTrustInstallerTests {
     guard #available(macOS 26.0, *) else { return }
     let h = try Harness(empty: empty)
     defer { h.f.remove() }
-    let before = try Base().files(h.f.source.root)
-    let local = try Base().files(h.f.configRootURL)
+    let before = try Base.files(h.f.source.root)
+    let local = try Base.files(h.f.configRootURL)
     let report = try h.install()
     #expect(report.checkpoint == h.bundle.intent.destinationCheckpoint)
     #expect(report.entryCount == h.bundle.entries.count)
@@ -29,8 +29,8 @@ struct V3RecoveryRestoreTrustInstallerTests {
       try h.cache.load(for: report.checkpoint) == .available(h.bundle.manifest.canonicalBytes))
     let repeated = try h.install()
     #expect(repeated == report && h.identity.calls.value == 4)
-    #expect(try Base().files(h.f.source.root) == before)
-    #expect(try Base().files(h.f.configRootURL) == local)
+    #expect(try Base.files(h.f.source.root) == before)
+    #expect(try Base.files(h.f.configRootURL) == local)
     #expect(try !h.f.config.hasConfiguration())
     #expect(h.f.source.core.owner.unwraps == 0)
     #expect(h.f.reservations.value != nil && h.f.preparations.value != nil)
@@ -189,10 +189,10 @@ struct V3RecoveryRestoreTrustInstallerTests {
         digest: V3ResealedEntry(encryptedEntry: h.bundle.entries[0]).manifestEntry.ciphertextDigest)
     try FileManager.default.removeItem(
       at: h.f.environment.destination.rootURL.appendingPathComponent(path))
-    let before = try Base().files(h.f.environment.destination.rootURL)
+    let before = try Base.files(h.f.environment.destination.rootURL)
     #expect(throws: (any Error).self) { try h.install() }
     #expect(h.checkpoints.value == nil && h.identity.calls.value == 0)
-    #expect(try Base().files(h.f.environment.destination.rootURL) == before)
+    #expect(try Base.files(h.f.environment.destination.rootURL) == before)
   }
 
   private struct Observer: V3RecoveryRestoreTrustPhaseObserving {

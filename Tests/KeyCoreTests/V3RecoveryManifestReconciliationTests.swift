@@ -16,7 +16,7 @@ struct V3RecoveryManifestReconciliationTests {
   @Test func aSingleForwardHeadNeedsNoMergeAndDoesNotAdvanceTheLocalCheckpoint() throws {
     let f = try Fixture()
     defer { f.remove() }
-    let child = try publishBranch(f, requests: [.remove(name: "fixture/totp")])
+    let child = try V3RecoveryBranchTestSupport.publishBranch(f, requests: [.remove(name: "fixture/totp")])
     let result = try reconcile(f)
     #expect(result == .noMergeRequired(head: try head(child)))
     try requireUnchangedLocalState(f)
@@ -25,12 +25,12 @@ struct V3RecoveryManifestReconciliationTests {
   @Test func independentOfflineEditsProduceExactDeterministicMergeEntries() throws {
     let f = try Fixture()
     defer { f.remove() }
-    let a = try publishBranch(
+    let a = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "updated")
       ])
-    let b = try publishBranch(
+    let b = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/totp", type: .totp, plaintext: "JBSWY3DPEHPK3PXP")
@@ -46,13 +46,13 @@ struct V3RecoveryManifestReconciliationTests {
   @Test func threeIndependentHeadsReconcileEditDeletionAndCreation() throws {
     let f = try Fixture()
     defer { f.remove() }
-    let a = try publishBranch(
+    let a = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "updated")
       ])
-    let b = try publishBranch(f, requests: [.remove(name: "fixture/totp")])
-    let c = try publishBranch(
+    let b = try V3RecoveryBranchTestSupport.publishBranch(f, requests: [.remove(name: "fixture/totp")])
+    let c = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .add(entryID: Self.addedID, name: "new/account", type: .secret, plaintext: "new")
@@ -72,15 +72,15 @@ struct V3RecoveryManifestReconciliationTests {
   @Test func nearestSharedForwardCheckpointIsTheComparisonBaseNotTheOldFloor() throws {
     let f = try Fixture()
     defer { f.remove() }
-    let base = try publishBranch(
+    let base = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "shared change")
       ])
-    let entries = try entryMap(f, envelope: base.envelope)
-    let a = try publishBranch(
+    let entries = try V3RecoveryBranchTestSupport.entryMap(f, envelope: base.envelope)
+    let a = try V3RecoveryBranchTestSupport.publishBranch(
       f, requests: [.remove(name: "fixture/totp")], from: base, entries: entries)
-    let b = try publishBranch(
+    let b = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .add(entryID: Self.addedID, name: "new/account", type: .secret, plaintext: "new")
@@ -97,12 +97,12 @@ struct V3RecoveryManifestReconciliationTests {
   func competingSameEntryEditsRemainExplicitEvenWhenPlaintextMatches(samePlaintext: Bool) throws {
     let f = try Fixture()
     defer { f.remove() }
-    let a = try publishBranch(
+    let a = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "first")
       ])
-    let b = try publishBranch(
+    let b = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: samePlaintext ? "first" : "second")
@@ -126,7 +126,7 @@ struct V3RecoveryManifestReconciliationTests {
   func deletionAgainstEditOrRenameIncludesTheExactDeletedVersion(rename: Bool) throws {
     let f = try Fixture()
     defer { f.remove() }
-    let a = try publishBranch(f, requests: [.remove(name: "fixture/secret")])
+    let a = try V3RecoveryBranchTestSupport.publishBranch(f, requests: [.remove(name: "fixture/secret")])
     let original = try #require(f.entries.values.first { $0.context.name == "fixture/secret" })
     let request: V3EntryMutationRequest =
       rename
@@ -134,7 +134,7 @@ struct V3RecoveryManifestReconciliationTests {
         sourceName: "fixture/secret", sourceData: original.canonicalBytes,
         destinationName: "renamed/account", overwrite: false)
       : .edit(name: "fixture/secret", type: .secret, plaintext: "edited")
-    let b = try publishBranch(f, requests: [request])
+    let b = try V3RecoveryBranchTestSupport.publishBranch(f, requests: [request])
     let report = try conflict(reconcile(f))
     let entryConflict = try only(report.entryConflicts)
     #expect(entryConflict.kind == .deleteEdit)
@@ -149,7 +149,7 @@ struct V3RecoveryManifestReconciliationTests {
     let f = try Fixture()
     defer { f.remove() }
     let original = try #require(f.entries.values.first { $0.context.name == "fixture/secret" })
-    _ = try publishBranch(
+    _ = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .move(
@@ -162,7 +162,7 @@ struct V3RecoveryManifestReconciliationTests {
         sourceName: "fixture/secret", sourceData: original.canonicalBytes,
         destinationName: "renamed/second", overwrite: false)
       : .edit(name: "fixture/secret", type: .secret, plaintext: "edited")
-    _ = try publishBranch(f, requests: [request])
+    _ = try V3RecoveryBranchTestSupport.publishBranch(f, requests: [request])
     let report = try conflict(reconcile(f))
     #expect(try only(report.entryConflicts).kind == (bothRename ? .conflictingRename : .renameEdit))
     try requireUnchangedLocalState(f)
@@ -171,12 +171,12 @@ struct V3RecoveryManifestReconciliationTests {
   @Test func separateEntryIdentitiesWithTheSameDestinationRemainAmbiguous() throws {
     let f = try Fixture()
     defer { f.remove() }
-    _ = try publishBranch(
+    _ = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .add(entryID: Self.addedID, name: "same/account", type: .secret, plaintext: "first")
       ])
-    _ = try publishBranch(
+    _ = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .add(entryID: Self.otherID, name: "same/account", type: .secret, plaintext: "second")
@@ -192,12 +192,12 @@ struct V3RecoveryManifestReconciliationTests {
   @Test func concurrentCreationOfOneStableIdentityPreservesBothVersions() throws {
     let f = try Fixture()
     defer { f.remove() }
-    _ = try publishBranch(
+    _ = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .add(entryID: Self.addedID, name: "first/account", type: .secret, plaintext: "first")
       ])
-    _ = try publishBranch(
+    _ = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .add(entryID: Self.addedID, name: "second/account", type: .secret, plaintext: "second")
@@ -212,8 +212,8 @@ struct V3RecoveryManifestReconciliationTests {
   @Test func identicalDeletionOnTwoDifferentHeadsDoesNotBecomeAConflict() throws {
     let f = try Fixture()
     defer { f.remove() }
-    _ = try publishBranch(f, requests: [.remove(name: "fixture/totp")])
-    _ = try publishBranch(
+    _ = try V3RecoveryBranchTestSupport.publishBranch(f, requests: [.remove(name: "fixture/totp")])
+    _ = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "later"),
@@ -228,13 +228,13 @@ struct V3RecoveryManifestReconciliationTests {
   func incompleteOrSubstitutedBranchObjectsCannotProduceAPlan(substitute: Bool) throws {
     let f = try Fixture()
     defer { f.remove() }
-    let a = try publishBranch(
+    let a = try V3RecoveryBranchTestSupport.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "first")
       ])
-    _ = try publishBranch(f, requests: [.remove(name: "fixture/totp")])
-    let objects = try entryMap(f, envelope: a.envelope)
+    _ = try V3RecoveryBranchTestSupport.publishBranch(f, requests: [.remove(name: "fixture/totp")])
+    let objects = try V3RecoveryBranchTestSupport.entryMap(f, envelope: a.envelope)
     let entry = try #require(objects.values.first { $0.context.name == "fixture/secret" })
     if substitute {
       try Data("changed encrypted fixture".utf8).write(to: f.entryURL(entry))
@@ -289,96 +289,6 @@ struct V3RecoveryManifestReconciliationTests {
       a.body.fields.entries.first { $0.name == "fixture/secret" },
       b.body.fields.entries.first { $0.name == "fixture/totp" },
     ].compactMap { $0 }.sorted(by: v3ManifestEntryPrecedes)
-  }
-  func entryMap(_ f: Fixture, envelope: V3RecoveryManifestEnvelope) throws
-    -> [V3EntryObjectKey: V3EncryptedEntry]
-  {
-    var result: [V3EntryObjectKey: V3EncryptedEntry] = [:]
-    for record in envelope.body.fields.entries {
-      let digest = try #require(Base64URL.decodeCanonical(record.ciphertextDigest))
-      let key = V3EntryObjectKey(entryID: record.entryID, digest: digest)
-      guard
-        case .available(let bytes) = try f.store.readEntry(
-          entryID: record.entryID, digest: digest, maximumBytes: 1_000_000)
-      else {
-        throw Publication.Stop.interrupted
-      }
-      result[key] = try V3EntryCipher().parse(bytes)
-    }
-    return result
-  }
-
-  /// Complete each branch in its own provider directory before delivery, so
-  /// later branches cannot silently observe the earlier branch's files.
-  func publishBranch(
-    _ f: Fixture, requests: [V3EntryMutationRequest], from start: V3RecoveryContentCommit? = nil,
-    entries startEntries: [V3EntryObjectKey: V3EncryptedEntry]? = nil
-  ) throws -> V3RecoveryContentCommit {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: root) }
-    let store = V3FilesystemTransactionArtifactStore(
-      rootHandle: try VaultRootDirectoryHandle(opening: root))
-    var current = start ?? floor(f)
-    var entries = startEntries ?? f.entries
-    try seed(f.core.parent, entries: Array(f.core.entries.values), into: store)
-    try seed(f.parent, entries: Array(f.entries.values), into: store)
-    if current.checkpoint != f.checkpoint {
-      try seed(current.envelope, entries: Array(entries.values), into: store)
-      // A merged floor has several ancestry paths. Copy only its exact known
-      // ancestors, not another writer's later branch. Old ciphertext snapshots
-      // are not needed by ordinary publication from this trusted floor.
-      var pending = current.envelope.parents
-      var seen: Set<Data> = [f.parent.digest, f.core.parent.digest]
-      while let digest = pending.popLast() {
-        guard seen.insert(digest).inserted else { continue }
-        guard
-          case .available(let bytes) = try f.store.readManifest(
-            digest: digest, maximumBytes: V3ManifestRepositoryLimits.standard.maximumManifestBytes)
-        else { throw Publication.Stop.interrupted }
-        let ancestor = try V3RecoveryManifestCodec().parseEnvelope(bytes)
-        try seed(ancestor, entries: [], into: store)
-        pending.append(contentsOf: ancestor.parents)
-      }
-    }
-    let checkpoint = Publication.Checkpoints(current.checkpoint.canonicalBytes)
-    let publisher = V3RecoveryContentMutationPublisher(
-      mutationOwner: VaultTransactionMutationOwner(), objectStore: store,
-      checkpointStore: checkpoint,
-      recoveryAnchorStore: Publication.Ownership(),
-      registrationAnchorStore: Publication.Ownership(),
-      adoptionAnchorStore: Publication.Ownership(), cache: f.cache)
-    var delivered: [V3RecoveryContentMutationCandidate] = []
-    for request in requests {
-      let candidate = try V3RecoveryContentMutationBuilder().build(
-        request, checkpoint: current.checkpoint, parent: current.envelope, currentEntries: entries,
-        vaultKey: Core.nextKey)
-      entries = try V3RecoveryContentMutationValidator().validate(
-        candidate, parent: current.envelope, currentEntries: entries, vaultKey: Core.nextKey)
-      current = try publisher.publish(candidate, vaultKey: Core.nextKey)
-      delivered.append(candidate)
-    }
-    for candidate in delivered { try f.seed(candidate.envelope, entries: candidate.stagedEntries) }
-    return current
-  }
-  private func seed(
-    _ envelope: V3RecoveryManifestEnvelope, entries: [V3EncryptedEntry],
-    into store: V3FilesystemTransactionArtifactStore
-  ) throws {
-    let operation = VaultTransactionOperationID()
-    for entry in entries {
-      let digest = Data(SHA256.hash(data: entry.canonicalBytes))
-      try store.stageEntry(
-        entry.canonicalBytes, entryID: entry.context.entryID, digest: digest, operationID: operation
-      )
-      try store.publishStagedEntry(
-        entry.canonicalBytes, entryID: entry.context.entryID, digest: digest, operationID: operation
-      )
-    }
-    try store.stageManifest(
-      envelope.canonicalBytes, digest: envelope.digest, operationID: operation)
-    try store.publishStagedManifest(
-      envelope.canonicalBytes, digest: envelope.digest, operationID: operation)
   }
   private struct ReverseInventory: V3ImmutableObjectReading {
     let base: any V3ImmutableObjectReading

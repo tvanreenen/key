@@ -14,7 +14,6 @@ struct V3RecoveryKeyTransitionCatchUpTests {
   typealias Publication = V3RecoveryPublicationTestSupport
   typealias Stop = Publication.Stop
 
-
   @Test(arguments: Action.allCases, [false, true])
   func independentMacAdvancesPublishedChangesAndCanSave(action: Action, empty: Bool) throws {
     let f = try Fixture(empty: empty, last: action == .lastRemoval)

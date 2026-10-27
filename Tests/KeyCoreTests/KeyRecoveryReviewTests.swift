@@ -4,7 +4,7 @@ import Testing
 @testable import KeyCore
 
 struct KeyRecoveryReviewTests {
-  private typealias Fixture = V3RecoveryRestoreServiceTests.Fixture
+  private typealias Fixture = V3RecoveryRestoreServiceTestSupport.Fixture
   private enum Stop: Error { case unexpected }
 
   @Test(arguments: [KeyRecoveryReviewRequest.tokens, .source(path: "/source", tokenID: "token")])
@@ -50,8 +50,8 @@ struct KeyRecoveryReviewTests {
     // Missing current entry objects must not be mistaken for verified contents.
     // Their absence also establishes that review never tries to open them.
     try FileManager.default.removeItem(at: f.source.root.appendingPathComponent("entries"))
-    let before = try V3RecoveryRestoreJournalTests().files(f.source.root)
-    let local = try V3RecoveryRestoreJournalTests().files(f.base)
+    let before = try V3RecoveryRestoreJournalTestSupport.files(f.source.root)
+    let local = try V3RecoveryRestoreJournalTestSupport.files(f.base)
     let workflow = KeyRecoveryReviewWorkflow(reader: f.reader)
     let configurationReads = Counter()
     let host = host(review: workflow.handle, configurationReads: configurationReads)
@@ -91,8 +91,8 @@ struct KeyRecoveryReviewTests {
       #expect(io.stdout.contains("No saved attempt or restore approval"))
     }
     #expect(!io.stdout.contains("Software fixture secret") && !io.stdout.contains("must-not-read"))
-    #expect(try V3RecoveryRestoreJournalTests().files(f.source.root) == before)
-    #expect(try V3RecoveryRestoreJournalTests().files(f.base) == local)
+    #expect(try V3RecoveryRestoreJournalTestSupport.files(f.source.root) == before)
+    #expect(try V3RecoveryRestoreJournalTestSupport.files(f.base) == local)
     #expect(f.provider.requests == 0 && f.identities.creates.value == 0)
     #expect(
       f.reservations.value == nil && f.preparations.value == nil && f.checkpoints.value == nil)
@@ -170,15 +170,15 @@ struct KeyRecoveryReviewTests {
         registrationID: UUID().uuidString.lowercased(), slot: .keyManagement)
       f.card.anchor = other.canonicalBytes
     }
-    let before = try V3RecoveryRestoreJournalTests().files(f.source.root)
-    let local = try V3RecoveryRestoreJournalTests().files(f.base)
+    let before = try V3RecoveryRestoreJournalTestSupport.files(f.source.root)
+    let local = try V3RecoveryRestoreJournalTestSupport.files(f.base)
     let workflow = KeyRecoveryReviewWorkflow(reader: f.reader)
     #expect(throws: (any Error).self) {
       try workflow.handle(.source(path: path, tokenID: token), scope: scope())
     }
     #expect(f.provider.requests == 0 && f.identities.creates.value == 0)
-    #expect(try V3RecoveryRestoreJournalTests().files(f.source.root) == before)
-    #expect(try V3RecoveryRestoreJournalTests().files(f.base) == local)
+    #expect(try V3RecoveryRestoreJournalTestSupport.files(f.source.root) == before)
+    #expect(try V3RecoveryRestoreJournalTestSupport.files(f.base) == local)
   }
 
   @Test(arguments: 0 ..< 5)
@@ -594,11 +594,11 @@ struct KeyRecoveryReviewTests {
     func connections(maximumCount: Int) throws -> [any PIVRecoveryTokenConnection] { cards }
   }
   private final class Connection: PIVRecoveryTokenConnection, @unchecked Sendable {
-    let card: V3RecoveryRegistrationServiceTests.Card
+    let card: PIVRecoveryTestSupport.Card
     let after: @Sendable (Int) throws -> Void
     let count = Counter()
     init(
-      card: V3RecoveryRegistrationServiceTests.Card, after: @escaping @Sendable (Int) throws -> Void
+      card: PIVRecoveryTestSupport.Card, after: @escaping @Sendable (Int) throws -> Void
     ) {
       self.card = card
       self.after = after

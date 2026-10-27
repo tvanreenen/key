@@ -142,7 +142,8 @@ struct V3RecoveryDeviceEnrollmentTests {
     let checkpoint = try V3ManifestCheckpoint(vaultID: Core.vaultID, envelopeDigest: parent.digest)
     let signer = try RelatedJoiner(
       existing: f.joiner, reuseWrappingKey: reusedKey)
-    let state = try V3RecoveryEnrollmentTestSupport.ceremony(parentDigest: parent.digest, owner: f.core.owner, joiner: signer)
+    let state = try V3RecoveryEnrollmentTestSupport.ceremony(
+        parentDigest: parent.digest, owner: f.core.owner, joiner: signer)
     let before = f.core.owner.signatures
     #expect(throws: V3RecoveryDeviceEnrollmentError.joiningIdentityConflict) {
       try V3RecoveryDeviceEnrollmentBuilder().build(
@@ -307,7 +308,8 @@ struct V3RecoveryDeviceEnrollmentTests {
       nextVaultKey: retirementKey, signer: f.core.owner, reason: "Owned retired-device fixture")
     let checkpoint = try V3ManifestCheckpoint(vaultID: Core.vaultID, envelopeDigest: parent.digest)
     let joiner = try Core.Owner()
-    let state = try V3RecoveryEnrollmentTestSupport.ceremony(parentDigest: parent.digest, owner: f.core.owner, joiner: joiner)
+    let state = try V3RecoveryEnrollmentTestSupport.ceremony(
+        parentDigest: parent.digest, owner: f.core.owner, joiner: joiner)
     let result = try V3RecoveryDeviceEnrollmentBuilder().build(
       checkpoint: checkpoint, parent: parent,
       currentEntries: V3EntrySnapshotValidator(limits: .standard).entryMap(material.stagedEntries),
@@ -411,7 +413,8 @@ struct V3RecoveryDeviceEnrollmentTests {
       let joiner = try Core.Owner()
       let checkpoint = try V3ManifestCheckpoint(
         vaultID: Core.vaultID, envelopeDigest: parent.digest)
-      let state = try V3RecoveryEnrollmentTestSupport.ceremony(parentDigest: parent.digest, owner: owner, joiner: joiner)
+      let state = try V3RecoveryEnrollmentTestSupport.ceremony(
+        parentDigest: parent.digest, owner: owner, joiner: joiner)
       let candidate = try V3RecoveryDeviceEnrollmentBuilder().build(
         checkpoint: checkpoint, parent: parent, currentEntries: entries, state: state,
         currentVaultKey: key, nextVaultKey: next, owner: owner, at: Self.now,
@@ -500,6 +503,4 @@ struct V3RecoveryDeviceEnrollmentTests {
         at: V3RecoveryDeviceEnrollmentTests.now, reason: "Software local wrapper fixture")
     }
   }
-
-
 }

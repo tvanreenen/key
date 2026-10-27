@@ -282,6 +282,4 @@ struct V3RecoveryProfileAdoptionTests {
     #expect(throws: Core.FixtureError.cancelled) { try f.validateForPublication(original) }
     #expect(f.owner.unwraps == 2)
   }
-
-
 }

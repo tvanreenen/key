@@ -5,15 +5,15 @@ import Testing
 @testable import KeyCore
 
 struct V3RecoveryRestoreWorkflowTests {
-  typealias Fixture = V3RecoveryRestoreServiceTests.Fixture
-  typealias Base = V3RecoveryRestoreJournalTests
+  typealias Fixture = V3RecoveryRestoreServiceTestSupport.Fixture
+  typealias Base = V3RecoveryRestoreJournalTestSupport
   private enum Stop: Error { case interrupted }
 
   @Test func explicitAbandonmentReleasesOnlyThePinWithoutTokenOrCredentialUse() throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture(); defer { f.remove() }
     try reserveIncomplete(f)
-    let files = try Base().files(f.configRoot), source = try Base().files(f.source.root)
+    let files = try Base.files(f.configRoot), source = try Base.files(f.source.root)
     let calls = try #require(f.identities.saved).calls.value
     let loads = f.identities.loads.value
     let workflow = makeWorkflow(f, reader: .init(inventory: Inventory(cards: []), gate: .init()))
@@ -21,7 +21,7 @@ struct V3RecoveryRestoreWorkflowTests {
     let host = makeHost(f, workflow: workflow)
     #expect(host.handle(.recovery(request)).exitCode == EXIT_SUCCESS)
     #expect(f.reservations.value == nil && f.preparations.value == nil)
-    #expect(try Base().files(f.configRoot) == files && Base().files(f.source.root) == source)
+    #expect(try Base.files(f.configRoot) == files && Base.files(f.source.root) == source)
     #expect(try FileManager.default.contentsOfDirectory(atPath: f.destination.path).isEmpty)
     #expect(try !f.config.hasConfiguration())
     #expect(f.provider.requests == 1 && f.identities.creates.value == 1)
@@ -32,13 +32,13 @@ struct V3RecoveryRestoreWorkflowTests {
     #expect(throws: V3RecoveryRestoreServiceError.noPendingRestore) {
       try workflow.handle(request, scope: scope())
     }
-    #expect(try Base().files(f.configRoot) == files)
+    #expect(try Base.files(f.configRoot) == files)
   }
 
   @Test func incompleteResumeExplainsTheExactAttemptBeforeRequestingAnotherApproval() throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture(); defer { f.remove() }; try reserveIncomplete(f)
-    let files = try Base().files(f.configRoot)
+    let files = try Base.files(f.configRoot)
     let pins = [f.reservations.value, f.preparations.value]
     let events = ProgressEvents()
     let progress = KeyRecoveryProgress(operationID: UUID()) { events.append($0.stage) }
@@ -49,7 +49,7 @@ struct V3RecoveryRestoreWorkflowTests {
     #expect(message.contains("key recovery abandon --help") && !message.contains("error 5"))
     #expect(events.values.isEmpty && f.provider.requests == 1)
     #expect([f.reservations.value, f.preparations.value] == pins)
-    #expect(try Base().files(f.configRoot) == files)
+    #expect(try Base.files(f.configRoot) == files)
   }
 
   @Test(arguments: 0 ..< 14)
@@ -89,17 +89,17 @@ struct V3RecoveryRestoreWorkflowTests {
     }
     let pins = [f.reservations.value, f.preparations.value]
     let files: [String: Data]?
-    if variant == 12 { files = nil } else { files = try Base().files(f.configRoot) }
-    let target = try Base().files(f.destination)
+    if variant == 12 { files = nil } else { files = try Base.files(f.configRoot) }
+    let target = try Base.files(f.destination)
     let creates = f.identities.creates.value, loads = f.identities.loads.value
     #expect(throws: (any Error).self) { try makeWorkflow(f).handle(action, scope: selectedScope) }
     #expect([f.reservations.value, f.preparations.value] == pins)
-    if let files { #expect(try Base().files(f.configRoot) == files) }
+    if let files { #expect(try Base.files(f.configRoot) == files) }
     if variant == 12 {
       #expect(try FileManager.default.destinationOfSymbolicLink(atPath: f.record("preparation.json").path)
         == f.base.appendingPathComponent("missing").path)
     }
-    #expect(try Base().files(f.destination) == target)
+    #expect(try Base.files(f.destination) == target)
     #expect(f.provider.requests == 1 && f.identities.creates.value == creates && f.identities.loads.value == loads)
   }
 
@@ -167,7 +167,7 @@ struct V3RecoveryRestoreWorkflowTests {
     defer { f.remove() }
     if layout == 1 { try FileManager.default.removeItem(at: f.configRoot) }
     if layout == 2 { try FileManager.default.removeItem(at: library(f)) }
-    let source = try Base().files(f.source.root)
+    let source = try Base.files(f.source.root)
     let box = ScopeBox()
     let workflow = makeWorkflow(
       f,
@@ -189,7 +189,7 @@ struct V3RecoveryRestoreWorkflowTests {
     )
     #expect(try !#require(box.scope).authentication.hasResidentKey)
     #expect(host.handle(.list).errorMessage?.contains("restarting") == true)
-    #expect(try Base().files(f.source.root) == source)
+    #expect(try Base.files(f.source.root) == source)
     var metadata = stat()
     #expect(lstat(cacheURL(f).path, &metadata) == 0 && metadata.st_mode & 0o777 == 0o700)
     // Use only the selected config, saved Mac identity and the actual local
@@ -243,7 +243,7 @@ struct V3RecoveryRestoreWorkflowTests {
     case 10: try Data("existing fixture".utf8).write(to: f.destination)
     default: destination = f.source.root.appendingPathComponent("must-not-create").path
     }
-    let before = try Base().files(f.source.root)
+    let before = try Base.files(f.source.root)
     #expect(throws: (any Error).self) {
       try makeWorkflow(f).handle(
         .restore(
@@ -254,7 +254,7 @@ struct V3RecoveryRestoreWorkflowTests {
     #expect(!FileManager.default.fileExists(atPath: f.configRoot.path))
     #expect(f.provider.requests == 0 && f.identities.creates.value == 0)
     #expect(f.reservations.value == nil && f.preparations.value == nil)
-    #expect(try Base().files(f.source.root) == before)
+    #expect(try Base.files(f.source.root) == before)
   }
 
   @Test(arguments: 0 ..< 4)
@@ -268,9 +268,9 @@ struct V3RecoveryRestoreWorkflowTests {
       try FileManager.default.removeItem(at: target)
     }
     try FileManager.default.createSymbolicLink(at: target, withDestinationURL: f.source.root)
-    let before = try Base().files(f.source.root)
+    let before = try Base.files(f.source.root)
     #expect(throws: (any Error).self) { try makeWorkflow(f).handle(request(f), scope: scope()) }
-    #expect(try Base().files(f.source.root) == before)
+    #expect(try Base.files(f.source.root) == before)
     #expect(f.provider.requests == 0 && f.identities.creates.value == 0)
     #expect(!FileManager.default.fileExists(atPath: f.destination.path))
   }
@@ -319,11 +319,11 @@ struct V3RecoveryRestoreWorkflowTests {
       try FileManager.default.copyItem(at: f.source.root, to: source)
       config = f.config
     }
-    let before = try Base().files(source)
+    let before = try Base.files(source)
     #expect(throws: V3RecoveryRestoreError.overlappingDirectories) {
       try makeWorkflow(f, config: config).handle(request(f, source: source), scope: scope())
     }
-    #expect(try Base().files(source) == before)
+    #expect(try Base.files(source) == before)
     #expect(f.provider.requests == 0 && f.identities.creates.value == 0)
   }
 
@@ -337,7 +337,7 @@ struct V3RecoveryRestoreWorkflowTests {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
     defer { f.remove() }
-    let before = try Base().files(f.source.root)
+    let before = try Base.files(f.source.root)
     let interrupted = makeWorkflow(
       f, observer: Observer { if $0 == phase { throw Stop.interrupted } })
     #expect(
@@ -353,7 +353,7 @@ struct V3RecoveryRestoreWorkflowTests {
       + (phase == .preparationDurable ? [.publishingRestoredVault] : []) + [.activatingRestoredVault])
     #expect(f.provider.requests == 2 && f.identities.creates.value == 1)
     #expect(f.reservations.value == nil && f.preparations.value == nil)
-    #expect(try Base().files(f.source.root) == before)
+    #expect(try Base.files(f.source.root) == before)
   }
 
   @Test(arguments: 0 ..< 4)
@@ -551,7 +551,7 @@ struct V3RecoveryRestoreWorkflowTests {
     func connections(maximumCount: Int) throws -> [any PIVRecoveryTokenConnection] { cards }
   }
   private struct Connection: PIVRecoveryTokenConnection {
-    let card: V3RecoveryRegistrationServiceTests.Card
+    let card: PIVRecoveryTestSupport.Card
     let token: String, slot: String
     let afterRead: @Sendable () -> Void
     var tokenID: String { token }

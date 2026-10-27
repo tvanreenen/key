@@ -10,7 +10,7 @@ struct V3RecoveryVaultMutationServiceTests {
   private typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Fixture = Publication.Fixture
   private typealias Core = V3RecoveryRegistrationTestSupport
-  private let branches = V3RecoveryManifestReconciliationTests()
+  private typealias Branches = V3RecoveryBranchTestSupport
   private static let addedID = "018f4d38-7d5a-7b20-b0f1-97d6e96c85a1"
   private static let copiedID = "018f4d38-7d5a-7b20-b0f1-97d6e96c85a2"
 
@@ -86,7 +86,7 @@ struct V3RecoveryVaultMutationServiceTests {
   @Test func ordinaryWriteCatchesUpBeforePlanningAgainstNewerEntryContents() throws {
     let f = try Fixture()
     defer { f.remove() }
-    let newer = try branches.publishBranch(
+    let newer = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "remote")])
     let s = service(f, session: try session(f))
     try s.copy(
@@ -101,9 +101,9 @@ struct V3RecoveryVaultMutationServiceTests {
   @Test func independentChangesMergeBeforeTheRequestedSaveWithSeparateOperationIdentity() throws {
     let f = try Fixture()
     defer { f.remove() }
-    let a = try branches.publishBranch(
+    let a = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "remote")])
-    let b = try branches.publishBranch(f, requests: [.remove(name: "fixture/totp")])
+    let b = try Branches.publishBranch(f, requests: [.remove(name: "fixture/totp")])
     let trace = Traces()
     let store = Store(f.store, onIntent: { id, data in try trace.append(id, data) })
     let s = service(f, session: try session(f), store: store)
@@ -149,9 +149,9 @@ struct V3RecoveryVaultMutationServiceTests {
     let (a, b) = try conflictingBranches(f)
     let s = service(f, session: try session(f))
     let choices = try resolutions(s, selected: a.envelope.digest)
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "later")], from: b,
-      entries: branches.entryMap(f, envelope: b.envelope))
+      entries: Branches.entryMap(f, envelope: b.envelope))
     #expect(throws: AppError.self) {
       try s.resolve(choices, operationID: .init())
     }
@@ -162,9 +162,9 @@ struct V3RecoveryVaultMutationServiceTests {
   func lateSiblingIsResolvedFromTheAdvancedCheckpoint(automatic: Bool) throws {
     let f = try Fixture()
     defer { f.remove() }
-    let a = try branches.publishBranch(
+    let a = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "selected")])
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f,
       requests: automatic
         ? [.remove(name: "fixture/totp")]
@@ -514,7 +514,7 @@ struct V3RecoveryVaultMutationServiceTests {
   }
   private func plaintexts(_ f: Fixture, current: V3RecoveryContentCommit) throws -> [String: String]
   {
-    let entries = try branches.entryMap(f, envelope: current.envelope)
+    let entries = try Branches.entryMap(f, envelope: current.envelope)
     let values = try V3EntrySnapshotValidator(limits: .standard).plaintexts(
       fields: current.envelope.body.fields, entries: entries, vaultKey: Core.nextKey)
     let pairs = try current.envelope.body.fields.entries.map { record in
@@ -527,9 +527,9 @@ struct V3RecoveryVaultMutationServiceTests {
   private func conflictingBranches(_ f: Fixture, automatic: Bool = false) throws -> (
     V3RecoveryContentCommit, V3RecoveryContentCommit
   ) {
-    let a = try branches.publishBranch(
+    let a = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "selected")])
-    let b = try branches.publishBranch(
+    let b = try Branches.publishBranch(
       f,
       requests: automatic
         ? [.remove(name: "fixture/totp")]

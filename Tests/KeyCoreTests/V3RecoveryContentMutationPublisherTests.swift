@@ -507,5 +507,4 @@ struct V3RecoveryContentMutationPublisherTests {
     var value: [V3ImmutableTransactionPhase] { lock.withLock { data } }
     func append(_ phase: V3ImmutableTransactionPhase) { lock.withLock { data.append(phase) } }
   }
-
 }

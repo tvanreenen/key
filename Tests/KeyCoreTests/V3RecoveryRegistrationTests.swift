@@ -958,5 +958,4 @@ struct V3RecoveryRegistrationTests {
     }
     func remove() { try? FileManager.default.removeItem(at: root) }
   }
-
 }

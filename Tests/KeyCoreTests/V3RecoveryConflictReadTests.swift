@@ -9,7 +9,7 @@ import Testing
 struct V3RecoveryConflictReadTests {
   private typealias Core = V3RecoveryRegistrationTestSupport
   private typealias Publication = V3RecoveryPublicationTestSupport
-  private let branches = V3RecoveryManifestReconciliationTests()
+  private typealias Branches = V3RecoveryBranchTestSupport
 
   @Test(arguments: 0 ..< 4)
   func actualConflictVersionsReadExactBytesAndBindCheckpointAndHeads(kind: Int) throws {
@@ -40,8 +40,8 @@ struct V3RecoveryConflictReadTests {
   @Test func deletionIsNotMissingVersionOrEmptyPlaintext() throws {
     let f = try Publication.Fixture()
     defer { f.remove() }
-    _ = try branches.publishBranch(f, requests: [.remove(name: "fixture/secret")])
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(f, requests: [.remove(name: "fixture/secret")])
+    _ = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "kept")])
     let observed = try observe(f)
     let detail = try #require(try V3ConflictObservationBuilder().build(observed)?.conflicts.first)
@@ -88,7 +88,7 @@ struct V3RecoveryConflictReadTests {
     try publishConflict(f)
     let initial = try #require(
       try V3ConflictObservationBuilder().build(observe(f))?.conflicts.first)
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "third")])
     #expect(throws: VaultUXServiceError.conflictNotFound) {
       try V3AuthenticatedReadPlanner().planRecoveryConflictRead(
@@ -101,10 +101,10 @@ struct V3RecoveryConflictReadTests {
   func linearOrAutomaticallyMergeableHistoryDoesNotInventAConflict(automatic: Bool) throws {
     let f = try Publication.Fixture()
     defer { f.remove() }
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "edit")])
     if automatic {
-      _ = try branches.publishBranch(
+      _ = try Branches.publishBranch(
         f, requests: [.edit(name: "fixture/totp", type: .totp, plaintext: "MZXW6YTBOI")])
     }
     #expect(throws: VaultUXServiceError.conflictNotFound) {
@@ -169,7 +169,7 @@ struct V3RecoveryConflictReadTests {
           : .edit(name: "fixture/secret", type: .secret, plaintext: value)
       default: request = .edit(name: "fixture/secret", type: .secret, plaintext: value)
       }
-      _ = try branches.publishBranch(f, requests: [request])
+      _ = try Branches.publishBranch(f, requests: [request])
     }
   }
 
