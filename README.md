@@ -376,7 +376,8 @@ have matching local commands:
 | Verify dependencies | `just verify-dependencies` | SwiftPM/Xcode requirement and lockfile consistency; CI also reviews PR dependency advisories |
 | Verify static analysis | `just verify-static-analysis` | Correctness-focused SwiftLint; CI additionally builds the complete Stable product for CodeQL |
 
-The workflow selects Xcode 26.3 explicitly. Local commands use the selected
+The workflow selects Xcode 26.4.1 / Swift 6.3 explicitly. Exit tests that capture
+state from the parent process require Swift 6.3 or later. Local commands use the selected
 Xcode; set `DEVELOPER_DIR` when reproducing a compiler-specific failure.
 Product verification targets arm64. The full test run explicitly disables
 cross-test parallel scheduling because concurrency tests use bounded waits;
