@@ -14,7 +14,7 @@ struct V3DeviceWrappedVaultRuntime:
     typealias CatchUp = @Sendable () throws
         -> V3DeviceWrappedCatchUpCoordinatorOutcome
 
-    private let runtime: any VaultReadServicing & VaultUXServicing
+    private let runtime: any VaultReadServicing & VaultReadPolicyServicing
     private let mutationService:
         (any V3DeviceWrappedVaultMutationServicing)?
     private let session: V3DeviceWrappedVaultKeySessionStore
@@ -66,7 +66,7 @@ struct V3DeviceWrappedVaultRuntime:
     }
 
     init(
-        runtime: any VaultReadServicing & VaultUXServicing,
+        runtime: any VaultReadServicing & VaultReadPolicyServicing,
         mutationService:
             (any V3DeviceWrappedVaultMutationServicing)? = nil,
         session: V3DeviceWrappedVaultKeySessionStore,
@@ -134,34 +134,35 @@ struct V3DeviceWrappedVaultRuntime:
             if let mutationService {
                 try mutationService.authorizeMutation()
             } else {
-                try runtime.authorizeMutation()
+                throw AppError.operationRefused(
+                    "Permanent version 3 vault writes are not enabled yet."
+                )
             }
         }
     }
 
+    // History review is an outer-runtime policy, not a capability of the
+    // exact-checkpoint reader. Preserve the permanent profile's existing
+    // empty-list / not-found behavior until that workflow is composed.
     func conflicts() throws -> [VaultConflictSummary] {
-        try translatingUnlockErrors {
-            try runtime.conflicts()
-        }
+        []
     }
 
-    func conflict(id: String) throws -> VaultConflictDetail {
-        try translatingUnlockErrors {
-            try runtime.conflict(id: id)
-        }
+    func conflict(id _: String) throws -> VaultConflictDetail {
+        throw VaultUXServiceError.conflictNotFound
     }
 
     func conflictValue(
-        id: String,
-        versionID: String
+        id _: String,
+        versionID _: String
     ) throws -> String {
-        try translatingUnlockErrors {
-            try runtime.conflictValue(id: id, versionID: versionID)
-        }
+        throw VaultUXServiceError.conflictNotFound
     }
 
-    func resolve(_ resolutions: [VaultConflictResolution]) throws {
-        try runtime.resolve(resolutions)
+    func resolve(_: [VaultConflictResolution]) throws {
+        throw AppError.operationRefused(
+            "Permanent version 3 vault writes are not enabled yet."
+        )
     }
 
     func add(

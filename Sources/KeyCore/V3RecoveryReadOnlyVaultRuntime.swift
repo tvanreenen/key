@@ -3,7 +3,7 @@ import Foundation
 /// Exact-checkpoint profile-3 read adapter, not provider-current selection or
 /// shipping dispatch. A surrounding runtime must compose catch-up/stale policy.
 /// Entry planning, encrypted closure checks and decryption use existing modules.
-struct V3RecoveryReadOnlyVaultRuntime: VaultReadServicing, VaultUXServicing, Sendable {
+struct V3RecoveryReadOnlyVaultRuntime: VaultReadServicing, VaultReadPolicyServicing, Sendable {
   private let source: any V3ImmutableObjectReading
   private let unlockRuntime: V3RecoveryVaultUnlockRuntime
   private let limits: V3ManifestRepositoryLimits
@@ -154,17 +154,6 @@ struct V3RecoveryReadOnlyVaultRuntime: VaultReadServicing, VaultUXServicing, Sen
     }
   }
 
-  func authorizeMutation() throws { throw readOnlyError() }
-  func resolve(_: [VaultConflictResolution]) throws { throw readOnlyError() }
-
-  // This adapter has no graph observation. It must not report an empty conflict
-  // set merely because a selected checkpoint is readable.
-  func conflicts() throws -> [VaultConflictSummary] { throw historyUnavailable() }
-  func conflict(id _: String) throws -> VaultConflictDetail { throw historyUnavailable() }
-  func conflictValue(id _: String, versionID _: String) throws -> String {
-    throw historyUnavailable()
-  }
-
   private func validation(_ context: V3RecoveryVaultUnlockRuntime.ReadContext) throws
     -> V3DeviceWrappedCheckpointContentValidation
   {
@@ -188,14 +177,6 @@ struct V3RecoveryReadOnlyVaultRuntime: VaultReadServicing, VaultUXServicing, Sen
         try context.revalidate()
         return context.current.checkpoint
       })
-  }
-
-  private func readOnlyError() -> AppError {
-    .operationRefused("Recovery-profile writes are not composed through this read adapter.")
-  }
-
-  private func historyUnavailable() -> AppError {
-    .operationRefused("Recovery-profile history review is not composed through this read adapter.")
   }
 }
 
