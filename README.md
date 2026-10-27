@@ -361,6 +361,73 @@ The Swift package and release-script checks run with:
 just test
 ```
 
+CI runs the `Verify` workflow on pull requests and pushes to `main`. Its checks
+have matching local commands:
+
+| Check | Local command | Scope |
+|---|---|---|
+| Verify Swift tests | `just verify-tests` | Compile package/test targets with warnings as errors, then run all Swift suites |
+| Verify products (Stable) | `just verify-products stable` | Unsigned Debug and Release builds, product isolation, and bundled CLI behavior |
+| Verify products (Preview) | `just verify-products preview` | The same checks for Preview |
+| Verify scripts | `just verify-scripts` | Zsh syntax, CI verification failure boundaries, release/publication fixtures, and Preview install safety |
+| Verify Swift style | `just verify-style` | SwiftFormat and patch whitespace |
+| Verify workflows | `just verify-workflows` | actionlint plus zizmor workflow security and Action advisories |
+| Verify secrets | `just verify-secrets` | Redacted Gitleaks scanning of Git history; accepts an optional `base..head` range |
+| Verify dependencies | `just verify-dependencies` | SwiftPM/Xcode requirement and lockfile consistency; CI also reviews PR dependency advisories |
+| Verify static analysis | `just verify-static-analysis` | Correctness-focused SwiftLint; CI additionally builds the complete Stable product for CodeQL |
+
+The workflow selects Xcode 26.3 explicitly. Local commands use the selected
+Xcode; set `DEVELOPER_DIR` when reproducing a compiler-specific failure.
+Product verification targets arm64. The full test run explicitly disables
+cross-test parallel scheduling because concurrency tests use bounded waits;
+those tests still exercise their own concurrent operations. SwiftPM's xUnit
+reports and failure logs are retained for three days, including suffixed Swift
+Testing reports. Test verification rejects empty or entirely skipped runs.
+
+Scanner versions, upstream download URLs, and SHA-256 checksums live in
+`.github/ci-tools.json`. Install each needed tool with, for example,
+`just install-verify-tool swiftformat`; repeat for `swiftlint`, `actionlint`,
+`zizmor`, and `gitleaks`. Verification accepts an installed tool only when its
+version matches the pin. Use `just format` to apply the same conservative
+formatting rules that CI checks. SwiftLint checks correctness rather than
+duplicating formatting rules or enforcing arbitrary file-size limits.
+
+`just verify-workflows` runs offline unless `GH_TOKEN` is available. CI supplies
+its read-only token to zizmor so known-vulnerable-Action and other online audits
+run as well. These audits cover SHA-pinned Actions, which Dependabot alerts do
+not cover. Secret detection scans every introduced PR commit, including secrets
+subsequently removed. `just verify-secrets` defaults to all reachable history;
+it does not scan ignored build products. Synthetic scanner probes run in
+temporary repositories and check both detection and redaction. Reviewed
+historical false positives use exact fingerprints; Swift type-annotation
+exceptions match only explicit identifiers in Swift files.
+
+The dependency graph and Dependabot alerts provide ongoing monitoring of
+`main`. Both Dependabot security-update PRs and version-update PRs must remain
+disabled; no `dependabot.yml` is used. Dependency inventory comes from the
+committed lockfiles on the default branch; confirm that it includes Swift
+Argument Parser after the dependency declarations reach `main`.
+The PR dependency-review step blocks introduced moderate-or-higher advisories
+and publishes a summary without posting comments or opening update PRs.
+
+CodeQL uses the tool bundle linked to its pinned Action and runs the
+`security-extended` Swift queries. It performs an explicit Release product build
+in fresh derived data, rather than reusing a build that would bypass extraction.
+Its analysis/upload job and GitHub's **Code scanning results / CodeQL** check
+are distinct: after the first hosted run, require both the `Verify` check names
+above and the CodeQL results check in the repository's merge rules. Configure
+CodeQL results to block new high/critical security findings and error-level
+findings. Scanner failures must not be converted to successful warning-only runs.
+The initial hosted CodeQL and dependency-review results need review before
+enabling required merge checks.
+
+On Mondays the workflow reruns online workflow audits, CodeQL, and
+**Verify migration scale**, the existing opt-in 300-entry migration gate.
+`workflow_dispatch` runs all checks, including that scale gate. Signing,
+notarization, Gatekeeper assessment, and installed Secure Enclave/user-presence
+qualification remain part of the existing release process; unsigned CI builds
+do not establish those properties.
+
 Run `just test-cli-help` to build the CLI and check help alignment, narrow and wide terminal widths, output streams, and usage exits without accessing a vault. The product build workflow runs these checks against both bundled CLIs.
 
 The Xcode project builds the signed host apps and helpers. Signing, notarization, Preview isolation, and release publication are documented in the [release process](docs/release.md) and [Apple setup guide](docs/apple-setup.md).

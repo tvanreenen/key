@@ -1,0 +1,14 @@
+# Correctness only: SwiftFormat owns whitespace and layout.
+only_rules:
+  - discarded_notification_center_observer
+  - duplicate_conditions
+  - identical_operands
+  - redundant_nil_coalescing
+  - unhandled_throwing_task
+  - unused_closure_parameter
+  - weak_delegate
+included:
+  - Sources
+  - Tests
+strict: true
+check_for_updates: false

@@ -1,0 +1,7 @@
+# Reviewed historical false positives only.
+# Prose in the retired recovery plan; synthetic CLI secret values in KeyAppTests.
+1eb42f4d5f33dc9e4fce571e8cd9c8b56bd7cd6d:docs/piv-recovery-plan.md:generic-api-key:4528
+e62bc250da704db0c9ebe208a73102258614dc42:docs/piv-recovery-plan.md:generic-api-key:4528
+4aa33134bc4a522208a46a1668013ca0b0450139:Tests/KeyCoreTests/KeyAppTests.swift:generic-api-key:526
+4aa33134bc4a522208a46a1668013ca0b0450139:Tests/KeyCoreTests/KeyAppTests.swift:generic-api-key:550
+4aa33134bc4a522208a46a1668013ca0b0450139:Tests/KeyCoreTests/KeyAppTests.swift:generic-api-key:621
