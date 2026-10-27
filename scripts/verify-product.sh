@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -lt 3 || $# -gt 4 ]]; then
-  echo "usage: $0 <stable|preview> <debug|release> <build|bundle|cli> [derived-data-path]" >&2
+  echo "usage: $0 <stable|preview> <debug|release> <build|bundle|cli|codeql> [derived-data-path]" >&2
   exit 1
 fi
 
@@ -26,7 +26,18 @@ esac
 product="${derived_data}/Build/Products/${configuration}/${app}"
 cd "${repo_root}"
 case "${operation}" in
-  build)
+  build|codeql)
+    extraction_settings=()
+    if [[ "${operation}" == codeql ]]; then
+      # CodeQL must observe compiler subprocesses instead of in-process or
+      # cached compilation. Keep these tracing settings out of product builds.
+      extraction_settings=(
+        CODE_SIGNING_REQUIRED=NO
+        COMPILATION_CACHE_ENABLE_CACHING=NO
+        SWIFT_ENABLE_COMPILE_CACHE=NO
+        SWIFT_USE_INTEGRATED_DRIVER=NO
+      )
+    fi
     xcodebuild \
       -project Key.xcodeproj \
       -scheme "${scheme}" \
@@ -36,9 +47,10 @@ case "${operation}" in
       -onlyUsePackageVersionsFromResolvedFile \
       ARCHS=arm64 \
       CODE_SIGNING_ALLOWED=NO \
+      "${extraction_settings[@]}" \
       build
     ;;
   bundle) scripts/verify-product-bundle.sh "${variant}" "${product}" ;;
   cli) zsh Tests/CLIScripts/help-tests.sh "${product}/Contents/MacOS/${cli}" ;;
-  *) echo 'expected build, bundle, or cli' >&2; exit 1 ;;
+  *) echo 'expected build, bundle, cli, or codeql' >&2; exit 1 ;;
 esac

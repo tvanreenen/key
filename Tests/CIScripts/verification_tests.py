@@ -2,7 +2,9 @@
 
 import copy
 import importlib.util
+import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 
@@ -108,6 +110,30 @@ class TestReportVerificationTests(unittest.TestCase):
             summary, failures = reports.summarize(base)
             self.assertIn("1 reported", summary)
             self.assertEqual(failures, 0)
+
+
+class ProductBuildInvocationTests(unittest.TestCase):
+    def test_codeql_disables_cached_and_integrated_compilation_only_for_analysis(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            capture = work / "arguments"
+            compiler = work / "xcodebuild"
+            compiler.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$CI_TEST_BUILD_ARGS"\n')
+            compiler.chmod(0o755)
+            environment = dict(os.environ, PATH=f"{work}:{os.environ['PATH']}", CI_TEST_BUILD_ARGS=str(capture))
+            for operation in ("build", "codeql"):
+                subprocess.run([
+                    str(ROOT / "scripts/verify-product.sh"), "stable", "release", operation,
+                ], env=environment, check=True)
+                args = capture.read_text().splitlines()
+                self.assertIn("CODE_SIGNING_ALLOWED=NO", args)
+                self.assertIn("ARCHS=arm64", args)
+                for flag in (
+                    "COMPILATION_CACHE_ENABLE_CACHING=NO",
+                    "SWIFT_ENABLE_COMPILE_CACHE=NO",
+                    "SWIFT_USE_INTEGRATED_DRIVER=NO",
+                ):
+                    self.assertEqual(flag in args, operation == "codeql")
 
 
 if __name__ == "__main__":

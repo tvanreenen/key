@@ -419,6 +419,9 @@ and publishes a summary without posting comments or opening update PRs.
 CodeQL uses the tool bundle linked to its pinned Action and runs the
 `security-extended` Swift queries. It performs an explicit Release product build
 in fresh derived data, rather than reusing a build that would bypass extraction.
+That build explicitly disables compile caches and the Swift integrated driver,
+as required by CodeQL's manual Swift tracing setup. These settings apply only
+to analysis; ordinary product builds retain the project's compiler settings.
 Its analysis/upload job and GitHub's **Code scanning results / CodeQL** check
 are distinct: after the first hosted run, require both the `Verify` check names
 above and the CodeQL results check in the repository's merge rules. Configure
