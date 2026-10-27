@@ -28,6 +28,7 @@ struct V3RecoveryEnrollmentAdoptionService: Sendable {
   private let session: V3DeviceWrappedVaultKeySessionStore
   private let limits: V3ManifestRepositoryLimits
   private let phaseObserver: any V3EnrollmentAdoptionPhaseObserving
+  private let validateScope: @Sendable () throws -> Void
 
   init(
     vaultID: String, identity: any V3DeviceWrappedVaultKeyUnwrapping,
@@ -39,7 +40,8 @@ struct V3RecoveryEnrollmentAdoptionService: Sendable {
     session: V3DeviceWrappedVaultKeySessionStore,
     limits: V3ManifestRepositoryLimits = .standard,
     phaseObserver: any V3EnrollmentAdoptionPhaseObserving =
-      V3RecoveryEnrollmentNoopAdoptionObserver()
+      V3RecoveryEnrollmentNoopAdoptionObserver(),
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) {
     self.vaultID = vaultID
     self.identity = identity
@@ -53,13 +55,18 @@ struct V3RecoveryEnrollmentAdoptionService: Sendable {
     self.session = session
     self.limits = limits
     self.phaseObserver = phaseObserver
+    self.validateScope = validateScope
   }
 
   /// Explicit comparison is required on every call. Expiry does not discard an
   /// already published owner approval. Retry never replaces a different floor.
   func adopt(
     invitationDigest: Data, approvedTranscriptDigest: Data,
-    operationID: VaultTransactionOperationID
+    operationID: VaultTransactionOperationID,
+    afterInstallation: (
+      V3RecoveryEnrollmentAdoptionCommit,
+      V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+    ) throws -> Void = { _, _ in }
   ) throws -> V3RecoveryEnrollmentAdoptionCommit {
     do {
       try requireNoPending()
@@ -119,10 +126,17 @@ struct V3RecoveryEnrollmentAdoptionService: Sendable {
       )
       // Final authority installation is guarded atomically against a lock,
       // expiry or even same-key session replacement during authentication.
-      try session.install(
+      let installed = try session.install(
         key, vaultID: vaultID, keyID: selected.envelope.body.fields.keyID,
         authenticationTicket: ticket)
-      return .init(checkpoint: selected.checkpoint, envelope: selected.envelope)
+      let commit = V3RecoveryEnrollmentAdoptionCommit(
+        checkpoint: selected.checkpoint, envelope: selected.envelope)
+      try afterInstallation(commit, installed)
+      try recheck(
+        selected, ceremony: consumed,
+        checkpoint: selected.checkpoint.canonicalBytes, ticket: installed)
+      try validateScope()
+      return commit
     } catch {
       session.invalidate()
       // Retain any exact checkpoint/ceremony already committed for safe retry.
@@ -230,6 +244,7 @@ struct V3RecoveryEnrollmentAdoptionService: Sendable {
   }
 
   private func requireNoPending() throws {
+    try validateScope()
     for store in [ownership, registration, adoption] {
       guard try store.loadRecoveryAnchor(vaultID: vaultID) == nil else {
         throw V3RecoveryEnrollmentAdoptionError.pendingWork

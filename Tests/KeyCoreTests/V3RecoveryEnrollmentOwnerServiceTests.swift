@@ -31,6 +31,31 @@ struct V3RecoveryEnrollmentOwnerServiceTests {
     #expect(try f.savedState().phase == .awaitingComparison && f.disk.ownership.value == nil)
   }
 
+  @Test(arguments: 0..<14)
+  func requestCancellationStopsAtEveryPublicationBoundary(phase: Int) throws {
+    let f = try Fixture()
+    defer { f.disk.remove() }
+    let session = try unlocked(f)
+    let scope = KeyRecoveryRequestScope(authentication: .init(), deadline: .now() + 90)
+    let s = service(
+      f, session,
+      observer: Observer {
+        if $0 == Self.phases[phase] { scope.cancellation.cancel() }
+      }, validateScope: { try scope.requireCurrent() })
+    #expect(throws: (any Error).self) {
+      try s.approve(
+        invitationDigest: f.state.invitationDigest,
+        approvedTranscriptDigest: #require(f.state.transcript?.digest),
+        expectedCheckpoint: f.disk.checkpoint, at: Self.now, operationID: f.disk.operationID)
+    }
+    #expect(f.disk.core.owner.signatures == f.signatures + 1)
+    if phase < 12 {
+      #expect(f.disk.checkpoints.value == f.disk.checkpoint.canonicalBytes)
+    } else {
+      #expect(!session.hasResidentKey)
+    }
+  }
+
   @Test(arguments: [false, true])
   func approvedAdditionInstallsFreshKeyAndContinuesOrdinarySaving(empty: Bool) throws {
     let f = try Fixture(empty: empty)
@@ -583,14 +608,15 @@ struct V3RecoveryEnrollmentOwnerServiceTests {
     identity: V3RecoveryEnrollmentOwnerService.Identity? = nil,
     checkpoints: (any V3ManifestCheckpointStoring)? = nil,
     limits: V3ManifestRepositoryLimits = .standard,
-    observer: any V3ImmutableTransactionPhaseObserving = V3NoopContentTransactionPhaseObserver()
+    observer: any V3ImmutableTransactionPhaseObserving = V3NoopContentTransactionPhaseObserver(),
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) -> V3RecoveryEnrollmentOwnerService {
     .init(
       vaultID: Core.vaultID, identity: identity ?? f.disk.core.owner, session: session,
       objectStore: f.disk.store, checkpointStore: checkpoints ?? f.disk.checkpoints,
       recoveryAnchorStore: f.disk.ownership, registrationAnchorStore: f.disk.registration,
       adoptionAnchorStore: f.disk.adoption, ceremonyStore: f.local, cache: f.disk.cache,
-      limits: limits, phaseObserver: observer)
+      limits: limits, phaseObserver: observer, validateScope: validateScope)
   }
   private func approve(
     _ f: Fixture, _ session: V3DeviceWrappedVaultKeySessionStore,
