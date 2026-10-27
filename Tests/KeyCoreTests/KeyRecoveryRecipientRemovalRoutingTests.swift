@@ -56,7 +56,7 @@ struct KeyRecoveryRecipientRemovalRoutingTests {
           return .success()
         }
       }, initialize: { _ in "" },
-      removeRecoveryRecipient: { request, _ in
+      removeRecoveryRecipient: { _, _ in
         events.append("removal")
         if failure { throw AppError.operationRefused("uncertain") }
         return .success()
