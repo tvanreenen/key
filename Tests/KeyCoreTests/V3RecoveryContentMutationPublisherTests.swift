@@ -76,7 +76,7 @@ struct V3RecoveryContentMutationPublisherTests {
     #expect(f.core.owner.signatures == 1 && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<12)
+  @Test(arguments: 0 ..< 12)
   func invalidatedSessionStopsAtEachPublicationBoundaryAndAllowsExplicitResume(phase: Int) throws {
     let f = try Fixture()
     defer { f.remove() }

@@ -531,7 +531,7 @@ struct V3RecoveryRegistrationServiceTests {
     }
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func projectedBudgetsRefuseBeforeSigningReservationOrExport(bound: Int) throws {
     let f = try Fixture()
     defer { f.remove() }

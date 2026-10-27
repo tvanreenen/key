@@ -401,7 +401,7 @@ extension V3RecoveryVaultRuntimeTests {
       } else {
         #expect(f.disk.pending[0].value != nil && intents.value == 1)
       }
-      f.disk.session.invalidate()  // The exact same session operation as runtime.lock().
+      f.disk.session.invalidate() // The exact same session operation as runtime.lock().
       #expect(!f.disk.session.hasResidentKey)
     }
     let store = PublicationBoundaryStore(
@@ -432,7 +432,7 @@ extension V3RecoveryVaultRuntimeTests {
     #expect(staged.value == (beforeInitialOwnership ? 0 : 1))
     #expect(published.value == 0 && intents.value == (beforeInitialOwnership ? 0 : 1))
     #expect(f.disk.local.value == f.disk.floor.checkpoint.canonicalBytes)
-    #expect(f.disk.pending[0].value != nil)  // Retain the in-flight durable prefix.
+    #expect(f.disk.pending[0].value != nil) // Retain the in-flight durable prefix.
     #expect(f.disk.receiver.unwraps == 0)
     // A later request authenticates the exact interrupted prefix and abandons
     // incomplete staging. It cannot silently finish the cancelled add.

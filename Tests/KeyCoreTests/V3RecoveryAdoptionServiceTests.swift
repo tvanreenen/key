@@ -347,7 +347,7 @@ struct V3RecoveryAdoptionServiceTests {
     #expect(f.core.owner.unwraps == 1 && f.core.owner.signatures == 1)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func projectedBudgetRejectsMigrationBeforeSigningOwnershipOrUnwrap(bound: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
