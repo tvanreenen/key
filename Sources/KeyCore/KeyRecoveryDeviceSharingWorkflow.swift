@@ -112,6 +112,9 @@ extension KeyRecoverySharingCapability {
         try scope.requireCurrent()
         try root.requireConfiguredRootIdentity()
         try verifySelection()
+        try V3ReplacementEnrollmentAdmission(
+          intentStore: V3ReplacementEnrollmentIntentKeychainStore(configuration: configuration)
+        ).requireInactive(vaultID: vaultID)
       }
       try validate()
       let session = V3DeviceWrappedVaultKeySessionStore()

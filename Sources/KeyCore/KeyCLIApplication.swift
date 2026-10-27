@@ -89,6 +89,8 @@ public final class KeyCLIApplication {
             return try executeRecoveryRegistration(request, exportPath: exportPath, json: json)
         case let .recoveryRotation(request):
             return try executeRecoveryRotation(request)
+        case let .recoveryRecipientRemoval(recipient):
+            return try executeRecoveryRecipientRemoval(recipient)
         case .unlock:
             response = try transport.send(.unlock)
             return try handle(response, for: command)
@@ -158,7 +160,7 @@ public final class KeyCLIApplication {
             if let value = response.value {
                 io.writeStdout(formattedGetOutput(value))
             }
-        case .status, .conflict, .recoveryReview, .recoveryRegistration, .recoveryRotation:
+        case .status, .conflict, .recoveryReview, .recoveryRegistration, .recoveryRotation, .recoveryRecipientRemoval:
             break
         case .copy(name: _, allowStale: _), .add, .edit, .duplicate,
             .rename, .remove:
@@ -235,6 +237,60 @@ public final class KeyCLIApplication {
 
             """)
         }
+    }
+
+    private func executeRecoveryRecipientRemoval(_ recipientID: String) throws -> Int32 {
+        guard io.stdinIsTTY else {
+            throw AppError.operationRefused("Recovery key removal requires interactive review and confirmation. No request was sent.")
+        }
+        let reviewResponse = try transport.send(.recoveryRecipientRemoval(.review(recipientID: recipientID)))
+        guard reviewResponse.exitCode == EXIT_SUCCESS else {
+            return try handle(reviewResponse, for: .recoveryRecipientRemoval(recipientID: recipientID))
+        }
+        let reviewed = try requiredServicePayload(reviewResponse.recoveryRecipientRemoval, operation: "recovery key removal review")
+        switch reviewed {
+        case .completed:
+            return try writeRecoveryRecipientRemoval(reviewed, recipientID: recipientID)
+        case .review(let review):
+            try review.validate(for: recipientID)
+            io.writeStderr("Remove recovery key from this vault:\nVault ID: \(review.vaultID)\nRecipient ID: \(review.recipientID)\nOther active recovery keys remaining: \(review.remainingRecipientIDs.count)\nThe physical key and its anchor will stay unchanged; old vault copies remain accessible with their old keys.\n")
+            if let operation = review.pendingOperationID {
+                io.writeStderr("This will finish the same saved removal: \(operation). No replacement candidate will be created.\n")
+            }
+            let phrase = review.removesLastRecoveryKey ? "REMOVE LAST RECOVERY KEY" : "REMOVE"
+            if review.removesLastRecoveryKey {
+                io.writeStderr("After removal, this vault will have NO recovery key. Register another while an enrolled Mac is still available; if every enrolled Mac is lost before then, access is permanently lost.\n")
+            }
+            guard try io.readLine(prompt: "Type \(phrase) to confirm this exact removal: ").trimmingCharacters(in: .whitespacesAndNewlines) == phrase else {
+                throw AppError.operationRefused("Recovery key removal cancelled. No removal request was sent.")
+            }
+            do {
+                let response = try transport.send(.recoveryRecipientRemoval(.remove(recipientID: recipientID,
+                    confirmationToken: review.confirmationToken, pendingOperationID: review.pendingOperationID,
+                    acknowledgesProtectionLoss: review.removesLastRecoveryKey)))
+                guard response.exitCode == EXIT_SUCCESS else {
+                    io.writeStderr("Preserve vault files and local records. A failed reply does not prove removal did not commit. Review status or explicitly run this command again; no automatic retry was made.\n")
+                    return try handle(response, for: .recoveryRecipientRemoval(recipientID: recipientID))
+                }
+                return try writeRecoveryRecipientRemoval(requiredServicePayload(response.recoveryRecipientRemoval,
+                    operation: "recovery key removal"), recipientID: recipientID)
+            } catch {
+                io.writeStderr("Preserve vault files and local records after this uncertain reply. Review status or explicitly run this command again; no automatic retry was made.\n")
+                throw error
+            }
+        }
+    }
+
+    private func writeRecoveryRecipientRemoval(_ result: KeyRecoveryRecipientRemovalResult, recipientID: String) throws -> Int32 {
+        guard case .completed(let vault, let removed, let digest, let pending, let already) = result,
+              isValidV3UUID(vault), removed == recipientID, isRecoveryRemovalDigest(digest) else {
+            throw AppError.service("Invalid recovery key removal completion response.")
+        }
+        io.writeStdout("Recovery key \(already ? "is already removed in the verified current vault" : "removed from future vault versions").\nVault ID: \(vault)\nRecipient ID: \(removed)\nManifest: \(digest)\nCleanup pending: \(pending)\n")
+        if pending {
+            io.writeStderr("Removal committed, but this Mac still has a saved completion step. Preserve its records and run this command again to explicitly finish the same removal.\n")
+        }
+        return EXIT_SUCCESS
     }
 
     private func executeRecoveryRotation(_ request: KeyRecoveryRotationRequest) throws -> Int32 {

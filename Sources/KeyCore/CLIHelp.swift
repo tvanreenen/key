@@ -49,6 +49,14 @@ enum CLIHelp {
     Use --resume <complete-original-operation-id> only for the exact locally owned interrupted adoption. It never starts a replacement or adopts provider records. Preserve files and local records after interruption; do not delete ownership to retry. Check registration status after the helper restarts, then separately register a recovery key. This workflow requires an interactive terminal.
     """
 
+    static let recoveryRecipientRemoval = """
+    Remove a registered recovery key from future versions of the configured vault. The key can remain disconnected: Key uses this Mac's credentials and never changes the physical key or its saved anchor. Old copies can still be opened with their old keys. If the recipient ID starts with '-', place -- before it.
+
+    An interactive review shows the exact recipient and how many recovery keys will remain. Type REMOVE to confirm. Removing the last key instead requires typing REMOVE LAST RECOVERY KEY after acknowledging that recovery will be unavailable until another key is registered. There is no noninteractive override.
+
+    If interrupted, preserve files and local records. Run this command again to review and explicitly finish the same saved removal; it never silently starts a replacement candidate. No automatic retry is made. This workflow remains disabled in Stable and ordinary Preview builds.
+    """
+
     static let recoveryRotation = """
     Gated, explicit vault-key rotation for an already recovery-capable configured vault. This changes the encryption key and reseals the complete current contents while preserving device access and recovery recipients. It does not provision, read, write or authenticate a hardware token. Mac authentication is still required; native prompt counts await signed qualification.
 

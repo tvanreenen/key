@@ -331,7 +331,7 @@ private struct KeyArguments: ParsableCommand {
     struct Recovery: ParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "recovery", abstract: "Review recovery inputs, restore or resume (not enabled yet).",
-            discussion: CLIHelp.recovery, subcommands: [Tokens.self, Credential.self, Register.self, Pending.self, Adopt.self, Rotate.self, Review.self, Restore.self, Resume.self, Abandon.self]
+            discussion: CLIHelp.recovery, subcommands: [Tokens.self, Credential.self, Register.self, Pending.self, Adopt.self, Rotate.self, RemoveRecipient.self, Review.self, Restore.self, Resume.self, Abandon.self]
         )
 
         struct Tokens: CLIRequest {
@@ -417,6 +417,17 @@ private struct KeyArguments: ParsableCommand {
             static let configuration = CommandConfiguration(commandName: "pending", abstract: "List bounded device-local saved operation selectors without authenticating or changing them (gated).", discussion: "This reads this Mac's saved transaction, registration and adoption selectors only. It does not validate an intent, prove completion or authorize resume. Preserve all records after interruptions; multiple selectors require inspection. No Mac private-key or token operation is requested.")
             @Flag(help: "Print machine-readable public selectors.") var json = false
             var command: Command { .recoveryRegistration(.pending, exportPath: nil, json: json) }
+        }
+
+        struct RemoveRecipient: CLIRequest {
+            static let configuration = CommandConfiguration(commandName: "remove-recipient", abstract: "Review and remove one recovery key from this vault (gated).", discussion: CLIHelp.recoveryRecipientRemoval)
+            @Argument(help: "Complete public recipient ID from recovery register status.") var recipientID: String
+            mutating func validate() throws {
+                guard (try? V3RecoveryRecipientID(rawValue: recipientID)) != nil else {
+                    throw ValidationError("Provide one complete recovery recipient ID.")
+                }
+            }
+            var command: Command { .recoveryRecipientRemoval(recipientID: recipientID) }
         }
 
         struct Rotate: CLIRequest {

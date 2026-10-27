@@ -506,6 +506,9 @@ extension KeyRecoveryRegistrationWorkflow {
       validateLocation: {
         try root.requireConfiguredRootIdentity()
         try verifySelection()
+        try V3ReplacementEnrollmentAdmission(
+          intentStore: V3ReplacementEnrollmentIntentKeychainStore(configuration: configuration)
+        ).requireInactive(vaultID: vaultID)
       })
   }
 }

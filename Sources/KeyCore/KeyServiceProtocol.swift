@@ -54,6 +54,7 @@ public enum KeyServiceRequest: Codable, Equatable, Sendable {
     case recoveryReview(KeyRecoveryReviewRequest)
     case recoveryRegistration(KeyRecoveryRegistrationRequest)
     case recoveryRotation(KeyRecoveryRotationRequest)
+    case recoveryRecipientRemoval(KeyRecoveryRecipientRemovalRequest)
     case list
     case migrationPreflight
     case migrationApply
@@ -83,7 +84,7 @@ public enum KeyServiceRequest: Codable, Equatable, Sendable {
             30
         case .unlock, .get, .getConflictValue, .migrationPreflight:
             120
-        case .recovery, .recoveryReview, .recoveryRegistration, .recoveryRotation:
+        case .recovery, .recoveryReview, .recoveryRegistration, .recoveryRotation, .recoveryRecipientRemoval:
             120
         case .list:
             30
@@ -125,6 +126,7 @@ public enum KeyServiceRequest: Codable, Equatable, Sendable {
         case recoveryReviewRequest
         case recoveryRegistrationRequest
         case recoveryRotationRequest
+        case recoveryRecipientRemovalRequest
     }
 
     private enum Kind: String, Codable {
@@ -142,6 +144,7 @@ public enum KeyServiceRequest: Codable, Equatable, Sendable {
         case recoveryReview
         case recoveryRegistration
         case recoveryRotation
+        case recoveryRecipientRemoval
         case list
         case migrationPreflight
         case migrationApply
@@ -210,6 +213,8 @@ public enum KeyServiceRequest: Codable, Equatable, Sendable {
             self = .recoveryRegistration(try container.decode(KeyRecoveryRegistrationRequest.self, forKey: .recoveryRegistrationRequest))
         case .recoveryRotation:
             self = .recoveryRotation(try container.decode(KeyRecoveryRotationRequest.self, forKey: .recoveryRotationRequest))
+        case .recoveryRecipientRemoval:
+            self = .recoveryRecipientRemoval(try container.decode(KeyRecoveryRecipientRemovalRequest.self, forKey: .recoveryRecipientRemovalRequest))
         case .migrationPreflight:
             self = .migrationPreflight
         case .migrationApply:
@@ -277,6 +282,9 @@ public enum KeyServiceRequest: Codable, Equatable, Sendable {
         case .recoveryRotation(let request):
             try container.encode(Kind.recoveryRotation, forKey: .kind)
             try container.encode(request, forKey: .recoveryRotationRequest)
+        case .recoveryRecipientRemoval(let request):
+            try container.encode(Kind.recoveryRecipientRemoval, forKey: .kind)
+            try container.encode(request, forKey: .recoveryRecipientRemovalRequest)
         case .unlock:
             try container.encode(Kind.unlock, forKey: .kind)
         case .lock:
@@ -442,6 +450,7 @@ public struct KeyServiceResponse: Codable, Equatable {
     public let recoveryReview: KeyRecoveryReviewResult?
     public let recoveryRegistration: KeyRecoveryRegistrationResult?
     public let recoveryRotation: KeyRecoveryRotationResult?
+    public let recoveryRecipientRemoval: KeyRecoveryRecipientRemovalResult?
 
     public init(
         exitCode: Int32,
@@ -457,7 +466,8 @@ public struct KeyServiceResponse: Codable, Equatable {
         conflict: VaultConflictDetail? = nil,
         recoveryReview: KeyRecoveryReviewResult? = nil,
         recoveryRegistration: KeyRecoveryRegistrationResult? = nil,
-        recoveryRotation: KeyRecoveryRotationResult? = nil
+        recoveryRotation: KeyRecoveryRotationResult? = nil,
+        recoveryRecipientRemoval: KeyRecoveryRecipientRemovalResult? = nil
     ) {
         self.exitCode = exitCode
         self.value = value
@@ -473,6 +483,11 @@ public struct KeyServiceResponse: Codable, Equatable {
         self.recoveryReview = recoveryReview
         self.recoveryRegistration = recoveryRegistration
         self.recoveryRotation = recoveryRotation
+        self.recoveryRecipientRemoval = recoveryRecipientRemoval
+    }
+
+    public static func recoveryRecipientRemoval(_ result: KeyRecoveryRecipientRemovalResult) -> Self {
+        Self(exitCode: EXIT_SUCCESS, value: nil, errorMessage: nil, recoveryRecipientRemoval: result)
     }
 
     public static func success(
