@@ -913,8 +913,9 @@ struct V3RecoveryRegistrationServiceTests {
       try f.prepare(
         observer: Observer { phase in
           if phase == .exportPrepared {
+            let expectedAnchor = try #require(f.ownership.value)
             try f.ownership.replaceRecoveryAnchor(
-              changed, expectedAnchor: #require(f.ownership.value), vaultID: Core.vaultID)
+              changed, expectedAnchor: expectedAnchor, vaultID: Core.vaultID)
           }
         })
     }
