@@ -7,6 +7,7 @@ import Testing
 /// Real profile cryptography and contained immutable storage. Only local CAS
 /// failures, cancellation and interruption boundaries are scripted.
 struct V3RecoveryDeviceEnrollmentPublisherTests {
+  private typealias Fixture = V3RecoveryEnrollmentTestSupport.Fixture
   typealias Core = V3RecoveryRegistrationTestSupport
   typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Stop = Publication.Stop
@@ -250,7 +251,7 @@ struct V3RecoveryDeviceEnrollmentPublisherTests {
     let candidate = try build(f)
     try interrupt(f, candidate)
     let pending = f.disk.ownership.value
-    let other = try V3RecoveryDeviceEnrollmentTests().ceremony(
+    let other = try V3RecoveryEnrollmentTestSupport.ceremony(
       parentDigest: f.disk.parent.digest, owner: f.disk.core.owner, joiner: Core.Owner())
     if variant == 0 { f.local.value = other.canonicalBytes }
     if variant == 1 { f.local.value = nil }
@@ -559,51 +560,6 @@ struct V3RecoveryDeviceEnrollmentPublisherTests {
       expectedOwner: owner ?? f.disk.core.owner.publicIdentity, expectedAnchor: expectedAnchor)
   }
 
-  struct Fixture: Sendable {
-    let disk: Publication.Fixture
-    let joiner: Core.Owner
-    let state: V3EnrollmentCeremonyState
-    let local: StateStore
-    let signatures: Int
-    init(empty: Bool = false) throws {
-      disk = try Publication.Fixture(empty: empty)
-      joiner = try Core.Owner()
-      state = try V3RecoveryDeviceEnrollmentTests().ceremony(
-        parentDigest: disk.parent.digest, owner: disk.core.owner, joiner: joiner)
-      local = StateStore(state.canonicalBytes)
-      signatures = disk.core.owner.signatures
-    }
-    func savedState() throws -> V3EnrollmentCeremonyState {
-      try .init(canonicalBytes: #require(local.value))
-    }
-  }
-  final class StateStore: V3EnrollmentCeremonyStateStoring, @unchecked Sendable {
-    private let lock = NSLock()
-    private var bytes: Data?
-    private var rejected = false
-    private var count = 0
-    init(_ value: Data) { bytes = value }
-    var value: Data? {
-      get { lock.withLock { bytes } }
-      set { lock.withLock { bytes = newValue } }
-    }
-    var rejectConsume: Bool {
-      get { lock.withLock { rejected } }
-      set { lock.withLock { rejected = newValue } }
-    }
-    var consumptions: Int { lock.withLock { count } }
-    func loadState(vaultID _: String, invitationDigest _: Data) throws -> Data? { value }
-    func replaceState(
-      _ state: Data, expectedState: Data?, vaultID _: String, invitationDigest _: Data
-    ) throws {
-      try lock.withLock {
-        guard bytes == expectedState else { throw V3EnrollmentCeremonyStateError.conflict }
-        if rejected { throw Stop.interrupted }
-        bytes = state
-        count += 1
-      }
-    }
-  }
   private struct Observer: V3ImmutableTransactionPhaseObserving {
     let action: @Sendable (V3ImmutableTransactionPhase) throws -> Void
     init(_ action: @escaping @Sendable (V3ImmutableTransactionPhase) throws -> Void) {

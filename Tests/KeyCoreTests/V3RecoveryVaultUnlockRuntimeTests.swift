@@ -240,7 +240,7 @@ struct V3RecoveryVaultUnlockRuntimeTests {
   }
 
   @Test func authenticatedRevokedRosterRefusesBeforePrivateOperation() throws {
-    let f = try V3RecoveryKeyTransitionCatchUpTests.Fixture()
+    let f = try V3RecoveryCatchUpTestSupport.Fixture()
     defer { f.disk.remove() }
     _ = try f.revoke(f.receiver)
     f.session.invalidate()
@@ -304,7 +304,7 @@ struct V3RecoveryVaultUnlockRuntimeTests {
   }
 
   @Test func realColdUnlockFeedsExistingCatchUpOrdinarySaveAndFreshReopen() throws {
-    let f = try V3RecoveryKeyTransitionCatchUpTests.Fixture()
+    let f = try V3RecoveryCatchUpTestSupport.Fixture()
     defer { f.disk.remove() }
     f.session.invalidate()
     let loader = Loader(identity: f.receiver)

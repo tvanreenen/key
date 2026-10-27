@@ -70,7 +70,7 @@ struct V3RecoveryDeviceEnrollmentTests {
         role: .inviter, phase: .awaitingJoinRequest,
         signedInvitation: f.state.signedInvitation, signedJoinRequest: nil)
     case 3:
-      state = try ceremony(
+      state = try V3RecoveryEnrollmentTestSupport.ceremony(
         parentDigest: Data(repeating: 0x99, count: 32), owner: f.core.owner, joiner: f.joiner)
     default: state = f.state
     }
@@ -142,7 +142,7 @@ struct V3RecoveryDeviceEnrollmentTests {
     let checkpoint = try V3ManifestCheckpoint(vaultID: Core.vaultID, envelopeDigest: parent.digest)
     let signer = try RelatedJoiner(
       existing: f.joiner, reuseWrappingKey: reusedKey)
-    let state = try ceremony(parentDigest: parent.digest, owner: f.core.owner, joiner: signer)
+    let state = try V3RecoveryEnrollmentTestSupport.ceremony(parentDigest: parent.digest, owner: f.core.owner, joiner: signer)
     let before = f.core.owner.signatures
     #expect(throws: V3RecoveryDeviceEnrollmentError.joiningIdentityConflict) {
       try V3RecoveryDeviceEnrollmentBuilder().build(
@@ -158,7 +158,7 @@ struct V3RecoveryDeviceEnrollmentTests {
   func independentValidationBindsExactCeremonyAndTransition(variant: Int) throws {
     let f = try Fixture()
     let candidate = try f.build()
-    let otherState = try ceremony(
+    let otherState = try V3RecoveryEnrollmentTestSupport.ceremony(
       parentDigest: f.core.parent.digest, owner: f.core.owner, joiner: f.joiner)
     let other = try f.build(state: otherState)
     let changed = V3RecoveryDeviceEnrollmentCandidate(
@@ -307,7 +307,7 @@ struct V3RecoveryDeviceEnrollmentTests {
       nextVaultKey: retirementKey, signer: f.core.owner, reason: "Owned retired-device fixture")
     let checkpoint = try V3ManifestCheckpoint(vaultID: Core.vaultID, envelopeDigest: parent.digest)
     let joiner = try Core.Owner()
-    let state = try ceremony(parentDigest: parent.digest, owner: f.core.owner, joiner: joiner)
+    let state = try V3RecoveryEnrollmentTestSupport.ceremony(parentDigest: parent.digest, owner: f.core.owner, joiner: joiner)
     let result = try V3RecoveryDeviceEnrollmentBuilder().build(
       checkpoint: checkpoint, parent: parent,
       currentEntries: V3EntrySnapshotValidator(limits: .standard).entryMap(material.stagedEntries),
@@ -411,7 +411,7 @@ struct V3RecoveryDeviceEnrollmentTests {
       let joiner = try Core.Owner()
       let checkpoint = try V3ManifestCheckpoint(
         vaultID: Core.vaultID, envelopeDigest: parent.digest)
-      let state = try ceremony(parentDigest: parent.digest, owner: owner, joiner: joiner)
+      let state = try V3RecoveryEnrollmentTestSupport.ceremony(parentDigest: parent.digest, owner: owner, joiner: joiner)
       let candidate = try V3RecoveryDeviceEnrollmentBuilder().build(
         checkpoint: checkpoint, parent: parent, currentEntries: entries, state: state,
         currentVaultKey: key, nextVaultKey: next, owner: owner, at: Self.now,
@@ -469,7 +469,7 @@ struct V3RecoveryDeviceEnrollmentTests {
     init(empty: Bool = false, backup: Bool = true) throws {
       core = try Core.Fixture(empty: empty, backup: backup)
       joiner = try Core.Owner()
-      state = try V3RecoveryDeviceEnrollmentTests().ceremony(
+      state = try V3RecoveryEnrollmentTestSupport.ceremony(
         parentDigest: core.parent.digest, owner: core.owner, joiner: joiner)
       ownerSignatures = core.owner.signatures
     }
@@ -501,26 +501,5 @@ struct V3RecoveryDeviceEnrollmentTests {
     }
   }
 
-  func ceremony(
-    parentDigest: Data, owner: any V3EnrollmentMessageSigning,
-    joiner: any V3EnrollmentMessageSigning
-  ) throws -> V3EnrollmentCeremonyState {
-    let invitation = try V3EnrollmentInvitation(
-      vaultID: Core.vaultID, parentManifestDigest: parentDigest,
-      invitingDevice: owner.publicIdentity,
-      nonce: P256.KeyAgreement.PrivateKey().rawRepresentation, expiresAt: Self.now)
-    let authenticator = V3EnrollmentMessageAuthenticator()
-    let signedInvitation = try authenticator.sign(
-      invitation, using: owner, reason: "Software invitation fixture")
-    let request = try V3EnrollmentJoinRequest(
-      invitationDigest: invitation.digest, joiningDevice: joiner.publicIdentity,
-      nonce: P256.KeyAgreement.PrivateKey().rawRepresentation)
-    let signedRequest = try authenticator.sign(
-      request, answering: authenticator.verify(signedInvitation), using: joiner,
-      reason: "Software join fixture")
-    return try V3EnrollmentCeremonyState(
-      vaultID: Core.vaultID, invitationDigest: invitation.digest, role: .inviter,
-      phase: .awaitingComparison,
-      signedInvitation: signedInvitation, signedJoinRequest: signedRequest)
-  }
+
 }

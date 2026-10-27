@@ -302,7 +302,7 @@ struct V3RecoveryDeviceRevocationTests {
       recipientID: recipient.recipientID, registrationID: recipient.registrationID,
       slot: .keyManagement)
     let target = try Core.Owner()
-    let state = try V3RecoveryDeviceEnrollmentTests().ceremony(
+    let state = try V3RecoveryEnrollmentTestSupport.ceremony(
       parentDigest: f.parent.digest, owner: f.core.owner, joiner: target)
     let enrolled = try V3RecoveryDeviceEnrollmentBuilder().build(
       checkpoint: f.checkpoint, parent: f.parent, currentEntries: f.entries, state: state,
@@ -381,7 +381,7 @@ struct V3RecoveryDeviceRevocationTests {
       ] {
         let checkpoint = try V3ManifestCheckpoint(
           vaultID: Core.vaultID, envelopeDigest: current.digest)
-        let state = try V3RecoveryDeviceEnrollmentTests().ceremony(
+        let state = try V3RecoveryEnrollmentTestSupport.ceremony(
           parentDigest: current.digest, owner: core.owner, joiner: joining)
         let enrolled = try V3RecoveryDeviceEnrollmentBuilder().build(
           checkpoint: checkpoint, parent: current, currentEntries: currentEntries, state: state,

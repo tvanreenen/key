@@ -72,7 +72,8 @@ enum V3RecoveryRegistrationTestSupport {
     init(empty: Bool = false, backup: Bool = false, secretRevision: UInt64 = 4) throws {
       owner = try Owner()
       let keyID = try V3VaultKeyID.derive(
-        vaultKey: V3RecoveryRegistrationTestSupport.oldKey, vaultID: V3RecoveryRegistrationTestSupport.vaultID)
+        vaultKey: V3RecoveryRegistrationTestSupport.oldKey,
+        vaultID: V3RecoveryRegistrationTestSupport.vaultID)
       let sealed =
         try empty
         ? []
@@ -125,7 +126,8 @@ enum V3RecoveryRegistrationTestSupport {
               context: V3RecoveryHPKEContext(
                 vaultID: V3RecoveryRegistrationTestSupport.vaultID, keyID: keyID,
                 authorityTransitionID: V3RecoveryRegistrationTestSupport.transitionID,
-                recoveryGenerationID: V3RecoveryRegistrationTestSupport.generationID, recipient: recipient
+                recoveryGenerationID: V3RecoveryRegistrationTestSupport.generationID,
+                recipient: recipient
               ))
           ] : [])
       parent = try V3RecoveryEpochBoundary().encode(
@@ -135,7 +137,8 @@ enum V3RecoveryRegistrationTestSupport {
             context: V3EpochSigningKeyContext(
               vaultID: V3RecoveryRegistrationTestSupport.vaultID, keyID: keyID,
               authorityTransitionID: V3RecoveryRegistrationTestSupport.transitionID),
-            vaultKey: V3RecoveryRegistrationTestSupport.oldKey), transitionProof: nil, recovery: roster),
+            vaultKey: V3RecoveryRegistrationTestSupport.oldKey), transitionProof: nil,
+          recovery: roster),
         parents: [], vaultKey: V3RecoveryRegistrationTestSupport.oldKey, authorizations: [])
       checkpoint = try V3ManifestCheckpoint(
         vaultID: V3RecoveryRegistrationTestSupport.vaultID, envelopeDigest: parent.digest)
@@ -190,7 +193,8 @@ enum V3RecoveryRegistrationTestSupport {
       journal: V3RecoveryRegistrationJournal, checkpoint: V3ManifestCheckpoint? = nil,
       entries: [V3EntryObjectKey: V3EncryptedEntry]? = nil,
       currentKey: Data = V3RecoveryRegistrationTestSupport.oldKey,
-      nextKey: Data = V3RecoveryRegistrationTestSupport.nextKey, owner: V3EnrollmentDeviceIdentity? = nil
+      nextKey: Data = V3RecoveryRegistrationTestSupport.nextKey,
+      owner: V3EnrollmentDeviceIdentity? = nil
     ) throws -> Data {
       try journal.resumeAndExport(
         checkpoint: checkpoint ?? self.checkpoint, parent: parent,

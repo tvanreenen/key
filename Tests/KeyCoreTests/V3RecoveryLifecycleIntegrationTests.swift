@@ -7,7 +7,7 @@ import Testing
 /// Concrete publication, independent Mac trust, reciprocal catch-up and recovery
 /// from files after both software Macs leave scope. No native or PIV operation.
 struct V3RecoveryLifecycleIntegrationTests {
-  private typealias Epochs = V3RecoveryKeyTransitionCatchUpTests
+  private typealias Epochs = V3RecoveryCatchUpTestSupport
   private typealias Fixture = Epochs.Fixture
   private typealias Core = V3RecoveryRegistrationTestSupport
   private typealias Publication = V3RecoveryPublicationTestSupport

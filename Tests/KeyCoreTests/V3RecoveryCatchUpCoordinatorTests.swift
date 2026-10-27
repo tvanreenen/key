@@ -7,7 +7,7 @@ import Testing
 /// Concrete step services, independent Mac sessions and contained immutable
 /// publication. No mocked steps, native prompts, real vault or token operations.
 struct V3RecoveryCatchUpCoordinatorTests {
-  typealias Epochs = V3RecoveryKeyTransitionCatchUpTests
+  typealias Epochs = V3RecoveryCatchUpTestSupport
   private typealias Fixture = Epochs.Fixture
   private typealias Core = V3RecoveryRegistrationTestSupport
   private typealias Publication = V3RecoveryPublicationTestSupport

@@ -9,7 +9,7 @@ import Testing
 struct V3RecoveryEnrollmentAdoptionTests {
   private typealias Core = V3RecoveryRegistrationTestSupport
   private typealias Publication = V3RecoveryPublicationTestSupport
-  private typealias Enrollment = V3RecoveryDeviceEnrollmentPublisherTests
+  private typealias Enrollment = V3RecoveryEnrollmentTestSupport
   private typealias Stop = Publication.Stop
   private static let phases: [V3EnrollmentAdoptionPhase] = [
     .approvalVerified, .checkpointInstalled, .ceremonyConsumed,
