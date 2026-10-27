@@ -35,7 +35,7 @@ struct V3RecoveryAuthorityChangeServiceTests {
     #expect(try session.load(vaultID: Core.vaultID, keyID: f.parent.body.fields.keyID) == f.key)
   }
 
-  @Test(arguments: Action.allCases, 0..<28)
+  @Test(arguments: Action.allCases, 0 ..< 28)
   func stoppedRequestOrSessionCannotContinueAuthorityPublication(action: Action, variant: Int)
     throws
   {
