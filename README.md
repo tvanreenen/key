@@ -361,8 +361,10 @@ The Swift package and release-script checks run with:
 just test
 ```
 
-CI runs the `Verify` workflow on pull requests and pushes to `main`. Its checks
-have matching local commands:
+CI runs the full `Verify` checks on ready pull requests and pushes to `main`.
+Draft pull requests skip verification jobs until marked ready for review; later
+pushes to a ready PR rerun its checks. Manual and scheduled runs retain their
+existing scopes. The checks have matching local commands:
 
 | Check | Local command | Scope |
 |---|---|---|
