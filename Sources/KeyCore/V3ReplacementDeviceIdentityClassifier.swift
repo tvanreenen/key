@@ -190,7 +190,9 @@ struct V3ReplacementDeviceIdentityClassifier: Sendable {
         )
     }
 
-    private func classify(
+    /// Projection only: the caller must first authenticate its profile's roster.
+    /// This comparison neither verifies history nor authorizes local deletion.
+    func classify(
         _ target: V3EnrollmentDeviceIdentityDeletionTarget,
         devices: [V3DeviceWrappedManifestDevice],
         authority: V3ReplacementDeviceIdentityAuthority

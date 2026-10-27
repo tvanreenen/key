@@ -10,6 +10,35 @@ struct V3EnrollmentDeviceIdentityStoreTests {
     private static let vaultID =
         "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
 
+    @Test(arguments: [false, true])
+    func stoppedIdentityCreationCannotPersistALateGeneratedCredential(atStart: Bool) throws {
+        let scope = KeyRecoveryRequestScope(authentication: .init(), deadline: .now() + 90)
+        let store = MemoryEnrollmentDeviceKeyRecordStore()
+        let operations = SoftwareEnrollmentDeviceKeyOperations()
+        if atStart { scope.cancellation.cancel() }
+        else { operations.afterGeneration = { scope.cancellation.cancel() } }
+        let manager = V3EnrollmentDeviceIdentityManager(recordStore: store, keyOperations: operations,
+            validateScope: { try scope.requireCurrent() })
+        #expect(throws: (any Error).self) {
+            try manager.createIdentity(vaultID: Self.vaultID, displayName: "Joining Mac", reason: "Software test")
+        }
+        #expect(store.records.isEmpty && operations.generateCount == (atStart ? 0 : 1))
+    }
+
+    @Test func stoppedPublicKeyReconstructionCannotReturnAnIdentity() throws {
+        let scope = KeyRecoveryRequestScope(authentication: .init(), deadline: .now() + 90)
+        let store = MemoryEnrollmentDeviceKeyRecordStore()
+        let operations = SoftwareEnrollmentDeviceKeyOperations()
+        let original = V3EnrollmentDeviceIdentityManager(recordStore: store, keyOperations: operations)
+        _ = try original.createIdentity(vaultID: Self.vaultID, displayName: "Joining Mac", reason: "Software fixture")
+        let saved = store.records
+        operations.afterPublicKeyLoad = { scope.cancellation.cancel() }
+        let manager = V3EnrollmentDeviceIdentityManager(recordStore: store, keyOperations: operations,
+            validateScope: { try scope.requireCurrent() })
+        #expect(throws: (any Error).self) { try manager.loadIdentity(vaultID: Self.vaultID, reason: "Software test") }
+        #expect(store.records == saved && operations.publicKeyLoadCount == 1)
+    }
+
     @Test
     func managerCreatesPersistsReloadsAndUsesOneExactIdentity() throws {
         let store = MemoryEnrollmentDeviceKeyRecordStore()
@@ -488,6 +517,8 @@ private final class SoftwareEnrollmentDeviceKeyOperations:
 {
     var isAvailable = true
     var failPublicKeyLoad = false
+    var afterGeneration: @Sendable () throws -> Void = {}
+    var afterPublicKeyLoad: @Sendable () throws -> Void = {}
     private(set) var generateCount = 0
     private(set) var publicKeyLoadCount = 0
 
@@ -495,7 +526,9 @@ private final class SoftwareEnrollmentDeviceKeyOperations:
         reason _: String
     ) throws -> V3EnrollmentGeneratedDeviceKeys {
         generateCount += 1
-        return try keys(signingScalar: 1, wrappingScalar: 2)
+        let result = try keys(signingScalar: 1, wrappingScalar: 2)
+        try afterGeneration()
+        return result
     }
 
     func publicKeys(
@@ -504,6 +537,7 @@ private final class SoftwareEnrollmentDeviceKeyOperations:
         reason _: String
     ) throws -> (signing: Data, wrapping: Data) {
         publicKeyLoadCount += 1
+        try afterPublicKeyLoad()
         if failPublicKeyLoad {
             throw V3EnrollmentDeviceIdentityStoreError.keyOperationFailed
         }

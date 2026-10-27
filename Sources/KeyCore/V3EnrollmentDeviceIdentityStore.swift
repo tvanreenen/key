@@ -618,13 +618,16 @@ struct V3EnrollmentDevicePrivateIdentity:
 struct V3EnrollmentDeviceIdentityManager: Sendable {
     private let recordStore: any V3EnrollmentDeviceKeyRecordStoring
     private let keyOperations: any V3EnrollmentDeviceKeyOperating
+    private let validateScope: @Sendable () throws -> Void
 
     init(
         recordStore: any V3EnrollmentDeviceKeyRecordStoring,
-        keyOperations: any V3EnrollmentDeviceKeyOperating
+        keyOperations: any V3EnrollmentDeviceKeyOperating,
+        validateScope: @escaping @Sendable () throws -> Void = {}
     ) {
         self.recordStore = recordStore
         self.keyOperations = keyOperations
+        self.validateScope = validateScope
     }
 
     func createIdentity(
@@ -632,6 +635,7 @@ struct V3EnrollmentDeviceIdentityManager: Sendable {
         displayName: String,
         reason: String
     ) throws -> V3EnrollmentDevicePrivateIdentity {
+        try validateScope()
         guard isValidV3UUID(vaultID),
             isValidV3DeviceDisplayName(displayName),
             !reason.isEmpty
@@ -647,7 +651,9 @@ struct V3EnrollmentDeviceIdentityManager: Sendable {
             throw V3EnrollmentDeviceIdentityStoreError
                 .secureEnclaveUnavailable
         }
+        try validateScope()
         let generated = try keyOperations.generateDeviceKeys(reason: reason)
+        try validateScope()
         let identity = try V3EnrollmentDeviceIdentity(
             displayName: displayName,
             signingPublicKey: generated.signingPublicKey,
@@ -659,10 +665,12 @@ struct V3EnrollmentDeviceIdentityManager: Sendable {
             signingKeyRepresentation: generated.signingKeyRepresentation,
             wrappingKeyRepresentation: generated.wrappingKeyRepresentation
         )
+        try validateScope()
         try recordStore.insertRecord(
             record.canonicalBytes,
             vaultID: vaultID
         )
+        try validateScope()
         return V3EnrollmentDevicePrivateIdentity(
             record: record,
             keyOperations: keyOperations
@@ -673,6 +681,7 @@ struct V3EnrollmentDeviceIdentityManager: Sendable {
         vaultID: String,
         reason: String
     ) throws -> V3EnrollmentDevicePrivateIdentity? {
+        try validateScope()
         guard isValidV3UUID(vaultID), !reason.isEmpty else {
             throw V3EnrollmentDeviceIdentityStoreError
                 .invalidIdentityRequest
@@ -697,6 +706,7 @@ struct V3EnrollmentDeviceIdentityManager: Sendable {
         guard reconstructed == record.identity else {
             throw V3EnrollmentDeviceIdentityStoreError.identityMismatch
         }
+        try validateScope()
         return V3EnrollmentDevicePrivateIdentity(
             record: record,
             keyOperations: keyOperations
@@ -711,6 +721,7 @@ struct V3EnrollmentDeviceIdentityManager: Sendable {
     func loadRecordedPublicIdentity(
         vaultID: String
     ) throws -> V3EnrollmentDeviceIdentity? {
+        try validateScope()
         guard isValidV3UUID(vaultID) else {
             throw V3EnrollmentDeviceIdentityStoreError
                 .invalidIdentityRequest
@@ -722,6 +733,7 @@ struct V3EnrollmentDeviceIdentityManager: Sendable {
         guard record.vaultID == vaultID else {
             throw V3EnrollmentDeviceIdentityStoreError.invalidRecord
         }
+        try validateScope()
         return record.identity
     }
 }
