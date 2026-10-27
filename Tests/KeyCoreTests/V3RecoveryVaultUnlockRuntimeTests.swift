@@ -52,7 +52,7 @@ struct V3RecoveryVaultUnlockRuntimeTests {
     #expect(f.disk.core.owner.unwraps == 2 && f.session.hasResidentKey)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func unavailableInvalidOrSubstitutedManifestsRefuseBeforeIdentityAccess(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -73,7 +73,7 @@ struct V3RecoveryVaultUnlockRuntimeTests {
     #expect(f.cache.stores == 0)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func malformedMissingOrForeignCheckpointNeverSelectsProviderAuthority(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -92,7 +92,7 @@ struct V3RecoveryVaultUnlockRuntimeTests {
     #expect(f.source.reads == 0 && f.source.listings == 0 && f.loader.loads == 0)
   }
 
-  @Test(arguments: 0..<3, [false, true])
+  @Test(arguments: 0 ..< 3, [false, true])
   func everyPendingOrUnreadableOwnershipNamespaceBlocksColdAndWarmAccess(
     namespace: Int, unreadable: Bool
   ) throws {
@@ -117,7 +117,7 @@ struct V3RecoveryVaultUnlockRuntimeTests {
     #expect(f.pending[namespace].value == (unreadable ? nil : Data("any pending record".utf8)))
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func missingForeignOrCancelledIdentityNeverInstallsAKey(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -132,7 +132,7 @@ struct V3RecoveryVaultUnlockRuntimeTests {
     #expect(f.loader.loads == 1 && f.disk.core.owner.unwraps == 0 && !f.session.hasResidentKey)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func lockCheckpointChangePendingWorkAndSessionReplacementDuringUnwrapRefuse(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -345,7 +345,7 @@ struct V3RecoveryVaultUnlockRuntimeTests {
       checkpoint: reopened.checkpoint, currentVaultKey: key)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func exactPendingNamespaceAuthenticatesOnlyTheFloorAndCannotGrantRoutineReads(index: Int)
     throws
   {
@@ -367,7 +367,7 @@ struct V3RecoveryVaultUnlockRuntimeTests {
     #expect(f.pending[index].value == anchor.canonicalBytes)
   }
 
-  @Test(arguments: 0..<6)
+  @Test(arguments: 0 ..< 6)
   func malformedAmbiguousOrUnsupportedPendingSelectionRefusesBeforeIdentity(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -389,7 +389,7 @@ struct V3RecoveryVaultUnlockRuntimeTests {
     #expect(f.loader.loads == 0 && f.disk.core.owner.unwraps == 0 && !f.session.hasResidentKey)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func pendingContextRejectsLateOwnershipCheckpointAndSessionChanges(change: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }

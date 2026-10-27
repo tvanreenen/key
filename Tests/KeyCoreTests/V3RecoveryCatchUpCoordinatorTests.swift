@@ -275,7 +275,7 @@ struct V3RecoveryCatchUpCoordinatorTests {
     }
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func continuedReadSourceGuardDetectsLateFilesWithoutPrivateOpening(change: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }

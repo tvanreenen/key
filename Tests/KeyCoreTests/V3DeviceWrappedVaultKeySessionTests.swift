@@ -27,7 +27,7 @@ struct V3DeviceWrappedVaultKeySessionTests {
     #expect(try s.load(vaultID: Self.vaultID, keyID: nextID) == Self.nextKey)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func staleOrForeignAdmissionCannotStartFreshAuthenticationOrClearNewAuthority(variant: Int) throws
   {
     let s = try session()

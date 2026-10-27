@@ -18,7 +18,7 @@ struct V3RecoveryVaultRuntimeTests {
     try f.disk.edit("after rotation")
     let runtime = f.runtime()
     try runtime.unlock()
-    #expect(f.disk.receiver.unwraps == 2)  // Initial Mac wrapper plus one new epoch.
+    #expect(f.disk.receiver.unwraps == 2) // Initial Mac wrapper plus one new epoch.
     #expect(
       try runtime.read(name: "fixture/secret", allowStale: false).plaintext == "after rotation")
     #expect(try runtime.list(allowStale: false) == ["fixture/secret", "fixture/totp"])
@@ -59,7 +59,7 @@ struct V3RecoveryVaultRuntimeTests {
     try f.owner.perform(.removeEntry) { scope in
       try runtime.remove(name: "fixture/secret", operationID: scope.operationID)
     }
-    #expect(f.owner.calls.value == 4)  // A nested queue would not complete.
+    #expect(f.owner.calls.value == 4) // A nested queue would not complete.
     #expect(try runtime.read(name: "local/moved", allowStale: false).plaintext == "edited")
     #expect(f.disk.receiver.unwraps == 0 && f.disk.pending.allSatisfy { $0.value == nil })
   }
@@ -122,7 +122,7 @@ struct V3RecoveryVaultRuntimeTests {
     #expect(f.disk.receiver.unwraps == 0 && f.disk.pending.allSatisfy { $0.value == nil })
   }
 
-  @Test(arguments: 0..<6)
+  @Test(arguments: 0 ..< 6)
   func conflictValueDoesNotReuseAnOldReviewAfterQueuedChanges(change: Int) throws {
     let f = try Fixture()
     defer { f.disk.disk.remove() }
@@ -170,7 +170,7 @@ struct V3RecoveryVaultRuntimeTests {
     #expect(!f.disk.session.hasResidentKey && f.disk.receiver.unwraps == 0)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func invalidOrCompetingAuthorityAndRevocationNeverGrantStaleAccess(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.disk.remove() }
@@ -194,7 +194,7 @@ struct V3RecoveryVaultRuntimeTests {
     #expect(f.disk.local.value == f.disk.floor.checkpoint.canonicalBytes)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func everyPendingNamespaceStopsReadAndMutationBeforePrivateAccess(namespace: Int) throws {
     let f = try Fixture(cold: true)
     defer { f.disk.disk.remove() }
@@ -212,7 +212,7 @@ struct V3RecoveryVaultRuntimeTests {
     #expect(f.disk.pending[namespace].value == Data("pending".utf8))
   }
 
-  @Test(arguments: [false, true], 0..<3)
+  @Test(arguments: [false, true], 0 ..< 3)
   func lockReplacementOrCheckpointChangeWhileQueuedDoesNotBecomeFreshAuthentication(
     cold: Bool, change: Int
   ) throws {
@@ -234,7 +234,7 @@ struct V3RecoveryVaultRuntimeTests {
     #expect(!f.disk.session.hasResidentKey)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func identityHandOffCannotReviveLockReplacementOrPendingWork(change: Int) throws {
     let f = try Fixture()
     defer { f.disk.disk.remove() }
@@ -292,7 +292,7 @@ struct V3RecoveryVaultRuntimeTests {
     #expect(f.loader.loads == loads && f.disk.receiver.unwraps == 1)
   }
 
-  @Test(arguments: [false, true], 0..<4)
+  @Test(arguments: [false, true], 0 ..< 4)
   func interruptedOrdinarySaveReconcilesBeforeReadWithoutANewAuthenticationHandOff(
     cold: Bool, stage: Int
   ) throws {

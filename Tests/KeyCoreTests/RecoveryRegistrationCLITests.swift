@@ -21,7 +21,7 @@ struct RecoveryRegistrationCLITests {
       var missing = input
       let offset = try #require(missing.firstIndex(of: option))
       let value = missing[offset + 1]
-      missing.removeSubrange(offset...(offset + 1))
+      missing.removeSubrange(offset ... (offset + 1))
       #expect(throws: AppError.self) { try CLIParser.parse(arguments: missing) }
       #expect(throws: AppError.self) { try CLIParser.parse(arguments: input + [option, value]) }
     }
@@ -42,7 +42,7 @@ struct RecoveryRegistrationCLITests {
     #expect(transport.requests.isEmpty && io.stdout.isEmpty)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func exportWritesExactPublicBytesButNeverReplacesExistingFilesOrLinks(existing: Int) throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)

@@ -51,7 +51,7 @@ struct KeyRecoveryRegistrationRoutingTests {
       host.handle(.recoveryRegistration(action)).errorMessage?.contains("not enabled") == true)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func invalidSelectorsNeverReachConfiguredSetup(variant: Int) {
     let action: KeyRecoveryRegistrationRequest
     switch variant {

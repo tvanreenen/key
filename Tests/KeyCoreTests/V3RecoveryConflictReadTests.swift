@@ -11,7 +11,7 @@ struct V3RecoveryConflictReadTests {
   private typealias Publication = V3RecoveryContentMutationPublisherTests
   private let branches = V3RecoveryManifestReconciliationTests()
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func actualConflictVersionsReadExactBytesAndBindCheckpointAndHeads(kind: Int) throws {
     let f = try Publication.Fixture()
     defer { f.remove() }
@@ -113,7 +113,7 @@ struct V3RecoveryConflictReadTests {
     }
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func executorRefusesLateAuthorityChangeEvenAfterOpeningCorrectCiphertext(change: Int) throws {
     let f = try Publication.Fixture()
     defer { f.remove() }

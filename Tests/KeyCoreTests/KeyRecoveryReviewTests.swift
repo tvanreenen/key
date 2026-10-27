@@ -514,7 +514,7 @@ struct KeyRecoveryReviewTests {
     }
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func credentialInspectionReportsOccupancyWithoutPrivateWorkOrVaultReads(occupancy: Int) throws {
     let f = try Fixture()
     defer { f.remove() }

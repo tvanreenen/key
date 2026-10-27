@@ -72,7 +72,7 @@ struct V3RecoveryReadOnlyVaultRuntimeTests {
     #expect(f.disk.core.owner.unwraps == 1)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func invalidOrOversizedCiphertextNeverBecomesStalePlaintext(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -90,7 +90,7 @@ struct V3RecoveryReadOnlyVaultRuntimeTests {
     #expect(f.disk.core.owner.unwraps == 1)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func closureBudgetsAreEnforced(variant: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -111,7 +111,7 @@ struct V3RecoveryReadOnlyVaultRuntimeTests {
     }
   }
 
-  @Test(arguments: 0..<6, 0..<3)
+  @Test(arguments: 0 ..< 6, 0 ..< 3)
   func changesDuringEntryIOBlockPlaintextNamesAndStatus(change: Int, operation: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
@@ -135,7 +135,7 @@ struct V3RecoveryReadOnlyVaultRuntimeTests {
     #expect(f.disk.core.owner.unwraps == 1)
   }
 
-  @Test(arguments: [false, true], 0..<3)
+  @Test(arguments: [false, true], 0 ..< 3)
   func retainedContextDoesNotSurviveLockReplacementOrCheckpointAdvance(warm: Bool, change: Int)
     throws
   {
@@ -172,7 +172,7 @@ struct V3RecoveryReadOnlyVaultRuntimeTests {
     #expect(f.disk.core.owner.unwraps == 1)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func pendingOwnershipBlocksAuthorizationBeforeUnwrap(namespace: Int) throws {
     let f = try Fixture()
     defer { f.disk.remove() }

@@ -914,7 +914,7 @@ struct V3RecoveryRegistrationServiceTests {
       .resumeExport(tokenID: selectors.0, recipientID: selectors.1), scope: requestScope())
     #expect(resumed.recoveryRegistration == prepared.recoveryRegistration)
     #expect(f.provider.requests == 0)
-    f.card.anchor = anchor  // Test-only simulation of the separate vendor import.
+    f.card.anchor = anchor // Test-only simulation of the separate vendor import.
     let finished = try workflow.handle(
       .finish(tokenID: selectors.0, recipientID: selectors.1), scope: requestScope())
     guard case .completed(let vaultID, let digest, let cleanup) = finished.recoveryRegistration
@@ -1047,7 +1047,7 @@ struct V3RecoveryRegistrationServiceTests {
     #expect(f.provider.requests == 0 && f.card.publicSessions == publicSessions)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func checkpointProfileDispatchIsBoundToTheExactLocalSelection(invalid: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -1073,7 +1073,7 @@ struct V3RecoveryRegistrationServiceTests {
     #expect(f.core.owner.unwraps == 0 && f.provider.requests == 0)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func pendingSelectorsAreBoundedReadOnlyAndDoNotNeedPrivateAuthentication(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
