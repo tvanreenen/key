@@ -83,9 +83,9 @@ func v3UUIDBytes(_ value: String) -> Data? {
     var bytes = Data()
     bytes.reserveCapacity(16)
     var index = compact.startIndex
-    for _ in 0..<16 {
+    for _ in 0 ..< 16 {
         let next = compact.index(index, offsetBy: 2)
-        guard let byte = UInt8(compact[index..<next], radix: 16) else {
+        guard let byte = UInt8(compact[index ..< next], radix: 16) else {
             return nil
         }
         bytes.append(byte)
@@ -135,7 +135,7 @@ func v3ManifestEntryPrecedes(
 }
 
 func isV3ControlCharacter(_ scalar: UnicodeScalar) -> Bool {
-    scalar.value <= 0x1F || (0x7F...0x9F).contains(scalar.value)
+    scalar.value <= 0x1F || (0x7F ... 0x9F).contains(scalar.value)
 }
 
 func isValidV3DeviceDisplayName(_ name: String) -> Bool {

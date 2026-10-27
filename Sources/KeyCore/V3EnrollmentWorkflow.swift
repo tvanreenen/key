@@ -887,8 +887,8 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
 
     private func randomNonce() -> Data {
         var generator = SystemRandomNumberGenerator()
-        return Data((0..<32).map { _ in
-            UInt8.random(in: UInt8.min...UInt8.max, using: &generator)
+        return Data((0 ..< 32).map { _ in
+            UInt8.random(in: UInt8.min ... UInt8.max, using: &generator)
         })
     }
 

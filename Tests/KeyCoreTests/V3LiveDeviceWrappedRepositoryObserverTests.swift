@@ -23,7 +23,7 @@ struct V3LiveDeviceWrappedRepositoryObserverTests {
     private static let childOperationID = try! VaultTransactionOperationID(
         validating: "018f4d38-7d5a-7b20-b0f1-97d6e96c54b9"
     )
-    private static let currentKey = Data(0..<32)
+    private static let currentKey = Data(0 ..< 32)
     private static let nextKey = Data(repeating: 0x51, count: 32)
     private static let approvalTime: UInt64 = 4_102_444_800
 

@@ -90,7 +90,7 @@ public struct RuntimeConfiguration: Equatable, Sendable {
 
 #if DEBUG
 private func isValidQualificationNamespace(_ value: String) -> Bool {
-    guard (1...40).contains(value.utf8.count),
+    guard (1 ... 40).contains(value.utf8.count),
           let first = value.utf8.first,
           isLowercaseASCIIAlphanumeric(first)
     else {
@@ -102,6 +102,6 @@ private func isValidQualificationNamespace(_ value: String) -> Bool {
 }
 
 private func isLowercaseASCIIAlphanumeric(_ byte: UInt8) -> Bool {
-    (97...122).contains(byte) || (48...57).contains(byte)
+    (97 ... 122).contains(byte) || (48 ... 57).contains(byte)
 }
 #endif

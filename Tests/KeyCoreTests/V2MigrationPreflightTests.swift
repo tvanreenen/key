@@ -36,8 +36,8 @@ struct V2MigrationPreflightTests {
 
         let store = EntryStore(rootURL: root)
         let cipher = VaultCipher()
-        let vaultKey = Data((0..<32).map(UInt8.init))
-        let staleLocalKey = Data((32..<64).map(UInt8.init))
+        let vaultKey = Data((0 ..< 32).map(UInt8.init))
+        let staleLocalKey = Data((32 ..< 64).map(UInt8.init))
         try store.save(
             cipher.encrypt("portable-secret", keyData: vaultKey),
             as: "mail/personal",
@@ -83,7 +83,7 @@ struct V2MigrationPreflightTests {
         defer { try? FileManager.default.removeItem(at: root) }
 
         let store = EntryStore(rootURL: root)
-        let vaultKey = Data((0..<32).map(UInt8.init))
+        let vaultKey = Data((0 ..< 32).map(UInt8.init))
         try store.save(
             VaultCipher().encrypt("portable-secret", keyData: vaultKey),
             as: "mail/personal",
@@ -119,8 +119,8 @@ struct V2MigrationPreflightTests {
 
         let store = EntryStore(rootURL: root)
         let cipher = VaultCipher()
-        let vaultKey = Data((0..<32).map(UInt8.init))
-        let otherKey = Data((32..<64).map(UInt8.init))
+        let vaultKey = Data((0 ..< 32).map(UInt8.init))
+        let otherKey = Data((32 ..< 64).map(UInt8.init))
 
         try store.save(
             cipher.encrypt("safe", keyData: vaultKey),
@@ -179,7 +179,7 @@ struct V2MigrationPreflightTests {
         defer { try? FileManager.default.removeItem(at: root) }
 
         let store = EntryStore(rootURL: root)
-        let originalKey = Data((0..<32).map(UInt8.init))
+        let originalKey = Data((0 ..< 32).map(UInt8.init))
         try store.save(
             VaultCipher().encrypt("portable-secret", keyData: originalKey),
             as: "mail/personal",

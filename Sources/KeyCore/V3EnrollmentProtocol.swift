@@ -415,7 +415,7 @@ struct V3EnrollmentTranscript: Equatable, Sendable {
                 start,
                 offsetBy: min(4, characters.count - offset)
             )
-            return String(characters[start..<end])
+            return String(characters[start ..< end])
         }.joined(separator: "-")
     }
 }

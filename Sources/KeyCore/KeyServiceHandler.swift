@@ -1571,9 +1571,9 @@ func enrollmentDigest(_ value: String) throws -> Data {
     var result = Data()
     result.reserveCapacity(32)
     var index = value.startIndex
-    for _ in 0..<32 {
+    for _ in 0 ..< 32 {
         let next = value.index(index, offsetBy: 2)
-        guard let byte = UInt8(value[index..<next], radix: 16) else {
+        guard let byte = UInt8(value[index ..< next], radix: 16) else {
             throw AppError.usage("Invalid enrollment ID.")
         }
         result.append(byte)
@@ -1595,9 +1595,9 @@ private func replacementDigest(_ value: String) throws -> Data {
     var result = Data()
     result.reserveCapacity(32)
     var index = value.startIndex
-    for _ in 0..<32 {
+    for _ in 0 ..< 32 {
         let next = value.index(index, offsetBy: 2)
-        guard let byte = UInt8(value[index..<next], radix: 16) else {
+        guard let byte = UInt8(value[index ..< next], radix: 16) else {
             throw AppError.usage("Invalid replacement confirmation token.")
         }
         result.append(byte)

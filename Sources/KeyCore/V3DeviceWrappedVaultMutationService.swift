@@ -352,7 +352,7 @@ struct V3DeviceWrappedVaultMutationService:
     private func freshEntryID(
         excluding entries: [V3ManifestEntry]
     ) throws -> String {
-        for _ in 0..<16 {
+        for _ in 0 ..< 16 {
             let candidate = makeEntryID()
             guard isValidV3UUID(candidate) else {
                 throw V3DeviceWrappedContentMutationError.invalidEntryID

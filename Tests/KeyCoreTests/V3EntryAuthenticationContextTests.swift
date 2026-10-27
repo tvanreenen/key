@@ -91,17 +91,17 @@ struct V3EntryAuthenticationContextTests {
         }
         #expect(throws: V3VaultKeyIDError.invalidVaultID) {
             _ = try V3VaultKeyID.derive(
-                vaultKey: Data(0..<32),
+                vaultKey: Data(0 ..< 32),
                 vaultID: "not-a-vault-id"
             )
         }
 
         let keyID = try V3VaultKeyID.derive(
-            vaultKey: Data(0..<32),
+            vaultKey: Data(0 ..< 32),
             vaultID: Self.fixtureVaultID
         )
         let otherVaultID = try V3VaultKeyID.derive(
-            vaultKey: Data(0..<32),
+            vaultKey: Data(0 ..< 32),
             vaultID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b4"
         )
         let otherKeyID = try V3VaultKeyID.derive(

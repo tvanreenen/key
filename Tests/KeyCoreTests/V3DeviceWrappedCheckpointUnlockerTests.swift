@@ -9,7 +9,7 @@ struct V3DeviceWrappedCheckpointUnlockerTests {
     private static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
     private static let transitionID =
         "018f4d38-7d5a-7b20-b0f1-97d6e96c44b4"
-    private static let vaultKey = Data((0..<32).map(UInt8.init))
+    private static let vaultKey = Data((0 ..< 32).map(UInt8.init))
 
     @Test
     func exactAuthenticatedCheckpointOpensIntoMemorySession() throws {
@@ -326,7 +326,7 @@ struct V3DeviceWrappedCheckpointUnlockerTests {
             vaultID: Self.vaultID,
             keyID: fixture.candidate.body.keyID
         )
-        for _ in 0..<100 where session.hasResidentKey {
+        for _ in 0 ..< 100 where session.hasResidentKey {
             try await Task.sleep(for: .milliseconds(5))
         }
         #expect(session.hasResidentKey == false)

@@ -12,8 +12,8 @@ struct V3ReplacementDeviceIdentityClassifierTests {
         "018f4d38-7d5a-7b20-b0f1-97d6e96c94b4"
     private static let revocationTransitionID =
         "018f4d38-7d5a-7b20-b0f1-97d6e96c94b5"
-    private static let currentVaultKey = Data(0..<32)
-    private static let nextVaultKey = Data(32..<64)
+    private static let currentVaultKey = Data(0 ..< 32)
+    private static let nextVaultKey = Data(32 ..< 64)
 
     @Test
     func noLocalIdentityNeedsNoReplacement() throws {

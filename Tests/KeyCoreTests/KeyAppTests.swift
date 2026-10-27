@@ -1243,7 +1243,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init)))
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
         #expect(handler.handle(.unlock) == .success())
@@ -1286,7 +1286,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let store = SessionVaultKeyStore(underlying: MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init))), inactivityTimeout: 120)
+        let store = SessionVaultKeyStore(underlying: MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init))), inactivityTimeout: 120)
         let handler = KeyServiceHandler(keyStore: store, entryStore: EntryStore(rootURL: tempDirectory))
 
         #expect(handler.handle(.unlock) == .success())
@@ -1304,7 +1304,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init)))
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
         let putResponse = handler.handle(.addManual(name: "mail/personal", secret: "hunter2", type: .secret))
@@ -1323,7 +1323,7 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
         let store = EntryStore(rootURL: tempDirectory)
-        let existingKey = Data((100..<132).map(UInt8.init))
+        let existingKey = Data((100 ..< 132).map(UInt8.init))
         let encrypted = try VaultCipher().encrypt("hunter2", keyData: existingKey)
         try store.save(encrypted, as: "mail/personal", overwrite: false)
 
@@ -1345,8 +1345,8 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
         let store = EntryStore(rootURL: tempDirectory)
-        let existingKey = Data((0..<32).map(UInt8.init))
-        let wrongKey = Data((32..<64).map(UInt8.init))
+        let existingKey = Data((0 ..< 32).map(UInt8.init))
+        let wrongKey = Data((32 ..< 64).map(UInt8.init))
         let encrypted = try VaultCipher().encrypt("hunter2", keyData: existingKey)
         try store.save(encrypted, as: "mail/personal", overwrite: false)
 
@@ -1370,7 +1370,7 @@ struct KeyServiceHandlerTests {
         let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
         try writeLegacyTestConfiguration(home: homeDirectory, root: vaultDirectory)
 
-        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init)))
         let handler = KeyServiceHandler(
             keyStore: keyStore,
             entryStore: EntryStore(rootURL: vaultDirectory),
@@ -1398,8 +1398,8 @@ struct KeyServiceHandlerTests {
         try writeLegacyTestConfiguration(home: homeDirectory, root: vaultDirectory)
 
         let store = EntryStore(rootURL: vaultDirectory)
-        let originalKey = Data((0..<32).map(UInt8.init))
-        let staleLocalKey = Data((32..<64).map(UInt8.init))
+        let originalKey = Data((0 ..< 32).map(UInt8.init))
+        let staleLocalKey = Data((32 ..< 64).map(UInt8.init))
         let encrypted = try VaultCipher().encrypt("hunter2", keyData: originalKey)
         try store.save(encrypted, as: "mail/personal", overwrite: false)
 
@@ -1430,8 +1430,8 @@ struct KeyServiceHandlerTests {
         try writeLegacyTestConfiguration(home: homeDirectory, root: vaultDirectory)
 
         let store = EntryStore(rootURL: vaultDirectory)
-        let sharedKey = Data((0..<32).map(UInt8.init))
-        let staleLocalKey = Data((32..<64).map(UInt8.init))
+        let sharedKey = Data((0 ..< 32).map(UInt8.init))
+        let staleLocalKey = Data((32 ..< 64).map(UInt8.init))
         let encrypted = try VaultCipher().encrypt("hunter2", keyData: sharedKey)
         try store.save(encrypted, as: "mail/personal", overwrite: false)
 
@@ -1463,7 +1463,7 @@ struct KeyServiceHandlerTests {
         _ = try configStore.setValue("icloud", for: .keychainMode)
 
         let store = EntryStore(rootURL: vaultDirectory)
-        let sharedKey = Data((0..<32).map(UInt8.init))
+        let sharedKey = Data((0 ..< 32).map(UInt8.init))
         let encrypted = try VaultCipher().encrypt("hunter2", keyData: sharedKey)
         try store.save(encrypted, as: "mail/personal", overwrite: false)
 
@@ -1495,8 +1495,8 @@ struct KeyServiceHandlerTests {
         _ = try configStore.setValue("icloud", for: .keychainMode)
 
         let store = EntryStore(rootURL: vaultDirectory)
-        let sharedKey = Data((0..<32).map(UInt8.init))
-        let staleLocalKey = Data((32..<64).map(UInt8.init))
+        let sharedKey = Data((0 ..< 32).map(UInt8.init))
+        let staleLocalKey = Data((32 ..< 64).map(UInt8.init))
         let encrypted = try VaultCipher().encrypt("hunter2", keyData: sharedKey)
         try store.save(encrypted, as: "mail/personal", overwrite: false)
 
@@ -1525,9 +1525,9 @@ struct KeyServiceHandlerTests {
         let configStore = KeyConfigStore(homeDirectoryURL: homeDirectory)
         try writeLegacyTestConfiguration(home: homeDirectory, root: vaultDirectory)
 
-        let sharedKey = Data((0..<32).map(UInt8.init))
-        let otherEntryKey = Data((32..<64).map(UInt8.init))
-        let staleLocalKey = Data((64..<96).map(UInt8.init))
+        let sharedKey = Data((0 ..< 32).map(UInt8.init))
+        let otherEntryKey = Data((32 ..< 64).map(UInt8.init))
+        let staleLocalKey = Data((64 ..< 96).map(UInt8.init))
         let store = EntryStore(rootURL: vaultDirectory)
         try saveMixedKeyEntries(in: store, acceptedKey: sharedKey, otherKey: otherEntryKey)
 
@@ -1560,8 +1560,8 @@ struct KeyServiceHandlerTests {
         try writeLegacyTestConfiguration(home: homeDirectory, root: vaultDirectory)
         _ = try configStore.setValue("icloud", for: .keychainMode)
 
-        let sharedKey = Data((0..<32).map(UInt8.init))
-        let otherEntryKey = Data((32..<64).map(UInt8.init))
+        let sharedKey = Data((0 ..< 32).map(UInt8.init))
+        let otherEntryKey = Data((32 ..< 64).map(UInt8.init))
         let store = EntryStore(rootURL: vaultDirectory)
         try saveMixedKeyEntries(in: store, acceptedKey: sharedKey, otherKey: otherEntryKey)
 
@@ -1595,8 +1595,8 @@ struct KeyServiceHandlerTests {
         try writeLegacyTestConfiguration(home: homeDirectory, root: vaultDirectory)
         _ = try configStore.setValue("icloud", for: .keychainMode)
 
-        let sharedKey = Data((0..<32).map(UInt8.init))
-        let otherEntryKey = Data((32..<64).map(UInt8.init))
+        let sharedKey = Data((0 ..< 32).map(UInt8.init))
+        let otherEntryKey = Data((32 ..< 64).map(UInt8.init))
         let store = EntryStore(rootURL: vaultDirectory)
         try saveMixedKeyEntries(
             in: store,
@@ -1630,7 +1630,7 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
         let handler = KeyServiceHandler(
-            keyStore: MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init))),
+            keyStore: MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init))),
             entryStore: EntryStore(rootURL: tempDirectory)
         )
 
@@ -1648,7 +1648,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init)))
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
         #expect(handler.handle(.addManual(name: "mail/personal", secret: "one", type: .secret)) == .success())
@@ -1668,8 +1668,8 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
         let store = EntryStore(rootURL: tempDirectory)
-        let originalKey = Data((0..<32).map(UInt8.init))
-        let wrongKey = Data((32..<64).map(UInt8.init))
+        let originalKey = Data((0 ..< 32).map(UInt8.init))
+        let wrongKey = Data((32 ..< 64).map(UInt8.init))
         let encrypted = try VaultCipher().encrypt("one", keyData: originalKey)
         try store.save(encrypted, as: "mail/personal", overwrite: false)
 
@@ -1693,7 +1693,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init)))
         let handler = KeyServiceHandler(
             keyStore: keyStore,
             entryStore: EntryStore(rootURL: tempDirectory),
@@ -1716,7 +1716,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init)))
         let handler = KeyServiceHandler(
             keyStore: keyStore,
             entryStore: EntryStore(rootURL: tempDirectory),
@@ -1739,7 +1739,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init)))
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
         #expect(handler.handle(.addManual(name: "mail/personal", secret: "one", type: .secret)) == .success())
@@ -1761,7 +1761,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init)))
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: EntryStore(rootURL: tempDirectory))
 
         #expect(handler.handle(.addManual(name: "mail/personal", secret: "one", type: .secret)) == .success())
@@ -1788,7 +1788,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init)))
         let handler = KeyServiceHandler(
             keyStore: keyStore,
             entryStore: EntryStore(rootURL: tempDirectory),
@@ -1812,7 +1812,7 @@ struct KeyServiceHandlerTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let keyStore = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
+        let keyStore = MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init)))
         let store = EntryStore(rootURL: tempDirectory)
         let handler = KeyServiceHandler(keyStore: keyStore, entryStore: store)
 
@@ -1863,7 +1863,7 @@ struct KeyServiceHandlerTests {
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
         let handler = KeyServiceHandler(
-            keyStore: MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init))),
+            keyStore: MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init))),
             entryStore: EntryStore(rootURL: tempDirectory)
         )
 
@@ -1958,7 +1958,7 @@ struct SessionVaultKeyStoreTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let underlying = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
+        let underlying = MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init)))
         let store = SessionVaultKeyStore(underlying: underlying)
         let handler = KeyServiceHandler(keyStore: store, entryStore: EntryStore(rootURL: tempDirectory))
 
@@ -1974,7 +1974,7 @@ struct SessionVaultKeyStoreTests {
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
-        let underlying = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
+        let underlying = MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init)))
         let store = SessionVaultKeyStore(underlying: underlying)
         let handler = KeyServiceHandler(keyStore: store, entryStore: EntryStore(rootURL: tempDirectory))
 

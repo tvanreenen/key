@@ -503,7 +503,7 @@ func v3EnrollmentKeyOperationError(
     for error: Error
 ) -> V3EnrollmentDeviceIdentityStoreError {
     var current = error as NSError
-    for _ in 0..<4 {
+    for _ in 0 ..< 4 {
         if current.domain == LAError.errorDomain,
            let code = LAError.Code(rawValue: current.code)
         {

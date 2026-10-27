@@ -91,10 +91,10 @@ struct V3EnrollmentWrappedVaultKeyCiphertext: Equatable, Sendable {
         else {
             throw V3EnrollmentVaultKeyWrappingError.invalidCiphertext
         }
-        let ephemeralPublicKey = combinedBytes.subdata(in: 1..<66)
-        let nonce = combinedBytes.subdata(in: 66..<78)
-        let ciphertext = combinedBytes.subdata(in: 78..<110)
-        let tag = combinedBytes.subdata(in: 110..<126)
+        let ephemeralPublicKey = combinedBytes.subdata(in: 1 ..< 66)
+        let nonce = combinedBytes.subdata(in: 66 ..< 78)
+        let ciphertext = combinedBytes.subdata(in: 78 ..< 110)
+        let tag = combinedBytes.subdata(in: 110 ..< 126)
         do {
             _ = try P256.KeyAgreement.PublicKey(
                 x963Representation: ephemeralPublicKey

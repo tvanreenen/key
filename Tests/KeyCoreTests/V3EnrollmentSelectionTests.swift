@@ -55,7 +55,7 @@ struct V3EnrollmentSelectionTests {
             try config.prepareEnrollmentSelection(rootHandle: root, invitationDigest: digest, vaultID: vaultID, create: false)
         }
         #expect(!FileManager.default.fileExists(atPath: config.initializationConfigFileURL.deletingLastPathComponent().path))
-        for _ in 0..<2 {
+        for _ in 0 ..< 2 {
             _ = try config.prepareEnrollmentSelection(rootHandle: root, invitationDigest: digest, vaultID: vaultID, create: true)
         }
         #expect(try !config.hasConfiguration())

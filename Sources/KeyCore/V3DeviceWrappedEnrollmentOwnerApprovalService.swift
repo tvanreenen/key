@@ -57,9 +57,9 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
         limits: V3ManifestRepositoryLimits = .standard,
         makeVaultKey: @escaping VaultKeyGenerator = {
             var generator = SystemRandomNumberGenerator()
-            return Data((0..<32).map { _ in
+            return Data((0 ..< 32).map { _ in
                 UInt8.random(
-                    in: UInt8.min...UInt8.max,
+                    in: UInt8.min ... UInt8.max,
                     using: &generator
                 )
             })
@@ -226,7 +226,7 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
     }
 
     private func freshVaultKey(excluding current: Data) throws -> Data {
-        for _ in 0..<16 {
+        for _ in 0 ..< 16 {
             let candidate = makeVaultKey()
             guard candidate.count == 32 else {
                 throw V3DeviceWrappedEnrollmentTransitionError

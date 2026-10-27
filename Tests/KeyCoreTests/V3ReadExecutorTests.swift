@@ -271,7 +271,7 @@ private struct ExecutorFixture {
         objectData: Data? = nil,
         stale: Bool = false
     ) throws {
-        let vaultKey = Data(0..<32)
+        let vaultKey = Data(0 ..< 32)
         let keyID = try V3VaultKeyID.derive(
             vaultKey: vaultKey,
             vaultID: Self.vaultID

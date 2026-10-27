@@ -286,7 +286,7 @@ private struct RuntimeFixture {
     private static let selectedVaultID =
         "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
     private static let selectedVaultKey =
-        Data((0..<32).map(UInt8.init))
+        Data((0 ..< 32).map(UInt8.init))
 
     let vaultID = selectedVaultID
     let vaultKey = selectedVaultKey

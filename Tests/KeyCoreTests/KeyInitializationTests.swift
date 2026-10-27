@@ -137,7 +137,7 @@ struct KeyInitializationTests {
         let home = try makeHome()
         defer { try? FileManager.default.removeItem(at: home) }
         let existing = try writeLegacyTestConfiguration(home: home)
-        let keys = MemoryVaultKeyStore(keyData: Data((0..<32).map(UInt8.init)))
+        let keys = MemoryVaultKeyStore(keyData: Data((0 ..< 32).map(UInt8.init)))
         let handler = KeyServiceHandler(
             keyStore: keys, entryStore: EntryStore(rootURL: existing.vaultDirectoryURL),
             configStore: KeyConfigStore(homeDirectoryURL: home)
@@ -333,7 +333,7 @@ struct KeyInitializationTests {
         let config = KeyConfigStore(homeDirectoryURL: home)
         let root = home.appendingPathComponent("Vault")
         var calls = 0
-        for _ in 0..<2 {
+        for _ in 0 ..< 2 {
             let service = V3VaultInitializationService(configStore: config) { _, _, _ in
                 calls += 1
                 throw AppError.operationRefused("Simulated interruption")

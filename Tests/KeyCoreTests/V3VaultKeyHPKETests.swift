@@ -10,7 +10,7 @@ struct V3VaultKeyHPKETests {
         "018f4d38-7d5a-7b20-b0f1-97d6e96c44b4"
     private static let otherTransitionID =
         "018f4d38-7d5a-7b20-b0f1-97d6e96c44b5"
-    private static let vaultKey = Data((0..<32).map(UInt8.init))
+    private static let vaultKey = Data((0 ..< 32).map(UInt8.init))
 
     @Test
     func roundTripsWithSoftwareP256Key() throws {
@@ -185,7 +185,7 @@ struct V3VaultKeyHPKETests {
                 vaultID: vaultID
             ),
             authorityTransitionID: transitionID,
-            recipientDeviceID: Base64URL.encode(Data(0..<32))
+            recipientDeviceID: Base64URL.encode(Data(0 ..< 32))
         )
     }
 }

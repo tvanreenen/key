@@ -25,7 +25,7 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
     private static let seedOperationID = try! VaultTransactionOperationID(
         validating: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b8"
     )
-    private static let currentKey = Data(0..<32)
+    private static let currentKey = Data(0 ..< 32)
     private static let nextKey = Data(repeating: 0x41, count: 32)
     private static let approvalTime: UInt64 = 4_102_444_800
 

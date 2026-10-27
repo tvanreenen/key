@@ -1027,7 +1027,7 @@ private struct Fixture {
     static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
     static let entryID = "018f4d39-930c-735d-8d6f-588e9b0a3a48"
     static let digest = String(repeating: "A", count: 43)
-    static let vaultKey = Data((0..<32).map(UInt8.init))
+    static let vaultKey = Data((0 ..< 32).map(UInt8.init))
     static let alternateVaultKey = Data(repeating: 0xFF, count: 32)
     static let keyID = try! V3VaultKeyID.derive(
         vaultKey: vaultKey,
@@ -1311,7 +1311,7 @@ private func highSSignature(fromLowS signature: Data) -> Data {
         0xF3, 0xB9, 0xCA, 0xC2, 0xFC, 0x63, 0x25, 0x51
     ]
     let bytes = Array(signature)
-    let s = Array(bytes[32..<64])
+    let s = Array(bytes[32 ..< 64])
     var highS = [UInt8](repeating: 0, count: 32)
     var borrow = 0
     for index in stride(from: 31, through: 0, by: -1) {
@@ -1324,7 +1324,7 @@ private func highSSignature(fromLowS signature: Data) -> Data {
             borrow = 0
         }
     }
-    return Data(bytes[0..<32] + highS)
+    return Data(bytes[0 ..< 32] + highS)
 }
 
 private extension Data {

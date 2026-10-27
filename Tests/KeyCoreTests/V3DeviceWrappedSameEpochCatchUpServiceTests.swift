@@ -13,7 +13,7 @@ struct V3DeviceWrappedSameEpochCatchUpServiceTests {
         "018f4d38-7d5a-7b20-b0f1-97d6e96c84b5"
     private static let forkEntryID =
         "018f4d38-7d5a-7b20-b0f1-97d6e96c84b6"
-    private static let vaultKey = Data(0..<32)
+    private static let vaultKey = Data(0 ..< 32)
 
     @Test
     func advancesOneAuthenticatedSameEpochPathWithCheckpointCAS() throws {

@@ -10,7 +10,7 @@ struct V3DeviceWrappedGenesisBuilderTests {
         "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
     private static let transitionID =
         "018f4d38-7d5a-7b20-b0f1-97d6e96c44b4"
-    private static let vaultKey = Data(0..<32)
+    private static let vaultKey = Data(0 ..< 32)
 
     @Test
     func buildsOneOwnerGenesisWhoseWrapperOpensForThatDevice() throws {

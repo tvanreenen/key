@@ -583,7 +583,6 @@ public struct KeyConfigStore {
         return Data(contents.utf8)
     }
 
-
     private func ensureDirectoryExists(at url: URL, failureMessage: String) throws {
         var isDirectory: ObjCBool = false
         let path = normalizedPath(for: url)
@@ -611,7 +610,6 @@ public struct KeyConfigStore {
 
         throw AppError.invalidConfiguration(failureMessage)
     }
-
 
     private func normalizedPath(for url: URL) -> String {
         let path = url.standardizedFileURL.path(percentEncoded: false)

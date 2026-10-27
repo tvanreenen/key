@@ -9,7 +9,7 @@ struct V3ImmutableTransactionPublisherTests {
     fileprivate static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
     fileprivate static let entryA = "018f4d39-930c-735d-8d6f-588e9b0a3a48"
     fileprivate static let entryB = "018f4d3a-a844-72ad-983e-b09a8fc0e924"
-    fileprivate static let vaultKey = Data((0..<32).map(UInt8.init))
+    fileprivate static let vaultKey = Data((0 ..< 32).map(UInt8.init))
     fileprivate static let keyID = try! V3VaultKeyID.derive(
         vaultKey: vaultKey,
         vaultID: vaultID

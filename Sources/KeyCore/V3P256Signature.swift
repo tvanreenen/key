@@ -30,7 +30,7 @@ enum V3P256Signature {
         }
 
         var result = Array(rawRepresentation)
-        let s = Array(result[32..<64])
+        let s = Array(result[32 ..< 64])
         if !isLowScalar(s) {
             var normalized = [UInt8](repeating: 0, count: 32)
             var borrow = 0
@@ -44,7 +44,7 @@ enum V3P256Signature {
                     borrow = 0
                 }
             }
-            result.replaceSubrange(32..<64, with: normalized)
+            result.replaceSubrange(32 ..< 64, with: normalized)
         }
         return Data(result)
     }

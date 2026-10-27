@@ -8,7 +8,7 @@ struct V3VaultMutationServiceTests {
         "018f4d38-7d5a-7b20-b0f1-97d6e96c5000"
     fileprivate static let initialEntryID =
         "018f4d38-7d5a-7b20-b0f1-97d6e96c5001"
-    fileprivate static let vaultKey = Data((0..<32).map(UInt8.init))
+    fileprivate static let vaultKey = Data((0 ..< 32).map(UInt8.init))
 
     @Test
     func ordinaryCommandsPublishAuthenticatedImmutableHistory() throws {

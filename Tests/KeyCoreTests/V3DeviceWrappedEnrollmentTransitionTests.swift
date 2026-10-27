@@ -16,7 +16,7 @@ struct V3DeviceWrappedEnrollmentTransitionTests {
         "018f4d38-7d5a-7b20-b0f1-97d6e96c44b6"
     fileprivate static let entryID =
         "018f4d38-7d5a-7b20-b0f1-97d6e96c44b7"
-    fileprivate static let currentKey = Data(0..<32)
+    fileprivate static let currentKey = Data(0 ..< 32)
     private static let nextKey = Data(repeating: 0x41, count: 32)
     private static let laterKey = Data(repeating: 0x51, count: 32)
     private static let approvalTime: UInt64 = 4_102_444_800

@@ -8,8 +8,8 @@ private let runLargeMigrationQualification =
 
 @Suite
 struct V3DeviceWrappedGenesisInstallerTests {
-    private static let v2Key = Data((0..<32).map(UInt8.init))
-    private static let newVaultKey = Data((32..<64).map(UInt8.init))
+    private static let v2Key = Data((0 ..< 32).map(UInt8.init))
+    private static let newVaultKey = Data((32 ..< 64).map(UInt8.init))
     private static let operationID = try! VaultTransactionOperationID(
         validating: "018f4d38-7d5a-7b20-b0f1-97d6e96c4500"
     )
@@ -241,7 +241,7 @@ struct V3DeviceWrappedGenesisInstallerTests {
 
     @Test(.enabled(if: runLargeMigrationQualification))
     func migratesRealisticLargeMixedSnapshotWithoutChangingV2Source() throws {
-        let sources = (0..<300).map { index in
+        let sources = (0 ..< 300).map { index in
             let group = String(format: "%02d", index / 25)
             let item = String(format: "%03d", index)
             if index.isMultiple(of: 5) {

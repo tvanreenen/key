@@ -247,9 +247,9 @@ struct V3DeviceWrappedEnrollmentOwnerWorkflow:
 
     private func randomNonce() -> Data {
         var generator = SystemRandomNumberGenerator()
-        return Data((0..<32).map { _ in
+        return Data((0 ..< 32).map { _ in
             UInt8.random(
-                in: UInt8.min...UInt8.max,
+                in: UInt8.min ... UInt8.max,
                 using: &generator
             )
         })

@@ -1,0 +1,6 @@
+# Keep the existing four-space style and explicit Swift declarations.
+--swift-version 6.2
+--indent 4
+--linebreaks lf
+--exclude .build,DerivedData,build
+--rules consecutiveBlankLines,consecutiveSpaces,linebreakAtEndOfFile,linebreaks,spaceAroundBraces,spaceAroundBrackets,spaceAroundGenerics,spaceAroundOperators,spaceInsideBraces,spaceInsideBrackets,spaceInsideGenerics,spaceInsideParens,trailingSpace
