@@ -7,16 +7,19 @@ import Foundation
 struct V3EnrollmentExchangeCoordinator: Sendable {
     private let mailbox: any V3EnrollmentMailboxStoring
     private let stateStore: any V3EnrollmentCeremonyStateStoring
+    private let validateScope: @Sendable () throws -> Void
     private let authenticator: V3EnrollmentMessageAuthenticator
 
     init(
         mailbox: any V3EnrollmentMailboxStoring,
         stateStore: any V3EnrollmentCeremonyStateStoring,
         authenticator: V3EnrollmentMessageAuthenticator =
-            V3EnrollmentMessageAuthenticator()
+            V3EnrollmentMessageAuthenticator(),
+        validateScope: @escaping @Sendable () throws -> Void = {}
     ) {
         self.mailbox = mailbox
         self.stateStore = stateStore
+        self.validateScope = validateScope
         self.authenticator = authenticator
     }
 
@@ -64,6 +67,7 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
             signedJoinRequest: nil
         )
         let state = try installOrResume(proposed)
+        try validateScope()
         try mailbox.publishInvitation(
             state.signedInvitation.canonicalBytes
         )
@@ -120,6 +124,7 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
         guard let storedJoinRequest = state.signedJoinRequest else {
             throw V3EnrollmentCeremonyStateError.invalidState
         }
+        try validateScope()
         try mailbox.publishJoinRequest(
             storedJoinRequest.canonicalBytes,
             invitationDigest: state.invitationDigest
@@ -156,6 +161,7 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
             throw V3EnrollmentCeremonyStateError.conflict
         }
         try invitation.requireUnexpired(at: unixTime)
+        try validateScope()
         try mailbox.publishJoinRequest(
             signedJoinRequest.canonicalBytes,
             invitationDigest: invitation.digest
@@ -247,6 +253,7 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
             signedInvitation: state.signedInvitation,
             signedJoinRequest: signedJoinRequest
         )
+        try validateScope()
         try stateStore.replaceState(
             updated.canonicalBytes,
             expectedState: loaded.bytes,
@@ -349,6 +356,7 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
             signedJoinRequest: state.signedJoinRequest,
             ownerApproval: approval
         )
+        try validateScope()
         try stateStore.replaceState(
             prepared.canonicalBytes,
             expectedState: loaded.bytes,
@@ -481,6 +489,7 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
             signedJoinRequest: state.signedJoinRequest,
             ownerApproval: state.ownerApproval
         )
+        try validateScope()
         try stateStore.replaceState(
             consumed.canonicalBytes,
             expectedState: loaded.bytes,
@@ -532,6 +541,7 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
             signedInvitation: state.signedInvitation,
             signedJoinRequest: state.signedJoinRequest
         )
+        try validateScope()
         try stateStore.replaceState(
             consumed.canonicalBytes,
             expectedState: loaded.bytes,
@@ -568,6 +578,7 @@ struct V3EnrollmentExchangeCoordinator: Sendable {
             return existing
         }
 
+        try validateScope()
         try stateStore.replaceState(
             proposed.canonicalBytes,
             expectedState: nil,

@@ -21,7 +21,7 @@ public enum KeyRecoveryRecipientRemovalRequest: Codable, Equatable, Sendable {
     }
     if case .remove(_, let token, let operation, _) = self {
       guard isRecoveryRemovalDigest(token),
-        operation.map { (try? VaultTransactionOperationID(validating: $0)) != nil } ?? true
+        operation.map({ (try? VaultTransactionOperationID(validating: $0)) != nil }) ?? true
       else {
         throw AppError.operationRefused(
           "Removal requires the complete reviewed confirmation and original saved operation ID, when present."
@@ -47,7 +47,7 @@ public struct KeyRecoveryRecipientRemovalReview: Codable, Equatable, Sendable {
       Set(remainingRecipientIDs).count == remainingRecipientIDs.count,
       !remainingRecipientIDs.contains(recipientID),
       remainingRecipientIDs.allSatisfy({ (try? V3RecoveryRecipientID(rawValue: $0)) != nil }),
-      pendingOperationID.map { (try? VaultTransactionOperationID(validating: $0)) != nil } ?? true
+      pendingOperationID.map({ (try? VaultTransactionOperationID(validating: $0)) != nil }) ?? true
     else {
       throw AppError.service("Invalid recovery key removal review.")
     }

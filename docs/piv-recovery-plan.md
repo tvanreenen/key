@@ -73,9 +73,9 @@ package is newly declared qualified/released by this consolidation.
 | `REC-807` Native token/setup | Bound read-only reader, scoped agreement and external administration boundary; one physical key tested. | Setup instructions, certificate/key/reset lifecycle, platform matrix and remaining enforcement cases. |
 | `REC-808` Registration/adoption | Durable prepare/export/finish, authenticated status and exact reconciliation; initial signed registration/adoption passed. | Remaining interrupted setup/adoption cases and independent backup registration. |
 | `REC-809` Content/branches | Mutation, merge/resolution, catch-up and coverage guards implemented; edited contents recovered on both Macs. | Signed independent-Mac branch/conflict-resolution acceptance. |
-| `REC-810` Authority lifecycle | Rotation, enrollment/adoption, revocation/removal, catch-up and restart domain services implemented; signed token-free rotation recovered on Air. Gated sharing commands connect recovery-profile enrollment, first trust, reviewed device revocation and exact local replacement/rejoin with scoped cancellation and retry. | Recipient removal product route, informed confirmations and physical lifecycle qualification. |
+| `REC-810` Authority lifecycle | Rotation, enrollment/adoption, revocation/removal, catch-up and restart domain services implemented; signed token-free rotation recovered on Air. Gated sharing commands connect recovery-profile enrollment, first trust, reviewed device revocation and exact local replacement/rejoin with scoped cancellation and retry. | Final integrated review and signed device/recipient lifecycle qualification. |
 | `REC-811` Restore/resume | Verified snapshot to fresh vault; encrypted preparation and exact authenticated resume; signed separate-process reads passed. | Complete durable-phase/failure matrix and restored-vault ordinary mutation acceptance. |
-| `REC-812` CLI/helper | Gated workflow, progress/touch UI, configured runtime and scoped native results recorded. | Remaining lifecycle integration, helper/concurrency/history acceptance and UX review. |
+| `REC-812` CLI/helper | Gated workflow, progress/touch UI, configured runtime and scoped native results recorded. | Helper/concurrency/history acceptance and signed UX review of the completed lifecycle routes. |
 | `REC-813` Backup/physical lifecycle | Primary/backup software fixtures; one physical credential tested in recorded cases. | Two independently generated physical keys and the lifecycle matrix below. |
 | `REC-814` Security/release qualification | Earlier integrated AI review/fixes, historical full regression/CI pass and exact signed/notarized build25 installs. | Fresh review/CI on latest changes, full regression, compatibility/provider and exact-candidate release checks. |
 | `REC-815` Adoption/publication | Explicit gated adoption implemented and exercised on disposable data. | Supported upgrade/migration/rollback qualification, real-vault opt-in gate and authorized publication. |
@@ -92,10 +92,12 @@ every physical test before dependent coding or review can start.
    integrated AI review. Reuse established evidence; repeat a basic two-Mac restore
    only for changed code or an unresolved question.
 2. **Lifecycle completion.** Device enrollment, reviewed revocation and replacement/rejoin product integration
-   is under review above #81. Software tests cover compared admission, exact
-   confirmation, stopped requests and retained recovery coverage. Signed two-Mac
-   lifecycle qualification remains open. Next finish recipient removal, including informed
-   exact-plan confirmations. Close the matrix below with a second independently
+   and recovery-key removal are implemented above #81 as focused review increments.
+   Software tests cover compared admission, exact confirmation, stopped requests,
+   retained cleanup and continuing recovery coverage. Last-recipient removal requires
+   a distinct acknowledgment that recovery will be unavailable. The
+   [user guide](recovery-user-guide.md) describes the gated flows. Signed two-Mac
+   lifecycle qualification remains open. Close the matrix below with a second independently
    provisioned physical key. Its acquisition/provisioning is an owner prerequisite;
    scope hardware actions separately.
 3. **Release/adoption qualification.** Freeze supported format/platform promises,

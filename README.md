@@ -41,6 +41,8 @@ key copy "$(key list | fzf)"
 
 Full `otpauth://` URLs are not accepted yet; provide only their `secret` value. Key intentionally has no built-in password generator, so any generator that writes to stdout can feed `key add` or `key edit`.
 
+Experimental development builds also include [hardware recovery and device lifecycle commands](docs/recovery-user-guide.md). These remain disabled in released Stable and ordinary Preview while qualification continues.
+
 ## How access works
 
 When a command first needs protected key material, macOS asks you to confirm your presence using Touch ID, Apple Watch approval, or your Mac password, depending on your hardware and settings. macOS enforces this requirement on access to the protected keys themselves. Apple explains the available [macOS authentication methods](https://developer.apple.com/documentation/LocalAuthentication/LAPolicy/deviceOwnerAuthentication) and how to [enable Apple Watch approval](https://support.apple.com/en-us/102442).

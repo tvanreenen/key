@@ -9,6 +9,37 @@ struct V3EnrollmentExchangeCoordinatorTests {
         "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
     private static let activeTime: UInt64 = 1_800_000_000
 
+    @Test(arguments: [false, true])
+    func stoppedCeremonyDoesNotPublishAfterReadOrPersistence(persisted: Bool) throws {
+        let fixture = try Fixture()
+        let stateStore = MemoryCeremonyStateStore()
+        let mailbox = MemoryEnrollmentMailbox()
+        let cancellation = PIVRecoveryCancellation()
+        if persisted {
+            stateStore.afterReplace = { cancellation.cancel() }
+        } else {
+            stateStore.afterLoad = { cancellation.cancel() }
+        }
+        let coordinator = V3EnrollmentExchangeCoordinator(
+            mailbox: mailbox, stateStore: stateStore,
+            validateScope: {
+                if cancellation.isCancelled { throw PIVRecoveryAgreementError.cancelled }
+            })
+        #expect(throws: PIVRecoveryAgreementError.cancelled) {
+            try coordinator.beginInviting(fixture.signedInvitation, at: Self.activeTime)
+        }
+        #expect(mailbox.invitations.isEmpty)
+        stateStore.afterLoad = nil
+        let retained = try stateStore.loadState(
+            vaultID: Self.vaultID, invitationDigest: fixture.invitation.digest)
+        #expect((retained != nil) == persisted)
+        if let retained {
+            #expect(
+                try V3EnrollmentCeremonyState(canonicalBytes: retained)
+                    .signedInvitation == fixture.signedInvitation)
+        }
+    }
+
     @Test
     func inviterPersistsExactBytesBeforePublishingAndResumesRetry() throws {
         let fixture = try Fixture()
@@ -690,6 +721,8 @@ private final class MemoryCeremonyStateStore:
     // On macOS 15+, Synchronization.Mutex can replace this compatibility lock.
     private let lock = NSLock()
     private var states: [Key: Data] = [:]
+    var afterLoad: (@Sendable () -> Void)?
+    var afterReplace: (@Sendable () -> Void)?
 
     func loadState(
         vaultID: String,
@@ -697,6 +730,7 @@ private final class MemoryCeremonyStateStore:
     ) throws -> Data? {
         lock.lock()
         defer { lock.unlock() }
+        defer { afterLoad?() }
         return states[
             Key(vaultID: vaultID, invitationDigest: invitationDigest)
         ]
@@ -718,6 +752,7 @@ private final class MemoryCeremonyStateStore:
             throw V3EnrollmentCeremonyStateError.conflict
         }
         states[key] = state
+        afterReplace?()
     }
 
     func forceSet(

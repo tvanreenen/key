@@ -76,7 +76,7 @@ func makeLiveV3EnrollmentWorkflowService(
     let ceremonies = V3EnrollmentCeremonyStateKeychainStore(configuration: runtimeConfiguration)
     let exchange = V3EnrollmentExchangeCoordinator(
         mailbox: V3FilesystemEnrollmentMailbox(rootHandle: rootHandle),
-        stateStore: ceremonies
+        stateStore: ceremonies, validateScope: validateScope
     )
     let identityManager = V3EnrollmentDeviceIdentityManager(
         recordStore: V3EnrollmentDeviceKeyRecordKeychainStore(
