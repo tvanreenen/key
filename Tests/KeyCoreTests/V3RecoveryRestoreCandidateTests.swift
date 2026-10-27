@@ -97,7 +97,7 @@ struct V3RecoveryRestoreCandidateTests {
     #expect(try files(f.root) == before)
   }
 
-  @Test(arguments: 0..<10)
+  @Test(arguments: 0 ..< 10)
   func sourceAuthorityAndInvalidDestinationInputsCannotPrepareAReplacement(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -131,7 +131,7 @@ struct V3RecoveryRestoreCandidateTests {
     #expect(calls.value == 1 && f.core.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<9)
+  @Test(arguments: 0 ..< 9)
   func independentValidationRefusesMismatchedContentsAndArtifacts(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -198,7 +198,7 @@ struct V3RecoveryRestoreCandidateTests {
     #expect(calls.value == 1)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func preparationAndValidationRespectBoundedSourceAndSnapshotLimits(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()

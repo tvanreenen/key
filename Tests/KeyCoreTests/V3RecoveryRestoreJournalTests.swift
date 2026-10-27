@@ -31,7 +31,7 @@ struct V3RecoveryRestoreJournalTests {
     #expect(
       try V3RecoveryRestoreReservation(canonicalBytes: reservation.canonicalBytes) == reservation)
     #expect(f.preparations.value == nil && f.reservations.value != nil)
-    let owner = try Owner()  // Only after successful durable reservation.
+    let owner = try Owner() // Only after successful durable reservation.
     let candidate = try f.candidate(snapshot, owner: owner.identity)
     let bundle = try journal.stage(
       candidate, reservation: reservation, environment: f.environment,
@@ -159,7 +159,7 @@ struct V3RecoveryRestoreJournalTests {
     #expect(f.reservations.value != nil)
   }
 
-  @Test(arguments: 0..<6)
+  @Test(arguments: 0 ..< 6)
   func changedUnavailableOrUncontainedFilesNeverBecomeOwnedPreparation(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -203,7 +203,7 @@ struct V3RecoveryRestoreJournalTests {
     #expect(Set(domains.map(\.label)).count == domains.count)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func confirmationRejectsIncorrectKeyOwnerSourceOrConfiguration(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -242,7 +242,7 @@ struct V3RecoveryRestoreJournalTests {
     )
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func ownershipAndRecordChangesAcrossFinalValidationStopDurableReadiness(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -273,7 +273,7 @@ struct V3RecoveryRestoreJournalTests {
         .isEmpty)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func invalidReservedIdentifiersLeaveNoOwnershipOrRecords(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -310,7 +310,7 @@ struct V3RecoveryRestoreJournalTests {
     }
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func validCandidateCannotSubstituteReservedIdentifiers(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -352,7 +352,7 @@ struct V3RecoveryRestoreJournalTests {
     _ = try f.reserve(f.journal(), snapshot: snapshot)
   }
 
-  @Test(arguments: 0..<8)
+  @Test(arguments: 0 ..< 8)
   func bundleCodecChecksPublicBindingsAndBudgetsButDoesNotClaimAuthentication(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()

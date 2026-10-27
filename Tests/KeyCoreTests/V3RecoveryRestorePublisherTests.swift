@@ -134,7 +134,7 @@ struct V3RecoveryRestorePublisherTests {
         atPath: f.environment.destination.rootURL.appendingPathComponent("entries").path))
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func onlyKnownEmptyParentsFromInterruptedCreationAreAllowed(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -154,7 +154,7 @@ struct V3RecoveryRestorePublisherTests {
     #expect(try Base().files(f.environment.destination.rootURL).count == bundle.entries.count + 1)
   }
 
-  @Test(arguments: 0..<9)
+  @Test(arguments: 0 ..< 9)
   func unexpectedDestinationObjectsRefuseBeforeWrapperOpening(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -198,7 +198,7 @@ struct V3RecoveryRestorePublisherTests {
     #expect(!FileManager.default.fileExists(atPath: manifestURL(f, bundle).path))
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func aPublishedManifestNeverAuthorizesRepairOfMissingOrChangedFiles(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -227,7 +227,7 @@ struct V3RecoveryRestorePublisherTests {
     #expect(try Base().files(f.environment.destination.rootURL) == before)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func authenticationFailureMakesNoPublicationAndNeverRetries(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -254,7 +254,7 @@ struct V3RecoveryRestorePublisherTests {
       vaultKey: Base.key, identity: Identity(owner: owner))
   }
 
-  @Test(arguments: 0..<6)
+  @Test(arguments: 0 ..< 6)
   func changesAcrossWrapperOpeningCannotPublish(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -271,7 +271,7 @@ struct V3RecoveryRestorePublisherTests {
     #expect(files.count == (variant == 5 ? 1 : 0))
   }
 
-  @Test(arguments: 0..<8)
+  @Test(arguments: 0 ..< 8)
   func changesBeforeManifestPublicationLeaveTheAttemptUnselected(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -299,7 +299,7 @@ struct V3RecoveryRestorePublisherTests {
     #expect(!FileManager.default.fileExists(atPath: manifestURL(f, bundle).path))
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func finalRecordOrDestinationChangesRefuseWithoutClearingOwnership(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -317,7 +317,7 @@ struct V3RecoveryRestorePublisherTests {
     #expect(try Data(contentsOf: manifestURL(f, bundle)) == bundle.manifest.canonicalBytes)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func noExactOwnedPreparationMeansNoWrapperOpening(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -339,7 +339,7 @@ struct V3RecoveryRestorePublisherTests {
     #expect(try Base().files(f.environment.destination.rootURL).isEmpty)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func publicationBudgetsRefuseBeforePrivateOperationOrDestinationWrites(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()

@@ -80,7 +80,7 @@ struct V3RecoveryRestoreSelectionInstallerTests {
     #expect([h.f.reservations.value, h.f.preparations.value] == pins)
   }
 
-  @Test(arguments: 0..<8)
+  @Test(arguments: 0 ..< 8)
   func existingNonexactConfigurationsAreNeverAcceptedOrReplaced(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let h = try Harness()
@@ -127,7 +127,7 @@ struct V3RecoveryRestoreSelectionInstallerTests {
     #expect(h.f.reservations.value != nil && h.f.preparations.value != nil)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func selectedConfigurationCannotReconstructMissingOrDifferentTrust(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let h = try Harness()
@@ -165,7 +165,7 @@ struct V3RecoveryRestoreSelectionInstallerTests {
     _ = try h.select(snapshot: snapshot)
   }
 
-  @Test(arguments: 0..<6, [false, true])
+  @Test(arguments: 0 ..< 6, [false, true])
   func changedStateAfterProofOrAtAtomicWriteStopsSelection(variant: Int, duringWrite: Bool) throws {
     guard #available(macOS 26.0, *) else { return }
     let h = try Harness()
@@ -203,7 +203,7 @@ struct V3RecoveryRestoreSelectionInstallerTests {
     #expect(h.f.reservations.value != nil)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func postSelectionChangesNeverRollBackConfigOrTrust(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let h = try Harness()
@@ -308,7 +308,7 @@ struct V3RecoveryRestoreSelectionInstallerTests {
     #expect(h.f.reservations.value != nil && h.f.preparations.value != nil)
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func replacedPhysicalRootsCannotSelectConfiguration(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let h = try Harness()

@@ -66,7 +66,7 @@ struct V3RecoveryRestoreIntentTests {
     }
   }
 
-  @Test(arguments: 0..<10)
+  @Test(arguments: 0 ..< 10)
   func changedPublicRecordIsNotAuthenticated(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -105,7 +105,7 @@ struct V3RecoveryRestoreIntentTests {
     #expect(f.calls.value == 1)
   }
 
-  @Test(arguments: 0..<9)
+  @Test(arguments: 0 ..< 9)
   func malformedAndUnboundedRecordsAreRejected(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -150,7 +150,7 @@ struct V3RecoveryRestoreIntentTests {
     #expect(throws: V3RecoveryRestoreError.invalidIntent) { try intent.requireCandidate(later) }
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func configurationAppearingDuringApprovalStopsPreparation(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -179,7 +179,7 @@ struct V3RecoveryRestoreIntentTests {
           .path))
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func replacedPhysicalFoldersStopTheAttempt(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()

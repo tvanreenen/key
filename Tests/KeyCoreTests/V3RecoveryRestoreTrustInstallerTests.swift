@@ -57,7 +57,7 @@ struct V3RecoveryRestoreTrustInstallerTests {
     #expect(try !h.f.config.hasConfiguration())
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func differentOrMalformedCheckpointIsNeverReplaced(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let h = try Harness()
@@ -90,7 +90,7 @@ struct V3RecoveryRestoreTrustInstallerTests {
     #expect(h.f.reservations.value != nil && h.f.preparations.value != nil)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func identityFailureBeforeOrDuringFreshReopenRetainsCommittedCheckpoint(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let h = try Harness()
@@ -114,7 +114,7 @@ struct V3RecoveryRestoreTrustInstallerTests {
     _ = try h.install()
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func changesBeforeTrustInsertionCannotAdvanceTheCheckpoint(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let h = try Harness()
@@ -147,7 +147,7 @@ struct V3RecoveryRestoreTrustInstallerTests {
     #expect(h.checkpoints.value == (variant == 4 ? Data("foreign".utf8) : nil))
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func finalReopenRechecksCheckpointRecordAndConfiguration(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let h = try Harness()

@@ -107,7 +107,7 @@ struct V3RecoveryRestoreServiceTests {
     #expect(!FileManager.default.fileExists(atPath: f.destination.path))
   }
 
-  @Test(arguments: 0..<6)
+  @Test(arguments: 0 ..< 6)
   func publicPreflightRefusesInvalidScopeBeforeAgreement(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -187,7 +187,7 @@ struct V3RecoveryRestoreServiceTests {
     #expect(try !f.config.hasConfiguration())
   }
 
-  @Test(arguments: 0..<6)
+  @Test(arguments: 0 ..< 6)
   func uncertainCredentialCreationOrReloadCannotStageOrRegenerate(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()

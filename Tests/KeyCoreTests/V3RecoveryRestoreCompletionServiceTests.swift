@@ -139,7 +139,7 @@ struct V3RecoveryRestoreCompletionServiceTests {
     }
   }
 
-  @Test(arguments: 0..<3, [false, true])
+  @Test(arguments: 0 ..< 3, [false, true])
   func lateScopeChangeAtEntryManifestAndConfigRenameStopsPublication(target: Int, lock: Bool) throws
   {
     guard #available(macOS 26.0, *) else { return }
@@ -190,7 +190,7 @@ struct V3RecoveryRestoreCompletionServiceTests {
     #expect(f.reservations.value == nil && f.preparations.value == nil)
   }
 
-  @Test(arguments: 0..<6)
+  @Test(arguments: 0 ..< 6)
   func resumePublicPreflightRejectsChangedOrIncompleteStateBeforeAgreement(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()

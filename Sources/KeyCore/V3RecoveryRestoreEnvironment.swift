@@ -332,7 +332,7 @@ struct V3RecoveryRestoreEnvironment: Sendable {
       var current = fcntl(descriptor, F_DUPFD_CLOEXEC, 0)
       guard current >= 0 else { throw V3RecoveryRestoreError.locationChanged }
       defer { close(current) }
-      for _ in 0..<1_024 {
+      for _ in 0 ..< 1_024 {
         var metadata = stat()
         guard fstat(current, &metadata) == 0 else { throw V3RecoveryRestoreError.locationChanged }
         let identity = VaultRootDirectoryIdentity(

@@ -119,7 +119,7 @@ struct V3RecoveryRestoreFinalizerTests {
     #expect(h.f.f.reservations.value == nil && h.f.f.preparations.value == nil)
   }
 
-  @Test(arguments: 0..<7)
+  @Test(arguments: 0 ..< 7)
   func missingChangedOrUnauthenticatedCompletionCannotRemoveEitherPin(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let h = try Harness()
@@ -159,7 +159,7 @@ struct V3RecoveryRestoreFinalizerTests {
     #expect(h.f.identity.calls.value == 2)
   }
 
-  @Test(arguments: 0..<6, [false, true])
+  @Test(arguments: 0 ..< 6, [false, true])
   func changedStateBeforeOrBetweenRemovalStepsStopsFurtherCleanup(variant: Int, halfway: Bool)
     throws
   {
@@ -198,7 +198,7 @@ struct V3RecoveryRestoreFinalizerTests {
     }
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func changesAfterLastRemovalCannotReturnSuccessOrRecreateOwnership(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let h = try Harness()
@@ -224,7 +224,7 @@ struct V3RecoveryRestoreFinalizerTests {
     #expect(try h.finalize() == nil && h.f.identity.calls.value == calls)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func preparationOnlyOwnershipMustPinTheExactCompleteBundleAndReservation(variant: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let h = try Harness()
