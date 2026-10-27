@@ -93,7 +93,7 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
         reason: "Give the Mac whose code you compared access and change the vault key.")
       try requireSameCeremony(base.ceremony, consumed: false)
       try lifecycle.revalidate(base.current)
-      let publisher = publisher(operationID)
+      let publisher = publisher(operationID, continuing: ticket)
       let commit = try publisher.publish(
         candidate, state: base.ceremony, approvedTranscriptDigest: approvedTranscriptDigest,
         currentVaultKey: base.current.key, nextVaultKey: nextKey,
@@ -190,7 +190,8 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
       }
       try session.requireCurrent(ticket)
       try recheck(state, checked: checked, ceremony: ceremony, publisher: publisher)
-      let outcome = try publisher.recoverInterruptedTransaction(
+      let authorizedPublisher = self.publisher(operationID, continuing: ticket)
+      let outcome = try authorizedPublisher.recoverInterruptedTransaction(
         vaultID: vaultID, state: ceremony, approvedTranscriptDigest: digest,
         currentVaultKey: oldKey, nextVaultKey: nextKey, expectedOwner: identity.publicIdentity,
         expectedAnchor: state.anchorData)
@@ -199,7 +200,7 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
         try lifecycle.requireNoPending()
         try installCommitted(
           checked.candidate.envelope, ceremony: ceremony, vaultKey: nextKey,
-          continuing: ticket, operationID: state.intent.operationID, publisher: publisher)
+          continuing: ticket, operationID: state.intent.operationID, publisher: authorizedPublisher)
       case .nothingToRecover, .abandoned: session.invalidate()
       }
       return outcome
@@ -442,7 +443,10 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
     }
     throw V3RecoveryDeviceEnrollmentError.invalidCandidate
   }
-  private func publisher(_ operationID: VaultTransactionOperationID)
+  private func publisher(
+    _ operationID: VaultTransactionOperationID,
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil
+  )
     -> V3RecoveryDeviceEnrollmentPublisher
   {
     .init(
@@ -450,7 +454,11 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
       objectStore: store, checkpointStore: checkpoints, recoveryAnchorStore: ownership,
       registrationAnchorStore: registration, adoptionAnchorStore: adoption,
       ceremonyStore: ceremonies,
-      cache: cache, limits: limits, phaseObserver: phaseObserver, validateScope: validateScope)
+      cache: cache, limits: limits, phaseObserver: phaseObserver,
+      validateScope: {
+        try validateScope()
+        if let ticket { try session.requireCurrent(ticket) }
+      })
   }
   private struct SessionBoundUnwrapper: V3DeviceWrappedVaultKeyUnwrapping {
     let base: Identity

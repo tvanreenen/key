@@ -31,8 +31,8 @@ struct V3RecoveryEnrollmentOwnerServiceTests {
     #expect(try f.savedState().phase == .awaitingComparison && f.disk.ownership.value == nil)
   }
 
-  @Test(arguments: 0..<14)
-  func requestCancellationStopsAtEveryPublicationBoundary(phase: Int) throws {
+  @Test(arguments: 0..<14, [false, true])
+  func requestCancellationStopsAtEveryPublicationBoundary(phase: Int, sessionOnly: Bool) throws {
     let f = try Fixture()
     defer { f.disk.remove() }
     let session = try unlocked(f)
@@ -40,7 +40,9 @@ struct V3RecoveryEnrollmentOwnerServiceTests {
     let s = service(
       f, session,
       observer: Observer {
-        if $0 == Self.phases[phase] { scope.cancellation.cancel() }
+        if $0 == Self.phases[phase] {
+          if sessionOnly { session.invalidate() } else { scope.cancellation.cancel() }
+        }
       }, validateScope: { try scope.requireCurrent() })
     #expect(throws: (any Error).self) {
       try s.approve(
