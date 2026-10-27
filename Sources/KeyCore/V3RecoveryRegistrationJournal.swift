@@ -99,6 +99,18 @@ struct V3RecoveryRegistrationJournal: Sendable {
     return try loadBundle(anchor).preparation
   }
 
+  /// Completion/export retain the exact recoverable record, not merely an
+  /// operation ID or a bundle that happens to decode to the same preparation.
+  func requirePending(_ preparation: V3RecoveryRegistrationPreparation) throws {
+    let vaultID = preparation.intent.expectedCheckpoint.vaultID
+    let expected = try ownership(preparation.intent, phase: .recoverable).canonicalBytes
+    try requireOwnership(expected, vaultID: vaultID)
+    guard try loadPending(vaultID: vaultID) == preparation else {
+      throw V3RecoveryRegistrationJournalError.invalidPreparation
+    }
+    try requireOwnership(expected, vaultID: vaultID)
+  }
+
   /// The service must first verify the durable candidate checkpoint and
   /// published contents. Only local ownership is removed; the encrypted bundle
   /// remains inert for audit and cannot be adopted by another device.

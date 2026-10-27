@@ -832,6 +832,79 @@ struct V3RecoveryRegistrationServiceTests {
     }
   }
 
+  @Test(arguments: [false, true])
+  func changedRegistrationOwnershipPreventsInitialExport(removed: Bool) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let changed: Data? =
+      try removed
+      ? nil
+      : V3ImmutableTransactionRecoveryAnchor(
+        operationID: .init(), vaultID: Core.vaultID,
+        intentDigest: Data(repeating: 0xAC, count: 32), phase: .recoverable
+      ).canonicalBytes
+    #expect(throws: V3RecoveryRegistrationJournalError.ownershipChanged) {
+      try f.prepare(
+        observer: Observer { phase in
+          if phase == .exportPrepared {
+            try f.ownership.replaceRecoveryAnchor(
+              changed, expectedAnchor: #require(f.ownership.value), vaultID: Core.vaultID)
+          }
+        })
+    }
+    #expect(f.ownership.value == changed)
+    #expect(f.checkpoints.value == f.core.checkpoint.canonicalBytes)
+    #expect(f.card.anchor == nil && f.provider.requests == 0)
+  }
+
+  @Test(
+    arguments: [
+      V3RecoveryRegistrationServicePhase.artifactsStaged, .entryPublished(index: 0),
+      .entriesVerified, .manifestVerified, .checkpointAdvanced, .localSessionUpdated,
+    ], [false, true])
+  func changedRegistrationOwnershipStopsRemainingEffectsAndPreservesCommit(
+    phase: V3RecoveryRegistrationServicePhase, removed: Bool
+  ) throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    f.card.anchor = try f.prepare().anchor
+    let preparation = try #require(try f.pending())
+    let original = try #require(f.ownership.value)
+    let changed: Data? =
+      try removed
+      ? nil
+      : V3ImmutableTransactionRecoveryAnchor(
+        operationID: .init(), vaultID: Core.vaultID,
+        intentDigest: Data(repeating: 0xAD, count: 32), phase: .recoverable
+      ).canonicalBytes
+    let installed = Keys()
+    #expect(throws: V3RecoveryRegistrationJournalError.ownershipChanged) {
+      try f.finish(
+        observer: Observer { reached in
+          if reached == phase {
+            try f.ownership.replaceRecoveryAnchor(
+              changed, expectedAnchor: original, vaultID: Core.vaultID)
+          }
+        }
+      ) { _, key in installed.append(key) }
+    }
+    let committed = phase == .checkpointAdvanced || phase == .localSessionUpdated
+    #expect((f.checkpoints.value != f.core.checkpoint.canonicalBytes) == committed)
+    #expect(installed.count == (phase == .localSessionUpdated ? 1 : 0))
+    #expect(f.ownership.value == changed && f.provider.requests == 1)
+    #expect(f.transactions.value == nil && f.adoption.value == nil)
+    #expect(
+      try Data(contentsOf: f.manifestURL(f.core.parent.digest)) == f.core.parent.canonicalBytes)
+    #expect(
+      FileManager.default.fileExists(atPath: f.bundleURL(preparation.intent.operationID).path))
+    // Restore only the exact original software fixture record, then explicitly
+    // resume. A committed prefix is reconciled rather than rolled back.
+    try f.ownership.replaceRecoveryAnchor(original, expectedAnchor: changed, vaultID: Core.vaultID)
+    #expect(try f.finish().alreadyActivated == committed)
+    #expect(f.provider.requests == (committed ? 1 : 2))
+  }
+
   private struct Observer: V3RecoveryRegistrationServicePhaseObserving {
     let action: @Sendable (V3RecoveryRegistrationServicePhase) throws -> Void
     init(_ action: @escaping @Sendable (V3RecoveryRegistrationServicePhase) throws -> Void) {

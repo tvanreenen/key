@@ -130,6 +130,7 @@ struct V3RecoveryRegistrationService: Sendable {
       try requireState(initial, checkpoint: checkpoint, currentKey: currentVaultKey)
       try reader.revalidate(observation)
       try requireCheckpoint(checkpoint)
+      try requirePending(preparation)
       return V3RecoveryRegistrationExport(
         operationID: preparation.intent.operationID, anchor: bytes,
         recipientID: preparation.intent.anchor.recipientID)
@@ -164,6 +165,7 @@ struct V3RecoveryRegistrationService: Sendable {
       try requirePending(preparation)
       try reader.revalidate(observation)
       try requireCheckpoint(checkpoint)
+      try requirePending(preparation)
       return V3RecoveryRegistrationExport(
         operationID: preparation.intent.operationID, anchor: bytes,
         recipientID: preparation.intent.anchor.recipientID)
@@ -301,10 +303,12 @@ struct V3RecoveryRegistrationService: Sendable {
       checkpoint: checkpoint, parent: initial.base, currentEntries: initial.entries,
       currentVaultKey: currentKey, nextVaultKey: nextKey, expectedOwner: identity.publicIdentity)
     for entry in preparation.stagedEntries {
+      try requirePending(preparation)
       try objectStore.stageEntry(
         entry.canonicalBytes, entryID: entry.context.entryID,
         digest: Data(SHA256.hash(data: entry.canonicalBytes)), operationID: operation)
     }
+    try requirePending(preparation)
     try objectStore.stageManifest(
       preparation.candidate.canonicalBytes, digest: preparation.candidate.digest,
       operationID: operation)
@@ -315,6 +319,7 @@ struct V3RecoveryRegistrationService: Sendable {
     try revalidateToken()
     try checkCancellation(cancellation)
     for (index, entry) in preparation.stagedEntries.enumerated() {
+      try requirePending(preparation)
       try objectStore.publishStagedEntry(
         entry.canonicalBytes, entryID: entry.context.entryID,
         digest: Data(SHA256.hash(data: entry.canonicalBytes)), operationID: operation)
@@ -330,6 +335,7 @@ struct V3RecoveryRegistrationService: Sendable {
     try checkCancellation(cancellation)
     try requirePublishedEntries(preparation)
     try requireCheckpoint(checkpoint)
+    try requirePending(preparation)
     try objectStore.publishStagedManifest(
       preparation.candidate.canonicalBytes, digest: preparation.candidate.digest,
       operationID: operation)
@@ -354,10 +360,12 @@ struct V3RecoveryRegistrationService: Sendable {
     try requireCheckpoint(checkpoint)
     let next = try V3ManifestCheckpoint(
       vaultID: vaultID, envelopeDigest: preparation.candidate.digest)
+    try requirePending(preparation)
     try checkpointStore.replaceCheckpoint(
       next.canonicalBytes, expectedCheckpoint: checkpoint.canonicalBytes, vaultID: vaultID)
     try observer.didReach(.checkpointAdvanced)
     try requireCheckpoint(next)
+    try requirePending(preparation)
     try afterCheckpointAdvance(next, nextKey)
     try observer.didReach(.localSessionUpdated)
     let cleanupPending = try completeOwnership(preparation, checkpoint: next)
@@ -396,6 +404,7 @@ struct V3RecoveryRegistrationService: Sendable {
     try requireState(state, checkpoint: checkpoint, currentKey: nextKey)
     try reader.revalidate(observation)
     try requireCheckpoint(checkpoint)
+    try requirePending(preparation)
     try afterCheckpointAdvance(checkpoint, nextKey)
     try observer.didReach(.localSessionUpdated)
     let cleanupPending = try completeOwnership(preparation, checkpoint: checkpoint)
@@ -407,8 +416,21 @@ struct V3RecoveryRegistrationService: Sendable {
     _ preparation: V3RecoveryRegistrationPreparation, checkpoint: V3ManifestCheckpoint
   ) throws -> Bool {
     try requireCheckpoint(checkpoint)
-    do { try journal.clearCompleted(preparation) } catch { return true }
+    try requirePending(preparation)
+    do {
+      try journal.clearCompleted(preparation)
+    } catch {
+      // An I/O failure with unchanged ownership is resumable cleanup. Lost or
+      // replaced ownership must not be reported as a successful registration.
+      try requirePending(preparation)
+      try requireCheckpoint(checkpoint)
+      return true
+    }
     try observer.didReach(.ownershipCleared)
+    try requireCheckpoint(checkpoint)
+    guard try journal.loadPending(vaultID: vaultID) == nil else {
+      throw V3RecoveryRegistrationServiceError.pendingCandidateChanged
+    }
     return false
   }
 
@@ -420,9 +442,7 @@ struct V3RecoveryRegistrationService: Sendable {
   }
 
   private func requirePending(_ preparation: V3RecoveryRegistrationPreparation) throws {
-    guard try pending() == preparation else {
-      throw V3RecoveryRegistrationServiceError.pendingCandidateChanged
-    }
+    try journal.requirePending(preparation)
   }
 
   private func openLocalCandidate(
