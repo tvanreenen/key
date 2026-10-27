@@ -12,6 +12,29 @@ struct V3RecoveryCatchUpCoordinatorTests {
   private typealias Core = V3RecoveryRegistrationTestSupport
   private typealias Publication = V3RecoveryPublicationTestSupport
 
+  @Test(arguments: [false, true])
+  func requestCancellationDuringDiscoveryOrUnwrapStopsCatchUpBeforeCheckpointChange(
+    duringUnwrap: Bool
+  ) throws {
+    let f = try Fixture()
+    defer { f.disk.remove() }
+    _ = try f.publish(.rotation)
+    let scope = KeyRecoveryRequestScope(authentication: .init(), deadline: .now() + 90)
+    let source: any V3ImmutableObjectReading
+    if duringUnwrap {
+      f.receiver.onUnwrap = { scope.cancellation.cancel() }
+      source = f.disk.store
+    } else {
+      source = Source(f.disk.store) { scope.cancellation.cancel() }
+    }
+    #expect(throws: (any Error).self) {
+      try service(f, source: source, validateScope: { try scope.requireCurrent() }).catchUp(
+        from: f.floor)
+    }
+    #expect(f.local.value == f.floor.checkpoint.canonicalBytes && !f.session.hasResidentKey)
+    #expect(f.receiver.unwraps == (duringUnwrap ? 1 : 0))
+  }
+
   @Test(arguments: Epochs.Action.allCases, [false, true])
   func publishedLifecycleAndFollowingSaveReachCurrent(action: Epochs.Action, empty: Bool) throws {
     let f = try Fixture(empty: empty, last: action == .lastRemoval)
@@ -373,14 +396,16 @@ struct V3RecoveryCatchUpCoordinatorTests {
     checkpoints: (any V3ManifestCheckpointStoring)? = nil,
     owner: (any VaultTransactionMutationOwning)? = nil,
     cache: (any V3CheckpointManifestCaching)? = nil,
-    maximumParentEdges: Int = 16_384, maximumStepCount: Int = 4_096
+    maximumParentEdges: Int = 16_384, maximumStepCount: Int = 4_096,
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) -> V3RecoveryCatchUpCoordinator {
     .init(
       mutationOwner: owner ?? VaultTransactionMutationOwner(), identity: identity ?? f.receiver,
       session: f.session, source: source ?? f.disk.store, checkpointStore: checkpoints ?? f.local,
       recoveryAnchorStore: f.pending[0], registrationAnchorStore: f.pending[1],
       adoptionAnchorStore: f.pending[2], cache: cache ?? f.localCache,
-      maximumParentEdges: maximumParentEdges, maximumStepCount: maximumStepCount)
+      maximumParentEdges: maximumParentEdges, maximumStepCount: maximumStepCount,
+      validateScope: validateScope)
   }
 
   private final class CountingOwner: VaultTransactionMutationOwning, Sendable {

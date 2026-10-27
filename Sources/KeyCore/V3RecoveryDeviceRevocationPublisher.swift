@@ -19,6 +19,7 @@ struct V3RecoveryDeviceRevocationPublisher: Sendable {
   private let cache: any V3CheckpointManifestCaching
   private let limits: V3ManifestRepositoryLimits
   private let phaseObserver: any V3ImmutableTransactionPhaseObserving
+  private let validateScope: @Sendable () throws -> Void
 
   init(
     mutationOwner: any VaultTransactionMutationOwning, objectStore: any V3TransactionArtifactStore,
@@ -28,7 +29,8 @@ struct V3RecoveryDeviceRevocationPublisher: Sendable {
     adoptionAnchorStore: any V3ImmutableTransactionRecoveryAnchorStoring,
     cache: any V3CheckpointManifestCaching, limits: V3ManifestRepositoryLimits = .standard,
     phaseObserver: any V3ImmutableTransactionPhaseObserving =
-      V3NoopContentTransactionPhaseObserver()
+      V3NoopContentTransactionPhaseObserver(),
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) {
     self.mutationOwner = mutationOwner
     self.objectStore = objectStore
@@ -39,6 +41,7 @@ struct V3RecoveryDeviceRevocationPublisher: Sendable {
     self.cache = cache
     self.limits = limits
     self.phaseObserver = phaseObserver
+    self.validateScope = validateScope
   }
 
   func publish(
@@ -132,7 +135,8 @@ struct V3RecoveryDeviceRevocationPublisher: Sendable {
     .init(
       objectStore: objectStore, registrationAnchorStore: registrationAnchorStore,
       adoptionAnchorStore: adoptionAnchorStore, currentVaultKey: currentVaultKey,
-      expectedOwner: expectedOwner, approvedPlan: approvedPlan, limits: limits)
+      expectedOwner: expectedOwner, approvedPlan: approvedPlan, limits: limits,
+      validateScope: validateScope)
   }
   private func publisher(
     _ validator: V3RecoveryDeviceRevocationTransactionValidator,
@@ -157,10 +161,12 @@ struct V3RecoveryDeviceRevocationTransactionValidator: V3ContentTransactionValid
   let expectedOwner: V3EnrollmentDeviceIdentity
   let approvedPlan: V3DeviceWrappedRevocationPlan?
   let limits: V3ManifestRepositoryLimits
+  var validateScope: @Sendable () throws -> Void = {}
   private var objects: V3ExactTransitionRepository { .init(source: objectStore, limits: limits) }
   private var snapshots: V3EntrySnapshotValidator { .init(limits: limits) }
 
   func requireAvailable(vaultID: String) throws {
+    try validateScope()
     for store in [registrationAnchorStore, adoptionAnchorStore] {
       guard try store.loadRecoveryAnchor(vaultID: vaultID) == nil else {
         throw V3RecoveryContentPublicationError.otherMutationPending

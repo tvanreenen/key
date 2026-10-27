@@ -304,6 +304,7 @@ struct V3RecoveryKeyTransitionCatchUpService: Sendable {
   private let mutationOwner: any VaultTransactionMutationOwning
   private let identity: any V3DeviceWrappedVaultKeyUnwrapping
   private let session: V3DeviceWrappedVaultKeySessionStore
+  private let validateScope: @Sendable () throws -> Void
   private let checkpoints: any V3ManifestCheckpointStoring
   private let ownership: [any V3ImmutableTransactionRecoveryAnchorStoring]
   private let cache: any V3CheckpointManifestCaching
@@ -318,12 +319,14 @@ struct V3RecoveryKeyTransitionCatchUpService: Sendable {
     registrationAnchorStore: any V3ImmutableTransactionRecoveryAnchorStoring,
     adoptionAnchorStore: any V3ImmutableTransactionRecoveryAnchorStoring,
     cache: any V3CheckpointManifestCaching, limits: V3ManifestRepositoryLimits = .standard,
-    maximumParentEdges: Int = 16_384
+    maximumParentEdges: Int = 16_384,
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) {
     precondition(maximumParentEdges > 0)
     self.mutationOwner = mutationOwner
     self.identity = identity
     self.session = session
+    self.validateScope = validateScope
     checkpoints = checkpointStore
     ownership = [recoveryAnchorStore, registrationAnchorStore, adoptionAnchorStore]
     self.cache = cache
@@ -444,6 +447,7 @@ struct V3RecoveryKeyTransitionCatchUpService: Sendable {
   }
 
   private func requireState(_ checkpoint: V3ManifestCheckpoint) throws {
+    try validateScope()
     for store in ownership where try store.loadRecoveryAnchor(vaultID: checkpoint.vaultID) != nil {
       throw V3RecoveryContentCatchUpError.localMutationPending
     }

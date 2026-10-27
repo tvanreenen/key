@@ -35,6 +35,31 @@ struct V3RecoveryAuthorityChangeServiceTests {
     #expect(try session.load(vaultID: Core.vaultID, keyID: f.parent.body.fields.keyID) == f.key)
   }
 
+  @Test(arguments: Action.allCases, 0..<28)
+  func stoppedRequestOrSessionCannotContinueAuthorityPublication(action: Action, variant: Int)
+    throws
+  {
+    let f = try Fixture(action)
+    defer { f.disk.remove() }
+    let session = try session(f)
+    let scope = KeyRecoveryRequestScope(authentication: .init(), deadline: .now() + 90)
+    let s = service(
+      f, session: session,
+      observer: Observer {
+        if $0 == Self.phases[variant % 14] {
+          if variant < 14 { scope.cancellation.cancel() } else { session.invalidate() }
+        }
+      }, validateScope: { try scope.requireCurrent() })
+    let review = try f.prepare(s)
+    #expect(throws: (any Error).self) { try f.execute(s, review: review) }
+    #expect(f.owner.signatures == f.signatures + 1)
+    if variant % 14 < 12 {
+      #expect(f.disk.checkpoints.value == f.checkpoint.canonicalBytes)
+    } else {
+      #expect(!session.hasResidentKey)
+    }
+  }
+
   @Test(arguments: Action.allCases, [false, true])
   func installsFreshAuthenticatedSessionAndOrdinarySaveContinues(action: Action, empty: Bool) throws
   {
@@ -336,9 +361,14 @@ struct V3RecoveryAuthorityChangeServiceTests {
     #expect(throws: V3DeviceWrappedVaultKeySessionError.unavailable) {
       try f.execute(s, review: review)
     }
+    // The original grant now stops before reservation/publication. A separate
+    // same-key authentication remains its caller's session, never this request's.
     #expect(
-      f.disk.checkpoints.value != f.checkpoint.canonicalBytes && f.disk.ownership.value == nil)
-    #expect(!session.hasResidentKey && f.owner.unwraps == f.unwraps + 1)
+      f.disk.checkpoints.value == f.checkpoint.canonicalBytes && f.disk.ownership.value == nil)
+    #expect(session.hasResidentKey == reinstall && f.owner.unwraps == f.unwraps + 1)
+    if reinstall {
+      #expect(try session.load(vaultID: Core.vaultID, keyID: f.parent.body.fields.keyID) == f.key)
+    }
   }
 
   @Test(arguments: Action.allCases, 0 ..< 6)
@@ -422,14 +452,15 @@ struct V3RecoveryAuthorityChangeServiceTests {
     _ f: Fixture, session: V3DeviceWrappedVaultKeySessionStore,
     identity: V3RecoveryAuthorityChangeService.Identity? = nil, vaultID: String = Core.vaultID,
     limits: V3ManifestRepositoryLimits = .standard,
-    observer: any V3ImmutableTransactionPhaseObserving = V3NoopContentTransactionPhaseObserver()
+    observer: any V3ImmutableTransactionPhaseObserving = V3NoopContentTransactionPhaseObserver(),
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) -> V3RecoveryAuthorityChangeService {
     .init(
       vaultID: vaultID, identity: identity ?? f.owner, session: session,
       objectStore: f.disk.store, checkpointStore: f.disk.checkpoints,
       recoveryAnchorStore: f.disk.ownership,
       registrationAnchorStore: f.disk.registration, adoptionAnchorStore: f.disk.adoption,
-      cache: f.disk.cache, limits: limits, phaseObserver: observer)
+      cache: f.disk.cache, limits: limits, phaseObserver: observer, validateScope: validateScope)
   }
   private func ordinary(_ f: Fixture, session: V3DeviceWrappedVaultKeySessionStore)
     -> V3RecoveryVaultMutationService

@@ -368,7 +368,9 @@ struct V3RecoveryAuthorityChangeRecoveryTests {
     if variant != 5 {
       #expect(f.disk.checkpoints.value == state.candidateCheckpoint.canonicalBytes)
     }
-    #expect((f.disk.ownership.value != nil) == (variant >= 2))
+    // Session cancellation after CAS also stops subsequent cleanup now, keeping
+    // the exact intent for a separately admitted completion.
+    #expect((f.disk.ownership.value != nil) == (variant >= 1))
   }
 
   @Test(arguments: Action.allCases, 0 ..< 3)
