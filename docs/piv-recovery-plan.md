@@ -154,12 +154,13 @@ Review copy describes final code, not the investigation chronology.
 | [79](https://github.com/tvanreenen/key/pull/79) | `codex/recovery-test-support`: shared software fixtures independent of test suites | `edd3346` |
 | [80](https://github.com/tvanreenen/key/pull/80) | `codex/recovery-read-capability`: exact-checkpoint reader interfaces | `943b23b` |
 
-Published heads have successful Stable, Preview and helper-security checks.
+Stable, Preview and helper-security passes are recorded for the published heads
+through 80. Each PR reports its current CI and readiness.
 The three selected architecture cleanups are implemented through 80. Exact
 checkpoint readers expose read policy without mutation or graph requirements;
-composed runtimes retain those separate policies. Review fixes follow locally on
-`codex/recovery-review-fixes` above 80. A clean full regression run still requires
-an unlocked Mini; release acceptance remains separate. Existing stack history is preserved. Use
+composed runtimes retain those separate policies. Review fixes follow on
+`codex/recovery-review-fixes` above 80. Their complete Release regression run is
+recorded below; release acceptance remains separate. Existing stack history is preserved. Use
 `gh stack` for propagation and publication. Readiness is tracked on each PR;
 neither review nor green CI enables the shipping recovery gates.
 
@@ -170,7 +171,7 @@ neither review nor green CI enables the shipping recovery gates.
 | Integrated AI review/fixes, 2026-10-20 | `acd6b01`/`c57c2d3`: cumulative publication usage from earliest still-active recipient floor, including merges. `483cbae`: resident lock remains out-of-band behind queued setup. Regressions failed before fixes/passed afterward; reviewer rechecked fixes. |
 | Historical full Release run | At `0ffaee776050da2a5452505b9b4c76be352e5022`, `swift test -c release --no-parallel` passed 1,754 KeyCore tests/141 suites plus six canonical-JSON tests. Opt-in large mixed migration was skipped. Raw: `tmp/piv-recovery/2026-10-20-review-fixes-full-release.log`. This is not a full run on the latest local head. |
 | Native follow-up review, 2026-10-26 | At `93303c3`, three fresh AI reviewers found no actionable issue in the inspected integrated paths. A fresh full Release run reported 1,784 KeyCore tests/143 suites and six canonical-JSON tests passed; opt-in large migration was skipped. Stable, Preview and helper-security CI passed. [Qualification](piv-recovery-signed-test.md) retains exact native artifact limits. This evidence predates the lifecycle cleanup and does not qualify it or a release. Raw review/regression evidence: `tmp/piv-recovery/integrated-review-2026-10-26/`. |
-| Integrated review follow-up, 2026-10-27 | Review at `943b23b` confirmed stopped-save session continuity, exact registration ownership, and pre-signing budget ordering gaps. `0e5c4e2`, `346e5cd`, and `af11331` address them; new CI-selected regressions cover 41 cases; the final focused Release run passed 94 tests in seven suites. Per-entry registration checks reuse the fully validated ownership record. The broad Release run on `af11331` had 29 legacy protected-file failures while the console was locked; a clean full run remains required. Raw review and run evidence stays in ignored `tmp/piv-recovery/integrated-review-2026-10-27/` and `tmp/piv-recovery/review-fixes-2026-10-27/`. |
+| Integrated review follow-up, 2026-10-27 | Review at `943b23b` confirmed stopped-save session continuity, exact registration ownership, and pre-signing budget ordering gaps. `0e5c4e2`, `346e5cd`, and `af11331` address them; `6d0c463` keeps per-entry ownership guards bounded. Final focused verification passed 94 tests/seven suites, including 41 new CI-selected cases. The complete serial Release run on `6d0c463` passed 1,795 KeyCore tests/144 suites plus six canonical-JSON tests, without exclusions, after unlocking the Mini. The opt-in large migration case was not enabled. Current raw run evidence: `tmp/piv-recovery/review-fixes-2026-10-27/08-full-release-restored-unlocked{.log,-result.json}`. Native artifact limits remain unchanged. |
 
 ## Recording future work
 
