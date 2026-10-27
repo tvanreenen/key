@@ -60,7 +60,8 @@ func makeLiveV3EnrollmentWorkflowService(
     configStore: KeyConfigStore,
     runtimeConfiguration: RuntimeConfiguration,
     unconfiguredSelection: ((String) throws -> Void)? = nil,
-    deviceWrappedSession: V3DeviceWrappedVaultKeySessionStore = V3DeviceWrappedVaultKeySessionStore()
+    deviceWrappedSession: V3DeviceWrappedVaultKeySessionStore = V3DeviceWrappedVaultKeySessionStore(),
+    validateScope: @escaping @Sendable () throws -> Void = {}
 ) throws -> V3EnrollmentWorkflowService {
     precondition(selectedVaultID == nil || replacementVaultID == nil)
     precondition(
@@ -72,11 +73,10 @@ func makeLiveV3EnrollmentWorkflowService(
     let checkpointStore = V3ManifestCheckpointKeychainStore(
         configuration: runtimeConfiguration
     )
+    let ceremonies = V3EnrollmentCeremonyStateKeychainStore(configuration: runtimeConfiguration)
     let exchange = V3EnrollmentExchangeCoordinator(
         mailbox: V3FilesystemEnrollmentMailbox(rootHandle: rootHandle),
-        stateStore: V3EnrollmentCeremonyStateKeychainStore(
-            configuration: runtimeConfiguration
-        )
+        stateStore: ceremonies
     )
     let identityManager = V3EnrollmentDeviceIdentityManager(
         recordStore: V3EnrollmentDeviceKeyRecordKeychainStore(
@@ -133,6 +133,39 @@ func makeLiveV3EnrollmentWorkflowService(
             )
         }
     )
+    let transaction = V3ImmutableTransactionRecoveryAnchorKeychainStore(configuration: runtimeConfiguration)
+    let registration = V3ImmutableTransactionRecoveryAnchorKeychainStore(configuration: runtimeConfiguration, namespace: .registration)
+    let adoption = V3ImmutableTransactionRecoveryAnchorKeychainStore(configuration: runtimeConfiguration, namespace: .adoption)
+    let recoveryAdoption: (any V3EnrollmentFirstTrustAdopting)? = runtimeConfiguration.experimentalRecoveryEnabled
+        ? V3RecoveryEnrollmentProductAdoption(
+            source: objectStore, checkpoints: checkpointStore,
+            ownership: transaction, registration: registration, adoption: adoption,
+            ceremonies: ceremonies, cache: cache, session: session,
+            loadIdentity: { vaultID in
+                try identityManager.loadIdentity(vaultID: vaultID, reason: "Use this Mac's vault access credentials.")
+            },
+            verifyRuntime: { commit, ticket in
+                let unlock = V3RecoveryVaultUnlockRuntime(
+                    vaultID: commit.checkpoint.vaultID, checkpointStore: checkpointStore,
+                    source: objectStore, cache: cache, identityLoader: identityManager, session: session,
+                    transactionOwnershipStore: transaction, registrationOwnershipStore: registration,
+                    adoptionOwnershipStore: adoption)
+                let context = try unlock.continuedReadContext(
+                    current: .init(checkpoint: commit.checkpoint, envelope: commit.envelope), ticket: ticket)
+                _ = try V3RecoveryReadOnlyVaultRuntime(source: objectStore, unlockRuntime: unlock)
+                    .list(allowStale: false, context: context)
+            },
+            selectVault: { vaultID in
+                if replacementVaultID == nil { try selectionCommitter.select(vaultID) }
+                else { try selectionCommitter.requireExistingSelection(vaultID) }
+            },
+            completeReplacement: { vaultID in
+                try replacementAdmission?.consumeCompletedIntent(vaultID: vaultID)
+            }, validateScope: validateScope)
+        : nil
+    let profiledAdoption = V3ProfiledEnrollmentAdoptionService(
+        source: objectStore, exchange: exchange, permanent: deviceWrappedAdoption,
+        recovery: recoveryAdoption, validateScope: validateScope)
     return V3EnrollmentWorkflowService(
         selectedVaultID: selectedVaultID,
         replacementVaultID: replacementVaultID,
@@ -164,7 +197,17 @@ func makeLiveV3EnrollmentWorkflowService(
                 }
             ).unlock()
         },
-        deviceWrappedAdoption: deviceWrappedAdoption
+        deviceWrappedAdoption: profiledAdoption,
+        validateInvitation: { invitation in
+            if case .recovery = try v3EnrollmentParentProfile(invitation, source: objectStore) {
+                guard runtimeConfiguration.experimentalRecoveryEnabled else {
+                    throw V3DeviceWrappedEnrollmentAdoptionError.upgradeRequired
+                }
+                guard #available(macOS 26.0, *) else {
+                    throw AppError.operationRefused("Recovery-capable vaults require macOS 26 or later in this experimental build.")
+                }
+            }
+        }, validateScope: validateScope
     )
 }
 
@@ -324,7 +367,10 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
     private let selectVault: V3EnrollmentAdoptionService.VaultSelector
     private let verifyRuntime: V3EnrollmentAdoptionService.RuntimeVerifier
     private let deviceWrappedAdoption:
-        (any V3DeviceWrappedEnrollmentAdoptionServicing)?
+        (any V3EnrollmentFirstTrustAdopting)?
+
+    private let validateInvitation: (V3EnrollmentInvitation) throws -> Void
+    private let validateScope: @Sendable () throws -> Void
 
     init(
         selectedVaultID: String?,
@@ -339,7 +385,9 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         selectVault: @escaping V3EnrollmentAdoptionService.VaultSelector,
         verifyRuntime: @escaping V3EnrollmentAdoptionService.RuntimeVerifier,
         deviceWrappedAdoption:
-            (any V3DeviceWrappedEnrollmentAdoptionServicing)? = nil
+            (any V3EnrollmentFirstTrustAdopting)? = nil,
+        validateInvitation: @escaping (V3EnrollmentInvitation) throws -> Void = { _ in },
+        validateScope: @escaping @Sendable () throws -> Void = {}
     ) {
         precondition(selectedVaultID == nil || replacementVaultID == nil)
         self.selectedVaultID = selectedVaultID
@@ -354,6 +402,8 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         self.selectVault = selectVault
         self.verifyRuntime = verifyRuntime
         self.deviceWrappedAdoption = deviceWrappedAdoption
+        self.validateInvitation = validateInvitation
+        self.validateScope = validateScope
     }
 
     func deviceInventory() throws -> V3VaultDeviceInventory {
@@ -458,6 +508,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         deviceName: String,
         at unixTime: UInt64
     ) throws -> String {
+        try validateScope()
         guard selectedVaultID == nil else {
             throw AppError.operationRefused(
                 "This Mac is already configured to use a vault. Joining cannot switch it to another vault."
@@ -467,6 +518,8 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             digest: invitationDigest,
             at: unixTime
         )
+        try validateInvitation(invitation.invitation)
+        try validateScope()
         let vaultID = invitation.invitation.vaultID
         try requirePermittedJoiningVault(vaultID)
         if let state = try exchange.resumeJoining(
@@ -483,6 +536,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
                     "This enrollment request already uses the device name '\(transcript.joinRequest.joiningDevice.displayName)'. Reuse that exact name."
                 )
             }
+            try validateScope()
             return comparisonText(
                 transcript,
                 heading: "Request sent again. This Mac still needs approval.",
@@ -502,9 +556,10 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         let signed = try V3EnrollmentMessageAuthenticator().sign(
             request,
             answering: invitation,
-            using: identity,
+            using: V3ScopedEnrollmentIdentity(base: identity, validate: validateScope),
             reason: "Send this Mac's request to join the vault."
         )
+        try validateScope()
         let state = try exchange.beginJoining(
             signed,
             answering: invitation,
@@ -513,6 +568,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         guard let transcript = state.transcript else {
             throw V3EnrollmentAdoptionError.invalidCeremony
         }
+        try validateScope()
         return comparisonText(
             transcript,
             heading: "Request sent. This Mac still needs approval.",
@@ -643,6 +699,7 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         at unixTime: UInt64,
         operationID: VaultTransactionOperationID
     ) throws -> String {
+        try validateScope()
         guard selectedVaultID == nil else {
             throw AppError.operationRefused(
                 "This Mac is already configured to use a vault. Run `key status` to check it."
@@ -658,14 +715,18 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             state: state,
             comparisonCode: comparisonCode
         )
+        try validateInvitation(transcript.invitation)
+        try validateScope()
         if let deviceWrappedAdoption {
-            return try deviceWrappedAdoption.adopt(
+            let result = try deviceWrappedAdoption.adopt(
                 vaultID: vaultID,
                 invitationDigest: invitationDigest,
                 approvedTranscriptDigest: transcript.digest,
                 at: unixTime,
                 operationID: operationID
             ).rendered
+            try validateScope()
+            return result
         }
         return try V3EnrollmentAdoptionService(
             source: source,
@@ -840,10 +901,12 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
         deviceName: String,
         reason: String
     ) throws -> V3EnrollmentDevicePrivateIdentity {
+        try validateScope()
         if let existing = try identityManager.loadIdentity(
             vaultID: vaultID,
             reason: reason
         ) {
+            try validateScope()
             guard existing.publicIdentity.displayName == deviceName else {
                 throw AppError.operationRefused(
                     "This Mac already has the enrollment name '\(existing.publicIdentity.displayName)' for this vault. Reuse that exact name."
@@ -851,11 +914,11 @@ struct V3EnrollmentWorkflowService: V3EnrollmentWorkflowServicing {
             }
             return existing
         }
-        return try identityManager.createIdentity(
-            vaultID: vaultID,
-            displayName: deviceName,
-            reason: reason
-        )
+        try validateScope()
+        let created = try identityManager.createIdentity(
+            vaultID: vaultID, displayName: deviceName, reason: reason)
+        try validateScope()
+        return created
     }
 
     private func requireComparison(

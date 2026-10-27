@@ -1,6 +1,6 @@
 # PIV catastrophe recovery implementation plan
 
-Current checkpoint: 2026-10-26. This file owns status and remaining acceptance.
+Current checkpoint: 2026-10-27. This file owns status and remaining acceptance.
 The [contract](piv-recovery-contract.md) owns protocol/security requirements; the
 [qualification record](piv-recovery-signed-test.md) owns scoped results and artifact
 identities. The v3 roadmap links here rather than maintaining another status table.
@@ -73,7 +73,7 @@ package is newly declared qualified/released by this consolidation.
 | `REC-807` Native token/setup | Bound read-only reader, scoped agreement and external administration boundary; one physical key tested. | Setup instructions, certificate/key/reset lifecycle, platform matrix and remaining enforcement cases. |
 | `REC-808` Registration/adoption | Durable prepare/export/finish, authenticated status and exact reconciliation; initial signed registration/adoption passed. | Remaining interrupted setup/adoption cases and independent backup registration. |
 | `REC-809` Content/branches | Mutation, merge/resolution, catch-up and coverage guards implemented; edited contents recovered on both Macs. | Signed independent-Mac branch/conflict-resolution acceptance. |
-| `REC-810` Authority lifecycle | Rotation, enrollment/adoption, revocation/removal, catch-up and restart domain services implemented; signed token-free rotation recovered on Air. | Broader device/recipient product routes, informed confirmations and physical lifecycle qualification. |
+| `REC-810` Authority lifecycle | Rotation, enrollment/adoption, revocation/removal, catch-up and restart domain services implemented; signed token-free rotation recovered on Air. Gated sharing commands now connect recovery-profile enrollment and first trust with scoped cancellation and exact retry. | Device revocation/replacement and recipient product routes, informed confirmations and physical lifecycle qualification. |
 | `REC-811` Restore/resume | Verified snapshot to fresh vault; encrypted preparation and exact authenticated resume; signed separate-process reads passed. | Complete durable-phase/failure matrix and restored-vault ordinary mutation acceptance. |
 | `REC-812` CLI/helper | Gated workflow, progress/touch UI, configured runtime and scoped native results recorded. | Remaining lifecycle integration, helper/concurrency/history acceptance and UX review. |
 | `REC-813` Backup/physical lifecycle | Primary/backup software fixtures; one physical credential tested in recorded cases. | Two independently generated physical keys and the lifecycle matrix below. |
@@ -91,8 +91,11 @@ every physical test before dependent coding or review can start.
    appropriate stacked PRs, update descriptions, publish and run CI. Obtain fresh
    integrated AI review. Reuse established evidence; repeat a basic two-Mac restore
    only for changed code or an unresolved question.
-2. **Lifecycle completion.** Finish product routes for recovery-capable device
-   enrollment/revocation/replacement and recipient management, including informed
+2. **Lifecycle completion.** Enrollment/first-trust product integration is under
+   review above #81; software tests cover the compared ceremony, stopped selection,
+   exact completed retry and publication cancellation. Signed two-Mac enrollment
+   qualification remains open. Next finish device revocation/replacement and
+   recipient management, including informed
    exact-plan confirmations. Close the matrix below with a second independently
    provisioned physical key. Its acquisition/provisioning is an owner prerequisite;
    scope hardware actions separately.
