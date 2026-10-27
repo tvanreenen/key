@@ -49,6 +49,10 @@
 		D63F00000000000000000002 /* V3RecoveryReadOnlyVaultRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = D63F00000000000000000001 /* V3RecoveryReadOnlyVaultRuntime.swift */; };
 		D64000000000000000000002 /* V3RecoveryVaultRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = D64000000000000000000001 /* V3RecoveryVaultRuntime.swift */; };
 		D64100000000000000000002 /* KeyRecoveryRegistrationWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D64100000000000000000001 /* KeyRecoveryRegistrationWorkflow.swift */; };
+		82688E4AA8091E840C80AA2B /* V3RecoveryEnrollmentOwnerWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98EC0120261C2216E8674353 /* V3RecoveryEnrollmentOwnerWorkflow.swift */; };
+		64F8C9E8C6A8A20FFBC551E3 /* V3ProfiledEnrollmentAdoption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432BAF777D332F9324074A15 /* V3ProfiledEnrollmentAdoption.swift */; };
+		C271FA5DB258174E5C34400A /* KeyRecoverySharingCapability.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCB11101630B3D5CA15CD281 /* KeyRecoverySharingCapability.swift */; };
+		AF02BFA983A9F01CC924D31B /* KeyRecoveryDeviceSharingWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35A7F27A743C2B31609EA749 /* KeyRecoveryDeviceSharingWorkflow.swift */; };
 		D60600000000000000000002 /* V3RecoveryManifestGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60600000000000000000001 /* V3RecoveryManifestGraph.swift */; };
 		D60500000000000000000082 /* V3RecoveryContentMutationPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60500000000000000000081 /* V3RecoveryContentMutationPublisher.swift */; };
 		D60500000000000000000072 /* V3ContentTransactionPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60500000000000000000071 /* V3ContentTransactionPublisher.swift */; };
@@ -308,6 +312,10 @@
 		D63F00000000000000000001 /* V3RecoveryReadOnlyVaultRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryReadOnlyVaultRuntime.swift; sourceTree = "<group>"; };
 		D64000000000000000000001 /* V3RecoveryVaultRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryVaultRuntime.swift; sourceTree = "<group>"; };
 		D64100000000000000000001 /* KeyRecoveryRegistrationWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyRecoveryRegistrationWorkflow.swift; sourceTree = "<group>"; };
+		98EC0120261C2216E8674353 /* V3RecoveryEnrollmentOwnerWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryEnrollmentOwnerWorkflow.swift; sourceTree = "<group>"; };
+		432BAF777D332F9324074A15 /* V3ProfiledEnrollmentAdoption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ProfiledEnrollmentAdoption.swift; sourceTree = "<group>"; };
+		FCB11101630B3D5CA15CD281 /* KeyRecoverySharingCapability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyRecoverySharingCapability.swift; sourceTree = "<group>"; };
+		35A7F27A743C2B31609EA749 /* KeyRecoveryDeviceSharingWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyRecoveryDeviceSharingWorkflow.swift; sourceTree = "<group>"; };
 		D60600000000000000000001 /* V3RecoveryManifestGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryManifestGraph.swift; sourceTree = "<group>"; };
 		D60500000000000000000081 /* V3RecoveryContentMutationPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryContentMutationPublisher.swift; sourceTree = "<group>"; };
 		D60500000000000000000071 /* V3ContentTransactionPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3ContentTransactionPublisher.swift; sourceTree = "<group>"; };
@@ -700,6 +708,10 @@
 				D63F00000000000000000001 /* V3RecoveryReadOnlyVaultRuntime.swift */,
 				D64000000000000000000001 /* V3RecoveryVaultRuntime.swift */,
 				D64100000000000000000001 /* KeyRecoveryRegistrationWorkflow.swift */,
+				98EC0120261C2216E8674353 /* V3RecoveryEnrollmentOwnerWorkflow.swift */,
+				432BAF777D332F9324074A15 /* V3ProfiledEnrollmentAdoption.swift */,
+				FCB11101630B3D5CA15CD281 /* KeyRecoverySharingCapability.swift */,
+				35A7F27A743C2B31609EA749 /* KeyRecoveryDeviceSharingWorkflow.swift */,
 				D60500000000000000000001 /* V3RecoveryContentMutation.swift */,
 				D53100000000000000000001 /* V3DeviceWrappedRevocationTransitionValidation.swift */,
 				D53200000000000000000001 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift */,
@@ -1208,6 +1220,10 @@
 				D63F00000000000000000002 /* V3RecoveryReadOnlyVaultRuntime.swift in Sources */,
 				D64000000000000000000002 /* V3RecoveryVaultRuntime.swift in Sources */,
 				D64100000000000000000002 /* KeyRecoveryRegistrationWorkflow.swift in Sources */,
+				82688E4AA8091E840C80AA2B /* V3RecoveryEnrollmentOwnerWorkflow.swift in Sources */,
+				64F8C9E8C6A8A20FFBC551E3 /* V3ProfiledEnrollmentAdoption.swift in Sources */,
+				C271FA5DB258174E5C34400A /* KeyRecoverySharingCapability.swift in Sources */,
+				AF02BFA983A9F01CC924D31B /* KeyRecoveryDeviceSharingWorkflow.swift in Sources */,
 				D60500000000000000000002 /* V3RecoveryContentMutation.swift in Sources */,
 				D53100000000000000000002 /* V3DeviceWrappedRevocationTransitionValidation.swift in Sources */,
 				D53200000000000000000002 /* V3DeviceWrappedKeyRotationTransitionPublisher.swift in Sources */,
