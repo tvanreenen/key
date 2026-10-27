@@ -9,7 +9,7 @@ struct V3RecoveryRestoreWorkflowTests {
   typealias Base = V3RecoveryRestoreJournalTests
   private enum Stop: Error { case interrupted }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func initialRestoreCreatesOnlyLocalScaffoldingThenUsesActualServiceAndOrdinaryCache(layout: Int)
     throws
   {
@@ -65,7 +65,7 @@ struct V3RecoveryRestoreWorkflowTests {
     #expect(f.provider.requests == 1 && f.identities.creates.value == 1)
   }
 
-  @Test(arguments: 0..<12)
+  @Test(arguments: 0 ..< 12)
   func invalidPublicSelectionOrLocationNeverCreatesLocalMetadataOrRequestsAgreement(variant: Int)
     throws
   {
@@ -108,7 +108,7 @@ struct V3RecoveryRestoreWorkflowTests {
     #expect(try Base().files(f.source.root) == before)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func symlinkedLocalMetadataComponentCannotRedirectCreationIntoSource(component: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -126,7 +126,7 @@ struct V3RecoveryRestoreWorkflowTests {
     #expect(!FileManager.default.fileExists(atPath: f.destination.path))
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func requestedVaultCannotBeCreatedAsAMetadataComponentIncludingAliasedParent(component: Int)
     throws
   {
@@ -203,7 +203,7 @@ struct V3RecoveryRestoreWorkflowTests {
     #expect(try Base().files(f.source.root) == before)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func resumeNeverRecreatesMissingConfigurationCacheDestinationOrParent(component: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -314,7 +314,7 @@ struct V3RecoveryRestoreWorkflowTests {
     #expect(try !f.config.hasConfiguration())
   }
 
-  @Test(arguments: 0..<3)
+  @Test(arguments: 0 ..< 3)
   func existingConfigurationPresenceCannotBeReplacedEvenWhenItIsUnusable(kind: Int) throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()

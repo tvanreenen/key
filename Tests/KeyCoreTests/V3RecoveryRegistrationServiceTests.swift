@@ -83,7 +83,7 @@ struct V3RecoveryRegistrationServiceTests {
     #expect(f.provider.requests == 1 && f.ownership.value == ownership)
   }
 
-  @Test(arguments: 0..<8)
+  @Test(arguments: 0 ..< 8)
   func statusInspectionFailuresRequireAttentionWithoutClearingOwnership(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -160,7 +160,7 @@ struct V3RecoveryRegistrationServiceTests {
     #expect(f.core.owner.unwraps == 0 && f.card.publicSessions == 0)
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func statusRejectsChangesDuringInspection(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }

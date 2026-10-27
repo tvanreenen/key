@@ -101,7 +101,7 @@ struct KeyRecoveryReviewTests {
     #expect(host.handle(.initializeVault(path: "/unused")) == .success("Initialized"))
   }
 
-  @Test(arguments: 0..<7)
+  @Test(arguments: 0 ..< 7)
   func sourcePathControlCharactersAreQuotedInHumanOutput(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -122,7 +122,7 @@ struct KeyRecoveryReviewTests {
     #expect(f.provider.requests == 0 && io.stderr.isEmpty)
   }
 
-  @Test(arguments: 0..<7)
+  @Test(arguments: 0 ..< 7)
   func malformedPathsAndSelectorsNeverReachThePublicWorkflow(variant: Int) {
     var path = "/source"
     var token = "token"
@@ -144,7 +144,7 @@ struct KeyRecoveryReviewTests {
     #expect(host.handle(.initializeVault(path: "/unused")) == .success("Initialized"))
   }
 
-  @Test(arguments: 0..<8)
+  @Test(arguments: 0 ..< 8)
   func wrongPublicBindingPolicyOrIncompleteHistoryRefusesWithoutChangingAnyState(variant: Int)
     throws
   {
@@ -181,7 +181,7 @@ struct KeyRecoveryReviewTests {
     #expect(try V3RecoveryRestoreJournalTests().files(f.base) == local)
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func changedTokenSourceOrScopeCannotReleaseAPublicReview(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -421,7 +421,7 @@ struct KeyRecoveryReviewTests {
           ))
       ).errorMessage?.contains("Another recovery") == true)
     if disconnect {
-      KeyServiceConnection().invalidate()  // another connection does not cancel this one
+      KeyServiceConnection().invalidate() // another connection does not cancel this one
       #expect(state.scope?.cancellation.isCancelled == false)
       connection.invalidate()
     } else {

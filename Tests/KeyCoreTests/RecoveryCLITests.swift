@@ -26,7 +26,7 @@ struct RecoveryCLITests {
     var missing = arguments(resume: resume)
     let offset = try #require(missing.firstIndex(of: option))
     let value = missing[offset + 1]
-    missing.removeSubrange(offset...(offset + 1))
+    missing.removeSubrange(offset ... (offset + 1))
     assertUsage(missing)
     assertUsage(arguments(resume: resume) + [option, value])
     assertUsage(arguments(resume: resume) + ["\(option)=different"])

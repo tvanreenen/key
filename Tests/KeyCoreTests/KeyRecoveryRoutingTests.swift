@@ -34,7 +34,7 @@ struct KeyRecoveryRoutingTests {
     #expect(message.contains("Do not start another restore"))
   }
 
-  @Test(arguments: 0..<9)
+  @Test(arguments: 0 ..< 9)
   func invalidPublicSelectorsNeverReachRecoveryOrComposeRuntime(variant: Int) {
     var source = "/backup"
     var destination = "/new-vault"
@@ -333,7 +333,7 @@ struct KeyRecoveryRoutingTests {
     #expect(finished.wait(timeout: .now() + 5) == .success)
   }
 
-  @Test(arguments: 0..<3, [false, true])
+  @Test(arguments: 0 ..< 3, [false, true])
   func actualRestoreRetainsExactEvidenceWhenHostLockOrDisconnectCancels(
     phase: Int, disconnect: Bool
   ) throws {
