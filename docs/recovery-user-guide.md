@@ -58,4 +58,6 @@ A committed removal can still have local cleanup pending. Preserve its files and
 
 Start on an unconfigured Mac with the encrypted source files, one registered recovery key, its PIN/touch approval and a fresh destination. Use `key recovery restore --help` for the explicit source/destination options. Recovery does not overwrite a selected vault. The recovered vault has new Mac credentials and must be separately registered for recovery again.
 
+After a timeout or client disconnect, macOS may leave its PIN dialog visible. Cancel that remaining dialog; it is not a new Key request. An expired request cannot publish a result. Preserve saved files and local records, and use the explicitly displayed resume command for another attempt.
+
 The folder/provider supplies available files; delivery freshness and backup retention remain external responsibilities. Key refuses visible conflicts and required missing state. It cannot prove that a provider has delivered every newer file.
