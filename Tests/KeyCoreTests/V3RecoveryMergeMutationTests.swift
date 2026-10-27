@@ -163,7 +163,7 @@ struct V3RecoveryMergeMutationTests {
     let snapshot = try conflictSnapshot(observed)
     let detail = try #require(snapshot.conflicts.first)
     let choice = try #require(detail.versions.first)
-    let selected = try #require(snapshot.selections[detail.summary.id]?.versions[choice.id] ?? nil)
+    let selected = try #require(snapshot.selections[detail.summary.id]?.versions[choice.id])
     let candidate = try V3RecoveryMergeMutationBuilder().buildResolution(
       [.init(conflictID: detail.summary.id, versionID: choice.id)], from: observed,
       vaultKey: Core.nextKey)
