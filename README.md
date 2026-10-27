@@ -392,6 +392,11 @@ version matches the pin. Use `just format` to apply the same conservative
 formatting rules that CI checks. SwiftLint checks correctness rather than
 duplicating formatting rules or enforcing arbitrary file-size limits.
 
+The repository requires Action SHA pins and uses a restricted Action allowlist.
+When updating an Action pin, update its repository allowlist entry as well.
+Only checkout, the pinned artifact-upload and dependency-review Actions, and
+the pinned CodeQL init/analyze Actions are needed by this workflow.
+
 `just verify-workflows` runs offline unless `GH_TOKEN` is available. CI supplies
 its read-only token to zizmor so known-vulnerable-Action and other online audits
 run as well. These audits cover SHA-pinned Actions, which Dependabot alerts do
