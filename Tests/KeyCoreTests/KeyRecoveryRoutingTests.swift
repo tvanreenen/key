@@ -66,7 +66,7 @@ struct KeyRecoveryRoutingTests {
     #expect(host.handle(.initializeVault(path: "/init")) == .success("Initialized"))
   }
 
-  @Test(arguments: 0..<4)
+  @Test(arguments: 0 ..< 4)
   func malformedAbandonmentNeverReachesTheCapability(variant: Int) {
     let host = makeHost(recover: { _, _ in
       Issue.record("Invalid abandonment must not reach recovery")

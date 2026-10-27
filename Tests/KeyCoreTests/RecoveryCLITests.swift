@@ -23,10 +23,10 @@ struct RecoveryCLITests {
     #expect(!io.stderr.contains("Enter PIN") && io.stdout.contains("files retained"))
     for option in ["--source", "--destination", "--vault-id", "--operation"] {
       let offset = try #require(args.firstIndex(of: option))
-      var missing = args; missing.removeSubrange(offset...(offset+1))
+      var missing = args; missing.removeSubrange(offset ... (offset + 1))
       assertUsage(missing)
-      assertUsage(args + [option, args[offset+1]])
-      var malformed = args; malformed[offset+1] = ""
+      assertUsage(args + [option, args[offset + 1]])
+      var malformed = args; malformed[offset + 1] = ""
       assertUsage(malformed)
     }
     for option in ["--token", "--recipient", "--pin", "--force", "--yes"] {
