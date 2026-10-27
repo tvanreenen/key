@@ -258,7 +258,8 @@ jobs:
     name: Verify static analysis
     # CodeQL's build tracer is x86_64. Avoid emulating the entire Xcode build.
     runs-on: macos-26-intel
-    timeout-minutes: 25
+    # The first hosted analysis took 25 minutes; leave room for runner variation.
+    timeout-minutes: 40
     permissions:
       contents: read
       security-events: write
