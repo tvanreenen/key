@@ -113,7 +113,7 @@ struct V3RecoveryProfileAdoptionTests {
     #expect(f.owner.unwraps == 0)
   }
 
-  @Test(arguments: 0..<7)
+  @Test(arguments: 0 ..< 7)
   func invalidPreparationIsRefusedBeforeSigning(variant: Int) throws {
     let f = try Fixture()
     let outsider = try Core.Owner()
@@ -183,7 +183,7 @@ struct V3RecoveryProfileAdoptionTests {
     }
   }
 
-  @Test(arguments: 0..<5)
+  @Test(arguments: 0 ..< 5)
   func changedSignedCandidateIsRefusedBeforeLocalUnwrap(variant: Int) throws {
     let f = try Fixture()
     let original = try f.build()

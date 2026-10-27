@@ -186,7 +186,7 @@ struct V3RecoveryRegistrationServiceTests {
 
   @Test func missingMismatchedOrWeakerTokenIsRefusedBeforeLocalAndHardwareOperations() throws {
     guard #available(macOS 26.0, *) else { return }
-    for variant in 0..<3 {
+    for variant in 0 ..< 3 {
       let f = try Fixture()
       defer { f.remove() }
       let export = try f.prepare()
@@ -332,7 +332,7 @@ struct V3RecoveryRegistrationServiceTests {
   }
 
   @Test func prepareRefusesWrongKeyOccupiedObjectAndProjectedLimits() throws {
-    for variant in 0..<3 {
+    for variant in 0 ..< 3 {
       let f = try Fixture()
       defer { f.remove() }
       if variant == 1 { f.card.anchor = Data("occupied fixture".utf8) }

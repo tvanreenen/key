@@ -117,7 +117,7 @@ struct PIVRecoveryTokenReaderTests {
         try makeReader(inventory).candidates()
       }
     }
-    let tooMany = (0...PIVRecoveryTokenReader.maximumCandidates).map {
+    let tooMany = (0 ... PIVRecoveryTokenReader.maximumCandidates).map {
       FakeConnection(tokenID: "token-\($0)", reader: "reader-\($0)")
     }
     #expect(throws: PIVRecoveryTokenError.resourceLimit) { try makeReader(tooMany).candidates() }
@@ -331,7 +331,7 @@ struct PIVRecoveryTokenReaderTests {
         #expect(lifetime.willSend())
         #expect(!lifetime.willSend())
       }
-      lifetime.finish()  // Deadline/caller exit; the native callback is still pending.
+      lifetime.finish() // Deadline/caller exit; the native callback is still pending.
       #expect(counter.value == 0)
       #expect(!lifetime.canSend)
       #expect(throws: PIVRecoveryTokenError.operationInProgress) { try gate.acquire() }

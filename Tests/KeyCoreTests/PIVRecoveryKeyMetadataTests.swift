@@ -18,9 +18,9 @@ struct PIVRecoveryKeyMetadataTests {
 
   @Test func allRecognizedPoliciesParseButOnlyExplicitAlwaysAndGeneratedAreSupported() throws {
     let point = P256.KeyAgreement.PrivateKey().publicKey.x963Representation
-    for pin: UInt8 in 0...5 {
-      for touch: UInt8 in 0...3 {
-        for origin: UInt8 in 1...2 {
+    for pin: UInt8 in 0 ... 5 {
+      for touch: UInt8 in 0 ... 3 {
+        for origin: UInt8 in 1 ... 2 {
           let metadata = try PIVRecoveryKeyMetadataCodec.parse(
             Self.encode(point: point, pin: pin, touch: touch, origin: origin))
           if pin == 3 && touch == 2 && origin == 1 {
@@ -75,7 +75,7 @@ struct PIVRecoveryKeyMetadataTests {
 
   @Test func framingTruncationNonminimalLengthsAndOversizeAreRefused() {
     let valid = Self.encode(point: P256.KeyAgreement.PrivateKey().publicKey.x963Representation)
-    for size in 0..<valid.count { Self.refused(Data(valid.prefix(size))) }
+    for size in 0 ..< valid.count { Self.refused(Data(valid.prefix(size))) }
     Self.refused(Data([1, 0x81, 1, 0x11]) + valid.dropFirst(3))
     Self.refused(valid + Data([0]))
     Self.refused(Data(repeating: 0, count: PIVRecoveryKeyMetadataCodec.maximumBytes + 1))

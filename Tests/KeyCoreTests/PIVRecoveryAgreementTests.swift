@@ -93,7 +93,7 @@ struct PIVRecoveryAgreementTests {
 
   @Test func missingAmbiguousMismatchedAndUnsupportedKeysDoNotRequestAgreement() throws {
     guard #available(macOS 26.0, *) else { return }
-    for variant in 0..<6 {
+    for variant in 0 ..< 6 {
       let f = try Fixture()
       switch variant {
       case 0: f.session.values = []
@@ -178,7 +178,7 @@ struct PIVRecoveryAgreementTests {
 
   @Test func removalBeforeLookupAfterLookupAndAfterAgreementFailsClosed() throws {
     guard #available(macOS 26.0, *) else { return }
-    for stage in 0..<3 {
+    for stage in 0 ..< 3 {
       let f = try Fixture()
       if stage == 0 { f.connection.remove() }
       if stage == 1 { f.session.onLookup = { f.connection.remove() } }
