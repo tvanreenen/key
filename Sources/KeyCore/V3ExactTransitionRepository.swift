@@ -155,6 +155,41 @@ struct V3ExactTransitionRepository: Sendable {
         totalEntryBytes: entryBytes))
   }
 
+  /// Admission only, before either candidate signature. Reserve the same
+  /// 2 KiB envelope/proof allowance as the builders; no signed-looking object
+  /// or authorization is fabricated. Exact signed-byte checks still follow.
+  func requireUnsignedProjection(
+    _ state: V3ExactTransitionRepositoryState, body: V3RecoveryManifestBody,
+    parent: V3ManifestCheckpoint, stagedEntries: [V3EncryptedEntry]
+  ) throws {
+    guard limits.maximumManifestBytes >= 2_048,
+      body.canonicalBytes.count <= limits.maximumManifestBytes - 2_048
+    else { throw V3RecoveryValidationError.resourceLimit }
+    let maximumCandidateBytes = body.canonicalBytes.count + 2_048
+    var additionalBytes = 0
+    var additional = Set<V3EntryObjectKey>()
+    for entry in stagedEntries {
+      let key = V3EntryObjectKey(
+        entryID: entry.context.entryID, digest: Data(SHA256.hash(data: entry.canonicalBytes)))
+      if state.referencedEntries[key] == nil && additional.insert(key).inserted {
+        guard entry.canonicalBytes.count <= limits.maximumTotalEntryBytes - additionalBytes else {
+          throw V3RecoveryValidationError.resourceLimit
+        }
+        additionalBytes += entry.canonicalBytes.count
+      }
+    }
+    guard state.usage.manifestObjectCount < limits.maximumManifestObjects,
+      state.usage.totalManifestBytes <= limits.maximumTotalManifestBytes - maximumCandidateBytes,
+      limits.maximumHistoryDepth >= 1,
+      state.usage.referencedEntryObjectCount <= limits.maximumReferencedEntryObjects
+        - additional.count,
+      state.usage.totalEntryBytes <= limits.maximumTotalEntryBytes - additionalBytes
+    else { throw V3RecoveryValidationError.resourceLimit }
+    try V3RecoveryPublicationBudget.requireUnsignedDepth(
+      body, parent: parent, manifestBytes: state.manifestBytes,
+      objectCount: state.listedObjectCount, limits: limits)
+  }
+
   func requireProjectedUsage(
     _ state: V3ExactTransitionRepositoryState, candidate: V3RecoveryManifestEnvelope,
     stagedEntries: [V3EncryptedEntry]
@@ -283,6 +318,48 @@ enum V3RecoveryPublicationBudget {
       anchor: anchor, credentialPublicKey: floor.recipient.publicKey)
     guard selected.head.digest == candidate.digest else {
       throw V3RecoveryValidationError.sourceChanged
+    }
+  }
+
+  /// Check the retained recipient floor's graph depth without creating or
+  /// trusting a candidate signature. Publication later authenticates the exact
+  /// projected graph with the existing history selector.
+  static func requireUnsignedDepth(
+    _ body: V3RecoveryManifestBody, parent: V3ManifestCheckpoint,
+    manifestBytes: [Data: Data], objectCount: Int, limits: V3ManifestRepositoryLimits
+  ) throws {
+    let active = body.recovery.recipients.filter { $0.status == .active }
+    var carrying: [Data: V3RecoveryManifestEnvelope] = [:]
+    for (digest, bytes) in manifestBytes {
+      guard let envelope = try? V3RecoveryManifestCodec().parseEnvelope(bytes),
+        envelope.body.fields.vaultID == body.fields.vaultID,
+        active.contains(where: { envelope.body.recovery.recipients.contains($0) })
+      else { continue }
+      carrying[digest] = envelope
+    }
+    // Initial registration establishes its new floor; adoption has no token
+    // floor yet. Neither inherits an earlier recipient's replay-depth budget.
+    guard !carrying.isEmpty else { return }
+    let floors = carrying.filter { _, envelope in
+      envelope.parents.allSatisfy { carrying[$0] == nil }
+    }
+    guard floors.count == 1, let floor = floors.keys.first else {
+      throw V3RecoveryValidationError.invalidTransition
+    }
+    var graph = V3RecoveryManifestGraph(
+      source: ProjectedSource(manifests: manifestBytes, objectCount: objectCount),
+      limits: limits, maximumParentEdges: 16_384)
+    _ = try graph.loadInventory(floor: floor)
+    let order = try graph.anchoredOrder(floor: floor, vaultID: parent.vaultID)
+    var depths: [Data: Int] = [floor: 0]
+    for digest in order where digest != floor {
+      guard let parents = graph.objects[digest]?.parents,
+        let maximum = parents.compactMap({ depths[$0] }).max()
+      else { throw V3RecoveryValidationError.unanchoredParent }
+      depths[digest] = maximum + 1
+    }
+    guard let depth = depths[parent.envelopeDigest], depth < limits.maximumHistoryDepth else {
+      throw V3RecoveryValidationError.resourceLimit
     }
   }
 

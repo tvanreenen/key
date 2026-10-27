@@ -116,7 +116,11 @@ struct V3RecoveryRegistrationService: Sendable {
         checkpoint: checkpoint, parent: initial.base, currentEntries: initial.entries,
         currentVaultKey: currentVaultKey, nextVaultKey: nextKey,
         credential: observation.keyMetadata, occupancy: observation.anchor, owner: identity,
-        reason: "Prepare Key vault recovery registration", operationID: context.operationID)
+        reason: "Prepare Key vault recovery registration", operationID: context.operationID
+      ) { body, staged in
+        try repository.requireUnsignedProjection(
+          initial, body: body, parent: checkpoint, stagedEntries: staged)
+      }
       try repository.requireProjectedUsage(initial, candidate: preparation)
       try observer.didReach(.candidatePrepared)
       try requireState(initial, checkpoint: checkpoint, currentKey: currentVaultKey)
