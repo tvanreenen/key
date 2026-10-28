@@ -27,15 +27,19 @@ jobs:
         include:
           - group: core-content
             name: Core and content
+            timeout: 20
           - group: recovery-lifecycle
             name: Recovery lifecycle
+            timeout: 20
           - group: recovery-coordination
             name: Recovery coordination
+            timeout: 20
           - group: recovery-restore
             name: Recovery restore
+            timeout: 25
     if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
     runs-on: macos-26
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.timeout }}
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
       SWIFT_TEST_GROUP: ${{ matrix.group }}
@@ -300,8 +304,8 @@ jobs:
     if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size))
     # CodeQL's build tracer is x86_64. Avoid emulating the entire Xcode build.
     runs-on: macos-26-intel
-    # The first hosted analysis took 25 minutes; leave room for runner variation.
-    timeout-minutes: 40
+    # Bound the traced build separately so timeout diagnostics can still upload.
+    timeout-minutes: 45
     permissions:
       contents: read
       security-events: write
@@ -325,19 +329,21 @@ jobs:
           build-mode: manual
           tools: linked
           queries: security-extended
-      - name: Build host, CLI, helper, and shared code for analysis
+      - name: Build host, CLI, helper, and shared code with bounded diagnostics
+        timeout-minutes: 32
         run: |
-          mkdir -p .build/verification
-          set -o pipefail
-          scripts/verify-product.sh stable release codeql "${RUNNER_TEMP}/CodeQLDerivedData" \
-            2>&1 | tee .build/verification/codeql-build.log
+          python3 scripts/verify-codeql-build.py \
+            --derived-data "${RUNNER_TEMP}/CodeQLDerivedData" \
+            --timeout-seconds 1800
       - name: Analyze Swift and publish CodeQL findings
+        timeout-minutes: 8
         uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
         with:
           category: /language:swift
           output: .build/verification/codeql
-      - name: Retain static-analysis diagnostics on failure
-        if: failure()
+      - name: Retain static-analysis diagnostics after success, failure, or cancellation
+        if: always()
+        timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: static-analysis-results

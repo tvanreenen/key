@@ -5,6 +5,7 @@ import importlib.util
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -122,9 +123,14 @@ class ProductBuildInvocationTests(unittest.TestCase):
             compiler.chmod(0o755)
             environment = dict(os.environ, PATH=f"{work}:{os.environ['PATH']}", CI_TEST_BUILD_ARGS=str(capture))
             for operation in ("build", "codeql"):
-                subprocess.run([
+                command = [
                     str(ROOT / "scripts/verify-product.sh"), "stable", "release", operation,
-                ], env=environment, check=True)
+                ]
+                if operation == "codeql":
+                    command = [sys.executable, str(ROOT / "scripts/verify-codeql-build.py"),
+                               "--derived-data", str(work / "DerivedData"),
+                               "--log-directory", str(work / "logs"), "--timeout-seconds", "5"]
+                subprocess.run(command, env=environment, check=True, stdout=subprocess.DEVNULL)
                 args = capture.read_text().splitlines()
                 self.assertIn("CODE_SIGNING_ALLOWED=NO", args)
                 self.assertIn("ARCHS=arm64", args)
