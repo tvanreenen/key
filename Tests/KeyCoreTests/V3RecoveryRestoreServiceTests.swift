@@ -7,10 +7,14 @@ import Testing
 /// Actual native-binding adapters, crypto and contained preparation files.
 /// Software card/provider/Mac keys and memory ownership replace native I/O only.
 struct V3RecoveryRestoreServiceTests {
-  typealias Core = V3RecoveryRegistrationTests
-  typealias Native = V3RecoveryRegistrationServiceTests
-  typealias Base = V3RecoveryRestoreJournalTests
-  private enum Stop: Error { case interrupted }
+  private typealias Fixture = V3RecoveryRestoreServiceTestSupport.Fixture
+  private typealias Observer = V3RecoveryRestoreServiceTestSupport.Observer
+  private typealias JournalObserver = V3RecoveryRestoreServiceTestSupport.JournalObserver
+  private typealias Writer = V3RecoveryRestoreServiceTestSupport.Writer
+  typealias Core = V3RecoveryRegistrationTestSupport
+  typealias Native = PIVRecoveryTestSupport
+  typealias Base = V3RecoveryRestoreJournalTestSupport
+  private typealias Stop = V3RecoveryRestoreServiceTestSupport.Stop
   private static let phases: [V3RecoveryRestoreServicePhase] = [
     .sourceAuthenticated, .reservationDurable, .identitySaved, .savedWrapperVerified,
     .preparationDurable,
@@ -23,7 +27,7 @@ struct V3RecoveryRestoreServiceTests {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture(empty: empty)
     defer { f.remove() }
-    let before = try Base().files(f.source.root)
+    let before = try Base.files(f.source.root)
     f.identities.onCreate = {
       let pending = try #require(try f.journal().loadPending(sourceVaultID: Core.vaultID))
       #expect(pending.reservationOwnership.phase == .recoverable)
@@ -44,15 +48,15 @@ struct V3RecoveryRestoreServiceTests {
     #expect(pending.preparationOwnership?.phase == .recoverable)
     #expect(try FileManager.default.contentsOfDirectory(atPath: f.destination.path).isEmpty)
     #expect(try !f.config.hasConfiguration())
-    #expect(try Base().files(f.source.root) == before)
+    #expect(try Base.files(f.source.root) == before)
     #expect(bundle.manifest.body.devices.map(\.identity) == [saved.publicIdentity])
     let text = String(decoding: bundle.canonicalBytes, as: UTF8.self)
     #expect(!text.contains("Software fixture secret") && !text.contains("JBSWY3DPEHPK3PXP"))
-    let files = try Base().files(f.configRoot)
+    let files = try Base.files(f.configRoot)
     #expect(files.count == 2)
     #expect(throws: V3RecoveryRestoreJournalError.attemptPending) { try f.prepare(name: "another") }
     #expect(f.provider.requests == 1 && f.identities.creates.value == 1)
-    #expect(try Base().files(f.configRoot) == files)
+    #expect(try Base.files(f.configRoot) == files)
     #expect(
       !FileManager.default.fileExists(atPath: f.parent.appendingPathComponent("another").path))
   }
@@ -172,14 +176,14 @@ struct V3RecoveryRestoreServiceTests {
     #expect(f.provider.requests == 1 && !f.authentication.hasResidentKey)
     if phase != .sourceAuthenticated {
       let pins = [f.reservations.value, f.preparations.value]
-      let files = try Base().files(f.configRoot)
+      let files = try Base.files(f.configRoot)
       let creates = f.identities.creates.value
       #expect(throws: V3RecoveryRestoreJournalError.attemptPending) {
         try f.prepare(name: "replacement")
       }
       #expect(f.provider.requests == 1 && f.identities.creates.value == creates)
       #expect([f.reservations.value, f.preparations.value] == pins)
-      #expect(try Base().files(f.configRoot) == files)
+      #expect(try Base.files(f.configRoot) == files)
       #expect(
         !FileManager.default.fileExists(atPath: f.parent.appendingPathComponent("replacement").path)
       )
@@ -197,14 +201,14 @@ struct V3RecoveryRestoreServiceTests {
     let pending = try #require(try f.journal().loadPending(sourceVaultID: Core.vaultID))
     #expect(pending.reservationOwnership.phase == .recoverable && pending.preparation == nil)
     #expect(f.provider.requests == 1 && f.identities.creates.value == 1)
-    let files = try Base().files(f.configRoot)
+    let files = try Base.files(f.configRoot)
     #expect(files.count == 1 && f.preparations.value == nil)
     f.identities.failure = nil
     #expect(throws: V3RecoveryRestoreJournalError.attemptPending) {
       try f.prepare(name: "replacement")
     }
     #expect(f.identities.creates.value == 1 && f.provider.requests == 1)
-    #expect(try Base().files(f.configRoot) == files)
+    #expect(try Base.files(f.configRoot) == files)
     #expect(
       !FileManager.default.fileExists(atPath: f.parent.appendingPathComponent("replacement").path))
   }
@@ -231,7 +235,7 @@ struct V3RecoveryRestoreServiceTests {
     #expect(throws: V3RecoveryRestoreJournalError.recordUnavailable) {
       try f.journal().loadPending(sourceVaultID: Core.vaultID)
     }
-    let files = try Base().files(f.configRoot)
+    let files = try Base.files(f.configRoot)
     #expect(files.count == (preparation ? 1 : 0))
     #expect(try !f.config.hasConfiguration())
   }
@@ -327,141 +331,5 @@ struct V3RecoveryRestoreServiceTests {
     #expect(secondDone.wait(timeout: .now() + .seconds(10)) == .success)
     #expect(f.provider.requests == 1 && f.identities.creates.value == 1)
     #expect(!FileManager.default.fileExists(atPath: f.parent.appendingPathComponent("second").path))
-  }
-
-  private struct Observer: V3RecoveryRestoreServicePhaseObserving {
-    let action: @Sendable (V3RecoveryRestoreServicePhase) throws -> Void
-    func didReach(_ phase: V3RecoveryRestoreServicePhase) throws { try action(phase) }
-  }
-  private struct JournalObserver: V3RecoveryRestoreJournalPhaseObserving {
-    let action: @Sendable (V3RecoveryRestoreJournalPhase) throws -> Void
-    func didReach(_ phase: V3RecoveryRestoreJournalPhase) throws { try action(phase) }
-  }
-  private struct Writer: V3AtomicStagedObjectWriteObserving {
-    let action: @Sendable (String) throws -> Void
-    func didReach(_ phase: V3AtomicStagedObjectWritePhase) throws {
-      if case .temporaryFileSynchronized(let path) = phase { try action(path) }
-    }
-  }
-
-  final class Identities: V3DeviceWrappedGenesisIdentityManaging, @unchecked Sendable {
-    let creates = Core.Counter(), loads = Core.Counter()
-    private(set) var saved: V3RecoveryRestorePublisherTests.Identity?
-    var failure: Int?
-    var onCreate: @Sendable () throws -> Void = {}
-    var onUnwrap: @Sendable () throws -> Void = {}
-    func createDeviceWrappedIdentity(vaultID: String, displayName _: String, reason _: String)
-      throws
-      -> any V3DeviceWrappedVaultKeyUnwrapping
-    {
-      creates.increment()
-      try onCreate()
-      if failure == 0 { throw Stop.interrupted }
-      let identity = V3RecoveryRestorePublisherTests.Identity(
-        owner: try Base.Owner(), vaultID: vaultID, onUnwrap: onUnwrap)
-      saved = identity
-      if failure == 1 { throw Stop.interrupted }
-      return identity
-    }
-    func loadDeviceIdentity(vaultID: String, reason _: String) throws
-      -> (any V3DeviceWrappedVaultKeyUnwrapping)?
-    {
-      loads.increment()
-      guard let saved, failure != 2 else { return nil }
-      if failure == 3 {
-        return V3RecoveryRestorePublisherTests.Identity(owner: try Base.Owner(), vaultID: vaultID)
-      }
-      if failure == 4 || failure == 5 {
-        return BadIdentity(identity: saved, wrongVault: failure == 4)
-      }
-      return saved
-    }
-  }
-  private struct BadIdentity: V3DeviceWrappedVaultKeyUnwrapping {
-    let identity: V3RecoveryRestorePublisherTests.Identity
-    let wrongVault: Bool
-    var vaultID: String { wrongVault ? Core.vaultID : identity.vaultID }
-    var publicIdentity: V3EnrollmentDeviceIdentity { identity.publicIdentity }
-    func unwrapDeviceWrappedVaultKey(
-      _: V3HPKEWrappedVaultKey, context _: V3VaultKeyHPKEContext, reason _: String
-    ) throws -> Data { throw V3EnrollmentDeviceIdentityStoreError.authenticationCancelled }
-  }
-
-  // Immutable config value; concurrent service calls share the real mutation
-  // owner. Native fixture callbacks and storage have their own locking.
-  struct Fixture: @unchecked Sendable {
-    let source: V3RecoveryContentMutationPublisherTests.Fixture
-    let base: URL, parent: URL, configRoot: URL
-    let config: KeyConfigStore
-    let sourceHandle: VaultRootDirectoryHandle, parentHandle: VaultRootDirectoryHandle
-    let operation = VaultTransactionOperationID()
-    let reservations = Base.Ownership(), preparations = Base.Ownership()
-    let identities = Identities()
-    let reader: PIVRecoveryTokenReader, agreement: PIVRecoveryAgreement
-    let card: Native.Card, provider: Native.Provider
-    let owner: VaultTransactionMutationOwner
-    let authentication = V3DeviceWrappedVaultKeySessionStore()
-    let cancellation = PIVRecoveryCancellation()
-    let checkpoints: V3RecoveryContentMutationPublisherTests.Checkpoints
-    let cache: V3CheckpointManifestFilesystemCache
-    var destination: URL { parent.appendingPathComponent("restored") }
-    init(empty: Bool = false) throws {
-      source = try .init(empty: empty)
-      sourceHandle = try .init(opening: source.root)
-      base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-      config = .init(homeDirectoryURL: base.appendingPathComponent("home"))
-      configRoot = config.initializationConfigFileURL.deletingLastPathComponent()
-      try FileManager.default.createDirectory(at: configRoot, withIntermediateDirectories: true)
-      parent = base.appendingPathComponent("destinations")
-      try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: false)
-      parentHandle = try .init(opening: parent)
-      checkpoints = .init(Data())
-      checkpoints.value = nil
-      let cacheRoot = base.appendingPathComponent("cache")
-      try FileManager.default.createDirectory(at: cacheRoot, withIntermediateDirectories: false)
-      cache = .init(rootHandle: try .init(opening: cacheRoot))
-      card = try Native.Card(publicKey: source.core.token.publicKey.x963Representation)
-      card.anchor = source.anchor.canonicalBytes
-      reader = .init(inventory: Native.Inventory(card: card), gate: PIVTokenOperationGate())
-      provider = Native.Provider(token: source.core.token, card: card)
-      agreement = .init(reader: reader, provider: provider)
-      let operation = self.operation
-      owner = .init(makeOperationID: { operation })
-    }
-    func journal(
-      observer: any V3RecoveryRestoreJournalPhaseObserving = JournalObserver(action: { _ in }),
-      writer: any V3AtomicStagedObjectWriteObserving = V3NoopAtomicStagedObjectWriteObserver()
-    ) throws -> V3RecoveryRestoreJournal {
-      .init(
-        configurationRoot: try .init(opening: configRoot), reservationOwnership: reservations,
-        preparationOwnership: preparations, observer: observer, writeObserver: writer)
-    }
-    @available(macOS 26.0, *)
-    func prepare(
-      name: String = "restored", journal: V3RecoveryRestoreJournal? = nil,
-      observation: PIVRecoveryTokenObservation? = nil,
-      observer: any V3RecoveryRestoreServicePhaseObserving = Observer(action: { _ in }),
-      deadline: DispatchTime = .now() + .seconds(60)
-    ) throws -> V3RecoveryRestoreReport {
-      try V3RecoveryRestoreService(
-        configStore: config, journal: journal ?? self.journal(), identities: identities,
-        checkpoints: checkpoints, cache: cache,
-        mutationOwner: owner, reader: reader, agreement: agreement, authentication: authentication,
-        observer: observer
-      ).prepare(
-        source: sourceHandle, parent: parentHandle, name: name, deviceName: "Fresh test Mac",
-        observation: observation ?? reader.read(try #require(reader.candidates().first)),
-        cancellation: cancellation, deadline: deadline)
-    }
-    func stop(lock: Bool) {
-      if lock { authentication.invalidate() } else { cancellation.cancel() }
-    }
-    func record(_ name: String) -> URL {
-      configRoot.appendingPathComponent("v3-restore-attempts/\(operation)/\(name)")
-    }
-    func remove() {
-      source.remove()
-      try? FileManager.default.removeItem(at: base)
-    }
   }
 }

@@ -356,7 +356,7 @@ struct KeyRecoveryRoutingTests {
     phase: Int, disconnect: Bool
   ) throws {
     guard #available(macOS 26.0, *) else { return }
-    let f = try V3RecoveryRestoreServiceTests.Fixture()
+    let f = try V3RecoveryRestoreServiceTestSupport.Fixture()
     defer { f.remove() }
     let state = State()
     let connection = KeyServiceConnection()

@@ -7,10 +7,10 @@ import Testing
 /// Actual random-key authority services, immutable files and cold/warm sessions.
 /// Private Mac operations use software identities; no PIV operation is involved.
 struct V3RecoveryAuthorityChangeRecoveryTests {
-  typealias Action = V3RecoveryAuthorityChangeServiceTests.Action
-  private typealias Fixture = V3RecoveryAuthorityChangeServiceTests.Fixture
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  typealias Action = V3RecoveryAuthorityChangeTestSupport.Action
+  private typealias Fixture = V3RecoveryAuthorityChangeTestSupport.Fixture
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Stop = Publication.Stop
   private static let phases: [V3ImmutableTransactionPhase] = [
     .recoveryAnchorPrepared, .recoveryIntentPersisted, .recoveryArmed,

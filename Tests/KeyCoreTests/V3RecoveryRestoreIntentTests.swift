@@ -8,8 +8,8 @@ import Testing
 /// Contained disposable filesystem and software keys only. No real config,
 /// protected credential, YubiKey, checkpoint or immutable publication changes.
 struct V3RecoveryRestoreIntentTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Source = V3RecoveryContentMutationPublisherTests.Fixture
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Source = V3RecoveryPublicationTestSupport.Fixture
   private static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c4900"
   private static let transitionID = "018f4d38-7d5a-7b20-b0f1-97d6e96c4901"
   private static let entryIDs = [

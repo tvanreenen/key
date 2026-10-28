@@ -7,8 +7,8 @@ import Testing
 /// Real profile-3 publications and entry AEAD, with software Mac keys only.
 /// Source callbacks make late changes deterministic without native prompts.
 struct V3RecoveryReadOnlyVaultRuntimeTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Publication = V3RecoveryPublicationTestSupport
 
   @Test func readsListsAndStatusReuseOneMacUnwrapAndPreserveExactPlaintext() throws {
     let f = try Fixture()

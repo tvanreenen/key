@@ -7,9 +7,9 @@ import Testing
 /// Separate owner/joiner local state over actual immutable filesystem output.
 /// Private operations use owned software Mac identities, never a real token.
 struct V3RecoveryEnrollmentAdoptionTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
-  private typealias Enrollment = V3RecoveryDeviceEnrollmentPublisherTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Publication = V3RecoveryPublicationTestSupport
+  private typealias Enrollment = V3RecoveryEnrollmentTestSupport
   private typealias Stop = Publication.Stop
   private static let phases: [V3EnrollmentAdoptionPhase] = [
     .approvalVerified, .checkpointInstalled, .ceremonyConsumed,

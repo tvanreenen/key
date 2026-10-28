@@ -4,8 +4,8 @@ import Testing
 @testable import KeyCore
 
 struct V3RecoveryLifecycleContextTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Fixture = V3RecoveryContentMutationPublisherTests.Fixture
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Fixture = V3RecoveryPublicationTestSupport.Fixture
   private enum Stop: Error { case policyRefused }
 
   @Test(arguments: [false, true])

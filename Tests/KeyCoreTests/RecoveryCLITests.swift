@@ -64,7 +64,7 @@ struct RecoveryCLITests {
   }
   private static let recipient = Base64URL.encode(Data(repeating: 7, count: 32))
   private enum Stop: Error { case interrupted }
-  private typealias Fixture = V3RecoveryRestoreServiceTests.Fixture
+  private typealias Fixture = V3RecoveryRestoreServiceTestSupport.Fixture
 
   @Test(arguments: [false, true])
   func parserPreservesExplicitSelectorsWithoutOpeningPaths(resume: Bool) throws {
@@ -217,7 +217,7 @@ struct RecoveryCLITests {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
     defer { f.remove() }
-    let before = try V3RecoveryRestoreJournalTests().files(f.source.root)
+    let before = try V3RecoveryRestoreJournalTestSupport.files(f.source.root)
     let initialHost = host(f, interrupted: interrupted)
     let initialTransport = MemoryTransport { initialHost.handle($0) }
     let initialIO = MemoryIO(stdinIsTTY: false)
@@ -245,7 +245,7 @@ struct RecoveryCLITests {
     #expect(f.reservations.value == nil && f.preparations.value == nil)
     #expect(f.identities.creates.value == 1)
     #expect(try f.config.load().vaultDirectoryURL.standardizedFileURL == f.destination)
-    #expect(try V3RecoveryRestoreJournalTests().files(f.source.root) == before)
+    #expect(try V3RecoveryRestoreJournalTestSupport.files(f.source.root) == before)
     let agreements = f.provider.requests
     let finishedHost = host(f)
     let transport = MemoryTransport { finishedHost.handle($0) }

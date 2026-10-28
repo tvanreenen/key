@@ -6,9 +6,9 @@ import Testing
 /// Real source authentication, preparation, publication, trust, ordinary reads,
 /// selection and cleanup. Only native I/O and local ownership/trust are replaced.
 struct V3RecoveryRestoreCompletionServiceTests {
-  private typealias Base = V3RecoveryRestoreJournalTests
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Fixture = V3RecoveryRestoreServiceTests.Fixture
+  private typealias Base = V3RecoveryRestoreJournalTestSupport
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Fixture = V3RecoveryRestoreServiceTestSupport.Fixture
   private enum Stop: Error { case interrupted }
   private static let phases: [V3RecoveryRestoreServicePhase] = [
     .preparationDurable,
@@ -31,7 +31,7 @@ struct V3RecoveryRestoreCompletionServiceTests {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture(empty: empty)
     defer { f.remove() }
-    let source = try Base().files(f.source.root)
+    let source = try Base.files(f.source.root)
     let result = try restore(f)
     #expect(f.provider.requests == 1 && f.identities.creates.value == 1)
     #expect(f.identities.saved?.calls.value == 5)
@@ -39,8 +39,8 @@ struct V3RecoveryRestoreCompletionServiceTests {
     #expect(try f.journal().loadForCompletion(sourceVaultID: Core.vaultID) == nil)
     #expect(f.checkpoints.value == result.checkpoint.canonicalBytes)
     #expect(try f.config.load().vaultID == result.checkpoint.vaultID)
-    #expect(try Base().files(f.destination).count == (empty ? 1 : 3))
-    #expect(try Base().files(f.source.root) == source)
+    #expect(try Base.files(f.destination).count == (empty ? 1 : 3))
+    #expect(try Base.files(f.source.root) == source)
     #expect(!f.authentication.hasResidentKey && f.source.core.owner.unwraps == 0)
     // Discard recovery availability, then construct a new ordinary runtime using
     // config + saved identity + trust/cache only. No restore key is injected.
@@ -73,7 +73,7 @@ struct V3RecoveryRestoreCompletionServiceTests {
     #expect(
       try later.read(name: "after/restore", allowStale: false).plaintext == "ordinary saved value")
     #expect(f.provider.requests == 1 && f.identities.creates.value == 1)
-    #expect(try Base().files(f.source.root) == source)
+    #expect(try Base.files(f.source.root) == source)
   }
 
   @Test(arguments: phases)
@@ -86,8 +86,8 @@ struct V3RecoveryRestoreCompletionServiceTests {
     #expect(throws: Stop.interrupted) {
       try restore(f, observer: Observer { if $0 == phase { throw Stop.interrupted } })
     }
-    let records = try Base().files(f.configRoot).filter { !$0.key.hasSuffix("config.toml") }
-    let destination = try Base().files(f.destination)
+    let records = try Base.files(f.configRoot).filter { !$0.key.hasSuffix("config.toml") }
+    let destination = try Base.files(f.destination)
     let calls = f.identities.saved?.calls.value
     if ownershipWasCleared(phase) {
       #expect(f.reservations.value == nil && f.preparations.value == nil)
@@ -107,9 +107,9 @@ struct V3RecoveryRestoreCompletionServiceTests {
       #expect(f.provider.requests == 2 && f.identities.creates.value == 1)
       #expect(f.reservations.value == nil && f.preparations.value == nil)
     }
-    let finalRecords = try Base().files(f.configRoot).filter { !$0.key.hasSuffix("config.toml") }
+    let finalRecords = try Base.files(f.configRoot).filter { !$0.key.hasSuffix("config.toml") }
     #expect(finalRecords == records)
-    let finalDestination = try Base().files(f.destination)
+    let finalDestination = try Base.files(f.destination)
     for (path, bytes) in destination { #expect(finalDestination[path] == bytes) }
     #expect(try f.config.hasConfiguration() && !f.authentication.hasResidentKey)
   }
@@ -145,7 +145,7 @@ struct V3RecoveryRestoreCompletionServiceTests {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
     defer { f.remove() }
-    let seen = V3RecoveryRegistrationTests.Counter()
+    let seen = V3RecoveryRegistrationTestSupport.Counter()
     #expect(throws: (any Error).self) {
       try restore(
         f,
@@ -163,7 +163,7 @@ struct V3RecoveryRestoreCompletionServiceTests {
     #expect(seen.value == 1 && f.provider.requests == 1)
     #expect(f.reservations.value != nil && f.preparations.value != nil)
     #expect(try !f.config.hasConfiguration())
-    let files = try Base().files(f.destination)
+    let files = try Base.files(f.destination)
     #expect(files.count == (target == 0 ? 0 : (target == 1 ? 2 : 3)))
     #expect(!files.keys.contains(where: { $0.hasSuffix(".partial") }))
   }
@@ -179,13 +179,13 @@ struct V3RecoveryRestoreCompletionServiceTests {
         if phase == .preparationWritten { throw Stop.interrupted }
       })
     #expect(throws: Stop.interrupted) { try f.prepare(journal: journal) }
-    let before = try Base().files(f.configRoot)
+    let before = try Base.files(f.configRoot)
     let pending = try #require(try f.journal().loadPending(sourceVaultID: Core.vaultID))
     #expect(pending.preparationOwnership?.phase == .prepared)
     let result = try resume(f)
     #expect(result.operationID == pending.reservation.operationID)
     #expect(f.provider.requests == 2 && f.identities.creates.value == 1)
-    let after = try Base().files(f.configRoot)
+    let after = try Base.files(f.configRoot)
     for (path, bytes) in before { #expect(after[path] == bytes) }
     #expect(f.reservations.value == nil && f.preparations.value == nil)
   }
@@ -286,12 +286,12 @@ struct V3RecoveryRestoreCompletionServiceTests {
     let f = try Fixture()
     defer { f.remove() }
     _ = try f.prepare()
-    let files = try Base().files(f.configRoot)
+    let files = try Base.files(f.configRoot)
     let pins = [f.reservations.value, f.preparations.value]
     if hardware { f.provider.cancel = true } else { f.identities.failure = 5 }
     #expect(throws: (any Error).self) { try resume(f) }
     #expect(f.provider.requests == 2 && f.identities.creates.value == 1)
-    #expect(try Base().files(f.configRoot) == files)
+    #expect(try Base.files(f.configRoot) == files)
     #expect([f.reservations.value, f.preparations.value] == pins)
     #expect(try !f.config.hasConfiguration())
   }

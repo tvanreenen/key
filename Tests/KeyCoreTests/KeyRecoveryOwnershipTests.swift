@@ -193,7 +193,7 @@ struct KeyRecoveryOwnershipTests {
     phase: V3RecoveryRestoreServicePhase
   ) throws {
     guard #available(macOS 26.0, *) else { return }
-    let f = try V3RecoveryRestoreServiceTests.Fixture()
+    let f = try V3RecoveryRestoreServiceTestSupport.Fixture()
     defer { f.remove() }
     let ownership = V3RecoveryRestoreKeychainOwnership(
       configuration: .init(productIdentity: .preview)
@@ -239,7 +239,7 @@ struct KeyRecoveryOwnershipTests {
     }
     #expect(makeHost(interrupt: true).handle(.recovery(Self.restore)).exitCode != EXIT_SUCCESS)
     #expect(f.provider.requests == 1)
-    let records = try V3RecoveryRestoreJournalTests().files(f.configRoot)
+    let records = try V3RecoveryRestoreJournalTestSupport.files(f.configRoot)
     let pins = [f.reservations.value, f.preparations.value]
     let restarted = makeHost(interrupt: false)
     if phase == .finalization(.preparationCleared) {
@@ -256,7 +256,7 @@ struct KeyRecoveryOwnershipTests {
         #expect(restarted.handle(request).exitCode != EXIT_SUCCESS)
       }
       #expect([f.reservations.value, f.preparations.value] == pins)
-      #expect(try V3RecoveryRestoreJournalTests().files(f.configRoot) == records)
+      #expect(try V3RecoveryRestoreJournalTestSupport.files(f.configRoot) == records)
       #expect(f.provider.requests == 1)
       let result = restarted.handle(.recovery(Self.resume))
       if phase == .reservationDurable {

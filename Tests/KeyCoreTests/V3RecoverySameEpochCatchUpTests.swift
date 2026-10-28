@@ -8,9 +8,9 @@ import Testing
 /// Real published objects/crypto with independent local checkpoint and cache
 /// stores. Session keys are supplied by software fixtures, not native unlock.
 struct V3RecoverySameEpochCatchUpTests {
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Fixture = Publication.Fixture
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
 
   @Test func coordinatedCatchUpWalksTheCompleteChainUnderOneMutationBoundary() throws {
     let f = try Fixture()

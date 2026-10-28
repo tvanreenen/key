@@ -7,10 +7,11 @@ import Testing
 /// Real contained publication, software wrapper opening and memory ownership.
 /// No real vault, token, native credential, checkpoint or config selection.
 struct V3RecoveryRestorePublisherTests {
-  typealias Base = V3RecoveryRestoreJournalTests
+  private typealias Identity = V3RecoveryRestoreIdentityTestSupport.Identity
+  typealias Base = V3RecoveryRestoreJournalTestSupport
   @available(macOS 26.0, *)
   private typealias Fixture = Base.Fixture
-  typealias Core = V3RecoveryRegistrationTests
+  typealias Core = V3RecoveryRegistrationTestSupport
   private enum Stop: Error { case interrupted }
   private static let phases: [V3RecoveryRestorePublicationPhase] = [
     .preparationConfirmed, .deviceWrapperVerified, .entryPublished(index: 0),
@@ -24,8 +25,8 @@ struct V3RecoveryRestorePublisherTests {
     let f = try Fixture(empty: empty)
     defer { f.remove() }
     let (reservation, owner, bundle) = try f.prepare()
-    let sourceBefore = try Base().files(f.source.root)
-    let localBefore = try Base().files(f.configRootURL)
+    let sourceBefore = try Base.files(f.source.root)
+    let localBefore = try Base.files(f.configRootURL)
     let pins = [f.reservations.value, f.preparations.value]
     let identity = Identity(owner: owner)
     let report = try publisher(f).publish(
@@ -33,7 +34,7 @@ struct V3RecoveryRestorePublisherTests {
       vaultKey: Base.key, identity: identity)
     #expect(report.checkpoint == bundle.intent.destinationCheckpoint)
     #expect(report.entryCount == bundle.entries.count && identity.calls.value == 1)
-    let destinationBefore = try Base().files(f.environment.destination.rootURL)
+    let destinationBefore = try Base.files(f.environment.destination.rootURL)
     #expect(destinationBefore.count == bundle.entries.count + 1)
     for entry in bundle.entries {
       #expect(try Data(contentsOf: objectURL(f, entry)) == entry.canonicalBytes)
@@ -43,9 +44,9 @@ struct V3RecoveryRestorePublisherTests {
       sourceVaultID: Core.vaultID, snapshot: f.open(),
       environment: f.reopen(reservation.locations), vaultKey: Base.key, identity: identity)
     #expect(later == report && identity.calls.value == 2)
-    #expect(try Base().files(f.environment.destination.rootURL) == destinationBefore)
-    #expect(try Base().files(f.configRootURL) == localBefore)
-    #expect(try Base().files(f.source.root) == sourceBefore)
+    #expect(try Base.files(f.environment.destination.rootURL) == destinationBefore)
+    #expect(try Base.files(f.configRootURL) == localBefore)
+    #expect(try Base.files(f.source.root) == sourceBefore)
     #expect([f.reservations.value, f.preparations.value] == pins)
     #expect(try !f.config.hasConfiguration())
     #expect(f.source.core.owner.unwraps == 0)
@@ -59,7 +60,7 @@ struct V3RecoveryRestorePublisherTests {
     let f = try Fixture()
     defer { f.remove() }
     let (reservation, owner, bundle) = try f.prepare()
-    let local = try Base().files(f.configRootURL)
+    let local = try Base.files(f.configRootURL)
     let identity = Identity(owner: owner)
     #expect(throws: Stop.interrupted) {
       try publisher(f, observer: Observer { if $0 == phase { throw Stop.interrupted } }).publish(
@@ -68,14 +69,14 @@ struct V3RecoveryRestorePublisherTests {
     }
     let committed = [.manifestPublished, .publishedSnapshotVerified].contains(phase)
     #expect(FileManager.default.fileExists(atPath: manifestURL(f, bundle).path) == committed)
-    let before = try Base().files(f.environment.destination.rootURL)
+    let before = try Base.files(f.environment.destination.rootURL)
     let report = try publisher(f).publish(
       sourceVaultID: Core.vaultID, snapshot: f.open(),
       environment: f.reopen(reservation.locations), vaultKey: Base.key, identity: identity)
-    let after = try Base().files(f.environment.destination.rootURL)
+    let after = try Base.files(f.environment.destination.rootURL)
     for (path, bytes) in before { #expect(after[path] == bytes) }
     #expect(after.count == bundle.entries.count + 1 && report.entryCount == bundle.entries.count)
-    #expect(try Base().files(f.configRootURL) == local)
+    #expect(try Base.files(f.configRootURL) == local)
     #expect(try !f.config.hasConfiguration())
     #expect(identity.calls.value == (phase == .preparationConfirmed ? 1 : 2))
   }
@@ -98,7 +99,7 @@ struct V3RecoveryRestorePublisherTests {
         vaultKey: Base.key, identity: identity)
     }
     #expect(!FileManager.default.fileExists(atPath: manifestURL(f, bundle).path))
-    #expect(try Base().files(f.environment.destination.rootURL).count == (manifest ? 2 : 0))
+    #expect(try Base.files(f.environment.destination.rootURL).count == (manifest ? 2 : 0))
     _ = try publisher(f).publish(
       sourceVaultID: Core.vaultID, snapshot: f.open(),
       environment: f.reopen(reservation.locations), vaultKey: Base.key, identity: identity)
@@ -127,7 +128,7 @@ struct V3RecoveryRestorePublisherTests {
       sourceVaultID: Core.vaultID, snapshot: f.open(),
       environment: f.reopen(reservation.locations), vaultKey: Base.key, identity: identity)
     #expect(report.entryCount == 0)
-    #expect(try Base().files(f.environment.destination.rootURL).count == 1)
+    #expect(try Base.files(f.environment.destination.rootURL).count == 1)
     #expect(try Data(contentsOf: manifestURL(f, bundle)) == bundle.manifest.canonicalBytes)
     #expect(
       !FileManager.default.fileExists(
@@ -151,7 +152,7 @@ struct V3RecoveryRestorePublisherTests {
       sourceVaultID: Core.vaultID, snapshot: f.open(), environment: f.environment,
       vaultKey: Base.key, identity: Identity(owner: owner))
     #expect(report.entryCount == bundle.entries.count)
-    #expect(try Base().files(f.environment.destination.rootURL).count == bundle.entries.count + 1)
+    #expect(try Base.files(f.environment.destination.rootURL).count == bundle.entries.count + 1)
   }
 
   @Test(arguments: 0 ..< 9)
@@ -186,7 +187,7 @@ struct V3RecoveryRestorePublisherTests {
     } else {
       try Data("unexpected".utf8).write(to: bad)
     }
-    let before = try Base().files(root)
+    let before = try Base.files(root)
     let identity = Identity(owner: owner)
     #expect(throws: (any Error).self) {
       try publisher(f).publish(
@@ -194,7 +195,7 @@ struct V3RecoveryRestorePublisherTests {
         vaultKey: Base.key, identity: identity)
     }
     #expect(identity.calls.value == 0)
-    #expect(try Base().files(root) == before)
+    #expect(try Base.files(root) == before)
     #expect(!FileManager.default.fileExists(atPath: manifestURL(f, bundle).path))
   }
 
@@ -216,7 +217,7 @@ struct V3RecoveryRestorePublisherTests {
       try Data("unknown".utf8).write(
         to: f.environment.destination.rootURL.appendingPathComponent("unrelated"))
     }
-    let before = try Base().files(f.environment.destination.rootURL)
+    let before = try Base.files(f.environment.destination.rootURL)
     let identity = Identity(owner: owner)
     #expect(throws: (any Error).self) {
       try publisher(f).publish(
@@ -224,7 +225,7 @@ struct V3RecoveryRestorePublisherTests {
         vaultKey: Base.key, identity: identity)
     }
     #expect(identity.calls.value == 0)
-    #expect(try Base().files(f.environment.destination.rootURL) == before)
+    #expect(try Base.files(f.environment.destination.rootURL) == before)
   }
 
   @Test(arguments: 0 ..< 5)
@@ -246,7 +247,7 @@ struct V3RecoveryRestorePublisherTests {
         vaultKey: variant == 4 ? Data(repeating: 0, count: 32) : Base.key, identity: identity)
     }
     #expect(identity.calls.value == (variant < 2 ? 1 : 0))
-    #expect(try Base().files(f.environment.destination.rootURL).isEmpty)
+    #expect(try Base.files(f.environment.destination.rootURL).isEmpty)
     // A separate explicit call can use the same saved preparation and actual
     // addressed identity; failure did not replace credentials or ciphertext.
     _ = try publisher(f).publish(
@@ -267,7 +268,7 @@ struct V3RecoveryRestorePublisherTests {
         vaultKey: Base.key, identity: identity)
     }
     #expect(identity.calls.value == 1)
-    let files = try Base().files(f.environment.destination.rootURL)
+    let files = try Base.files(f.environment.destination.rootURL)
     #expect(files.count == (variant == 5 ? 1 : 0))
   }
 
@@ -336,7 +337,7 @@ struct V3RecoveryRestorePublisherTests {
         vaultKey: Base.key, identity: identity)
     }
     #expect(identity.calls.value == 0)
-    #expect(try Base().files(f.environment.destination.rootURL).isEmpty)
+    #expect(try Base.files(f.environment.destination.rootURL).isEmpty)
   }
 
   @Test(arguments: 0 ..< 3)
@@ -358,7 +359,7 @@ struct V3RecoveryRestorePublisherTests {
         vaultKey: Base.key, identity: identity)
     }
     #expect(identity.calls.value == 0)
-    #expect(try Base().files(f.environment.destination.rootURL).isEmpty)
+    #expect(try Base.files(f.environment.destination.rootURL).isEmpty)
   }
 
   @available(macOS 26.0, *)
@@ -415,30 +416,6 @@ struct V3RecoveryRestorePublisherTests {
     let action: @Sendable (String) throws -> Void
     func didReach(_ phase: V3AtomicStagedObjectWritePhase) throws {
       if case .temporaryFileSynchronized(let path) = phase { try action(path) }
-    }
-  }
-  struct Identity: V3DeviceWrappedVaultKeyUnwrapping {
-    let vaultID: String
-    let publicIdentity: V3EnrollmentDeviceIdentity
-    let wrapping: P256.KeyAgreement.PrivateKey
-    let calls = Core.Counter()
-    let onUnwrap: @Sendable () throws -> Void
-    init(
-      owner: Base.Owner, vaultID: String = Base.vaultID, wrongPrivateKey: Bool = false,
-      onUnwrap: @escaping @Sendable () throws -> Void = {}
-    ) {
-      self.vaultID = vaultID
-      publicIdentity = owner.identity
-      wrapping = wrongPrivateKey ? .init() : owner.wrapping
-      self.onUnwrap = onUnwrap
-    }
-    func unwrapDeviceWrappedVaultKey(
-      _ wrappedKey: V3HPKEWrappedVaultKey, context: V3VaultKeyHPKEContext, reason _: String
-    ) throws -> Data {
-      calls.increment()
-      try onUnwrap()
-      return try V3VaultKeyHPKE().unwrap(
-        wrappedKey, recipientPrivateKey: wrapping, context: context)
     }
   }
 }

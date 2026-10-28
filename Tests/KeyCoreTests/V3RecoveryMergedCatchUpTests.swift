@@ -7,10 +7,10 @@ import Testing
 /// Genuine offline publications, merge publication and immutable provider reads.
 /// Reader checkpoints/caches are independent; only persistence races are scripted.
 struct V3RecoveryMergedCatchUpTests {
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Fixture = Publication.Fixture
-  private typealias Core = V3RecoveryRegistrationTests
-  private let branches = V3RecoveryManifestReconciliationTests()
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Branches = V3RecoveryBranchTestSupport
   private static let addedID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c1"
 
   @Test(arguments: [false, true])
@@ -41,7 +41,7 @@ struct V3RecoveryMergedCatchUpTests {
   func commonLinearPrefixAdvancesThenJumpsToFirstJoinInBothCatchUpApis(coordinated: Bool) throws {
     let f = try Fixture()
     defer { f.remove() }
-    let common = try branches.publishBranch(
+    let common = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "common")])
     let merged = try publishMerge(f, automatic: true, branchFloor: common)
     let reader = Publication.Checkpoints(f.checkpoint.canonicalBytes)
@@ -71,12 +71,12 @@ struct V3RecoveryMergedCatchUpTests {
     let f = try Fixture()
     defer { f.remove() }
     let first = try publishMerge(f, automatic: true)
-    let entries = try branches.entryMap(f, envelope: first.envelope)
-    _ = try branches.publishBranch(
+    let entries = try Branches.entryMap(f, envelope: first.envelope)
+    _ = try Branches.publishBranch(
       f,
       requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "second merge")],
       from: first, entries: entries)
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f,
       requests: [
         .add(entryID: Self.addedID, name: "added/account", type: .secret, plaintext: "added")
@@ -85,7 +85,7 @@ struct V3RecoveryMergedCatchUpTests {
       f,
       candidate: V3RecoveryMergeMutationBuilder().buildAutomatic(
         from: observation(f), vaultKey: Core.nextKey))
-    let complete = try branches.entryMap(f, envelope: second.envelope)
+    let complete = try Branches.entryMap(f, envelope: second.envelope)
     let save = try V3RecoveryContentMutationBuilder().build(
       .edit(name: "fixture/secret", type: .secret, plaintext: "following save"),
       checkpoint: second.checkpoint,
@@ -109,7 +109,7 @@ struct V3RecoveryMergedCatchUpTests {
     let next = try V3RecoveryContentMutationBuilder().build(
       .remove(name: "added/account"),
       checkpoint: current.checkpoint, parent: current.envelope,
-      currentEntries: branches.entryMap(f, envelope: current.envelope), vaultKey: Core.nextKey)
+      currentEntries: Branches.entryMap(f, envelope: current.envelope), vaultKey: Core.nextKey)
     let saved = try ordinaryPublisher(f, checkpoints: reader).publish(next, vaultKey: Core.nextKey)
     #expect(
       reader.value == saved.checkpoint.canonicalBytes
@@ -125,7 +125,7 @@ struct V3RecoveryMergedCatchUpTests {
     let candidate = try resolution(f, head: a.envelope.digest)
     let merged = try publishCandidate(f, candidate: candidate)
     let unselected = try #require(
-      try branches.entryMap(f, envelope: b.envelope).values.first {
+      try Branches.entryMap(f, envelope: b.envelope).values.first {
         $0.context.name == "fixture/secret"
       })
     switch variant {
@@ -203,7 +203,7 @@ struct V3RecoveryMergedCatchUpTests {
   func newlyDeliveredSiblingAfterPrefixCasIsNotHiddenByTheAdvancedFloor(resolve: Bool) throws {
     let f = try Fixture()
     defer { f.remove() }
-    let common = try branches.publishBranch(
+    let common = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "common")])
     let first = try publishMerge(f, automatic: true, branchFloor: common)
     let late = try f.build(
@@ -246,7 +246,7 @@ struct V3RecoveryMergedCatchUpTests {
     let candidate = try V3RecoveryContentMutationBuilder().build(
       .edit(name: "fixture/secret", type: .secret, plaintext: "after"),
       checkpoint: merged.checkpoint, parent: merged.envelope,
-      currentEntries: branches.entryMap(f, envelope: merged.envelope), vaultKey: Core.nextKey)
+      currentEntries: Branches.entryMap(f, envelope: merged.envelope), vaultKey: Core.nextKey)
     let last = try ordinaryPublisher(
       f, checkpoints: Publication.Checkpoints(merged.checkpoint.canonicalBytes)
     )
@@ -351,15 +351,15 @@ struct V3RecoveryMergedCatchUpTests {
   @Test func committedAncestorCiphertextIsNotReopenedToExplainALateBranch() throws {
     let f = try Fixture()
     defer { f.remove() }
-    let common = try branches.publishBranch(
+    let common = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "common")])
     let (a, _) = try deliverBranches(f, automatic: false, from: common)
     let merged = try publishCandidate(
       f, candidate: resolution(f, head: a.envelope.digest))
-    let old = try branches.entryMap(f, envelope: f.parent).values.first {
+    let old = try Branches.entryMap(f, envelope: f.parent).values.first {
       $0.context.name == "fixture/secret"
     }
-    let intermediate = try branches.entryMap(f, envelope: common.envelope).values.first {
+    let intermediate = try Branches.entryMap(f, envelope: common.envelope).values.first {
       $0.context.name == "fixture/secret"
     }
     try FileManager.default.removeItem(at: f.entryURL(try #require(old)))
@@ -391,7 +391,7 @@ struct V3RecoveryMergedCatchUpTests {
     case 1: try Data("changed ancestor fixture".utf8).write(to: f.manifestURL(f.parent.digest))
     default:
       let entry = try #require(
-        try branches.entryMap(f, envelope: b.envelope).values.first {
+        try Branches.entryMap(f, envelope: b.envelope).values.first {
           $0.context.name == "fixture/secret"
         })
       if variant == 2 {
@@ -467,7 +467,7 @@ struct V3RecoveryMergedCatchUpTests {
     let f = try Fixture()
     defer { f.remove() }
     let first = try publishMerge(f, automatic: true)
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f,
       requests: [
         .add(entryID: Self.addedID, name: "late/account", type: .secret, plaintext: "late")
@@ -639,11 +639,11 @@ struct V3RecoveryMergedCatchUpTests {
     throws
     -> (V3RecoveryContentCommit, V3RecoveryContentCommit)
   {
-    let entries = try branches.entryMap(f, envelope: base.envelope)
-    let a = try branches.publishBranch(
+    let entries = try Branches.entryMap(f, envelope: base.envelope)
+    let a = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "selected")],
       from: base, entries: entries)
-    let b = try branches.publishBranch(
+    let b = try Branches.publishBranch(
       f,
       requests: automatic
         ? [.remove(name: "fixture/totp")]

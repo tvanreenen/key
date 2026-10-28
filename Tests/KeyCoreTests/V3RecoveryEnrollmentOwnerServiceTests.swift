@@ -7,9 +7,9 @@ import Testing
 /// Actual random-key service, signed ceremonies, session guards and contained
 /// filesystem publication. Private operations use only owned software keys.
 struct V3RecoveryEnrollmentOwnerServiceTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
-  private typealias Fixture = V3RecoveryDeviceEnrollmentPublisherTests.Fixture
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Publication = V3RecoveryPublicationTestSupport
+  private typealias Fixture = V3RecoveryEnrollmentTestSupport.Fixture
   private typealias Stop = Publication.Stop
   private static let now: UInt64 = 4_102_444_800
   private static let phases: [V3ImmutableTransactionPhase] = [

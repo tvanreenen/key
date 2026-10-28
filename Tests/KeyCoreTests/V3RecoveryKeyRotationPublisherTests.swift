@@ -7,9 +7,9 @@ import Testing
 /// Genuine profile crypto and contained filesystem durability. Only local
 /// persistence failures and interruption boundaries are scripted.
 struct V3RecoveryKeyRotationPublisherTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Fixture = V3RecoveryContentMutationPublisherTests.Fixture
-  private typealias Stop = V3RecoveryContentMutationPublisherTests.Stop
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Fixture = V3RecoveryPublicationTestSupport.Fixture
+  private typealias Stop = V3RecoveryPublicationTestSupport.Stop
   private static let nextKey = Data(repeating: 0x44, count: 32)
   private static let phases: [V3ImmutableTransactionPhase] = [
     .recoveryAnchorPrepared, .recoveryIntentPersisted, .recoveryArmed,

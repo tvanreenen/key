@@ -7,8 +7,8 @@ import Testing
 /// Concrete software Mac identities, real profile-3 history, publication and
 /// the real helper mutation queue. No shipping hook, native UI or token.
 struct V3RecoveryVaultRuntimeTests {
-  private typealias Epochs = V3RecoveryKeyTransitionCatchUpTests
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Epochs = V3RecoveryCatchUpTestSupport
+  private typealias Core = V3RecoveryRegistrationTestSupport
 
   @Test func coldUnlockCatchesUpMixedHistoryThenReadsSavesAndReopens() throws {
     let f = try Fixture(cold: true)

@@ -7,9 +7,9 @@ import Testing
 /// Restart with the actual random-key service's exact durable bytes and an empty
 /// session. Mac private operations use software keys; no PIV operation is involved.
 struct V3RecoveryKeyRotationRecoveryTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Fixture = V3RecoveryContentMutationPublisherTests.Fixture
-  private typealias Stop = V3RecoveryContentMutationPublisherTests.Stop
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Fixture = V3RecoveryPublicationTestSupport.Fixture
+  private typealias Stop = V3RecoveryPublicationTestSupport.Stop
   private static let phases: [V3ImmutableTransactionPhase] = [
     .recoveryAnchorPrepared, .recoveryIntentPersisted, .recoveryArmed,
     .entryStaged(index: 0), .entryStaged(index: 1), .manifestStaged,
@@ -436,7 +436,7 @@ struct V3RecoveryKeyRotationRecoveryTests {
     }
   }
   private struct ObservedCheckpoints: V3ManifestCheckpointStoring {
-    let base: V3RecoveryContentMutationPublisherTests.Checkpoints
+    let base: V3RecoveryPublicationTestSupport.Checkpoints
     let action: @Sendable () throws -> Void
     func loadCheckpoint(vaultID: String) throws -> Data? {
       try base.loadCheckpoint(vaultID: vaultID)

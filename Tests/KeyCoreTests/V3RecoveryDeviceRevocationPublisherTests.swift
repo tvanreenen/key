@@ -7,12 +7,11 @@ import Testing
 /// Actual enrollment/revocation cryptography and contained filesystem storage.
 /// Only local persistence failures, interruption and Mac operations are scripted.
 struct V3RecoveryDeviceRevocationPublisherTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
-  private typealias Enrollment = V3RecoveryDeviceEnrollmentPublisherTests
+  private typealias Fixture = V3RecoveryRevocationTestSupport.Fixture
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Publication = V3RecoveryPublicationTestSupport
+  private typealias Enrollment = V3RecoveryEnrollmentTestSupport
   private typealias Stop = Publication.Stop
-  private static let currentKey = Data(repeating: 0x33, count: 32)
-  private static let nextKey = Data(repeating: 0x44, count: 32)
   private static let phases: [V3ImmutableTransactionPhase] = [
     .recoveryAnchorPrepared, .recoveryIntentPersisted, .recoveryArmed,
     .entryStaged(index: 0), .entryStaged(index: 1), .manifestStaged,
@@ -54,7 +53,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
       try publish(
         f, candidate, observer: Observer { if $0 == Self.phases[phase] { throw Stop.interrupted } })
     }
-    let outcome = try resume(f, currentKey: phase >= 12 ? nil : Self.currentKey)
+    let outcome = try resume(f, currentKey: phase >= 12 ? nil : V3RecoveryRevocationTestSupport.currentKey)
     if phase < 5 {
       #expect(outcome == .abandoned(operationID: f.enrollment.disk.operationID))
       #expect(f.enrollment.disk.checkpoints.value == f.checkpoint.canonicalBytes)
@@ -99,7 +98,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     #expect(intent.expectedCheckpoint == candidate.plan.expectedCheckpoint)
     #expect(intent.enrollmentTranscriptDigest == nil && intent.recoveryMergeResolutions == nil)
     #expect(Data(SHA256.hash(data: bytes)) == anchor.intentDigest)
-    #expect(!String(decoding: bytes, as: UTF8.self).contains(Base64URL.encode(Self.nextKey)))
+    #expect(!String(decoding: bytes, as: UTF8.self).contains(Base64URL.encode(V3RecoveryRevocationTestSupport.nextKey)))
     guard
       case .ready(let selected) = try publisher(f).prepareInterruptedTransaction(
         vaultID: Core.vaultID, expectedOwner: f.owner.publicIdentity,
@@ -125,8 +124,8 @@ struct V3RecoveryDeviceRevocationPublisherTests {
       resultingDevices: original.resultingDevices)
     #expect(throws: V3RecoveryDeviceRevocationError.invalidPlan) {
       try publisher(f).publish(
-        candidate, approvedPlan: changed, currentVaultKey: Self.currentKey,
-        nextVaultKey: Self.nextKey, identity: f.owner, reason: "Owned review fixture")
+        candidate, approvedPlan: changed, currentVaultKey: V3RecoveryRevocationTestSupport.currentKey,
+        nextVaultKey: V3RecoveryRevocationTestSupport.nextKey, identity: f.owner, reason: "Owned review fixture")
     }
     #expect(f.owner.unwraps == f.unwraps && f.enrollment.disk.ownership.value == nil)
   }
@@ -178,8 +177,8 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     let pending = f.enrollment.disk.ownership.value
     #expect(throws: (any Error).self) {
       try resume(
-        f, currentKey: variant == 0 ? nil : (variant == 1 ? Self.nextKey : Self.currentKey),
-        nextKey: variant == 2 ? Self.currentKey : Self.nextKey,
+        f, currentKey: variant == 0 ? nil : (variant == 1 ? V3RecoveryRevocationTestSupport.nextKey : V3RecoveryRevocationTestSupport.currentKey),
+        nextKey: variant == 2 ? V3RecoveryRevocationTestSupport.currentKey : V3RecoveryRevocationTestSupport.nextKey,
         owner: variant == 3 ? Core.Owner().publicIdentity : nil)
     }
     #expect(
@@ -197,8 +196,8 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     #expect(throws: (any Error).self) {
       try publisher(f).publish(
         candidate, approvedPlan: candidate.plan,
-        currentVaultKey: variant == 0 ? Self.nextKey : Self.currentKey,
-        nextVaultKey: variant == 1 ? Self.currentKey : Self.nextKey,
+        currentVaultKey: variant == 0 ? V3RecoveryRevocationTestSupport.nextKey : V3RecoveryRevocationTestSupport.currentKey,
+        nextVaultKey: variant == 1 ? V3RecoveryRevocationTestSupport.currentKey : V3RecoveryRevocationTestSupport.nextKey,
         identity: variant == 2 ? Core.Owner() : f.owner, reason: "Owned validation fixture")
     }
     #expect(f.enrollment.disk.ownership.value == nil && f.owner.unwraps == f.unwraps)
@@ -219,8 +218,8 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     let candidate = try f.build()
     #expect(throws: V3RecoveryKeyRotationError.localWrapperMismatch) {
       try publisher(f).publish(
-        candidate, approvedPlan: candidate.plan, currentVaultKey: Self.currentKey,
-        nextVaultKey: Self.nextKey, identity: IncorrectUnwrapper(base: f.owner),
+        candidate, approvedPlan: candidate.plan, currentVaultKey: V3RecoveryRevocationTestSupport.currentKey,
+        nextVaultKey: V3RecoveryRevocationTestSupport.nextKey, identity: IncorrectUnwrapper(base: f.owner),
         reason: "Owned provider-result fixture")
     }
     #expect(f.enrollment.disk.ownership.value == nil && f.owner.unwraps == f.unwraps + 1)
@@ -245,7 +244,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
       try committed ? #require(candidate.stagedEntries.first) : #require(f.entries.values.first)
     try FileManager.default.removeItem(at: disk.entryURL(missing))
     #expect(throws: (any Error).self) {
-      try resume(f, currentKey: committed ? nil : Self.currentKey)
+      try resume(f, currentKey: committed ? nil : V3RecoveryRevocationTestSupport.currentKey)
     }
     #expect(disk.ownership.value == pending && disk.checkpoints.value == checkpoint)
   }
@@ -258,19 +257,19 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     let staged: [V3EncryptedEntry]
     if removal {
       let reviewed = try V3RecoveryRecipientRemovalPlanner().plan(
-        checkpoint: f.checkpoint, parent: f.parent, currentVaultKey: Self.currentKey,
+        checkpoint: f.checkpoint, parent: f.parent, currentVaultKey: V3RecoveryRevocationTestSupport.currentKey,
         authorizingDeviceID: f.owner.publicIdentity.deviceID,
         removing: f.enrollment.disk.anchor.recipientID)
       let candidate = try V3RecoveryRecipientRemovalBuilder().build(
         parent: f.parent, currentEntries: f.entries, plan: reviewed,
-        currentVaultKey: Self.currentKey, nextVaultKey: Self.nextKey,
+        currentVaultKey: V3RecoveryRevocationTestSupport.currentKey, nextVaultKey: V3RecoveryRevocationTestSupport.nextKey,
         owner: f.owner, reason: "Owned recipient-policy fixture")
       envelope = candidate.envelope
       staged = candidate.stagedEntries
     } else {
       let candidate = try V3RecoveryKeyRotationBuilder().build(
         checkpoint: f.checkpoint, parent: f.parent, currentEntries: f.entries,
-        currentVaultKey: Self.currentKey, nextVaultKey: Self.nextKey,
+        currentVaultKey: V3RecoveryRevocationTestSupport.currentKey, nextVaultKey: V3RecoveryRevocationTestSupport.nextKey,
         owner: f.owner, reason: "Owned rotation-policy fixture")
       envelope = candidate.envelope
       staged = candidate.stagedEntries
@@ -313,13 +312,13 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     #expect(selected.manifestData == envelope.canonicalBytes)
     let validator = V3RecoveryDeviceRevocationTransactionValidator(
       objectStore: disk.store, registrationAnchorStore: disk.registration,
-      adoptionAnchorStore: disk.adoption, currentVaultKey: Self.currentKey,
+      adoptionAnchorStore: disk.adoption, currentVaultKey: V3RecoveryRevocationTestSupport.currentKey,
       expectedOwner: f.owner.publicIdentity, approvedPlan: nil, limits: .standard)
     let input = try validator.recoveryInput(
       intent: selected.intent, manifestData: selected.manifestData,
       stagedEntries: selected.availableEntries)
     #expect(throws: V3RecoveryDeviceRevocationError.invalidCandidate) {
-      try validator.validate(input, vaultKey: Self.nextKey, alreadyCommitted: false)
+      try validator.validate(input, vaultKey: V3RecoveryRevocationTestSupport.nextKey, alreadyCommitted: false)
     }
     #expect(
       throws: V3ImmutableTransactionRecoveryError.invalidRecoveryState(
@@ -460,7 +459,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     ) {
       try rotation.recoverInterruptedTransaction(
         vaultID: Core.vaultID,
-        currentVaultKey: Self.currentKey, nextVaultKey: Self.nextKey,
+        currentVaultKey: V3RecoveryRevocationTestSupport.currentKey, nextVaultKey: V3RecoveryRevocationTestSupport.nextKey,
         expectedOwner: f.owner.publicIdentity)
     }
     #expect(
@@ -468,7 +467,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
         operationID: disk.operationID.rawValue)
     ) {
       try disk.publisher().recoverInterruptedTransaction(
-        vaultID: Core.vaultID, vaultKey: Self.nextKey)
+        vaultID: Core.vaultID, vaultKey: V3RecoveryRevocationTestSupport.nextKey)
     }
     #expect(disk.ownership.value == pending)
     #expect(try resume(f) == .completed(operationID: disk.operationID))
@@ -486,7 +485,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     #expect(throws: (any Error).self) {
       try publisher(f, limits: limits).publish(
         candidate, approvedPlan: candidate.plan,
-        currentVaultKey: Self.currentKey, nextVaultKey: Self.nextKey, identity: f.owner,
+        currentVaultKey: V3RecoveryRevocationTestSupport.currentKey, nextVaultKey: V3RecoveryRevocationTestSupport.nextKey, identity: f.owner,
         reason: "Owned bound fixture")
     }
     #expect(f.owner.unwraps == f.unwraps && f.enrollment.disk.ownership.value == nil)
@@ -502,7 +501,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     let disk = f.enrollment.disk
     let session = V3DeviceWrappedVaultKeySessionStore()
     try session.install(
-      Self.nextKey, vaultID: Core.vaultID, keyID: commit.envelope.body.fields.keyID)
+      V3RecoveryRevocationTestSupport.nextKey, vaultID: Core.vaultID, keyID: commit.envelope.body.fields.keyID)
     try V3RecoveryVaultMutationService(
       vaultID: Core.vaultID, session: session,
       objectStore: disk.store, checkpointStore: disk.checkpoints,
@@ -544,60 +543,6 @@ struct V3RecoveryDeviceRevocationPublisherTests {
     #expect(f.enrollment.joiner.unwraps == 0)
   }
 
-  struct Fixture: Sendable {
-    let enrollment: V3RecoveryDeviceEnrollmentPublisherTests.Fixture
-    let parent: V3RecoveryManifestEnvelope
-    let checkpoint: V3ManifestCheckpoint
-    let entries: [V3EntryObjectKey: V3EncryptedEntry]
-    let signatures: Int
-    let unwraps: Int
-    var owner: V3RecoveryRegistrationTests.Owner { enrollment.disk.core.owner }
-    var currentKey: Data { SelfKey.current }
-    init(empty: Bool = false) throws {
-      enrollment = try Enrollment.Fixture(empty: empty)
-      let disk = enrollment.disk
-      let joined = try V3RecoveryDeviceEnrollmentBuilder().build(
-        checkpoint: disk.checkpoint, parent: disk.parent, currentEntries: disk.entries,
-        state: enrollment.state, currentVaultKey: Core.nextKey, nextVaultKey: SelfKey.current,
-        owner: disk.core.owner, at: 4_102_444_800, reason: "Owned enrollment fixture")
-      let commit = try V3RecoveryDeviceEnrollmentPublisher(
-        mutationOwner: VaultTransactionMutationOwner(), objectStore: disk.store,
-        checkpointStore: disk.checkpoints, recoveryAnchorStore: disk.ownership,
-        registrationAnchorStore: disk.registration, adoptionAnchorStore: disk.adoption,
-        ceremonyStore: enrollment.local, cache: disk.cache
-      ).publish(
-        joined, state: enrollment.state, approvedTranscriptDigest: joined.transcriptDigest,
-        currentVaultKey: Core.nextKey, nextVaultKey: SelfKey.current, identity: disk.core.owner,
-        at: 4_102_444_800, reason: "Owned enrollment wrapper fixture")
-      parent = commit.envelope
-      checkpoint = commit.checkpoint
-      entries = try V3EntrySnapshotValidator(limits: .standard).entryMap(joined.stagedEntries)
-      signatures = disk.core.owner.signatures
-      unwraps = disk.core.owner.unwraps
-    }
-    func plan() throws -> V3DeviceWrappedRevocationPlan {
-      try V3RecoveryDeviceRevocationPlanner().plan(
-        checkpoint: checkpoint, parent: parent,
-        currentVaultKey: SelfKey.current, authorizingDeviceID: owner.publicIdentity.deviceID,
-        revoking: enrollment.joiner.publicIdentity.deviceID)
-    }
-    func build() throws -> V3RecoveryDeviceRevocationCandidate {
-      try V3RecoveryDeviceRevocationBuilder().build(
-        parent: parent, currentEntries: entries,
-        plan: plan(), currentVaultKey: SelfKey.current, nextVaultKey: SelfKey.next,
-        owner: owner, reason: "Owned revocation fixture")
-    }
-    func addBranch() throws {
-      let branch = try V3RecoveryContentMutationBuilder().build(
-        .edit(name: "fixture/secret", type: .secret, plaintext: "other branch"),
-        checkpoint: checkpoint, parent: parent, currentEntries: entries, vaultKey: SelfKey.current)
-      try enrollment.disk.seed(branch.envelope, entries: branch.stagedEntries)
-    }
-  }
-  private enum SelfKey {
-    static let current = V3RecoveryDeviceRevocationPublisherTests.currentKey
-    static let next = V3RecoveryDeviceRevocationPublisherTests.nextKey
-  }
   private func publisher(
     _ f: Fixture,
     observer: any V3ImmutableTransactionPhaseObserving = V3NoopContentTransactionPhaseObserver(),
@@ -618,12 +563,12 @@ struct V3RecoveryDeviceRevocationPublisherTests {
   ) throws -> V3RecoveryDeviceRevocationCommit {
     try publisher(f, observer: observer).publish(
       candidate, approvedPlan: candidate.plan,
-      currentVaultKey: Self.currentKey, nextVaultKey: Self.nextKey, identity: f.owner,
+      currentVaultKey: V3RecoveryRevocationTestSupport.currentKey, nextVaultKey: V3RecoveryRevocationTestSupport.nextKey, identity: f.owner,
       reason: "Owned wrapper verification fixture")
   }
   private func resume(
-    _ f: Fixture, currentKey: Data? = Self.currentKey,
-    nextKey: Data = Self.nextKey, owner: V3EnrollmentDeviceIdentity? = nil,
+    _ f: Fixture, currentKey: Data? = V3RecoveryRevocationTestSupport.currentKey,
+    nextKey: Data = V3RecoveryRevocationTestSupport.nextKey, owner: V3EnrollmentDeviceIdentity? = nil,
     expectedAnchor: Data? = nil
   ) throws -> V3ImmutableTransactionRecoveryOutcome {
     try publisher(f).recoverInterruptedTransaction(
@@ -654,7 +599,7 @@ struct V3RecoveryDeviceRevocationPublisherTests {
       _ wrappedKey: V3HPKEWrappedVaultKey, context: V3VaultKeyHPKEContext, reason: String
     ) throws -> Data {
       _ = try base.unwrapDeviceWrappedVaultKey(wrappedKey, context: context, reason: reason)
-      return SelfKey.current
+      return V3RecoveryRevocationTestSupport.currentKey
     }
   }
 }

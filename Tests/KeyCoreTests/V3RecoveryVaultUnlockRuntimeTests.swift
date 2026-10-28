@@ -7,8 +7,8 @@ import Testing
 /// Actual profile-3 publication, HPKE and capsule authentication. The identity
 /// uses software P-256 keys; no native prompt, token or user vault is involved.
 struct V3RecoveryVaultUnlockRuntimeTests {
-  private typealias Core = V3RecoveryRegistrationTests
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Publication = V3RecoveryPublicationTestSupport
 
   @Test(arguments: [false, true])
   func exactCheckpointUsesCacheOrProviderAndInstallsOneMacKey(cached: Bool) throws {
@@ -240,7 +240,7 @@ struct V3RecoveryVaultUnlockRuntimeTests {
   }
 
   @Test func authenticatedRevokedRosterRefusesBeforePrivateOperation() throws {
-    let f = try V3RecoveryKeyTransitionCatchUpTests.Fixture()
+    let f = try V3RecoveryCatchUpTestSupport.Fixture()
     defer { f.disk.remove() }
     _ = try f.revoke(f.receiver)
     f.session.invalidate()
@@ -304,7 +304,7 @@ struct V3RecoveryVaultUnlockRuntimeTests {
   }
 
   @Test func realColdUnlockFeedsExistingCatchUpOrdinarySaveAndFreshReopen() throws {
-    let f = try V3RecoveryKeyTransitionCatchUpTests.Fixture()
+    let f = try V3RecoveryCatchUpTestSupport.Fixture()
     defer { f.disk.remove() }
     f.session.invalidate()
     let loader = Loader(identity: f.receiver)

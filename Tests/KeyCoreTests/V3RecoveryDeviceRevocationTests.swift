@@ -7,7 +7,7 @@ import Testing
 /// Owned software credentials and disposable fixtures only. Epoch publication
 /// and checkpoint setup are materialized here, not a revocation service.
 struct V3RecoveryDeviceRevocationTests {
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Core = V3RecoveryRegistrationTestSupport
   private static let now: UInt64 = 4_102_444_800
   private static let currentKey = Data(repeating: 0x33, count: 32)
   private static let nextKey = Data(repeating: 0x44, count: 32)
@@ -295,14 +295,14 @@ struct V3RecoveryDeviceRevocationTests {
   private func revocationChain(_ root: URL) throws -> (
     [V3RecoveryAnchor], [P256.KeyAgreement.PrivateKey], Data
   ) {
-    let f = try V3RecoveryContentMutationPublisherTests.Fixture(root: root)
+    let f = try V3RecoveryPublicationTestSupport.Fixture(root: root)
     let recipient = try #require(f.core.parent.body.recovery.recipients.first)
     let backupAnchor = try V3RecoveryAnchor(
       floor: .init(vaultID: Core.vaultID, envelopeDigest: f.core.parent.digest),
       recipientID: recipient.recipientID, registrationID: recipient.registrationID,
       slot: .keyManagement)
     let target = try Core.Owner()
-    let state = try V3RecoveryDeviceEnrollmentTests().ceremony(
+    let state = try V3RecoveryEnrollmentTestSupport.ceremony(
       parentDigest: f.parent.digest, owner: f.core.owner, joiner: target)
     let enrolled = try V3RecoveryDeviceEnrollmentBuilder().build(
       checkpoint: f.checkpoint, parent: f.parent, currentEntries: f.entries, state: state,
@@ -381,7 +381,7 @@ struct V3RecoveryDeviceRevocationTests {
       ] {
         let checkpoint = try V3ManifestCheckpoint(
           vaultID: Core.vaultID, envelopeDigest: current.digest)
-        let state = try V3RecoveryDeviceEnrollmentTests().ceremony(
+        let state = try V3RecoveryEnrollmentTestSupport.ceremony(
           parentDigest: current.digest, owner: core.owner, joiner: joining)
         let enrolled = try V3RecoveryDeviceEnrollmentBuilder().build(
           checkpoint: checkpoint, parent: current, currentEntries: currentEntries, state: state,

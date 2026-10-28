@@ -5,22 +5,22 @@ import Testing
 @testable import KeyCore
 
 struct V3RecoveryMergeMutationTests {
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Fixture = Publication.Fixture
-  private typealias Core = V3RecoveryRegistrationTests
-  private let branches = V3RecoveryManifestReconciliationTests()
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Branches = V3RecoveryBranchTestSupport
   private static let addedID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c1"
   private static let otherID = "018f4d38-7d5a-7b20-b0f1-97d6e96c84c2"
 
   @Test func automaticMergeIncludesEveryExactParentAndPreservesCoverageWithoutResealing() throws {
     let f = try Fixture()
     defer { f.remove() }
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "updated")
       ])
-    _ = try branches.publishBranch(f, requests: [.remove(name: "fixture/totp")])
+    _ = try Branches.publishBranch(f, requests: [.remove(name: "fixture/totp")])
     let observed = try observation(f)
     let candidate = try V3RecoveryMergeMutationBuilder().buildAutomatic(
       from: observed, vaultKey: Core.nextKey)
@@ -41,12 +41,12 @@ struct V3RecoveryMergeMutationTests {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
     defer { f.remove() }
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "restorable")
       ])
-    _ = try branches.publishBranch(f, requests: [.remove(name: "fixture/totp")])
+    _ = try Branches.publishBranch(f, requests: [.remove(name: "fixture/totp")])
     let observed = try observation(f)
     let candidate = try V3RecoveryMergeMutationBuilder().buildAutomatic(
       from: observed, vaultKey: Core.nextKey)
@@ -73,12 +73,12 @@ struct V3RecoveryMergeMutationTests {
   @Test func selectingAnOlderConflictedVersionResealsItsValueAboveEveryParentRevision() throws {
     let f = try Fixture()
     defer { f.remove() }
-    let a = try branches.publishBranch(
+    let a = try Branches.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "selected older value")
       ])
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "other first"),
@@ -103,8 +103,8 @@ struct V3RecoveryMergeMutationTests {
   @Test func choosingDeletionKeepsTheEntryAbsentWithoutStagingNewCiphertext() throws {
     let f = try Fixture()
     defer { f.remove() }
-    let deleted = try branches.publishBranch(f, requests: [.remove(name: "fixture/secret")])
-    _ = try branches.publishBranch(
+    let deleted = try Branches.publishBranch(f, requests: [.remove(name: "fixture/secret")])
+    _ = try Branches.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "other")
@@ -122,14 +122,14 @@ struct V3RecoveryMergeMutationTests {
     let f = try Fixture()
     defer { f.remove() }
     let entry = try #require(f.entries.values.first { $0.context.name == "fixture/secret" })
-    let moved = try branches.publishBranch(
+    let moved = try Branches.publishBranch(
       f,
       requests: [
         .move(
           sourceName: "fixture/secret", sourceData: entry.canonicalBytes,
           destinationName: "renamed/account", overwrite: false)
       ])
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "other")
@@ -149,12 +149,12 @@ struct V3RecoveryMergeMutationTests {
   @Test func destinationChoiceRetainsOnlyTheChosenIdentityWithoutResealingIt() throws {
     let f = try Fixture()
     defer { f.remove() }
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f,
       requests: [
         .add(entryID: Self.addedID, name: "same/account", type: .secret, plaintext: "first")
       ])
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f,
       requests: [
         .add(entryID: Self.otherID, name: "same/account", type: .secret, plaintext: "second")
@@ -178,12 +178,12 @@ struct V3RecoveryMergeMutationTests {
   func incompleteDuplicateUnknownAndStaleChoicesRefuseConstruction(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
-    let a = try branches.publishBranch(
+    let a = try Branches.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "first")
       ])
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "second")
@@ -198,7 +198,7 @@ struct V3RecoveryMergeMutationTests {
     case 2: input = [.init(conflictID: "not a current conflict", versionID: choice.versionID)]
     case 3: input = [.init(conflictID: choice.conflictID, versionID: "not a current version")]
     default:
-      _ = try branches.publishBranch(
+      _ = try Branches.publishBranch(
         f,
         requests: [
           .edit(name: "fixture/secret", type: .secret, plaintext: "third")
@@ -219,7 +219,7 @@ struct V3RecoveryMergeMutationTests {
     defer { f.remove() }
     let secret = try #require(f.entries.values.first { $0.context.name == "fixture/secret" })
     let otp = try #require(f.entries.values.first { $0.context.name == "fixture/totp" })
-    let a = try branches.publishBranch(
+    let a = try Branches.publishBranch(
       f,
       requests: [
         .move(
@@ -227,7 +227,7 @@ struct V3RecoveryMergeMutationTests {
           destinationName: "new/shared", overwrite: false),
         .edit(name: "fixture/totp", type: .totp, plaintext: "JBSWY3DPEHPK3PXP"),
       ])
-    let b = try branches.publishBranch(
+    let b = try Branches.publishBranch(
       f,
       requests: [
         .move(
@@ -254,12 +254,12 @@ struct V3RecoveryMergeMutationTests {
   func exactHeadsCheckpointKindMetadataAndStagingAreIndependentlyChecked(variant: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "updated")
       ])
-    _ = try branches.publishBranch(f, requests: [.remove(name: "fixture/totp")])
+    _ = try Branches.publishBranch(f, requests: [.remove(name: "fixture/totp")])
     let observed = try observation(f)
     let candidate = try V3RecoveryMergeMutationBuilder().buildAutomatic(
       from: observed, vaultKey: Core.nextKey)
@@ -293,9 +293,9 @@ struct V3RecoveryMergeMutationTests {
   @Test func selectedValueCannotChangeEvenWithAValidReplacementCiphertextAndManifestMAC() throws {
     let f = try Fixture()
     defer { f.remove() }
-    let a = try branches.publishBranch(
+    let a = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "first")])
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "second")])
     let observed = try observation(f)
     let candidate = try V3RecoveryMergeMutationBuilder().buildResolution(
@@ -331,9 +331,9 @@ struct V3RecoveryMergeMutationTests {
   func resolutionStagingMustBeCompleteAndContainNoUnselectedObjects(extra: Bool) throws {
     let f = try Fixture()
     defer { f.remove() }
-    let a = try branches.publishBranch(
+    let a = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "first")])
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "second")])
     let observed = try observation(f)
     let candidate = try V3RecoveryMergeMutationBuilder().buildResolution(
@@ -351,9 +351,9 @@ struct V3RecoveryMergeMutationTests {
   @Test func wrongSessionKeyAndTighterResourceLimitsRefuseTheMerge() throws {
     let f = try Fixture()
     defer { f.remove() }
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "updated")])
-    _ = try branches.publishBranch(f, requests: [.remove(name: "fixture/totp")])
+    _ = try Branches.publishBranch(f, requests: [.remove(name: "fixture/totp")])
     let observed = try observation(f)
     #expect(throws: (any Error).self) {
       try V3RecoveryMergeMutationBuilder().buildAutomatic(from: observed, vaultKey: Core.oldKey)
@@ -389,9 +389,9 @@ struct V3RecoveryMergeMutationTests {
   {
     let f = try Fixture()
     defer { f.remove() }
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "updated")])
-    _ = try branches.publishBranch(f, requests: [.remove(name: "fixture/totp")])
+    _ = try Branches.publishBranch(f, requests: [.remove(name: "fixture/totp")])
     let candidate = try V3RecoveryMergeMutationBuilder().buildAutomatic(
       from: observation(f), vaultKey: Core.nextKey)
     #expect(throws: V3RecoveryContentMutationError.invalidCandidate) {
@@ -407,9 +407,9 @@ struct V3RecoveryMergeMutationTests {
   @Test func depthAndObjectLimitsIncludeTheNewMergeManifest() throws {
     let f = try Fixture()
     defer { f.remove() }
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "updated")])
-    _ = try branches.publishBranch(f, requests: [.remove(name: "fixture/totp")])
+    _ = try Branches.publishBranch(f, requests: [.remove(name: "fixture/totp")])
     let observed = try observation(f)
     for limits in [
       V3ManifestRepositoryLimits(maximumManifestObjects: 10, maximumHistoryDepth: 1),
@@ -430,9 +430,9 @@ struct V3RecoveryMergeMutationTests {
   @Test func aggregateEntryBudgetIncludesTheNewResolutionCiphertext() throws {
     let f = try Fixture()
     defer { f.remove() }
-    let a = try branches.publishBranch(
+    let a = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "first")])
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "second")])
     let observed = try observation(f)
     let choices = try choose(observed, head: a.envelope.digest)
@@ -451,9 +451,9 @@ struct V3RecoveryMergeMutationTests {
     // invalid revision jump in history before the tested branch publications.
     let f = try Fixture(secretRevision: v3MaximumSafeInteger - 1)
     defer { f.remove() }
-    let a = try branches.publishBranch(
+    let a = try Branches.publishBranch(
       f, requests: [.edit(name: "fixture/secret", type: .secret, plaintext: "maximum")])
-    let b = try branches.publishBranch(
+    let b = try Branches.publishBranch(
       f, requests: [.remove(name: "fixture/secret")])
     let observed = try observation(f)
     let choices = try choose(observed, head: delete ? b.envelope.digest : a.envelope.digest)

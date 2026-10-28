@@ -7,10 +7,10 @@ import Testing
 /// Real crypto, immutable filesystem publication and bounded source inventory.
 /// Local checkpoint/pin CAS and deliberate process interruptions are scripted.
 struct V3RecoveryMergeMutationPublisherTests {
-  private typealias Publication = V3RecoveryContentMutationPublisherTests
+  private typealias Publication = V3RecoveryPublicationTestSupport
   private typealias Fixture = Publication.Fixture
-  private typealias Core = V3RecoveryRegistrationTests
-  private let branches = V3RecoveryManifestReconciliationTests()
+  private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Branches = V3RecoveryBranchTestSupport
   private static let phases: [V3ImmutableTransactionPhase] = [
     .recoveryAnchorPrepared, .recoveryIntentPersisted, .recoveryArmed,
     .entryStaged(index: 0), .manifestStaged, .repositoryStateRechecked,
@@ -471,7 +471,7 @@ struct V3RecoveryMergeMutationPublisherTests {
     defer { f.remove() }
     let candidate = try candidate(f, automatic: automatic)
     let merge = try publisher(f).publish(candidate, vaultKey: Core.nextKey)
-    let entries = try branches.entryMap(f, envelope: merge.envelope)
+    let entries = try Branches.entryMap(f, envelope: merge.envelope)
     let next = try V3RecoveryContentMutationBuilder().build(
       .edit(name: "fixture/secret", type: .secret, plaintext: "saved after merge"),
       checkpoint: merge.checkpoint, parent: merge.envelope, currentEntries: entries,
@@ -495,7 +495,7 @@ struct V3RecoveryMergeMutationPublisherTests {
     let candidate = try candidate(f, automatic: true)
     let retained = try #require(candidate.envelope.body.fields.entries.first)
     let key = try V3RecoveryMergeMutationValidator.address(retained)
-    let entry = try #require(try branches.entryMap(f, envelope: candidate.envelope)[key])
+    let entry = try #require(try Branches.entryMap(f, envelope: candidate.envelope)[key])
     #expect(throws: (any Error).self) {
       try publisher(
         f,
@@ -552,12 +552,12 @@ struct V3RecoveryMergeMutationPublisherTests {
   }
 
   private func candidate(_ f: Fixture, automatic: Bool) throws -> V3RecoveryMergeMutationCandidate {
-    let selected = try branches.publishBranch(
+    let selected = try Branches.publishBranch(
       f,
       requests: [
         .edit(name: "fixture/secret", type: .secret, plaintext: "selected")
       ])
-    _ = try branches.publishBranch(
+    _ = try Branches.publishBranch(
       f,
       requests: automatic
         ? [.remove(name: "fixture/totp")]

@@ -6,10 +6,10 @@ import Testing
 /// Disposable selected vault/config/cache, software credentials and memory CAS.
 /// No real vault, native Keychain, hardware operation or encrypted file deletion.
 struct V3RecoveryRestoreFinalizerTests {
-  private typealias Base = V3RecoveryRestoreJournalTests
-  private typealias Core = V3RecoveryRegistrationTests
+  private typealias Base = V3RecoveryRestoreJournalTestSupport
+  private typealias Core = V3RecoveryRegistrationTestSupport
   @available(macOS 26.0, *)
-  private typealias Fixture = V3RecoveryRestoreSelectionInstallerTests.Harness
+  private typealias Fixture = V3RecoveryRestoreSelectionTestSupport.Harness
   private enum Stop: Error { case interrupted }
   private static let phases: [V3RecoveryRestoreFinalizationPhase] = [
     .completionVerified, .reservationCleared, .preparationCleared, .completionConfirmed,
@@ -20,9 +20,9 @@ struct V3RecoveryRestoreFinalizerTests {
     guard #available(macOS 26.0, *) else { return }
     let h = try Harness(empty: empty)
     defer { h.f.f.remove() }
-    let source = try Base().files(h.f.f.source.root)
-    let config = try Base().files(h.f.f.configRootURL)
-    let destination = try Base().files(h.f.f.environment.destination.rootURL)
+    let source = try Base.files(h.f.f.source.root)
+    let config = try Base.files(h.f.f.configRootURL)
+    let destination = try Base.files(h.f.f.environment.destination.rootURL)
     let calls = h.f.f.calls.value
     let report = try #require(try h.finalize())
     #expect(report.checkpoint == h.f.bundle.intent.destinationCheckpoint)
@@ -32,9 +32,9 @@ struct V3RecoveryRestoreFinalizerTests {
     #expect(try h.finalize() == nil)
     #expect(h.f.identity.calls.value == 3 && h.f.f.calls.value == calls)
     #expect(try h.f.f.journal().loadPending(sourceVaultID: Core.vaultID) == nil)
-    #expect(try Base().files(h.f.f.source.root) == source)
-    #expect(try Base().files(h.f.f.configRootURL) == config)
-    #expect(try Base().files(h.f.f.environment.destination.rootURL) == destination)
+    #expect(try Base.files(h.f.f.source.root) == source)
+    #expect(try Base.files(h.f.f.configRootURL) == config)
+    #expect(try Base.files(h.f.f.environment.destination.rootURL) == destination)
     #expect(h.f.checkpoints.value == report.checkpoint.canonicalBytes)
     #expect(
       try h.f.cache.load(for: report.checkpoint) == .available(h.f.bundle.manifest.canonicalBytes))

@@ -5,11 +5,6 @@ import Testing
 @testable import KeyCore
 
 struct PIVRecoveryAgreementTests {
-  // Expired public software certificate, not the owner's hardware credential.
-  static let certificate = Data(
-    base64Encoded:
-      "MIIBiTCCATCgAwIBAgIUMw8ODdlTgTIgtSKw44Ql3zmMG4MwCgYIKoZIzj0EAwIwKzEpMCcGA1UEAwwgRGlzcG9zYWJsZS1QdWJsaWMtUmVhZGVyLUZpeHR1cmUwHhcNMjYxMDAyMjI1NzUwWhcNMjYxMDAzMjI1NzUwWjArMSkwJwYDVQQDDCBEaXNwb3NhYmxlLVB1YmxpYy1SZWFkZXItRml4dHVyZTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABP6BbLGMaCO43s4BegokVD3FbytbyMSCeayyDxGJm+N+XEAO+9DcDAJf27UcWZKd0TdckqDLOu3+1ScQTREFi+6jMjAwMB0GA1UdDgQWBBTexRlA2He6kVY2UL3NTJi6MrvRTzAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0cAMEQCIB0VsnglpNS75gEdXOCCUlUC7wlzxUBBjeAbBQWWRC96AiAs0cUQFMuh68hj7v/MQWjH3JcgD4QDmUUId7Dt2Xwb3Q=="
-  )!
 
   @Test func unusedScopeDoesNotLookUpOrRequestAnything() throws {
     guard #available(macOS 26.0, *) else { return }
@@ -524,11 +519,11 @@ struct PIVRecoveryAgreementTests {
         case .selectApplication: return PIVPublicReadReply(data: nil, status: 0x9000)
         case .keyManagementCertificate:
           return PIVPublicReadReply(
-            data: Self.tlv(0x53, Self.tlv(0x70, certificate) + Self.tlv(0x71, Data([0]))),
+            data: Self.tlv(0x53, Self.tlv(0x70, PIVRecoveryTestSupport.certificate) + Self.tlv(0x71, Data([0]))),
             status: 0x9000)
         case .keyManagementMetadata:
           let policies = self.lock.withLock { self.policy }
-          let point = try PIVRecoveryTokenReader.certificatePublicKey(certificate)
+          let point = try PIVRecoveryTokenReader.certificatePublicKey(PIVRecoveryTestSupport.certificate)
           return PIVPublicReadReply(
             data:
               Self.tlv(1, Data([0x11])) + Self.tlv(2, Data(policies.prefix(2)))
