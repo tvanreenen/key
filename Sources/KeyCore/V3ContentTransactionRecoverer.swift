@@ -1,10 +1,31 @@
 import CryptoKit
 import Foundation
 
-private struct V3ContentRecoveryEntries {
+fileprivate struct V3ContentRecoveryEntries: Sendable {
     let stagedData: [V3EntryObjectKey: Data]
     let availableEntries: [V3EncryptedEntry]
     let entriesToPublish: [V3EntryObjectKey: V3EncryptedEntry]
+}
+
+/// Selected, bounded ciphertext only, not authenticated authority or approval.
+/// Early outcomes use the same locally owned cleanup paths as ordinary recovery.
+enum V3ContentTransactionRecoveryPreparation: Sendable {
+    case finished(V3ImmutableTransactionRecoveryOutcome)
+    case ready(V3ContentTransactionRecoveryState)
+}
+
+struct V3ContentTransactionRecoveryState: Sendable {
+    let intent: V3ImmutableTransactionRecoveryIntent
+    let anchorData: Data
+    let currentCheckpoint: V3ManifestCheckpoint
+    let candidateCheckpoint: V3ManifestCheckpoint
+    fileprivate let intentData: Data
+    fileprivate let manifest: (data: Data, published: Bool, stagedData: Data?)
+    fileprivate let entries: V3ContentRecoveryEntries
+
+    var manifestData: Data { manifest.data }
+    var availableEntries: [V3EncryptedEntry] { entries.availableEntries }
+    var alreadyCommitted: Bool { currentCheckpoint == candidateCheckpoint }
 }
 
 /// Reconstructs one locally anchored content publication with an explicit profile validator.
@@ -43,6 +64,18 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
         vaultKey: Data,
         expectedAnchor: Data? = nil
     ) throws -> V3ImmutableTransactionRecoveryOutcome {
+        switch try prepare(vaultID: vaultID, expectedAnchor: expectedAnchor) {
+        case .finished(let outcome): return outcome
+        case .ready(let state): return try recover(state, vaultKey: vaultKey)
+        }
+    }
+
+    /// No private operation or checkpoint advance. Incomplete locally owned work
+    /// is abandoned using the established kernel cleanup, never provider scanning.
+    func prepare(
+        vaultID: String,
+        expectedAnchor: Data? = nil
+    ) throws -> V3ContentTransactionRecoveryPreparation {
         guard isValidV3UUID(vaultID) else {
             throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(
                 vaultID: vaultID
@@ -57,7 +90,7 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
             guard expectedAnchor == nil else {
                 throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: vaultID)
             }
-            return .nothingToRecover
+            return .finished(.nothingToRecover)
         }
         // A workflow that routed by one locally pinned intent must not resume
         // a different reservation after that routing decision, even before the
@@ -66,6 +99,7 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
             throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: vaultID)
         }
         guard
+            anchorData.count <= 1_024,
             let anchor = try? V3ImmutableTransactionRecoveryAnchor(
                 canonicalBytes: anchorData
             ), anchor.vaultID == vaultID
@@ -84,14 +118,16 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
                 throw V3ImmutableTransactionRecoveryError
                     .transactionDirectoryUnavailable
             }
+            try validator.requireAvailable(vaultID: vaultID)
             try recoveryAnchorStore.replaceRecoveryAnchor(
                 nil,
                 expectedAnchor: anchorData,
                 vaultID: vaultID
             )
-            return .abandoned(operationID: anchor.operationID)
+            return .finished(.abandoned(operationID: anchor.operationID))
         }
         guard case .available(let intentData) = intentRead,
+            intentData.count <= V3ImmutableTransactionRecoveryIntent.maximumBytes,
             Data(SHA256.hash(data: intentData)) == anchor.intentDigest,
             let intent = try? V3ImmutableTransactionRecoveryIntent(
                 canonicalBytes: intentData
@@ -104,24 +140,19 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
             )
         }
         try validator.validateRecoveryIntent(intent)
-        return try recover(
-            intent,
-            intentData: intentData,
-            anchorData: anchorData,
-            vaultKey: vaultKey
-        )
+        return try prepare(intent, intentData: intentData, anchorData: anchorData)
     }
 
-    private func recover(
+    private func prepare(
         _ intent: V3ImmutableTransactionRecoveryIntent,
         intentData: Data,
-        anchorData: Data,
-        vaultKey: Data
-    ) throws -> V3ImmutableTransactionRecoveryOutcome {
+        anchorData: Data
+    ) throws -> V3ContentTransactionRecoveryPreparation {
         guard
             let checkpointData = try checkpointStore.loadCheckpoint(
                 vaultID: intent.vaultID
             ),
+            checkpointData.count <= 1_024,
             let currentCheckpoint = try? V3ManifestCheckpoint(
                 canonicalBytes: checkpointData
             ), currentCheckpoint.vaultID == intent.vaultID
@@ -145,7 +176,7 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
                 stagedEntries: try availableStagedEntries(intent),
                 stagedManifest: try availableStagedManifest(intent)
             )
-            return .abandoned(operationID: intent.operationID)
+            return .finished(.abandoned(operationID: intent.operationID))
         }
 
         let manifest: (data: Data, published: Bool, stagedData: Data?)
@@ -163,7 +194,7 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
                 stagedEntries: try availableStagedEntries(intent),
                 stagedManifest: nil
             )
-            return .abandoned(operationID: intent.operationID)
+            return .finished(.abandoned(operationID: intent.operationID))
         }
         let entries = try recoveryEntries(
             intent,
@@ -181,9 +212,28 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
                 stagedEntries: try availableStagedEntries(intent),
                 stagedManifest: manifest.stagedData
             )
-            return .abandoned(operationID: intent.operationID)
+            return .finished(.abandoned(operationID: intent.operationID))
         }
 
+        try validator.requireAvailable(vaultID: intent.vaultID)
+        try requireState(checkpoint: currentCheckpoint, anchorData: anchorData)
+        return .ready(.init(
+            intent: intent, anchorData: anchorData, currentCheckpoint: currentCheckpoint,
+            candidateCheckpoint: candidateCheckpoint, intentData: intentData,
+            manifest: manifest, entries: entries
+        ))
+    }
+
+    private func recover(
+        _ state: V3ContentTransactionRecoveryState, vaultKey: Data
+    ) throws -> V3ImmutableTransactionRecoveryOutcome {
+        let intent = state.intent
+        let intentData = state.intentData
+        let anchorData = state.anchorData
+        let currentCheckpoint = state.currentCheckpoint
+        let candidateCheckpoint = state.candidateCheckpoint
+        let manifest = state.manifest
+        let entries = state.entries
         let candidateKeyID: V3VaultKeyID
         do {
             candidateKeyID = try validator.keyID(manifestData: manifest.data)
@@ -224,6 +274,8 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
             } catch let error as V3ImmutableTransactionError {
                 throw recoveryError(for: error, intent: intent)
             }
+            try requireState(checkpoint: candidateCheckpoint, anchorData: anchorData)
+            try validator.finishCommitted(input, validated: validated, vaultKey: vaultKey)
             try requireState(checkpoint: candidateCheckpoint, anchorData: anchorData)
             try cleanup(
                 intent,
@@ -292,6 +344,9 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
             expectedCheckpoint: intent.expectedCheckpoint.canonicalBytes,
             vaultID: intent.vaultID
         )
+        try requireState(checkpoint: candidateCheckpoint, anchorData: anchorData)
+        try validator.finishCommitted(input, validated: validated, vaultKey: vaultKey)
+        try requireState(checkpoint: candidateCheckpoint, anchorData: anchorData)
         try cleanup(
             intent,
             intentData: intentData,
@@ -313,6 +368,7 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
         ) {
         case .available(let data):
             guard
+                data.count <= limits.maximumManifestBytes,
                 Data(SHA256.hash(data: data))
                     == intent.candidateManifestDigest
             else {
@@ -341,6 +397,10 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
         _ intent: V3ImmutableTransactionRecoveryIntent,
         manifestAlreadyPublished: Bool
     ) throws -> V3ContentRecoveryEntries? {
+        guard intent.stagedEntries.count <= limits.maximumReferencedEntryObjects else {
+            throw invalidRecoveryState(intent)
+        }
+        var total = 0
         var stagedData: [V3EntryObjectKey: Data] = [:]
         var available: [V3EncryptedEntry] = []
         var toPublish: [V3EntryObjectKey: V3EncryptedEntry] = [:]
@@ -363,7 +423,8 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
                 maximumBytes: limits.maximumEntryBytes
             ) {
             case .available(let data):
-                guard Data(SHA256.hash(data: data)) == key.digest else {
+                guard data.count <= limits.maximumEntryBytes,
+                      Data(SHA256.hash(data: data)) == key.digest else {
                     throw invalidRecoveryState(intent)
                 }
                 published = data
@@ -375,6 +436,10 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
             guard let data = published ?? staged else {
                 return nil
             }
+            guard data.count <= limits.maximumEntryBytes,
+                  data.count <= limits.maximumTotalEntryBytes - total
+            else { throw invalidRecoveryState(intent) }
+            total += data.count
             guard let encrypted = try? V3EntryCipher().parse(data)
             else {
                 throw invalidRecoveryState(intent)
@@ -404,6 +469,10 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
     private func availableStagedEntries(
         _ intent: V3ImmutableTransactionRecoveryIntent
     ) throws -> [V3EntryObjectKey: Data] {
+        guard intent.stagedEntries.count <= limits.maximumReferencedEntryObjects else {
+            throw invalidRecoveryState(intent)
+        }
+        var total = 0
         var result: [V3EntryObjectKey: Data] = [:]
         for entry in intent.stagedEntries {
             let key = V3EntryObjectKey(
@@ -414,6 +483,10 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
                 key,
                 operationID: intent.operationID
             ) {
+                guard data.count <= limits.maximumTotalEntryBytes - total else {
+                    throw invalidRecoveryState(intent)
+                }
+                total += data.count
                 result[key] = data
             }
         }
@@ -431,7 +504,8 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
             maximumBytes: limits.maximumEntryBytes
         ) {
         case .available(let data):
-            guard Data(SHA256.hash(data: data)) == key.digest else {
+            guard data.count <= limits.maximumEntryBytes,
+                  Data(SHA256.hash(data: data)) == key.digest else {
                 throw
                     V3ImmutableTransactionRecoveryError
                     .invalidRecoveryState(operationID: operationID.rawValue)
@@ -456,6 +530,7 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
         ) {
         case .available(let data):
             guard
+                data.count <= limits.maximumManifestBytes,
                 Data(SHA256.hash(data: data))
                     == intent.candidateManifestDigest
             else {

@@ -60,7 +60,7 @@ struct KeyCLIApplicationTests {
     }
 
     @Test
-    func debugQualificationBundleUsesIsolatedMutableNamespaces() throws {
+    func qualificationBundleNamespacesFollowBuildConfiguration() throws {
         let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let appURL = root.appendingPathComponent(
@@ -94,6 +94,7 @@ struct KeyCLIApplicationTests {
         let bundle = try #require(Bundle(url: appURL))
         let configuration = RuntimeConfiguration.live(bundle: bundle)
 
+        #if DEBUG
         #expect(configuration.qualificationNamespace == "migration")
         #expect(configuration.vaultAccount == "qualification-migration")
         #expect(
@@ -116,6 +117,10 @@ struct KeyCLIApplicationTests {
             configuration.productIdentity.defaultVaultDirectoryName
                 == ".key-qualification-migration"
         )
+        #else
+        // Shipping builds deliberately ignore Debug-only qualification metadata.
+        #expect(configuration == RuntimeConfiguration(productIdentity: .stable))
+        #endif
     }
 
     @Test

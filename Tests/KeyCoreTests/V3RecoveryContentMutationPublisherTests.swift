@@ -559,8 +559,10 @@ struct V3RecoveryContentMutationPublisherTests {
     let registration = Ownership()
     let adoption = Ownership()
     let operationID = VaultTransactionOperationID()
-    init(root: URL? = nil, secretRevision: UInt64 = 4) throws {
-      core = try Core.Fixture(backup: true, secretRevision: secretRevision)
+    init(root: URL? = nil, empty: Bool = false, backup: Bool = true, secretRevision: UInt64 = 4)
+      throws
+    {
+      core = try Core.Fixture(empty: empty, backup: backup, secretRevision: secretRevision)
       let prepared = try core.prepare()
       parent = prepared.candidate
       checkpoint = try V3ManifestCheckpoint(vaultID: Core.vaultID, envelopeDigest: parent.digest)
