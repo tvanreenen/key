@@ -1,4 +1,4 @@
-name: Compare signature verification across macOS versions
+name: Compare signature verification key patterns and architectures
 
 on:
   push:
@@ -14,12 +14,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macOS 26
+          - name: macOS 26 ARM
             runner: macos-26
-            artifact: macos-26
-          - name: macOS 27
-            runner: xcode-27
-            artifact: macos-27
+            artifact: macos-26-arm
+          - name: macOS 26 Intel
+            runner: macos-26-intel
+            artifact: macos-26-intel
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 2
     steps:
@@ -40,16 +40,18 @@ jobs:
           python3 Diagnostics/signature-platform-reference.py Diagnostics/signature-vectors.json \
             .build/verification/signature-platform \
             2>&1 | tee .build/verification/signature-platform/reference.log
-      - name: Compare Apple encodings, hashes, and signature verification APIs
+      - name: Compare small fixture keys, full-width keys, and equivalent signatures
         run: |
           set -o pipefail
-          swift Diagnostics/signature-platform-comparison.swift \
+          swiftc -warnings-as-errors Sources/KeyCore/V3P256Signature.swift \
+            Diagnostics/signature-key-pattern.swift -o .build/verification/signature-platform/replay
+          .build/verification/signature-platform/replay \
             .build/verification/signature-platform/expected.json \
-            2>&1 | tee .build/verification/signature-platform/apple.log
+            2>&1 | tee .build/verification/signature-platform/key-pattern.log
       - name: Retain the platform comparison and public reference data
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: signature-platform-${{ matrix.artifact }}
+          name: signature-key-pattern-${{ matrix.artifact }}
           path: .build/verification/signature-platform/
           retention-days: 7

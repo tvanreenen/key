@@ -60,6 +60,9 @@ def main():
     altered_signature = bytes([raw[0] ^ 1]) + raw[1:]
     values = der_integer(raw[:32]) + der_integer(raw[32:])
     der = b'\x30' + bytes([len(values)]) + values
+    opposite_raw = raw[:32] + (N-int.from_bytes(raw[32:], 'big')).to_bytes(32, 'big')
+    opposite_values = der_integer(opposite_raw[:32]) + der_integer(opposite_raw[32:])
+    opposite_der = b'\x30' + bytes([len(opposite_values)]) + opposite_values
     spki = bytes.fromhex('3059301306072a8648ce3d020106082a8648ce3d030107034200') + key
     (out/'public.der').write_bytes(spki); (out/'signature.der').write_bytes(der)
     (out/'input.bin').write_bytes(message); (out/'changed.bin').write_bytes(changed)
@@ -70,12 +73,15 @@ def main():
         return r.returncode == 0
     checks = {'math_accepts_captured_signature': math_verify(key, raw, message),
               'math_rejects_changed_message': not math_verify(key, raw, changed),
+              'math_accepts_opposite_s': math_verify(key, opposite_raw, message),
               'math_rejects_changed_signature': not math_verify(key, altered_signature, message),
               'openssl_accepts_captured_signature': openssl_verify(out/'input.bin'),
               'openssl_rejects_changed_message': not openssl_verify(out/'changed.bin')}
     expected = {'publicKey': base64.b64encode(key).decode(), 'signatureRaw': base64.b64encode(raw).decode(),
                 'input': base64.b64encode(message).decode(), 'sha256Hex': hashlib.sha256(message).hexdigest(),
-                'signatureDER': base64.b64encode(der).decode()}
+                'signatureDER': base64.b64encode(der).decode(),
+                'oppositeSignatureRaw': base64.b64encode(opposite_raw).decode(),
+                'oppositeSignatureDER': base64.b64encode(opposite_der).decode()}
     (out/'expected.json').write_text(json.dumps(expected, indent=2) + '\n')
     report = {'checks': checks, 'sha256Hex': expected['sha256Hex'], 'independentDER': expected['signatureDER'],
               'opensslVersion': subprocess.check_output(['openssl', 'version'], text=True).strip()}
