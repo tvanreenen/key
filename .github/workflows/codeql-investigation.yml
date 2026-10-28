@@ -1,0 +1,61 @@
+name: Investigate bounded CodeQL build
+
+on:
+  push:
+    branches: [codex/investigate-codeql-build]
+
+permissions:
+  contents: read
+
+jobs:
+  codeql-build:
+    name: Investigate CodeQL compiler progress and resource use
+    runs-on: macos-26-intel
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+    steps:
+      - name: Check out the isolated diagnostic without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Record the operating system, compiler, and runner resources
+        run: |
+          sw_vers
+          uname -m
+          xcodebuild -version
+          swift --version
+          sysctl hw.memsize hw.ncpu
+          df -h .
+      - name: Initialize the same Swift extractor and security query suite
+        timeout-minutes: 4
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        with:
+          languages: swift
+          build-mode: manual
+          tools: linked
+          queries: security-extended
+      - name: Observe the unchanged Release build for at most fifteen minutes
+        timeout-minutes: 17
+        run: |
+          python3 scripts/verify-codeql-build.py \
+            --derived-data "${RUNNER_TEMP}/CodeQLDiagnosticDerivedData" \
+            --timeout-seconds 900
+      - name: Analyze locally if extraction completes inside the diagnostic window
+        timeout-minutes: 4
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        with:
+          upload: never
+          upload-database: false
+          output: .build/verification/codeql-analysis
+      - name: Retain compiler output, progress, process samples, and elapsed time
+        if: always()
+        timeout-minutes: 2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: codeql-build-investigation
+          path: .build/verification/codeql*
+          retention-days: 7
