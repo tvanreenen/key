@@ -1,0 +1,64 @@
+name: Investigate enrollment signatures
+
+on:
+  push:
+    branches: [codex/investigate-enrollment-signatures]
+
+permissions:
+  contents: read
+
+jobs:
+  signatures:
+    name: Investigate enrollment signature verification
+    runs-on: macos-26
+    timeout-minutes: 8
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+    steps:
+      - name: Check out the isolated diagnostic without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Record the failed run's platform and pinned toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+      - name: Compile the exact candidate with diagnostic instrumentation
+        run: |
+          mkdir -p .build/verification
+          set -o pipefail
+          swift build --build-tests --force-resolved-versions -Xswiftc -warnings-as-errors \
+            2>&1 | tee .build/verification/signature-build.log
+      - name: Repeat the three failing enrollment scenarios up to 512 times each
+        timeout-minutes: 3
+        run: |
+          set -o pipefail
+          swift test --skip-build --no-parallel \
+            --xunit-output .build/verification/signature-tests.xml \
+            --filter 'V3EnrollmentAdoptionTests/(deviceInventoryRemainsAvailableAcrossContentOnlyForks|additionalDeviceAuthenticatesAndAdoptsTheExpandedRoster)|V3EnrollmentOwnerTransitionTests/sharedEnrollmentCanApproveTheAuthenticatedHeadBeyondCheckpoint' \
+            2>&1 | tee .build/verification/signature-investigation.log
+      - name: Require reports for exactly the three intended scenarios
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, xml.etree.ElementTree as E
+          cases=[]
+          for path in glob.glob('.build/verification/signature-tests*.xml'):
+              cases.extend(E.parse(path).getroot().iter('testcase'))
+          expected={
+              'additionalDeviceAuthenticatesAndAdoptsTheExpandedRoster()',
+              'deviceInventoryRemainsAvailableAcrossContentOnlyForks()',
+              'sharedEnrollmentCanApproveTheAuthenticatedHeadBeyondCheckpoint()',
+          }
+          assert len(cases)==3, f'Expected three tests, got {len(cases)}'
+          assert {c.get('name') for c in cases}==expected
+          assert not any(c.find('skipped') is not None for c in cases)
+          PY
+      - name: Retain public signature diagnostics and test reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: enrollment-signature-investigation
+          path: .build/verification/signature-*
+          retention-days: 7

@@ -300,21 +300,29 @@ struct V3EnrollmentMessageAuthenticator: Sendable {
             throw V3EnrollmentAuthenticationError.signerMismatch
         }
         guard V3P256Signature.isCanonical(authentication.signature) else {
+            SignatureTriage.shared.report(stage: "canonicality", identity: identity,
+                signature: authentication.signature, input: input)
             throw V3EnrollmentAuthenticationError.invalidSignature
         }
+        let publicKey: P256.Signing.PublicKey
         do {
-            let publicKey = try P256.Signing.PublicKey(
-                x963Representation: identity.signingPublicKey
-            )
-            let signature = try P256.Signing.ECDSASignature(
-                rawRepresentation: authentication.signature
-            )
-            guard publicKey.isValidSignature(signature, for: input) else {
-                throw V3EnrollmentAuthenticationError.invalidSignature
-            }
-        } catch let error as V3EnrollmentAuthenticationError {
-            throw error
+            publicKey = try P256.Signing.PublicKey(x963Representation: identity.signingPublicKey)
         } catch {
+            SignatureTriage.shared.report(stage: "public-key-parse", identity: identity,
+                signature: authentication.signature, input: input)
+            throw V3EnrollmentAuthenticationError.invalidSignature
+        }
+        let signature: P256.Signing.ECDSASignature
+        do {
+            signature = try P256.Signing.ECDSASignature(rawRepresentation: authentication.signature)
+        } catch {
+            SignatureTriage.shared.report(stage: "signature-parse", identity: identity,
+                signature: authentication.signature, input: input)
+            throw V3EnrollmentAuthenticationError.invalidSignature
+        }
+        guard publicKey.isValidSignature(signature, for: input) else {
+            SignatureTriage.shared.report(stage: "cryptographic-verification", identity: identity,
+                signature: authentication.signature, input: input)
             throw V3EnrollmentAuthenticationError.invalidSignature
         }
     }
@@ -324,15 +332,18 @@ struct V3EnrollmentMessageAuthenticator: Sendable {
         input: Data,
         reason: String
     ) throws -> Data {
-        let rawSignature = try signer.signature(
-            for: input,
-            reason: reason
-        )
+        let rawSignature = try signer.signature(for: input, reason: reason)
+        let canonical: Data
         do {
-            return try V3P256Signature.canonicalize(rawSignature)
+            canonical = try V3P256Signature.canonicalize(rawSignature)
         } catch {
+            SignatureTriage.shared.report(stage: "canonicalization", identity: signer.publicIdentity,
+                signature: rawSignature, input: input)
             throw V3EnrollmentAuthenticationError.invalidSignature
         }
+        SignatureTriage.shared.record(identity: signer.publicIdentity,
+            raw: rawSignature, canonical: canonical, input: input)
+        return canonical
     }
 
     private static func signatureInput(
@@ -419,4 +430,55 @@ private func signedEnrollmentInteger(
     in object: [(String, CanonicalJSONValue)]
 ) -> UInt64? {
     signedEnrollmentMember(name, in: object)?.integerValue
+}
+
+// TEMPORARY DIAGNOSTIC: synthetic enrollment tests only; never records private keys.
+final class SignatureTriage: @unchecked Sendable {
+    static let shared = SignatureTriage()
+    private let lock = NSLock()
+    private var records: [(String, [String: String])] = []
+    private var failed = false
+    var hasFailed: Bool { lock.withLock { failed } }
+
+    func record(identity: V3EnrollmentDeviceIdentity, raw: Data, canonical: Data, input: Data) {
+        let key = try? P256.Signing.PublicKey(x963Representation: identity.signingPublicKey)
+        let rawValue = try? P256.Signing.ECDSASignature(rawRepresentation: raw)
+        let canonicalValue = try? P256.Signing.ECDSASignature(rawRepresentation: canonical)
+        let entry: [String: String] = [
+            "publicKey": identity.signingPublicKey.base64EncodedString(),
+            "signedInput": input.base64EncodedString(),
+            "rawSignature": raw.base64EncodedString(),
+            "canonicalSignature": canonical.base64EncodedString(),
+            "rawValid": String(key.flatMap { k in rawValue.map { k.isValidSignature($0, for: input) } } ?? false),
+            "canonicalValidAtSigning": String(key.flatMap { k in canonicalValue.map { k.isValidSignature($0, for: input) } } ?? false),
+        ]
+        lock.withLock {
+            records.append((canonical.base64EncodedString(), entry))
+            if records.count > 32 { records.removeFirst() }
+        }
+    }
+
+    func report(stage: String, identity: V3EnrollmentDeviceIdentity, signature: Data, input: Data) {
+        let matching = lock.withLock {
+            failed = true
+            return records.last { $0.0 == signature.base64EncodedString() }?.1
+        }
+        var entry: [String: String] = [
+            "stage": stage,
+            "verifiedPublicKey": identity.signingPublicKey.base64EncodedString(),
+            "verifiedInput": input.base64EncodedString(),
+            "verifiedSignature": signature.base64EncodedString(),
+            "isCanonical": String(V3P256Signature.isCanonical(signature)),
+            "matchingSigningRecord": String(matching != nil),
+        ]
+        if let matching {
+            entry.merge(matching) { _, new in new }
+            entry["inputMatches"] = String(matching["signedInput"] == entry["verifiedInput"])
+            entry["publicKeyMatches"] = String(matching["publicKey"] == entry["verifiedPublicKey"])
+        }
+        if let data = try? JSONSerialization.data(withJSONObject: entry, options: [.sortedKeys]),
+           let text = String(data: data, encoding: .utf8) {
+            print("SIGNATURE_TRIAGE " + text)
+        }
+    }
 }

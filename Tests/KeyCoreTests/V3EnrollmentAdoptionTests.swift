@@ -59,6 +59,13 @@ struct V3EnrollmentAdoptionTests {
 
     @Test
     func deviceInventoryRemainsAvailableAcrossContentOnlyForks() throws {
+        for _ in 0 ..< 512 {
+            try #require(!SignatureTriage.shared.hasFailed, "Stopped after the first diagnostic failure")
+            try signatureTriage_deviceInventoryRemainsAvailableAcrossContentOnlyForks()
+        }
+    }
+
+    private func signatureTriage_deviceInventoryRemainsAvailableAcrossContentOnlyForks() throws {
         let fixture = try Fixture()
         let parent = fixture.candidate.verifiedManifest
         let parentBody = parent.envelope.content.manifest
@@ -366,6 +373,13 @@ struct V3EnrollmentAdoptionTests {
 
     @Test
     func additionalDeviceAuthenticatesAndAdoptsTheExpandedRoster() throws {
+        for _ in 0 ..< 512 {
+            try #require(!SignatureTriage.shared.hasFailed, "Stopped after the first diagnostic failure")
+            try signatureTriage_additionalDeviceAuthenticatesAndAdoptsTheExpandedRoster()
+        }
+    }
+
+    private func signatureTriage_additionalDeviceAuthenticatesAndAdoptsTheExpandedRoster() throws {
         let fixture = try AdditionalAdoptionFixture()
         let selection = AdoptionSelection()
 

@@ -653,6 +653,13 @@ struct V3EnrollmentOwnerTransitionTests {
 
     @Test
     func sharedEnrollmentCanApproveTheAuthenticatedHeadBeyondCheckpoint() throws {
+        for _ in 0 ..< 512 {
+            try #require(!SignatureTriage.shared.hasFailed, "Stopped after the first diagnostic failure")
+            try signatureTriage_sharedEnrollmentCanApproveTheAuthenticatedHeadBeyondCheckpoint()
+        }
+    }
+
+    private func signatureTriage_sharedEnrollmentCanApproveTheAuthenticatedHeadBeyondCheckpoint() throws {
         let fixture = try Fixture()
         let builder = V3EnrollmentOwnerTransitionBuilder()
         let shared = try builder.build(
