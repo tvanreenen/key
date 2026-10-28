@@ -26,7 +26,8 @@ let package = Package(
             ],
             linkerSettings: [
                 .linkedFramework("LocalAuthentication"),
-                .linkedFramework("Security")
+                .linkedFramework("Security"),
+                .linkedFramework("CryptoTokenKit")
             ]
         ),
         .executableTarget(

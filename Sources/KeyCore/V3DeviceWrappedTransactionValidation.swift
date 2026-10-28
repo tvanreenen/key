@@ -294,7 +294,7 @@ struct V3DeviceWrappedTransactionValidator: Sendable {
                 && updated.isEmpty
                 && removed.count == 1
         case .resolveConflict, .mergeHeads, .migrateToV3, .enrollDevice,
-            .revokeDevice, .catchUpVault, .recoverInterruptedTransaction:
+            .revokeDevice, .registerRecoveryRecipient, .adoptRecoveryProfile, .catchUpVault, .recoverInterruptedTransaction:
             permitted = false
         }
         guard permitted else {
