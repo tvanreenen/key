@@ -125,7 +125,7 @@ Combine faithful cases and retain software/native evidence at its actual scope.
 |---|---|
 | Format/crypto | `KeyCore` [profile codec](../Sources/KeyCore/V3RecoveryManifest.swift), [epoch boundary](../Sources/KeyCore/V3RecoveryEpochBoundary.swift), HPKE/entry codecs and schema; preserve profile-2 bytes and explicit dispatch. |
 | Ordinary data | [Runtime](../Sources/KeyCore/V3RecoveryVaultRuntime.swift), [mutation service](../Sources/KeyCore/V3RecoveryVaultMutationService.swift), independent validators and existing immutable transaction kernel. Coverage is a publication invariant. |
-| Authority changes | Separate rotation/enrollment/revocation/removal policies reuse epoch construction/durability, not each other's approvals. [Catch-up](../Sources/KeyCore/V3RecoveryCatchUpCoordinator.swift) validates existing transitions without new publication consent. |
+| Authority changes | Separate rotation/enrollment/revocation/removal policies reuse epoch construction/durability and the [lifecycle context](../Sources/KeyCore/V3RecoveryLifecycleContext.swift), while retaining their own approvals and intent checks. [Catch-up](../Sources/KeyCore/V3RecoveryCatchUpCoordinator.swift) validates existing transitions without new publication consent. |
 | Restore | [Snapshot verifier](../Sources/KeyCore/V3RecoverySnapshot.swift) alone supplies verified plaintext; [restore service](../Sources/KeyCore/V3RecoveryRestoreService.swift) owns scope and fresh permanent genesis/trust/selection ordering. |
 | Product admission | [Protocol](../Sources/KeyCore/KeyServiceProtocol.swift), [host](../Sources/KeyCore/KeyServiceHost.swift), mutation owner and destination/config barriers. Helper owns authority; CLI supplies reviewed inputs and renders bounded output. |
 | Hardware | [Reader](../Sources/KeyCore/PIVRecoveryTokenReader.swift) and [agreement adapter](../Sources/KeyCore/PIVRecoveryAgreement.swift) share native exclusion, additional to vault serialization. Administration stays external. |
@@ -148,12 +148,15 @@ Review copy describes final code, not the investigation chronology.
 | [72](https://github.com/tvanreenen/key/pull/72) | `codex/recovery-lifecycle`: authority lifecycle | `ac06bd8` |
 | [74](https://github.com/tvanreenen/key/pull/74) | `codex/recovery-restore-engine`: fresh vault/continuation | `8dec6d8` |
 | [75](https://github.com/tvanreenen/key/pull/75) | `codex/recovery-service-boundary`: scoped requests/CLI | `483cbae` |
-| [76](https://github.com/tvanreenen/key/pull/76) | `codex/recovery-restore`: integration/native fixes | `0ffaee7` |
+| [76](https://github.com/tvanreenen/key/pull/76) | `codex/recovery-restore`: configured workflow integration | `0ffaee7` |
+| [77](https://github.com/tvanreenen/key/pull/77) | `codex/recovery-native-integration`: native fixes, interruption handling and qualification | `93303c3` |
 
 Published heads have successful Stable, Preview and helper-security checks.
-Native fixes and qualification after `0ffaee7` remain local; old green CI does
-not cover them. Recovery PRs remain drafts. Use `gh stack` for propagation and
-publication; this cleanup does not push, retarget, merge or rewrite history.
+The shared lifecycle cleanup follows on `codex/recovery-lifecycle-context` above
+77. It preserves separate approval policies and the existing stack history;
+test-support and capability-interface cleanup are separate follow-ups. Use
+`gh stack` for propagation and publication. Readiness is tracked on each PR;
+neither review nor green CI enables the shipping recovery gates.
 
 | Evidence | Scope and retained decision |
 |---|---|
@@ -161,7 +164,7 @@ publication; this cleanup does not push, retarget, merge or rewrite history.
 | Lifecycle AI review/regressions | Fixed session-generation and exact committed-ownership checks before rotation activation. [Service tests](../Tests/KeyCoreTests/V3RecoveryKeyRotationServiceTests.swift) cover same-key reauthentication as a different session. |
 | Integrated AI review/fixes, 2026-10-20 | `acd6b01`/`c57c2d3`: cumulative publication usage from earliest still-active recipient floor, including merges. `483cbae`: resident lock remains out-of-band behind queued setup. Regressions failed before fixes/passed afterward; reviewer rechecked fixes. |
 | Historical full Release run | At `0ffaee776050da2a5452505b9b4c76be352e5022`, `swift test -c release --no-parallel` passed 1,754 KeyCore tests/141 suites plus six canonical-JSON tests. Opt-in large mixed migration was skipped. Raw: `tmp/piv-recovery/2026-10-20-review-fixes-full-release.log`. This is not a full run on the latest local head. |
-| Native follow-up | Smartcard entitlement/framing, touch presentation, approval cues, incomplete-reservation release and actual-callback lifetime fixes are in later local history. [Qualification](piv-recovery-signed-test.md) identifies signed artifacts and limits; fresh integrated review/CI remain due. |
+| Native follow-up review, 2026-10-26 | At `93303c3`, three fresh AI reviewers found no actionable issue in the inspected integrated paths. A fresh full Release run reported 1,784 KeyCore tests/143 suites and six canonical-JSON tests passed; opt-in large migration was skipped. Stable, Preview and helper-security CI passed. [Qualification](piv-recovery-signed-test.md) retains exact native artifact limits. This evidence predates the lifecycle cleanup and does not qualify it or a release. Raw review/regression evidence: `tmp/piv-recovery/integrated-review-2026-10-26/`. |
 
 ## Recording future work
 

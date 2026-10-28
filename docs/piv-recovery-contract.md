@@ -371,6 +371,15 @@ errors lock. Cleanup failure permits current-session installation only under its
 exact committed intent, which still blocks new work. No error installs a key,
 deletes another operation or reverses trust.
 
+The internal [lifecycle context](../Sources/KeyCore/V3RecoveryLifecycleContext.swift)
+owns current-state authentication, post-approval revalidation and committed-session
+installation for rotation, access changes and enrollment. It retains the supplied
+session generation and checks stable checkpoint/ownership around full current
+snapshot verification. Services still own their reviewed approval policies and
+exact retained-intent checks; those checks run even when cleanup has removed the
+transaction pin. Exact restart selection, publication and failure handling remain
+with the individual services. The context performs no private operation or retry.
+
 Cold uncommitted epoch restart opens old then new addressed Mac wrappers, checking
 each before the next and retaining full old/new comparison. Cold committed cleanup
 needs only the new/current key; exact warm keys avoid corresponding openings.
