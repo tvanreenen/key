@@ -200,6 +200,308 @@ snapshot. The public proof state must not become an ordinary MAC-verified
 checkpoint. Graph selection, recipient policy, source rechecks, and durable
 resume remain implementation tasks; the small proof helper tests none of them.
 
+### Implemented ordinary edits and durable publication
+
+The internal profile-3 builder now constructs add, edit, copy, move and remove
+candidates from an exact MAC/capsule-authenticated checkpoint and complete
+current snapshot. It shares the existing permanent-profile entry planner and
+content-delta policy. Profile-specific envelope authentication/serialization
+remain separate; profile 3 is never projected into an artificial profile-2
+manifest to perform an edit.
+
+Each candidate retains the vault-key epoch, Mac roster/wrappers, epoch capsule,
+inherited proof, recovery generation/recipient roster and recovery wrappers
+exactly. It names the exact old checkpoint as its only parent and has no fresh
+device or epoch authorization. There is no token dependency or private device
+operation. Empty/unregistered vaults retain their existing protection state;
+edits cannot establish or remove registration.
+
+The independent validator authenticates both manifests and complete before/after
+snapshots, checks permitted revisions and content deltas, and requires exact
+changed-entry staging. Copy must match a retained unchanged source of the same
+type; move preserves its source payload. UTF-8 and canonical TOTP checks, entry
+and aggregate bounds apply to the complete snapshots. Changed authority,
+capsule/proof, recipient status or wrappers are not ordinary edits, even if the
+replacement fixture has a valid current-key MAC.
+
+The internal publisher now uses the existing immutable transaction ordering
+through explicit profile-specific validators. It pins the exact content intent
+locally before staging, publishes entries before the manifest, reopens exact
+published bytes and compare-and-replaces only the expected local checkpoint.
+The wire intent and staging layout are unchanged. Shipping profile-2 callers
+retain their own parser/authenticator and cannot interpret profile-3 recovery.
+
+Profile-3 publication/resume requires separately supplied registration and
+adoption ownership stores. Either pending state blocks content work. Exact
+ownership/checkpoint and bounded source inventory are rechecked before
+publication and activation. The visible locally trusted floor is required;
+a cache alone does not authorize selecting an alternative provider head.
+Same-vault branches or changed inventory refuse this single-parent publisher.
+The exact candidate's own addition is allowed; provider files alone cannot
+authorize interrupted-save recovery without the local intent pin.
+
+Resume validates and publishes the original pinned candidate, never regenerating
+an edit. An incomplete unpublished preparation can be abandoned at the old
+checkpoint; a published manifest with missing/corrupt references retains the
+pin and refuses. After checkpoint commitment, reconciliation authenticates the
+current MAC/capsule, complete current snapshot and exact published bytes before
+cleanup. It does not require removed entry versions or decrypt old snapshots.
+The source inventory still refuses unconnected same-vault objects; missing
+intermediate history can leave an older object unclassifiable rather than
+granting permission to ignore it. Cache replacement follows successful cleanup.
+
+Software tests publish add/edit/copy/move/remove through this production library
+path, then recover the selected current contents using only encrypted files,
+the pinned anchor and a software token private key. Original Mac authority and
+the session key leave scope before recovery. One agreement opens the snapshot;
+ordinary publication makes no private-device or token call. This is filesystem
+and crypto evidence, not shipping service/CLI dispatch, branch resolution,
+full multi-Mac catch-up coordination, native local-store or physical-token qualification. These
+integration tasks still gate product enablement.
+
+### Implemented ordinary same-epoch catch-up
+
+The internal ordinary observer starts at an exact local checkpoint and supplied
+unlocked session key, not a recovery-token anchor. It shares bounded published
+inventory, ancestry traversal and revision progression with catastrophe history
+selection. Authentication remains separate: every visible forward same-epoch
+manifest MAC/capsule, unchanged authority/coverage and complete entry snapshot
+must check before an ordinary head is reported. Entries have the usual byte,
+reference, UTF-8 and canonical TOTP bounds. Snapshots already committed as ancestors
+of the supplied checkpoint are not decrypted merely to explain a late branch.
+
+The serialized step service refuses pending ordinary, registration or adoption
+work. It repeats the observation and checks exact checkpoint/ownership state
+before returning an unchanged floor, reporting multiple authenticated content
+heads, or compare-and-replacing the checkpoint with the next authenticated
+advance point. A linear path advances its direct child. A resolved fork advances
+to the first join lying on every path to the sole visible head, without first
+checkpointing either side. All exact parents and required complete snapshots
+authenticate before this join can be accepted. The service never constructs an
+implicit merge, writes provider objects or requests a device/token operation.
+Cache failure after successful CAS cannot undo the new checkpoint's authority.
+
+The one-step API returns one committed step, not a completed access gate or
+installed key session. Its caller must rediscover after each step. The internal
+coordinated API instead owns one mutation boundary for the entire same-epoch
+walk and retains the original authenticated floor. It repeats complete source
+authentication and equality checks before every forward checkpoint CAS and
+terminal return. A sibling delivered after CAS is authenticated from that retained floor
+and reported with all visible heads, retaining committed progress without
+choosing a winner. The currently committed manifest must remain present with
+exact bytes. A step budget can stop the walk without undoing accepted checkpoints
+or claiming current status; reaching a terminal result at the exact bound is allowed.
+
+The retained floor is operation-local. A later invocation can explain a sibling
+or merge co-parent below its advanced checkpoint by reconstructing exact
+hash-linked same-epoch ancestry committed by that checkpoint. This path runs only
+when the ordinary forward cut cannot explain the visible graph. It checks every
+required ancestor's MAC/capsule, unchanged metadata, revision progress, graph
+closure and existing resource bounds. The unique origin or checkpoint-linked
+authorized epoch boundary is the graph cut; its older parent is not reopened or
+authenticated with the current key. Unrelated branches and missing required
+ancestral manifests still refuse.
+
+The older graph cut never replaces the durable checkpoint. Current and newly
+encountered branch snapshots, including unselected co-parents, fully authenticate;
+already committed ancestor records can supply a comparison base without reopening
+their ciphertext. No second trusted journal, cache authority, persisted schema or
+new private-key operation is introduced. Fresh observation equality and exact
+checkpoint CAS still gate every forward advancement. Merged-history observation
+and explicit merge/resolution publication are implemented internally. Changed-key
+descendants refuse this path; no fallback key, private unwrap, token
+retry or automatic resolution is available. Key-epoch refusal is not
+authentication of that new epoch. Neither API installs a native session or
+provides a shipping read/write access gate.
+
+Software tests use independent local checkpoint/cache states and real immutable
+filesystem publication, including offline writes before file delivery. They
+cover one-step and coordinated advancement, whole-forward-history
+availability/authentication, competing heads, late delivery, pending work,
+CAS loss, bounded partial progress and source substitution. Published automatic
+and explicit-choice merges, repeated joins, post-merge saves and late sibling
+delivery use the same complete source/pending/checkpoint checks. Missing ciphertext
+in an uncommitted unselected parent still blocks advancement. Late siblings can be
+reported, reconciled and durably merged from an advanced checkpoint without
+rewinding. Missing older committed ciphertext does not block link reconstruction;
+missing required manifests or current/new branch contents do. A pure bounded DAG
+policy chooses advance points with linear retained state; independent set-based reference tests
+cover all 9,765 rooted topologically ordered six-node DAGs.
+They do not qualify two physical Macs, provider delivery, native session unlock,
+the local Keychain stores or a shipping workflow.
+
+### Implemented same-epoch branch comparison
+
+The internal profile-3 reconciler consumes the ordinary observer's authenticated
+forward DAG, not raw manifests or a profile-2 projection. Every visible branch
+has already passed current MAC/capsule, exact unchanged authority/coverage,
+revision and complete snapshot checks. The reconciler finds the nearest common
+ancestors within that graph, stopping at the checkpoint-linked graph cut. A unique
+nearest base feeds entry comparison. Multiple nearest bases produce the existing
+history-conflict type; no base is chosen arbitrarily and the merge builder refuses
+automatic or explicit-entry resolution of that history shape. The reconciler does
+not grant an older or new checkpoint. An older comparison base is usable only
+after exact ancestry links have authenticated from the existing local checkpoint.
+
+The shared entry comparison policy keeps independent changes to different stable
+entry IDs, including additions and deletions. Competing edits, edit-versus-delete,
+rename-versus-edit, different renames and concurrent creation of the same identity
+remain explicit conflicts. Distinct identities sharing a destination name also
+remain ambiguous. Different ciphertext versions remain a conflict even when the
+plaintext happens to match; there is no new content-equality or rename exception.
+Conflict reports retain exact head references and changed entry versions, including
+nil for a deleted version. Shared comparison retains the older profile's revision
+rollback and same-revision-substitution checks.
+
+An automatic merge result is logical entries plus exact parent heads and comparison
+base. It is not an encoded manifest, fresh source observation, publication permit
+or local trust advancement. No entries are resealed, provider files published,
+checkpoint replaced or token/device operation requested. A future merge/resolution
+transaction must independently authenticate all exact parents and complete snapshots,
+preserve coverage/authority, recheck provider and local pending state, and publish
+manifest last. The existing one-parent persisted content intent was not widened.
+
+The observer accepts closed same-epoch merged history and checkpoint-linked late
+siblings/co-parents but still refuses changed-key histories. Service/CLI integration
+remains unfinished. Explicit choices have
+internal construction and durable publication, as described below.
+The new tests use real crypto and separate filesystem providers for independent
+ordinary publications before immutable file delivery. They are not native session,
+Keychain, physical-token or multi-Mac qualification.
+
+### Implemented all-parent content construction
+
+Internal builders now encode automatic merges and complete explicit conflict
+choices from an ordinary authenticated forward-DAG observation. Automatic merges
+reuse exact independently reconciled ciphertext records without staging or resealing.
+Resolution uses the existing head-bound conflict/version IDs and complete-choice
+planner. A chosen conflicted entry retains its stable identity, selected name/type
+and plaintext, but is resealed at one revision above every parent version of that
+identity. Counter overflow refuses resealing; an explicitly chosen deletion stays
+absent without incrementing or staging an entry. A destination-name choice removes
+only the other identities in that reported collision and retains the chosen
+ciphertext exactly. New name collisions created by otherwise complete choices
+refuse construction instead of silently deleting another selection.
+
+Every candidate carries all exact sorted parent heads and preserves key identity,
+authority transition, Mac roster/wrappers, capsule, inherited proof and complete
+recovery roster/generation/wrappers exactly. Fresh boundary authorizations remain
+empty. Independent validation rechecks the supplied floor/session key and every
+parent's complete snapshot, recomputes the merge or resolution policy, and checks
+candidate MAC/capsule, metadata/progression, exact retained records and exact staged
+objects. The complete candidate snapshot passes context, AEAD, UTF-8 and TOTP checks;
+resealed values must match the selected source plaintexts. Projected object/reference,
+byte and history-depth limits include the new manifest and new ciphertext objects.
+
+The builder and domain validator still have no provider writer, checkpoint store,
+token operation or native session capability. Their observations can age. Durable
+publication must independently recheck source, exact heads, local checkpoint and
+all pending namespaces; a constructed candidate alone grants no write permission.
+
+### Implemented all-parent content publication
+
+An explicitly selected internal merge publisher now reuses the ordinary
+manifest-last transaction kernel with a separate merge validator. Before intent,
+it freshly authenticates the local floor, complete forward parent history and
+snapshots, recomputes the exact head-bound merge or choices, and checks the candidate
+and projected limits. It writes a local intent pin before staging, publishes all
+required ciphertext before the manifest, reads back exact published bytes and
+rechecks provider/checkpoint/pending state before local checkpoint CAS. New branches,
+changed objects or competing local authority work prevent activation.
+
+Merge intents use a strict canonical version 3 shape containing the exact sorted
+heads and bounded sorted conflict/version selectors, with no plaintext or key
+material. Empty selectors identify an automatic merge. Selectors are saved evidence,
+not saved approval or authority. The device-local pin binds the exact intent digest;
+synchronized intents without that pin cannot resume. Existing version 1 content
+and version 2 enrollment schemas keep their shapes. Ordinary profile-2/profile-3
+content publishers and the older generic recoverer refuse this merge-intent shape;
+the merge publisher refuses their ordinary intents. There is no profile auto-detection.
+
+Interrupted publication resumes the exact staged encrypted bytes and candidate;
+it does not generate replacement ciphertext or silently choose another version.
+Before commitment, all parents, selectors and snapshots are freshly revalidated.
+If the exact merge is already published, only its exact bytes are excluded from
+parent-head discovery, while remaining in inventory budgets. Other delivered
+branches or children are not hidden. A missing unpublished preparation can be
+abandoned at the old checkpoint. A published candidate missing required ciphertext
+retains its pin and refuses. After local commitment, cleanup authenticates the
+current complete snapshot and pinned immutable bytes without reopening superseded
+entries or requiring old manifest/cache files. Competing checkpoint/pin values are
+never overwritten.
+
+Software tests use real crypto and contained filesystem publication, including
+automatic and explicit-choice interruptions at every applicable durable phase,
+exact resource budgets, checkpoint/ownership races, changed ciphertext, late branches,
+pending authority work, strict intent parsing and cross-publisher refusal. Both
+durably published merge kinds open through the public history/snapshot verifier
+with one software agreement. Ordinary saves from an accepted merge retain coverage.
+These are not native-token operations or measured physical approval budgets.
+Merged-history catch-up includes checkpoint-linked same-epoch siblings/co-parents
+below a later floor. Service/CLI integration and native/product qualification
+remain unfinished.
+
+### Implemented internal ordinary mutation service
+
+The explicitly selected [profile-3 service](../Sources/KeyCore/V3RecoveryVaultMutationService.swift)
+implements the existing ordinary add/edit/copy/move/remove/resolve interface.
+The helper must own serialization and provide the operation ID. The service
+reuses that boundary rather than creating a nested queue. Its only key source is
+the existing in-memory session, bound to the exact vault and current key ID.
+Missing, invalidated or mismatched sessions refuse; this service cannot sign,
+unwrap, prompt for native authentication or administer a token.
+
+Before planning a save it authenticates the current provider manifest against
+the exact local checkpoint, resumes only a locally pinned content intent, catches
+up through verified same-epoch history, and repeats source/checkpoint/pending
+checks. An automatic merge commits under a separate operation ID before the
+requested save is freshly planned. If that save then fails, the committed merge
+remains but the caller receives failure. Explicit resolution uses freshly
+observed conflict selectors; stale choices do not authorize publication.
+
+Interruption routing reads only the operation bound by local ownership, not
+arbitrary synchronized intents. The selected publisher independently revalidates
+that exact ownership record before resuming or abandoning an unstaged reservation.
+Changed or missing ownership cannot switch validators or clean up another
+operation. Missing recoverable evidence retains its pin and refuses.
+
+[Integration tests](../Tests/KeyCoreTests/V3RecoveryVaultMutationServiceTests.swift)
+use the real session and filesystem publishers. They cover ordinary edit chains,
+catch-up, automatic/explicit and late-branch resolution, interruption routing,
+source/session failures and authority work appearing during publication. A cold
+software recovery test opens service-saved contents after the original session
+and service leave scope. This is not native unlock or physical-token qualification.
+The conflict projection is serialized metadata inspection, not a concurrent-safe
+product read/status service. No shipping dispatch is enabled.
+
+### Implemented reciprocal internal pending-work guards
+
+Registration now requires explicit ordinary-transaction and adoption ownership
+stores, matching adoption's existing dependency pattern. Any present competing
+record blocks prepare, export resume, finish, committed repair and lost-reply
+recognition before private work. Read failures propagate; malformed records do
+not count as an empty namespace. The ordinary service already blocks registration
+and adoption work in the reverse direction.
+
+Both authority services recheck competing ownership with the exact checkpoint
+at effect boundaries, including session repair and final ownership cleanup.
+Registration also checks after public token revalidation and before publication
+and checkpoint CAS. Work delivered during an approval causes refusal of the
+remaining effects. An already completed checkpoint CAS is not undone; its exact
+preparation and pin remain for explicit reconciliation after competing work is
+resolved. Before commitment, a subsequent finish requires fresh possession.
+After commitment, reconciliation does not republish or repeat hardware agreement.
+An in-flight platform operation cannot be guaranteed cancellable by these guards.
+
+These are durable-resume checks, not a new lock or cross-process atomic protocol.
+All composed services must share the existing serialized mutation owner and exact
+device-local namespaces. Internal filesystem/software fixtures test both directions,
+including a real pinned save, registration-to-session activation, a following edit
+and software recovery. Product routing and shipping-runtime barriers still require
+integration. Adoption's explicit exact-operation abandonment of an unarmed
+reservation remains local-only: it can release its own pin without advancing
+trust, publishing or clearing competing work.
+
 ## Proposed data contract
 
 Keep outer vault/envelope version 3 and the understood envelope shape.
@@ -766,8 +1068,8 @@ publication authority. No source/configuration/Keychain deletion is performed.
 No shipping composition, public command or real-vault opt-in is enabled.
 Adoption alone does not claim recovery protection; that requires separate
 registration. Reciprocal pending-state barriers in ordinary product services,
-profile-3 writes/catch-up/lifecycle support, integrated review and distribution
-qualification remain required before real-vault opt-in.
+product integration of profile-3 writes/catch-up, lifecycle support, integrated
+review and distribution qualification remain required before real-vault opt-in.
 
 The proposed public workflow is a `recovery` command group for status,
 credential review, registration, recipient listing/removal, restore review,
@@ -817,8 +1119,8 @@ barriers. The [tracker](piv-recovery-plan.md#architecture-ownership) records
 ownership and package acceptance; do not ship archive diagnostics as product
 integration.
 
-Next is profile-3 ordinary mutation/lifecycle and restore-service integration,
-final domain acceptance and integrated review. Native token binding and scoped
+Next is profile-3 lifecycle and restore-service integration, final domain acceptance,
+shipping-runtime barriers and integrated review. Native token binding and scoped
 agreement are implemented but not physically qualified in their final adapters.
 Shipping profile-2 bytes remain unchanged. Review exact bytes before format
 freeze; transcript checks alone are not a complete service validator.
