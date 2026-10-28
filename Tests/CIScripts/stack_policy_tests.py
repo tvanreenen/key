@@ -36,18 +36,24 @@ class StackVerificationPolicyTests(unittest.TestCase):
             checked.append(name)
         self.assertTrue(checked)
 
-    def test_required_merge_checks_have_literal_job_names(self):
+    def test_required_merge_checks_have_stable_non_matrix_job_names(self):
         policy = json.loads((ROOT / ".github/main-ruleset.json").read_text())
         rule = next(rule for rule in policy["rules"]
                     if rule["type"] == "required_status_checks")
         checks = rule["parameters"]["required_status_checks"]
         self.assertTrue(checks)
         workflow = (ROOT / ".github/workflows/verify.yml").read_text()
-        names = set(re.findall(r"^    name: (.+)$", workflow, re.MULTILINE))
+        jobs = {}
+        for block in re.split(r"(?=^  [\w-]+:\n)", workflow.split("jobs:\n", 1)[1],
+                              flags=re.MULTILINE):
+            name = re.search(r"^    name: (.+)$", block, re.MULTILINE)
+            if name:
+                jobs[name[1]] = block
         for check in checks:
-            # GitHub skips a job before expanding its matrix. Required check
-            # contexts therefore need literal names on intermediate stack PRs.
-            self.assertIn(check["context"], names)
+            # Skipped matrices keep unresolved names; running matrices append
+            # their values. Required gates need fixed, non-matrix job names.
+            self.assertIn(check["context"], jobs)
+            self.assertNotRegex(jobs[check["context"]], re.compile(r"^      matrix:", re.MULTILINE))
             self.assertEqual(check["integration_id"], 15368)
 
     def test_main_ruleset_requires_prs_and_limits_exception_scope(self):
