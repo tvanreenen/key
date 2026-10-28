@@ -331,7 +331,7 @@ private struct KeyArguments: ParsableCommand {
     struct Recovery: ParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "recovery", abstract: "Review recovery inputs, restore or resume (not enabled yet).",
-            discussion: CLIHelp.recovery, subcommands: [Tokens.self, Credential.self, Register.self, Pending.self, Adopt.self, Rotate.self, Review.self, Restore.self, Resume.self]
+            discussion: CLIHelp.recovery, subcommands: [Tokens.self, Credential.self, Register.self, Pending.self, Adopt.self, Rotate.self, Review.self, Restore.self, Resume.self, Abandon.self]
         )
 
         struct Tokens: CLIRequest {
@@ -345,7 +345,7 @@ private struct KeyArguments: ParsableCommand {
 
         struct CredentialOptions: ParsableArguments {
             @Option(name: .customLong("token"), help: "Complete explicitly selected connected token ID.") var tokens: [String]
-            @Option(name: .customLong("recipient"), help: "Complete recovery recipient ID from credential inspection.") var recipients: [String]
+            @Option(name: .customLong("recipient"), parsing: .unconditionalSingleValue, help: "Complete recovery recipient ID from credential inspection.") var recipients: [String]
             mutating func validate() throws {
                 guard tokens.count == 1, recipients.count == 1 else {
                     throw ValidationError("Provide --token and --recipient exactly once each.")
@@ -462,7 +462,7 @@ private struct KeyArguments: ParsableCommand {
             var destinations: [String]
             @Option(name: .customLong("token"), help: "Exact connected token ID. Required exactly once; never automatically selected.")
             var tokens: [String]
-            @Option(name: .customLong("recipient"), help: "Complete recovery recipient ID, not a certificate fingerprint. Required exactly once.")
+            @Option(name: .customLong("recipient"), parsing: .unconditionalSingleValue, help: "Complete recovery recipient ID, not a certificate fingerprint. Required exactly once.")
             var recipients: [String]
 
             mutating func validate() throws {
@@ -520,6 +520,33 @@ private struct KeyArguments: ParsableCommand {
                     source: selection.sources[0], destination: selection.destinations[0],
                     tokenID: selection.tokens[0], recipientID: selection.recipients[0]
                 ))
+            }
+        }
+
+        struct Abandon: CLIRequest {
+            static let configuration = CommandConfiguration(
+                commandName: "abandon", abstract: "Release only one exact incomplete local restore reservation.",
+                usage: "key recovery abandon --source <directory> --destination <original-destination> --vault-id <source-vault-id> --operation <original-operation-id>",
+                discussion: CLIHelp.recoveryAbandon)
+            @Option(name: .customLong("source"), completion: .directory) var sources: [String]
+            @Option(name: .customLong("destination"), completion: .directory) var destinations: [String]
+            @Option(name: .customLong("vault-id")) var vaults: [String]
+            @Option(name: .customLong("operation")) var operations: [String]
+            mutating func validate() throws {
+                guard sources.count == 1, destinations.count == 1, vaults.count == 1, operations.count == 1 else {
+                    throw ValidationError("Provide --source, --destination, --vault-id and --operation exactly once each.")
+                }
+                for path in [sources[0], destinations[0]] {
+                    try validateDirectory(path)
+                    guard path.utf8.count <= 4_096 else { throw ValidationError("Recovery paths must not exceed 4096 UTF-8 bytes.") }
+                }
+                guard isValidV3UUID(vaults[0]), (try? VaultTransactionOperationID(validating: operations[0])) != nil else {
+                    throw ValidationError("Provide the complete source vault ID and original restore operation ID.")
+                }
+            }
+            var command: Command {
+                .recovery(.abandon(source: sources[0], destination: destinations[0],
+                    sourceVaultID: vaults[0], operationID: operations[0]))
             }
         }
     }

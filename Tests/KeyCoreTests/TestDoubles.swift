@@ -181,13 +181,21 @@ final class MemoryClipboard: ClipboardWriting {
 final class MemoryTransport: KeyServiceTransport {
     private let handler: (KeyServiceRequest) throws -> KeyServiceResponse
     private(set) var requests: [KeyServiceRequest] = []
+    private let stages: [KeyRecoveryStage]
+    private(set) var progressRequests = 0
 
-    init(handler: @escaping (KeyServiceRequest) throws -> KeyServiceResponse) {
+    init(stages: [KeyRecoveryStage] = [], handler: @escaping (KeyServiceRequest) throws -> KeyServiceResponse) {
         self.handler = handler
+        self.stages = stages
     }
 
     func send(_ request: KeyServiceRequest) throws -> KeyServiceResponse {
         requests.append(request)
         return try handler(request)
+    }
+    func send(_ request: KeyServiceRequest, progress: @escaping (KeyRecoveryStage) -> Void) throws -> KeyServiceResponse {
+        progressRequests += 1
+        stages.forEach(progress)
+        return try send(request)
     }
 }

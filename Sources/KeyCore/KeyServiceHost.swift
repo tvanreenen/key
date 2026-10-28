@@ -102,7 +102,8 @@ public final class KeyServiceHost {
     }
 
     public func handle(
-        _ request: KeyServiceRequest, connection: KeyServiceConnection? = nil
+        _ request: KeyServiceRequest, connection: KeyServiceConnection? = nil,
+        progress: KeyRecoveryProgress? = nil
     ) -> KeyServiceResponse {
         if request == .lock, cancelRecoveryRequests() {
             // Public review may be draining ahead of a queued setup barrier.
@@ -113,13 +114,13 @@ public final class KeyServiceHost {
             return .success()
         }
         if case let .recovery(action) = request {
-            return handleRecovery(action, connection: connection)
+            return handleRecovery(action, connection: connection, progress: progress)
         }
         if case let .recoveryReview(action) = request {
             return handleRecoveryReview(action, connection: connection)
         }
         if case let .recoveryRegistration(action) = request {
-            return handleRecoveryRegistration(action, connection: connection)
+            return handleRecoveryRegistration(action, connection: connection, progress: progress)
         }
         if case let .recoveryRotation(action) = request {
             guard let rotateRecovery else {
@@ -223,14 +224,14 @@ public final class KeyServiceHost {
     }
 
     private func handleRecovery(
-        _ request: KeyRecoveryRequest, connection: KeyServiceConnection?
+        _ request: KeyRecoveryRequest, connection: KeyServiceConnection?, progress: KeyRecoveryProgress?
     ) -> KeyServiceResponse {
         // No live capability is installed yet. Stable and ordinary Preview
         // refuse without composing a runtime, reading a card or touching files.
         guard let recovery else {
             return .failure("Recovery is not enabled in this product build.")
         }
-        return withRecoveryScope(connection: connection, flags: .barrier) { scope in
+        return withRecoveryScope(connection: connection, flags: .barrier, progress: progress) { scope in
             try scope.requireCurrent()
             guard !restartPending else { return restarting() }
             try request.validate()
@@ -242,6 +243,9 @@ public final class KeyServiceHost {
                 guard try !hasConfiguration() else {
                     throw AppError.operationRefused("Restore requires an unconfigured Mac and never replaces its selected vault.")
                 }
+            }
+            if request.isAbandonment, try hasConfiguration() {
+                throw AppError.operationRefused("Abandonment requires an unconfigured Mac and never changes its selected vault.")
             }
             try recoveryLock.withLock {
                 try scope.requireCurrent()
@@ -257,6 +261,13 @@ public final class KeyServiceHost {
             recoveryPending = true
             let response = try recovery.recover(request, scope)
             try scope.requireCurrent()
+            if request.isAbandonment, response.exitCode == EXIT_SUCCESS {
+                guard try !hasConfiguration() else {
+                    throw AppError.operationRefused("A vault configuration appeared during abandonment. Preserve state for inspection.")
+                }
+                restartPending = true
+                return response
+            }
             if response.exitCode == EXIT_SUCCESS, try !hasConfiguration() {
                 throw AppError.operationRefused("Recovery returned without selecting a vault. Leave the attempt intact and explicitly resume; do not start another restore.")
             }
@@ -266,23 +277,23 @@ public final class KeyServiceHost {
     }
 
     private func handleRecoveryRegistration(
-        _ request: KeyRecoveryRegistrationRequest, connection: KeyServiceConnection?
+        _ request: KeyRecoveryRegistrationRequest, connection: KeyServiceConnection?, progress: KeyRecoveryProgress?
     ) -> KeyServiceResponse {
         guard let registerRecovery else {
             return .failure("Recovery registration is not enabled in this product build.")
         }
-        return handleConfiguredRecovery(connection: connection, changesCheckpoint: request.changesCheckpoint,
+        return handleConfiguredRecovery(connection: connection, progress: progress, changesCheckpoint: request.changesCheckpoint,
             validate: request.validate, perform: { try registerRecovery(request, $0) })
     }
 
     /// Shared configured admission only. Individual services still own exact
     /// operation selection, authenticated publication and durable reconciliation.
     private func handleConfiguredRecovery(
-        connection: KeyServiceConnection?, changesCheckpoint: Bool,
+        connection: KeyServiceConnection?, progress: KeyRecoveryProgress? = nil, changesCheckpoint: Bool,
         validate: () throws -> Void,
         perform: (KeyRecoveryRequestScope) throws -> KeyServiceResponse
     ) -> KeyServiceResponse {
-        return withRecoveryScope(connection: connection, flags: .barrier) { scope in
+        return withRecoveryScope(connection: connection, flags: .barrier, progress: progress) { scope in
             try scope.requireCurrent()
             guard !restartPending else { return restarting() }
             try validate()
@@ -332,13 +343,14 @@ public final class KeyServiceHost {
     /// public callbacks drain. Setup/config barriers wait for the read to end.
     private func withRecoveryScope(
         connection: KeyServiceConnection?, flags: DispatchWorkItemFlags,
+        progress: KeyRecoveryProgress? = nil,
         operation: (KeyRecoveryRequestScope) throws -> KeyServiceResponse
     ) -> KeyServiceResponse {
         let pending = recoveryLock.withLock { () -> KeyRecoveryRequestScope? in
             guard recoveryRequest == nil else { return nil }
             let scope = KeyRecoveryRequestScope(
                 authentication: recoveryAuthentication,
-                deadline: .now() + .seconds(KeyRecoveryRequest.maximumDurationSeconds))
+                deadline: .now() + .seconds(KeyRecoveryRequest.maximumDurationSeconds), progress: progress)
             recoveryRequest = scope
             return scope
         }
@@ -346,6 +358,7 @@ public final class KeyServiceHost {
             return .failure("Another recovery request is running or waiting. No new recovery operation was started; wait for it to finish before explicitly trying again.")
         }
         connection?.register(scope)
+        _ = scope.cancellation.register { progress?.close() }
         defer {
             connection?.remove(scope)
             recoveryLock.withLock { recoveryRequest = nil }

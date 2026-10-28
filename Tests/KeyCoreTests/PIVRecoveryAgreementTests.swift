@@ -19,6 +19,88 @@ struct PIVRecoveryAgreementTests {
     #expect(f.connection.sessions == 1)
   }
 
+  @Test func stagedApprovalPrecedesTouchAndOneAgreement() throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    let events = Stages()
+    let progress = KeyRecoveryProgress(operationID: UUID()) { events.append($0.stage) }
+    f.session.onAuthenticate = {
+      #expect(events.values == [.authenticating])
+      #expect(!f.connection.inSession)
+      #expect(f.session.requests == 0)
+    }
+    f.session.onAgree = { #expect(events.values == [.authenticating, .touchRequired]) }
+    _ = try f.adapter.withReceiver(observation: f.observation, progress: progress) { try $0.agree(Self.peer) }
+    #expect(events.values == [.authenticating, .touchRequired, .hardwareCompleted])
+    progress.emit(.authenticating)
+    #expect(events.values.count == 3)
+    #expect(f.session.requests == 1)
+  }
+
+  @Test func refusedOrCancelledApprovalNeverRequestsTouchOrAgreement() throws {
+    guard #available(macOS 26.0, *) else { return }
+    for cancelled in [false, true] {
+      let f = try Fixture()
+      let cancellation = PIVRecoveryCancellation()
+      let events = Stages()
+      let progress = KeyRecoveryProgress(operationID: UUID()) { events.append($0.stage) }
+      f.session.onAuthenticate = {
+        if cancelled { cancellation.cancel() }
+        else { throw PIVRecoveryAgreementError.authenticationFailed }
+      }
+      #expect(throws: cancelled ? PIVRecoveryAgreementError.cancelled : .authenticationFailed) {
+        try f.adapter.withReceiver(observation: f.observation, cancellation: cancellation,
+          progress: progress) { try $0.agree(Self.peer) }
+      }
+      #expect(events.values == [.authenticating])
+      #expect(f.session.requests == 0 && f.session.invalidations == 1)
+    }
+  }
+
+  @Test func cancellationFromTouchPresentationPreventsPrivateOperation() throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    let cancellation = PIVRecoveryCancellation()
+    let progress = KeyRecoveryProgress(operationID: UUID()) {
+      if $0.stage == .touchRequired { cancellation.cancel() }
+    }
+    #expect(throws: PIVRecoveryAgreementError.cancelled) {
+      try f.adapter.withReceiver(observation: f.observation, cancellation: cancellation,
+        progress: progress) { try $0.agree(Self.peer) }
+    }
+    #expect(f.session.requests == 0)
+  }
+
+  @Test func lateApprovalAfterCancellationCannotStartAgreementOrTouchProgress() throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    let cancellation = PIVRecoveryCancellation()
+    let entered = DispatchSemaphore(value: 0)
+    let release = DispatchSemaphore(value: 0)
+    let returned = DispatchSemaphore(value: 0)
+    let events = Stages()
+    let progress = KeyRecoveryProgress(operationID: UUID()) { events.append($0.stage) }
+    f.session.onAuthenticate = {
+      entered.signal()
+      _ = release.wait(timeout: .now() + .seconds(10))
+    }
+    defer { release.signal() }
+    DispatchQueue.global().async {
+      #expect(throws: PIVRecoveryAgreementError.cancelled) {
+        try f.adapter.withReceiver(observation: f.observation, cancellation: cancellation,
+          progress: progress) { try $0.agree(Self.peer) }
+      }
+      returned.signal()
+    }
+    #expect(entered.wait(timeout: .now() + .seconds(3)) == .success)
+    cancellation.cancel()
+    #expect(returned.wait(timeout: .now() + .seconds(3)) == .success)
+    #expect(f.session.requests == 0 && events.values == [.authenticating])
+    release.signal()
+    try Self.requireGateReleased(f.gate)
+    #expect(f.session.requests == 0 && events.values == [.authenticating])
+  }
+
   @Test func scopedAgreementChecksBindingAndClosesReadsBeforeRequest() throws {
     guard #available(macOS 26.0, *) else { return }
     let f = try Fixture()
@@ -45,6 +127,83 @@ struct PIVRecoveryAgreementTests {
     #expect(f.connection.sessions == 4 && !f.connection.inSession)
     let lease = try f.gate.acquire()
     withExtendedLifetime(lease) {}
+  }
+
+  @Test func invalidationDoesNotInventANativeAuthenticationReply() throws {
+    let reply = PIVRecoveryAuthenticationReply()
+    let entered = DispatchSemaphore(value: 0)
+    let returned = DispatchSemaphore(value: 0)
+    let invalidations = Counter()
+    DispatchQueue.global().async {
+      entered.signal()
+      #expect(!reply.wait())
+      returned.signal()
+    }
+    #expect(entered.wait(timeout: .now() + .seconds(3)) == .success)
+    reply.invalidate { invalidations.increment() }
+    reply.invalidate { invalidations.increment() }
+    #expect(invalidations.value == 1)
+    let premature = returned.wait(timeout: .now() + .milliseconds(50)) == .success
+    #expect(!premature, "Native worker returned without its framework callback")
+    reply.complete(true) // A late positive callback must still be refused.
+    reply.complete(false)
+    if !premature { #expect(returned.wait(timeout: .now() + .seconds(3)) == .success) }
+  }
+
+  @Test func authenticationReplySupportsInlineCancellationAndFirstReplyOnly() {
+    let inline = PIVRecoveryAuthenticationReply()
+    inline.invalidate { inline.complete(false) }
+    #expect(!inline.wait())
+    let completed = PIVRecoveryAuthenticationReply()
+    completed.complete(true)
+    completed.complete(false)
+    #expect(completed.wait())
+  }
+
+  @Test func pendingAuthenticationRetainsExclusionAfterCancellationOrDeadline() throws {
+    guard #available(macOS 26.0, *) else { return }
+    for timeout in [false, true] {
+      for approved in [false, true] {
+        let f = try Fixture()
+        let reply = PIVRecoveryAuthenticationReply()
+        let entered = DispatchSemaphore(value: 0)
+        let returned = DispatchSemaphore(value: 0)
+        let authenticationReturned = DispatchSemaphore(value: 0)
+        let cancellation = PIVRecoveryCancellation()
+        let events = Stages()
+        let progress = KeyRecoveryProgress(operationID: UUID()) { events.append($0.stage) }
+        f.session.onAuthenticate = {
+          entered.signal()
+          _ = reply.wait()
+          authenticationReturned.signal()
+        }
+        f.session.onInvalidate = { reply.invalidate {} }
+        defer { reply.complete(false) }
+        DispatchQueue.global().async {
+          #expect(throws: timeout ? PIVRecoveryAgreementError.deadlineExceeded : .cancelled) {
+            try f.adapter.withReceiver(
+              observation: f.observation, cancellation: cancellation,
+              deadline: .now() + .seconds(timeout ? 1 : 10), progress: progress
+            ) { try $0.agree(Self.peer) }
+          }
+          returned.signal()
+        }
+        #expect(entered.wait(timeout: .now() + .seconds(3)) == .success)
+        if !timeout { cancellation.cancel() }
+        #expect(returned.wait(timeout: .now() + .seconds(3)) == .success)
+        let premature = authenticationReturned.wait(timeout: .now() + .milliseconds(50)) == .success
+        #expect(!premature, "Invalidation released the native authentication waiter")
+        #expect(throws: PIVRecoveryTokenError.operationInProgress) { try f.reader.candidates() }
+        #expect(f.session.requests == 0 && events.values == [.authenticating])
+        reply.complete(approved)
+        if !premature {
+          #expect(authenticationReturned.wait(timeout: .now() + .seconds(3)) == .success)
+        }
+        try Self.requireGateReleased(f.gate)
+        #expect(f.session.requests == 0 && events.values == [.authenticating])
+        #expect(f.session.invalidations == 1)
+      }
+    }
   }
 
   @Test func escapedReceiverIsClosed() throws {
@@ -409,6 +568,8 @@ struct PIVRecoveryAgreementTests {
     var failure: PIVRecoveryAgreementError?
     var onLookup: @Sendable () -> Void = {}
     var onAgree: @Sendable () -> Void = {}
+    var onAuthenticate: @Sendable () throws -> Void = {}
+    var onInvalidate: @Sendable () -> Void = {}
     private let lock = NSLock()
     private var lookupCount = 0
     private var requestCount = 0
@@ -428,12 +589,26 @@ struct PIVRecoveryAgreementTests {
       if let failure { throw failure }
       return result
     }
-    func invalidate() { lock.withLock { invalidationCount = 1 } }
+    func authenticate(key: any PIVRecoveryAgreementKey) throws { try onAuthenticate() }
+    func invalidate() {
+      let first = lock.withLock {
+        guard invalidationCount == 0 else { return false }
+        invalidationCount = 1
+        return true
+      }
+      if first { onInvalidate() }
+    }
   }
   private final class Counter: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
     var value: Int { lock.withLock { count } }
     func increment() { lock.withLock { count += 1 } }
+  }
+  private final class Stages: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stages: [KeyRecoveryStage] = []
+    var values: [KeyRecoveryStage] { lock.withLock { stages } }
+    func append(_ value: KeyRecoveryStage) { lock.withLock { stages.append(value) } }
   }
 }

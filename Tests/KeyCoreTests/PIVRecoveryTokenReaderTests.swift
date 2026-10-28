@@ -1,4 +1,5 @@
 import CryptoKit
+import CryptoTokenKit
 import Foundation
 import Testing
 
@@ -162,6 +163,129 @@ struct PIVRecoveryTokenReaderTests {
   }
 
   @Test
+  func failedPublicReadsReportTheirStepAndStatusWithoutResponseBytesOrRetry() throws {
+    let labels: [(PIVPublicReadCommand, String)] = [
+      (.selectApplication, "select-piv-application"),
+      (.keyManagementCertificate, "read-slot-9d-certificate"),
+      (.keyManagementMetadata, "read-slot-9d-metadata"),
+      (.recoveryAnchor, "read-recovery-anchor"),
+    ]
+    for (command, label) in labels {
+      let connection = try Self.connection(anchor: .absent)
+      connection.setReply(
+        command, value: .init(data: Data("response-marker-must-not-appear".utf8), status: 0x6a80))
+      let reader = makeReader([connection])
+      do {
+        _ = try reader.read(try #require(reader.candidates().first))
+        Issue.record("Unexpected public-read success")
+      } catch {
+        let message = error.localizedDescription
+        #expect(message.contains("step=\(label)"))
+        #expect(message.contains("status=0x6a80"))
+        #expect(!message.contains("response-marker"))
+      }
+      #expect(connection.commands.last == command)
+      #expect(connection.commands.filter { $0 == command }.count == 1)
+      #expect(connection.closeCount == 1)
+    }
+  }
+
+  @Test
+  func nativeFailuresPreserveStatusAndRejectEvenSuccessfulStatusWithoutLeakingText() throws {
+    let native = NSError(
+      domain: TKErrorDomain, code: -2,
+      userInfo: [
+        NSLocalizedDescriptionKey: "native-description-marker",
+        NSUnderlyingErrorKey: NSError(domain: "nested-domain-marker", code: 7),
+        "private-marker": "native-userinfo-marker",
+      ])
+    for command in PIVPublicReadCommand.allCases {
+      for status: UInt16 in [0, 0x6a80, 0x9000] {
+        let connection = try Self.connection(anchor: .absent)
+        let reply = PIVPublicReadReply(
+          data: Data("response-data-marker".utf8), status: status, error: native)
+        #expect(reply.status == status)
+        #expect(reply.nativeError?.domain == .cryptoTokenKit && reply.nativeError?.code == -2)
+        connection.setReply(command, value: reply)
+        let reader = makeReader([connection])
+        do {
+          _ = try reader.read(try #require(reader.candidates().first))
+          Issue.record("Native error must not be accepted")
+        } catch let error as PIVPublicReadFailure {
+          #expect(error.command == command && error.status == status)
+          #expect(error.reason == (status == 0x9000 ? .nativeError : .unexpectedStatus))
+          let message = error.localizedDescription
+          #expect(message.contains("native=CryptoTokenKit:-2"))
+          #expect(message.contains(status == 0 ? "status=not-reported" : "status=0x"))
+          #expect(!message.contains("marker") && message.utf8.count < 256)
+        }
+        #expect(connection.commands.last == command)
+        #expect(connection.commands.filter { $0 == command }.count == 1)
+        #expect(connection.closeCount == 1)
+      }
+    }
+  }
+
+  @Test
+  func nativeDiagnosticDomainsAreAllowlistedAndUnknownTextIsNeverRetained() throws {
+    let domains: [(String, PIVPublicReadFailure.NativeError.Domain)] = [
+      (TKErrorDomain, .cryptoTokenKit), (NSCocoaErrorDomain, .cocoa),
+      (NSPOSIXErrorDomain, .posix), (NSOSStatusErrorDomain, .osStatus),
+      (String(repeating: "untrusted-domain-marker\n", count: 100), .other),
+    ]
+    for (domain, expected) in domains {
+      let reply = PIVPublicReadReply(
+        data: nil, status: 0,
+        error: NSError(
+          domain: domain, code: Int.min, userInfo: [NSLocalizedDescriptionKey: "marker"]))
+      #expect(reply.nativeError?.domain == expected && reply.nativeError?.code == Int.min)
+      do {
+        _ = try reply.validated(for: .keyManagementMetadata)
+        Issue.record("Missing native result must fail")
+      } catch let error as PIVPublicReadFailure {
+        #expect(!error.localizedDescription.contains("marker"))
+        #expect(error.localizedDescription.utf8.count < 256)
+      }
+    }
+  }
+
+  @Test
+  func absentAnchorWithNativeStatusErrorStillMeansAbsentOnlyAtTheAnchorStep() throws {
+    let absent = PIVPublicReadReply(
+      data: nil, status: 0x6a82, error: NSError(domain: TKErrorDomain, code: -5))
+    let connection = try Self.connection(anchor: .absent)
+    connection.setReply(.recoveryAnchor, value: absent)
+    let reader = makeReader([connection])
+    #expect(try reader.read(try #require(reader.candidates().first)).anchor == .absent)
+    for command in PIVPublicReadCommand.allCases where command != .recoveryAnchor {
+      #expect(throws: PIVPublicReadFailure.self) { try absent.validated(for: command) }
+    }
+    connection.setReply(
+      .recoveryAnchor,
+      value: .init(data: Data([1]), status: 0x6a82, error: NSError(domain: TKErrorDomain, code: -5))
+    )
+    #expect(throws: PIVPublicObjectError.invalidResponse) {
+      try reader.read(try #require(reader.candidates().first))
+    }
+  }
+
+  @Test
+  func missingSuccessfulResponseDataReportsTheSpecificRead() throws {
+    for command in PIVPublicReadCommand.allCases where command != .selectApplication {
+      let connection = try Self.connection(anchor: .absent)
+      connection.setReply(command, value: .init(data: nil, status: 0x9000))
+      let reader = makeReader([connection])
+      #expect(
+        throws: PIVPublicReadFailure(
+          command: command, reason: .missingResponseData, status: 0x9000, nativeError: nil)
+      ) {
+        try reader.read(try #require(reader.candidates().first))
+      }
+      #expect(connection.commands.last == command && connection.closeCount == 1)
+    }
+  }
+
+  @Test
   func failedReadsAndUncertainStatusesAreNotRetried() throws {
     for stage in PIVPublicReadCommand.allCases {
       let connection = try Self.connection(anchor: .absent)
@@ -178,7 +302,10 @@ struct PIVRecoveryTokenReaderTests {
       let connection = try Self.connection(anchor: .absent)
       connection.setReply(.recoveryAnchor, value: PIVPublicReadReply(data: nil, status: status))
       let reader = makeReader([connection])
-      #expect(throws: PIVPublicObjectError.unexpectedStatus) {
+      #expect(
+        throws: PIVPublicReadFailure(
+          command: .recoveryAnchor, reason: .unexpectedStatus, status: status, nativeError: nil)
+      ) {
         try reader.read(try #require(reader.candidates().first))
       }
       #expect(connection.closeCount == 1)
@@ -240,12 +367,25 @@ struct PIVRecoveryTokenReaderTests {
     for command in [PIVPublicReadCommand.keyManagementCertificate, .recoveryAnchor] {
       #expect(command.instruction == 0xcb && command.p1 == 0x3f && command.p2 == 0xff)
     }
-    #expect(
-      PIVPublicReadCommand.keyManagementCertificate.data == Data([0x5c, 3, 0x5f, 0xc1, 0x0b]))
-    #expect(PIVPublicReadCommand.recoveryAnchor.data == Data([0x5c, 3, 0x5f, 0x4b, 0x59]))
     let metadata = PIVPublicReadCommand.keyManagementMetadata
     #expect(metadata.instruction == 0xf7 && metadata.p1 == 0 && metadata.p2 == 0x9d)
-    #expect(metadata.data.isEmpty)
+  }
+
+  @Test
+  func publicReadPayloadsDistinguishAbsentInputFromEmptyData() {
+    // TKSmartCard.send uses nil for an absent input field, not non-nil empty
+    // Data. These are the values forwarded directly at the native boundary.
+    let expected: [(PIVPublicReadCommand, Data?)] = [
+      (.selectApplication, Data([0xa0, 0, 0, 3, 8, 0, 0, 0x10, 0, 1, 0])),
+      (.keyManagementCertificate, Data([0x5c, 3, 0x5f, 0xc1, 0x0b])),
+      (.keyManagementMetadata, nil),
+      (.recoveryAnchor, Data([0x5c, 3, 0x5f, 0x4b, 0x59])),
+    ]
+    for (command, payload) in expected {
+      let actual: Data? = command.data
+      #expect(actual == payload)
+      #expect(actual != Data())
+    }
   }
 
   @Test func metadataPublicKeyMustMatchTheCertificate() throws {

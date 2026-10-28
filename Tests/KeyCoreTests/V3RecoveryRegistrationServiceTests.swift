@@ -1342,6 +1342,7 @@ struct V3RecoveryRegistrationServiceTests {
 
   private struct Session: PIVRecoveryAgreementSession {
     let provider: Provider
+    func authenticate(key _: any PIVRecoveryAgreementKey) throws {}
     func keys(tokenID _: String, publicKey _: Data) throws -> [any PIVRecoveryAgreementKey] {
       [Key(publicKey: provider.token.publicKey.x963Representation)]
     }

@@ -1,5 +1,77 @@
 import Foundation
 
+/// Presentation only. These stages never authorize an operation or establish
+/// completion of registration/restore; only the service's final reply does.
+public enum KeyRecoveryStage: String, Codable, Sendable, CaseIterable {
+  case authenticating, touchRequired, hardwareCompleted
+  case preparingRestoredVault, openingSavedPreparation, preparationSaved
+  case publishingRestoredVault, activatingRestoredVault
+
+  static let hardwareStages: [Self] = [.authenticating, .touchRequired, .hardwareCompleted]
+
+  /// A bounded acyclic presentation sequence shared by sender and receiver.
+  /// Registration ends after hardware approval; restore/resume take distinct
+  /// branches before converging on complete saved preparation.
+  func canFollow(_ previous: Self?) -> Bool {
+    switch (previous, self) {
+    case (nil, .authenticating), (.authenticating?, .touchRequired),
+      (.touchRequired?, .hardwareCompleted),
+      (.hardwareCompleted?, .preparingRestoredVault),
+      (.hardwareCompleted?, .openingSavedPreparation),
+      (.preparingRestoredVault?, .preparationSaved),
+      (.openingSavedPreparation?, .preparationSaved),
+      (.preparationSaved?, .publishingRestoredVault),
+      (.preparationSaved?, .activatingRestoredVault),
+      (.publishingRestoredVault?, .activatingRestoredVault): true
+    default: false
+    }
+  }
+
+  public var instruction: String {
+    switch self {
+    case .authenticating: "Approve the recovery key in the macOS dialog. Enter your PIN only there."
+    case .touchRequired: "Touch your flashing YubiKey's metal contact now."
+    case .hardwareCompleted: "Hardware approval completed. Finishing the recovery request."
+    case .preparingRestoredVault: "Mac approval: Prepare restored vault on this Mac. Complete recovery preparation has not been saved yet."
+    case .openingSavedPreparation: "Mac approval: Reopen saved restore preparation on this Mac."
+    case .preparationSaved: "Complete encrypted recovery preparation is saved. An interrupted restore can now be explicitly resumed."
+    case .publishingRestoredVault: "Mac approval: Publish prepared restored vault. This uses the saved preparation."
+    case .activatingRestoredVault: "Finishing restored-vault verification and activation. Further Mac approval may be required."
+    }
+  }
+}
+
+public struct KeyRecoveryProgressEvent: Codable, Sendable {
+  public let operationID: UUID
+  public let stage: KeyRecoveryStage
+}
+
+/// One connection/request's finite progress channel. Callbacks run outside its
+/// lock; consumers must close their own presentation before returning a reply.
+public final class KeyRecoveryProgress: @unchecked Sendable {
+  public let operationID: UUID
+  private let lock = NSLock()
+  private var previous: KeyRecoveryStage?
+  private var closed = false
+  private let receive: @Sendable (KeyRecoveryProgressEvent) -> Void
+
+  public init(operationID: UUID, receive: @escaping @Sendable (KeyRecoveryProgressEvent) -> Void) {
+    self.operationID = operationID
+    self.receive = receive
+  }
+
+  func emit(_ stage: KeyRecoveryStage) {
+    let accepted = lock.withLock {
+      guard !closed, stage.canFollow(previous) else { return false }
+      previous = stage
+      return true
+    }
+    if accepted { receive(.init(operationID: operationID, stage: stage)) }
+  }
+
+  public func close() { lock.withLock { closed = true } }
+}
+
 /// Explicit configured key change; no token selector or credential is involved.
 public enum KeyRecoveryRotationRequest: Codable, Equatable, Sendable {
   case rotate
@@ -84,11 +156,17 @@ public enum KeyRecoveryRequest: Codable, Equatable, Sendable {
     deviceName: String)
   case resume(
     source: String, destination: String, tokenID: String, recipientID: String)
+  case abandon(
+    source: String, destination: String, sourceVaultID: String, operationID: String)
 
   static let maximumDurationSeconds = 90
 
   var isInitialRestore: Bool {
     if case .restore = self { true } else { false }
+  }
+
+  var isAbandonment: Bool {
+    if case .abandon = self { true } else { false }
   }
 
   func validate() throws {
@@ -102,6 +180,13 @@ public enum KeyRecoveryRequest: Codable, Equatable, Sendable {
       (source, destination, tokenID, recipientID) = (from, to, token, digest)
     case .resume(let from, let to, let token, let digest):
       (source, destination, tokenID, recipientID) = (from, to, token, digest)
+    case .abandon(let from, let to, let vault, let operation):
+      guard [from, to].allSatisfy({ $0.hasPrefix("/") && $0.utf8.count <= 4_096 && !$0.utf8.contains(0) }),
+        isValidV3UUID(vault), (try? VaultTransactionOperationID(validating: operation)) != nil
+      else {
+        throw AppError.operationRefused("Abandon requires absolute original source/destination paths and complete source vault and operation IDs.")
+      }
+      return
     }
     guard
       [source, destination].allSatisfy({
@@ -159,11 +244,14 @@ struct KeyRecoveryRequestScope: Sendable {
   let cancellation = PIVRecoveryCancellation()
   let authentication: V3DeviceWrappedVaultKeySessionStore
   let deadline: DispatchTime
+  let progress: KeyRecoveryProgress?
   private let ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
 
-  init(authentication: V3DeviceWrappedVaultKeySessionStore, deadline: DispatchTime) {
+  init(authentication: V3DeviceWrappedVaultKeySessionStore, deadline: DispatchTime,
+       progress: KeyRecoveryProgress? = nil) {
     self.authentication = authentication
     self.deadline = deadline
+    self.progress = progress
     ticket = authentication.beginAuthentication()
   }
 

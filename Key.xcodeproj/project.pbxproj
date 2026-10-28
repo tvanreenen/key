@@ -221,6 +221,7 @@
 		CC2B47A4B45D4DA85E9C209D /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76DB380BC4A9ECD7FE009152 /* main.swift */; };
 		D4D0ACDBCDB375050F096CEC /* EntryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E585E32FBAF3D8FD5F64230 /* EntryStore.swift */; };
 		E50676FB896C20975843E925 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E80100701CDE5C7C14F9AB /* main.swift */; };
+		E8260001E8260001E8260001 /* KeyRecoveryTouchPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8260002E8260002E8260002 /* KeyRecoveryTouchPrompt.swift */; };
 		E9B24E7F8C7042A2A783D53D /* SessionVaultKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E30B55D83074B50959E72C6 /* SessionVaultKeyStore.swift */; };
 /* End PBXBuildFile section */
 
@@ -263,6 +264,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		E8260002E8260002E8260002 /* KeyRecoveryTouchPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyRecoveryTouchPrompt.swift; sourceTree = "<group>"; };
 		D60700000000000000000001 /* V3RecoverySameEpochCatchUpService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoverySameEpochCatchUpService.swift; sourceTree = "<group>"; };
 		D60800000000000000000001 /* V3RecoveryManifestReconciliation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryManifestReconciliation.swift; sourceTree = "<group>"; };
 		D60900000000000000000001 /* V3RecoveryMergeMutation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3RecoveryMergeMutation.swift; sourceTree = "<group>"; };
@@ -728,6 +730,7 @@
 			isa = PBXGroup;
 			children = (
 				E7E80100701CDE5C7C14F9AB /* main.swift */,
+				E8260002E8260002E8260002 /* KeyRecoveryTouchPrompt.swift */,
 			);
 			path = KeyLaunchAgentHelper;
 			sourceTree = "<group>";
@@ -1010,6 +1013,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E50676FB896C20975843E925 /* main.swift in Sources */,
+				E8260001E8260001E8260001 /* KeyRecoveryTouchPrompt.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

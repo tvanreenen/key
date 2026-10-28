@@ -52,6 +52,10 @@ struct V3RecoveryRestoreWorkflow {
     }
     try scope.requireCurrent()
     try request.validate()
+    if case .abandon(let source, let destination, let vault, let operation) = request {
+      return try abandon(source: source, destination: destination, sourceVaultID: vault,
+        operationID: .init(validating: operation), scope: scope)
+    }
     let paths: (source: String, destination: String, token: String, recipient: String)
     let deviceName: String?
     switch request {
@@ -63,6 +67,8 @@ struct V3RecoveryRestoreWorkflow {
     case .resume(let source, let destination, let token, let recipient):
       paths = (source, destination, token, recipient)
       deviceName = nil
+    case .abandon:
+      throw V3RecoveryRestoreError.invalidIntent
     }
     let destinationURL = URL(fileURLWithPath: paths.destination, isDirectory: true)
       .standardizedFileURL
@@ -127,11 +133,11 @@ struct V3RecoveryRestoreWorkflow {
     if let deviceName {
       report = try service.restore(
         source: source, parent: parent, name: name, deviceName: deviceName,
-        observation: observation, cancellation: scope.cancellation, deadline: scope.deadline)
+        observation: observation, cancellation: scope.cancellation, deadline: scope.deadline, progress: scope.progress)
     } else if let destination {
       report = try service.resume(
         source: source, destination: destination, parent: parent, observation: observation,
-        cancellation: scope.cancellation, deadline: scope.deadline)
+        cancellation: scope.cancellation, deadline: scope.deadline, progress: scope.progress)
     } else {
       throw V3RecoveryRestoreError.invalidIntent
     }
@@ -139,6 +145,33 @@ struct V3RecoveryRestoreWorkflow {
     return .success(
       "Restored \(report.entryCount) entries into a new vault at '\(report.destinationPath)'.\nVault ID: \(report.checkpoint.vaultID)\nThe source vault was not changed. This new vault has no recovery key registered yet. The helper must restart before ordinary use.\n"
     )
+  }
+
+  /// Local-only route deliberately bypasses token discovery and private-key
+  /// adapters. A serialized exact-pin removal is the sole state change.
+  private func abandon(
+    source: String, destination: String, sourceVaultID: String,
+    operationID: VaultTransactionOperationID, scope: KeyRecoveryRequestScope
+  ) throws -> KeyServiceResponse {
+    try owner.perform(.restoreVault) { _ in
+      try scope.requireCurrent()
+      try configStore.requireUnconfigured()
+      let journal = try V3RecoveryRestoreJournal(
+        configurationRoot: configStore.unconfiguredRestoreRoot(),
+        reservationOwnership: reservations, preparationOwnership: preparations)
+      guard let pending = try journal.loadPending(sourceVaultID: sourceVaultID) else {
+        throw V3RecoveryRestoreServiceError.noPendingRestore
+      }
+      let sourceHandle = try VaultRootDirectoryHandle(opening: URL(fileURLWithPath: source, isDirectory: true))
+      let destinationURL = URL(fileURLWithPath: destination, isDirectory: true).standardizedFileURL
+      let environment = try V3RecoveryRestoreEnvironment.reopen(
+        source: sourceHandle, destination: .init(opening: destinationURL),
+        parent: .init(opening: destinationURL.deletingLastPathComponent()),
+        configStore: configStore, expected: pending.reservation.locations)
+      try journal.abandonIncomplete(sourceVaultID: sourceVaultID, operationID: operationID,
+        environment: environment, validateScope: scope.requireCurrent)
+      return .success("Abandoned incomplete restore operation \(operationID).\nThe source, empty destination, saved files and Mac credentials were retained. No token operation was requested. A new restore must explicitly choose a new, missing destination after the helper restarts.\n")
+    }
   }
 
   /// Composition alone performs no card/Keychain operation and creates no path.

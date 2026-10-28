@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import KeyCore
 import OSLog
@@ -29,17 +30,21 @@ private final class KeyAgentDelegate: NSObject, NSXPCListenerDelegate {
             lifecycleController: lifecycleController,
             role: role,
             logger: logger,
-            connection: connection
+            connection: connection,
+            xpc: newConnection
         )
         newConnection.exportedInterface = NSXPCInterface(with: KeyXPCProtocol.self)
         newConnection.exportedObject = exportedObject
+        if role == .fullCLI {
+            newConnection.remoteObjectInterface = NSXPCInterface(with: KeyXPCRecoveryProgressProtocol.self)
+        }
         newConnection.resume()
         logger.notice("Accepted authenticated XPC client with role \(self.role.rawValue, privacy: .public)")
         return true
     }
 }
 
-private final class KeyAgentService: NSObject, KeyXPCProtocol {
+private final class KeyAgentService: NSObject, KeyXPCProtocol, @unchecked Sendable {
     private let handler: KeyServiceHost
     private let lifecycleController: HelperLifecycleController
     private let role: KeyXPCClientRole
@@ -49,19 +54,23 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
     private let stateLock = NSLock()
     private let connection: KeyServiceConnection
     private var shutdownAuthorized = false
+    private var recoveryProgressClaimed = false
+    private weak var xpc: NSXPCConnection?
 
     init(
         handler: KeyServiceHost,
         lifecycleController: HelperLifecycleController,
         role: KeyXPCClientRole,
         logger: Logger,
-        connection: KeyServiceConnection
+        connection: KeyServiceConnection,
+        xpc: NSXPCConnection
     ) {
         self.handler = handler
         self.lifecycleController = lifecycleController
         self.role = role
         self.logger = logger
         self.connection = connection
+        self.xpc = xpc
     }
 
     func sendRequest(_ requestData: NSData, withReply reply: @escaping (NSData?, NSString?) -> Void) {
@@ -86,6 +95,11 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
             return
         }
 
+        guard !request.supportsRecoveryProgress else {
+            reply(nil, "Recovery requires a matching Key CLI and helper with staged progress support. No request was dispatched." as NSString)
+            return
+        }
+
         let extendsIdleDeadline = request != .status
         lifecycleController.beginRequest(extendsIdleDeadline: extendsIdleDeadline)
         defer {
@@ -102,6 +116,55 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
             reply(responseData as NSData, nil)
         } catch {
             reply(nil, "Failed to encode response." as NSString)
+        }
+    }
+
+    func sendRecoveryRequest(_ requestData: NSData, operationID: NSUUID,
+                             withReply reply: @escaping @Sendable (NSData?, NSString?) -> Void) {
+        guard requestData.length <= 65_536,
+              let request = try? JSONDecoder().decode(KeyServiceRequest.self, from: requestData as Data),
+              role == .fullCLI, role.authorizes(request), request.supportsRecoveryProgress,
+              stateLock.withLock({
+                  guard !recoveryProgressClaimed else { return false }
+                  recoveryProgressClaimed = true
+                  return true
+              }) else {
+            reply(nil, "Recovery progress request refused. No automatic retry was made." as NSString)
+            return
+        }
+        let prompt = KeyRecoveryTouchPrompt { [connection] in connection.invalidate() }
+        let progress = KeyRecoveryProgress(operationID: operationID as UUID) { [weak self] event in
+            guard let self else { return }
+            prompt.receive(event.stage)
+            guard let data = try? JSONEncoder().encode(event), data.count <= 1_024,
+                  let remote = self.xpc?.remoteObjectProxyWithErrorHandler({ [connection] _ in
+                      connection.invalidate()
+                  }) as? KeyXPCRecoveryProgressProtocol else {
+                self.connection.invalidate()
+                return
+            }
+            remote.recoveryProgress(data as NSData)
+        }
+        lifecycleController.beginRequest(extendsIdleDeadline: true)
+        // Do not block the XPC delivery queue during native approval; connection
+        // invalidation must still be able to cancel the scoped operation.
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            defer {
+                progress.close()
+                prompt.finish()
+                lifecycleController.endRequest(extendsIdleDeadline: true)
+            }
+            let response = handler.handle(request, connection: connection, progress: progress)
+            guard let data = try? JSONEncoder().encode(response) else {
+                reply(nil, "Failed to encode recovery response." as NSString)
+                return
+            }
+            if request.requiresHelperShutdownAfterSuccess, response.exitCode == EXIT_SUCCESS {
+                markShutdownAuthorized()
+            }
+            progress.close()
+            prompt.finish()
+            reply(data as NSData, nil)
         }
     }
 
@@ -125,7 +188,7 @@ private final class KeyAgentService: NSObject, KeyXPCProtocol {
     }
 }
 
-private func run() -> Never {
+@MainActor private func run() -> Never {
     let configuration = RuntimeConfiguration.live()
     let logger = Logger(subsystem: configuration.helperBundleIdentifier, category: "XPC")
 
@@ -188,7 +251,12 @@ private func run() -> Never {
     utilityListener.activate()
 
     withExtendedLifetime((cliDelegate, utilityDelegate, cliListener, utilityListener)) {
-        RunLoop.current.run()
+        if configuration.experimentalRecoveryEnabled {
+            _ = NSApplication.shared.setActivationPolicy(.accessory)
+            NSApplication.shared.run()
+        } else {
+            RunLoop.current.run()
+        }
     }
     fatalError("Key Agent run loop exited unexpectedly.")
 }

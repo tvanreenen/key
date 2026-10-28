@@ -169,7 +169,7 @@ jobs:
         run: scripts/verify-shell-syntax.sh
       - name: Test CI verification failure boundaries
         run: python3 -m unittest discover -s Tests/CIScripts -p '*_tests.py'
-      - name: Test release targeting, artifact rejection, publication, and retries
+      - name: Test release targeting, signing policy, artifact rejection, publication, and retries
         run: Tests/ReleaseScripts/release-tests.sh
       - name: Test isolated Preview installation, removal, and state preservation
         run: Tests/PreviewScripts/preview-install-tests.sh

@@ -1,9 +1,22 @@
 import CryptoKit
 import Foundation
 
-enum V3RecoveryRestoreServiceError: Error, Equatable {
+enum V3RecoveryRestoreServiceError: Error, Equatable, LocalizedError {
   case recognizedAnchorRequired, identityUnavailable, savedIdentityMismatch, wrapperMismatch
-  case noPendingRestore, incompletePreparation
+  case noPendingRestore
+  case incompletePreparation(vaultID: String, operationID: VaultTransactionOperationID)
+
+  var errorDescription: String? {
+    switch self {
+    case .recognizedAnchorRequired: "The selected recovery key has no recognized vault anchor."
+    case .identityUnavailable: "This Mac's saved restored-vault credentials are unavailable. Preserve the attempt for inspection."
+    case .savedIdentityMismatch: "This Mac's saved restored-vault credentials do not match the attempt. Preserve it for inspection."
+    case .wrapperMismatch: "This Mac's saved restored-vault access did not match the prepared key. Preserve the attempt for inspection."
+    case .noPendingRestore: "No locally owned restore attempt was found. No replacement restore was started."
+    case .incompletePreparation(let vault, let operation):
+      "This restore stopped before complete encrypted preparation was saved and cannot be resumed. Source vault ID: \(vault). Restore operation ID: \(operation). Preserve its records. Use `key recovery abandon --help` to explicitly release only this incomplete attempt; do not delete state to retry."
+    }
+  }
 }
 
 enum V3RecoveryRestoreServicePhase: Equatable, Sendable {
@@ -84,11 +97,11 @@ struct V3RecoveryRestoreService {
     source: VaultRootDirectoryHandle, parent: VaultRootDirectoryHandle, name: String,
     deviceName: String, observation: PIVRecoveryTokenObservation,
     cancellation: PIVRecoveryCancellation = PIVRecoveryCancellation(),
-    deadline: DispatchTime = .now() + .seconds(60)
+    deadline: DispatchTime = .now() + .seconds(60), progress: KeyRecoveryProgress? = nil
   ) throws -> V3RecoveryRestoreReport {
     try begin(
       source: source, parent: parent, name: name, deviceName: deviceName, observation: observation,
-      cancellation: cancellation, deadline: deadline, finish: false)
+      cancellation: cancellation, deadline: deadline, progress: progress, finish: false)
   }
 
   @available(macOS 26.0, *)
@@ -96,22 +109,22 @@ struct V3RecoveryRestoreService {
     source: VaultRootDirectoryHandle, parent: VaultRootDirectoryHandle, name: String,
     deviceName: String, observation: PIVRecoveryTokenObservation,
     cancellation: PIVRecoveryCancellation = PIVRecoveryCancellation(),
-    deadline: DispatchTime = .now() + .seconds(60)
+    deadline: DispatchTime = .now() + .seconds(60), progress: KeyRecoveryProgress? = nil
   ) throws -> V3RecoveryRestoreReport {
     try begin(
       source: source, parent: parent, name: name, deviceName: deviceName, observation: observation,
-      cancellation: cancellation, deadline: deadline, finish: true)
+      cancellation: cancellation, deadline: deadline, progress: progress, finish: true)
   }
 
   @available(macOS 26.0, *)
   private func begin(
     source: VaultRootDirectoryHandle, parent: VaultRootDirectoryHandle, name: String,
     deviceName: String, observation: PIVRecoveryTokenObservation,
-    cancellation: PIVRecoveryCancellation, deadline: DispatchTime, finish: Bool
+    cancellation: PIVRecoveryCancellation, deadline: DispatchTime, progress: KeyRecoveryProgress?, finish: Bool
   ) throws -> V3RecoveryRestoreReport {
     try withSnapshot(
       source: source, parent: parent, observation: observation,
-      cancellation: cancellation, deadline: deadline,
+      cancellation: cancellation, deadline: deadline, progress: progress,
       preflight: { anchor in
         try journal.requireConfigurationRoot(configStore.unconfiguredRestoreRoot())
         guard isValidV3DeviceDisplayName(deviceName) else {
@@ -142,6 +155,8 @@ struct V3RecoveryRestoreService {
         }
         try observer.didReach(.reservationDurable)
         try requireReservation()
+        progress?.emit(.preparingRestoredVault)
+        try requireReservation()
         let created = try identities.createDeviceWrappedIdentity(
           vaultID: reservation.vaultID, displayName: deviceName,
           reason: "Create this Mac's credentials for the restored vault.")
@@ -170,7 +185,7 @@ struct V3RecoveryRestoreService {
           vaultID: reservation.vaultID, envelopeDigest: genesis.manifestDigest)
         _ = try V3DeviceWrappedCheckpointUnlocker().unlock(
           checkpoint: checkpoint, manifestData: genesis.manifestData, identity: saved,
-          session: session, reason: "Verify this Mac's saved restored-vault access.",
+          session: session, reason: "Prepare restored vault on this Mac.",
           validateBeforeSessionInstall: requireReservation)
         guard try session.load(vaultID: reservation.vaultID, keyID: genesis.body.keyID) == key
         else {
@@ -188,10 +203,11 @@ struct V3RecoveryRestoreService {
         _ = try journal.confirmPreparation(
           sourceVaultID: anchor.floor.vaultID, snapshot: snapshot, environment: environment,
           vaultKey: key, expectedOwner: saved.publicIdentity, validateScope: recheck)
+        progress?.emit(.preparationSaved)
         if finish {
           try complete(
             snapshot: snapshot, environment: environment, vaultKey: key, identity: saved,
-            source: source, parent: parent, validateScope: recheck)
+            source: source, parent: parent, validateScope: recheck, progress: progress)
         }
         return .init(
           operationID: reservation.operationID, checkpoint: bundle.intent.destinationCheckpoint,
@@ -209,13 +225,13 @@ struct V3RecoveryRestoreService {
     source: VaultRootDirectoryHandle, destination: VaultRootDirectoryHandle,
     parent: VaultRootDirectoryHandle, observation: PIVRecoveryTokenObservation,
     cancellation: PIVRecoveryCancellation = PIVRecoveryCancellation(),
-    deadline: DispatchTime = .now() + .seconds(60)
+    deadline: DispatchTime = .now() + .seconds(60), progress: KeyRecoveryProgress? = nil
   ) throws -> V3RecoveryRestoreReport {
     var pending: V3RecoveryRestorePending?
     var captured: V3RecoveryRestoreEnvironment?
     return try withSnapshot(
       source: source, parent: parent, observation: observation,
-      cancellation: cancellation, deadline: deadline,
+      cancellation: cancellation, deadline: deadline, progress: progress,
       preflight: { anchor in
         try journal.requireConfigurationRoot(configStore.restoreCompletionRoot())
         guard let owned = try journal.loadForCompletion(sourceVaultID: anchor.floor.vaultID) else {
@@ -223,7 +239,8 @@ struct V3RecoveryRestoreService {
         }
         guard let bundle = owned.preparation, owned.reservationOwnership.phase == .recoverable
         else {
-          throw V3RecoveryRestoreServiceError.incompletePreparation
+          throw V3RecoveryRestoreServiceError.incompletePreparation(
+            vaultID: anchor.floor.vaultID, operationID: owned.reservation.operationID)
         }
         let environment = try V3RecoveryRestoreEnvironment.reopenForCompletion(
           source: source, destination: destination, parent: parent, configStore: configStore,
@@ -253,7 +270,7 @@ struct V3RecoveryRestoreService {
       },
       consume: { _, snapshot, recheck in
         guard let owned = pending, let bundle = owned.preparation, let environment = captured else {
-          throw V3RecoveryRestoreServiceError.incompletePreparation
+          throw V3RecoveryRestoreServiceError.noPendingRestore
         }
         let sourceID = snapshot.selection.anchor.floor.vaultID
         func requirePending() throws {
@@ -275,22 +292,25 @@ struct V3RecoveryRestoreService {
           identity.publicIdentity == bundle.manifest.body.devices[0].identity
         else { throw V3RecoveryRestoreServiceError.savedIdentityMismatch }
         try requirePending()
+        progress?.emit(.openingSavedPreparation)
+        try requirePending()
         let session = V3DeviceWrappedVaultKeySessionStore()
         defer { session.invalidate() }
         _ = try V3DeviceWrappedCheckpointUnlocker().unlock(
           checkpoint: bundle.intent.destinationCheckpoint,
           manifestData: bundle.manifest.canonicalBytes,
           identity: identity, session: session,
-          reason: "Open this Mac's saved restored-vault preparation.",
+          reason: "Reopen saved restore preparation on this Mac.",
           validateBeforeSessionInstall: requirePending)
         let key = try session.load(
           vaultID: bundle.intent.destinationCheckpoint.vaultID,
           keyID: bundle.intent.destinationKeyID)
         session.invalidate()
         try requirePending()
+        progress?.emit(.preparationSaved)
         try complete(
           snapshot: snapshot, environment: environment, vaultKey: key, identity: identity,
-          source: source, parent: parent, validateScope: recheck)
+          source: source, parent: parent, validateScope: recheck, progress: progress)
         return .init(
           operationID: owned.reservation.operationID,
           checkpoint: bundle.intent.destinationCheckpoint,
@@ -312,17 +332,22 @@ struct V3RecoveryRestoreService {
   private func complete(
     snapshot: V3RecoveryVerifiedSnapshot, environment: V3RecoveryRestoreEnvironment, vaultKey: Data,
     identity: any V3DeviceWrappedVaultKeyUnwrapping, source: VaultRootDirectoryHandle,
-    parent: VaultRootDirectoryHandle, validateScope: () throws -> Void
+    parent: VaultRootDirectoryHandle, validateScope: () throws -> Void,
+    progress: KeyRecoveryProgress?
   ) throws {
     let sourceID = snapshot.selection.anchor.floor.vaultID
     try validateScope()
     if !environment.hasSelectedConfiguration {
+      progress?.emit(.publishingRestoredVault)
+      try validateScope()
       _ = try V3RecoveryRestorePublisher(
         journal: journal, limits: limits, observer: PublicationObserver(observer: observer),
         writeObserver: writeObserver
       ).publish(
         sourceVaultID: sourceID, snapshot: snapshot, environment: environment, vaultKey: vaultKey,
         identity: identity, validateScope: validateScope)
+      progress?.emit(.activatingRestoredVault)
+      try validateScope()
       _ = try V3RecoveryRestoreSelectionInstaller(
         journal: journal, checkpoints: checkpoints, cache: cache, identities: identities,
         observer: SelectionObserver(observer: observer), writeObserver: writeObserver,
@@ -332,6 +357,7 @@ struct V3RecoveryRestoreService {
         destination: environment.destination, parent: parent, configStore: configStore,
         validateScope: validateScope)
     }
+    if environment.hasSelectedConfiguration { progress?.emit(.activatingRestoredVault) }
     guard
       try V3RecoveryRestoreFinalizer(
         journal: journal, checkpoints: checkpoints, cache: cache, identities: identities,
@@ -349,7 +375,7 @@ struct V3RecoveryRestoreService {
   private func withSnapshot<T>(
     source: VaultRootDirectoryHandle, parent: VaultRootDirectoryHandle,
     observation: PIVRecoveryTokenObservation, cancellation: PIVRecoveryCancellation,
-    deadline: DispatchTime, preflight: (V3RecoveryAnchor) throws -> Void,
+    deadline: DispatchTime, progress: KeyRecoveryProgress?, preflight: (V3RecoveryAnchor) throws -> Void,
     validateSelection: (V3RecoveryPublicSelection) throws -> Void = { _ in },
     consume:
       @escaping (VaultTransactionMutationContext, V3RecoveryVerifiedSnapshot, () throws -> Void)
@@ -379,7 +405,7 @@ struct V3RecoveryRestoreService {
       let verifier = V3RecoverySnapshotVerifier(source: store, limits: limits)
       try requireAuthentication()
       return try agreement.withReceiver(
-        observation: observation, cancellation: cancellation, deadline: deadline
+        observation: observation, cancellation: cancellation, deadline: deadline, progress: progress
       ) { receiver in
         let snapshot = try verifier.open(selection, boundAnchor: anchor, receiver: receiver)
         try requireAuthentication()

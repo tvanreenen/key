@@ -9,6 +9,155 @@ struct V3RecoveryRestoreWorkflowTests {
   typealias Base = V3RecoveryRestoreJournalTests
   private enum Stop: Error { case interrupted }
 
+  @Test func explicitAbandonmentReleasesOnlyThePinWithoutTokenOrCredentialUse() throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture(); defer { f.remove() }
+    try reserveIncomplete(f)
+    let files = try Base().files(f.configRoot), source = try Base().files(f.source.root)
+    let calls = try #require(f.identities.saved).calls.value
+    let loads = f.identities.loads.value
+    let workflow = makeWorkflow(f, reader: .init(inventory: Inventory(cards: []), gate: .init()))
+    let request = abandonRequest(f)
+    let host = makeHost(f, workflow: workflow)
+    #expect(host.handle(.recovery(request)).exitCode == EXIT_SUCCESS)
+    #expect(f.reservations.value == nil && f.preparations.value == nil)
+    #expect(try Base().files(f.configRoot) == files && Base().files(f.source.root) == source)
+    #expect(try FileManager.default.contentsOfDirectory(atPath: f.destination.path).isEmpty)
+    #expect(try !f.config.hasConfiguration())
+    #expect(f.provider.requests == 1 && f.identities.creates.value == 1)
+    #expect(f.identities.loads.value == loads && f.identities.saved?.calls.value == calls)
+    #expect(KeyServiceRequest.recovery(request).requiresHelperShutdownAfterSuccess)
+    #expect(!KeyServiceRequest.recovery(request).supportsRecoveryProgress)
+    #expect(host.handle(.initializeVault(path: "/unused")).errorMessage?.contains("restarting") == true)
+    #expect(throws: V3RecoveryRestoreServiceError.noPendingRestore) {
+      try workflow.handle(request, scope: scope())
+    }
+    #expect(try Base().files(f.configRoot) == files)
+  }
+
+  @Test func incompleteResumeExplainsTheExactAttemptBeforeRequestingAnotherApproval() throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture(); defer { f.remove() }; try reserveIncomplete(f)
+    let files = try Base().files(f.configRoot)
+    let pins = [f.reservations.value, f.preparations.value]
+    let events = ProgressEvents()
+    let progress = KeyRecoveryProgress(operationID: UUID()) { events.append($0.stage) }
+    let result = makeHost(f, workflow: makeWorkflow(f)).handle(.recovery(request(f, resume: true)), progress: progress)
+    let message = try #require(result.errorMessage)
+    #expect(result.exitCode != EXIT_SUCCESS && message.contains("cannot be resumed"))
+    #expect(message.contains(Base.Core.vaultID) && message.contains(f.operation.rawValue))
+    #expect(message.contains("key recovery abandon --help") && !message.contains("error 5"))
+    #expect(events.values.isEmpty && f.provider.requests == 1)
+    #expect([f.reservations.value, f.preparations.value] == pins)
+    #expect(try Base().files(f.configRoot) == files)
+  }
+
+  @Test(arguments: 0 ..< 14)
+  func abandonmentRefusesChangedOrPreparedStateWithoutClearingOwnership(variant: Int) throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture(); defer { f.remove() }
+    if variant == 9 {
+      #expect(throws: Stop.interrupted) {
+        try makeWorkflow(f, observer: Observer { if $0 == .preparationDurable { throw Stop.interrupted } })
+          .handle(request(f), scope: scope())
+      }
+    } else { try reserveIncomplete(f) }
+    var action = abandonRequest(f)
+    let selectedScope = scope()
+    switch variant {
+    case 0: action = abandonRequest(f, operation: VaultTransactionOperationID().rawValue)
+    case 1: action = abandonRequest(f, vault: UUID().uuidString.lowercased())
+    case 2: try Data("keep this".utf8).write(to: f.destination.appendingPathComponent("keep"))
+    case 3: try Data("invalid but present configuration".utf8).write(to: f.config.initializationConfigFileURL)
+    case 4:
+      let copy = f.base.appendingPathComponent("copied-source")
+      try FileManager.default.copyItem(at: f.source.root, to: copy)
+      action = abandonRequest(f, source: copy.path)
+    case 5:
+      try FileManager.default.moveItem(at: f.destination, to: f.parent.appendingPathComponent("original"))
+      try FileManager.default.createDirectory(at: f.destination, withIntermediateDirectories: false)
+    case 6: selectedScope.cancellation.cancel()
+    case 7: try Data("changed".utf8).write(to: f.record("reservation.json"))
+    case 8: try Data("unowned preparation file".utf8).write(to: f.record("preparation.json"))
+    case 10: f.reservations.rejectClear = true
+    case 11: try FileManager.default.createDirectory(at: f.record("preparation.json"), withIntermediateDirectories: false)
+    case 12: try FileManager.default.createSymbolicLink(at: f.record("preparation.json"), withDestinationURL: f.base.appendingPathComponent("missing"))
+    case 13:
+      f.preparations.value = try V3ImmutableTransactionRecoveryAnchor(operationID: f.operation,
+        vaultID: Base.Core.vaultID, intentDigest: Data(repeating: 7, count: 32), phase: .prepared).canonicalBytes
+    default: break
+    }
+    let pins = [f.reservations.value, f.preparations.value]
+    let files: [String: Data]?
+    if variant == 12 { files = nil } else { files = try Base().files(f.configRoot) }
+    let target = try Base().files(f.destination)
+    let creates = f.identities.creates.value, loads = f.identities.loads.value
+    #expect(throws: (any Error).self) { try makeWorkflow(f).handle(action, scope: selectedScope) }
+    #expect([f.reservations.value, f.preparations.value] == pins)
+    if let files { #expect(try Base().files(f.configRoot) == files) }
+    if variant == 12 {
+      #expect(try FileManager.default.destinationOfSymbolicLink(atPath: f.record("preparation.json").path)
+        == f.base.appendingPathComponent("missing").path)
+    }
+    #expect(try Base().files(f.destination) == target)
+    #expect(f.provider.requests == 1 && f.identities.creates.value == creates && f.identities.loads.value == loads)
+  }
+
+  @Test func ownershipChangeDuringAbandonmentCannotClearAnotherAttempt() throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture(); defer { f.remove() }; try reserveIncomplete(f)
+    let pending = try #require(try f.journal().loadPending(sourceVaultID: Base.Core.vaultID))
+    let environment = try V3RecoveryRestoreEnvironment.reopen(source: f.sourceHandle,
+      destination: .init(opening: f.destination), parent: f.parentHandle, configStore: f.config,
+      expected: pending.reservation.locations)
+    let replacement = try V3ImmutableTransactionRecoveryAnchor(operationID: .init(), vaultID: Base.Core.vaultID,
+      intentDigest: pending.reservationOwnership.intentDigest, phase: .recoverable).canonicalBytes
+    #expect(throws: V3RecoveryRestoreJournalError.ownershipChanged) {
+      try f.journal().abandonIncomplete(sourceVaultID: Base.Core.vaultID, operationID: f.operation,
+        environment: environment, validateScope: { f.reservations.value = replacement })
+    }
+    #expect(f.reservations.value == replacement && f.preparations.value == nil)
+  }
+
+  @Test(arguments: [false, true])
+  func preparationSavedProgressIsOnlySentAfterCompletePreparationAndStopsOnEarlierFailure(late: Bool) throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture(); defer { f.remove() }
+    let events = ProgressEvents()
+    let progress = KeyRecoveryProgress(operationID: UUID()) { event in
+      events.append(event.stage)
+      if event.stage == .preparationSaved {
+        #expect((try? f.journal().loadPending(sourceVaultID: Base.Core.vaultID))?.preparation != nil)
+      }
+    }
+    let workflow = makeWorkflow(f, observer: Observer {
+      if $0 == (late ? .publication(.preparationConfirmed) : .savedWrapperVerified) { throw Stop.interrupted }
+    })
+    let response = makeHost(f, workflow: workflow).handle(.recovery(request(f)), progress: progress)
+    #expect(response.exitCode != EXIT_SUCCESS)
+    #expect(events.values == KeyRecoveryStage.hardwareStages + [.preparingRestoredVault]
+      + (late ? [.preparationSaved, .publishingRestoredVault] : []))
+  }
+
+  @available(macOS 26.0, *)
+  private func reserveIncomplete(_ f: Fixture) throws {
+    #expect(throws: Stop.interrupted) {
+      try makeWorkflow(f, observer: Observer { if $0 == .savedWrapperVerified { throw Stop.interrupted } })
+        .handle(request(f), scope: scope())
+    }
+  }
+  private func abandonRequest(_ f: Fixture, operation: String? = nil, vault: String? = nil,
+                             source: String? = nil) -> KeyRecoveryRequest {
+    .abandon(source: source ?? f.source.root.path, destination: f.destination.path,
+      sourceVaultID: vault ?? Base.Core.vaultID, operationID: operation ?? f.operation.rawValue)
+  }
+  private final class ProgressEvents: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stages: [KeyRecoveryStage] = []
+    func append(_ stage: KeyRecoveryStage) { lock.withLock { stages.append(stage) } }
+    var values: [KeyRecoveryStage] { lock.withLock { stages } }
+  }
+
   @Test(arguments: 0 ..< 3)
   func initialRestoreCreatesOnlyLocalScaffoldingThenUsesActualServiceAndOrdinaryCache(layout: Int)
     throws
@@ -197,7 +346,11 @@ struct V3RecoveryRestoreWorkflowTests {
     let host = makeHost(f, workflow: makeWorkflow(f))
     #expect(host.handle(.recovery(request(f))).exitCode != EXIT_SUCCESS)
     #expect(f.provider.requests == 1)
-    #expect(host.handle(.recovery(request(f, resume: true))).exitCode == EXIT_SUCCESS)
+    let events = ProgressEvents()
+    let progress = KeyRecoveryProgress(operationID: UUID()) { events.append($0.stage) }
+    #expect(host.handle(.recovery(request(f, resume: true)), progress: progress).exitCode == EXIT_SUCCESS)
+    #expect(events.values == KeyRecoveryStage.hardwareStages + [.openingSavedPreparation, .preparationSaved]
+      + (phase == .preparationDurable ? [.publishingRestoredVault] : []) + [.activatingRestoredVault])
     #expect(f.provider.requests == 2 && f.identities.creates.value == 1)
     #expect(f.reservations.value == nil && f.preparations.value == nil)
     #expect(try Base().files(f.source.root) == before)

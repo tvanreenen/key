@@ -39,7 +39,7 @@ extension KeyShareRequest {
     }
 }
 
-public enum KeyServiceRequest: Codable, Equatable {
+public enum KeyServiceRequest: Codable, Equatable, Sendable {
     case unlock
     case lock
     case status
@@ -66,6 +66,14 @@ public enum KeyServiceRequest: Codable, Equatable {
     case copyEntry(source: String, destination: String, force: Bool)
     case moveEntry(source: String, destination: String, force: Bool)
     case removeEntry(name: String)
+
+    public var supportsRecoveryProgress: Bool {
+        switch self {
+        case .recovery(let request): !request.isAbandonment
+        case .recoveryRegistration(.finish): true
+        default: false
+        }
+    }
 
     public var responseTimeoutSeconds: Int? {
         switch self {
@@ -593,4 +601,11 @@ public struct KeyServiceResponse: Codable, Equatable {
 
 public protocol KeyServiceTransport {
     func send(_ request: KeyServiceRequest) throws -> KeyServiceResponse
+    func send(_ request: KeyServiceRequest, progress: @escaping (KeyRecoveryStage) -> Void) throws -> KeyServiceResponse
+}
+
+public extension KeyServiceTransport {
+    func send(_ request: KeyServiceRequest, progress: @escaping (KeyRecoveryStage) -> Void) throws -> KeyServiceResponse {
+        try send(request)
+    }
 }

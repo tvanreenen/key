@@ -1,12 +1,23 @@
 import CryptoKit
+import Darwin
 import Foundation
 
-enum V3RecoveryRestoreJournalError: Error, Equatable {
+enum V3RecoveryRestoreJournalError: Error, Equatable, LocalizedError {
   case attemptPending
   case invalidOwnership
   case recordUnavailable
   case invalidRecord
   case ownershipChanged
+
+  var errorDescription: String? {
+    switch self {
+    case .attemptPending: "A locally owned restore is already pending. Resume its complete preparation, or inspect its exact incomplete reservation before explicitly abandoning it."
+    case .invalidOwnership: "The saved restore ownership is invalid. Preserve its records and folders for inspection."
+    case .recordUnavailable: "A required saved restore record is unavailable. Preserve the attempt for inspection; it cannot be reconstructed or abandoned automatically."
+    case .invalidRecord: "A saved restore record does not match its local ownership. Preserve the attempt for inspection."
+    case .ownershipChanged: "Restore ownership changed during the request. Preserve the attempt for inspection; no automatic retry was made."
+    }
+  }
 }
 
 enum V3RecoveryRestoreJournalPhase: Equatable, Sendable {
@@ -89,6 +100,52 @@ struct V3RecoveryRestoreJournal: Sendable {
 
   func requireConfigurationRoot(_ root: VaultRootDirectoryHandle) throws {
     try V3RecoveryRestoreLocation(store.rootHandle).requireMatch(root)
+  }
+
+  /// Explicit local cancellation only: exact owned reservation, no preparation
+  /// pin or file, no selected config and an independently reopened empty target.
+  /// Files and Mac credentials remain; clearing this pin grants no vault access.
+  func abandonIncomplete(
+    sourceVaultID: String, operationID: VaultTransactionOperationID,
+    environment: V3RecoveryRestoreEnvironment, validateScope: () throws -> Void = {}
+  ) throws {
+    let pending = try requirePending(sourceVaultID)
+    guard pending.reservation.operationID == operationID,
+      pending.preparation == nil, pending.preparationOwnership == nil
+    else {
+      throw AppError.operationRefused("Abandon requires the exact incomplete operation. A prepared restore must be resumed, not abandoned.")
+    }
+    func recheck() throws {
+      try validateScope()
+      try requirePins(reservation: pending.reservationOwnership, preparation: nil)
+      guard try loadPending(sourceVaultID: sourceVaultID) == pending else {
+        throw V3RecoveryRestoreJournalError.ownershipChanged
+      }
+      try requireAbsentPreparation(operationID)
+      try environment.requireCurrent(pending.reservation.locations)
+      try environment.requireEmptyDestination()
+      try validateScope()
+    }
+    try recheck()
+    try reservations.replaceRecoveryAnchor(
+      nil, expectedAnchor: pending.reservationOwnership.canonicalBytes, vaultID: sourceVaultID)
+    try requireNoOwnership(sourceVaultID: sourceVaultID)
+    try requireAbsentPreparation(operationID)
+    try environment.requireCurrent(pending.reservation.locations)
+    try environment.requireEmptyDestination()
+    try validateScope()
+  }
+
+  private func requireAbsentPreparation(_ operationID: VaultTransactionOperationID) throws {
+    // Repository 'unavailable' also includes provider placeholders. Only an
+    // absent directory entry is sufficient here; never treat unreadable as absent.
+    try store.rootHandle.withResolvedDescriptor(at: "v3-restore-attempts/\(operationID)", expecting: .directory) { descriptor in
+      var metadata = stat()
+      guard fstatat(descriptor.rawValue, "preparation.json", &metadata, AT_SYMLINK_NOFOLLOW) != 0,
+        errno == ENOENT else {
+        throw AppError.operationRefused("A restore preparation file is present or could not be inspected. Preserve the attempt; abandonment was refused.")
+      }
+    }
   }
 
   /// Must finish before any platform credential is created. No raw key or
