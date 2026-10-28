@@ -13,6 +13,7 @@ public final class KeyServiceHost {
     private let enroll: ((KeyShareRequest, String) throws -> KeyServiceResponse)?
     private let recovery: KeyRecoveryCapability?
     private let recoverySharing: KeyRecoverySharingCapability?
+    private let requireNoPendingReplacement: () throws -> Void
     private let reviewRecovery: ((KeyRecoveryReviewRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)?
     private let registerRecovery: ((KeyRecoveryRegistrationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)?
     private let rotateRecovery: ((KeyRecoveryRotationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)?
@@ -37,7 +38,8 @@ public final class KeyServiceHost {
         reviewRecovery: ((KeyRecoveryReviewRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil,
         registerRecovery: ((KeyRecoveryRegistrationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil,
         rotateRecovery: ((KeyRecoveryRotationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil,
-        recoverySharing: KeyRecoverySharingCapability? = nil
+        recoverySharing: KeyRecoverySharingCapability? = nil,
+        requireNoPendingReplacement: @escaping () throws -> Void = {}
     ) {
         self.hasConfiguration = hasConfiguration
         self.makeHandler = makeHandler
@@ -47,6 +49,7 @@ public final class KeyServiceHost {
         self.enroll = enroll
         self.recovery = recovery
         self.recoverySharing = recoverySharing
+        self.requireNoPendingReplacement = requireNoPendingReplacement
         self.reviewRecovery = reviewRecovery
         self.registerRecovery = registerRecovery
         self.rotateRecovery = rotateRecovery
@@ -102,7 +105,18 @@ public final class KeyServiceHost {
                     return try workflow.rotate(request, scope: scope)
                 } : nil,
             recoverySharing: runtimeConfiguration.experimentalRecoveryEnabled
-                ? .live(configStore: configStore, keyStore: keyStore, configuration: runtimeConfiguration) : nil
+                ? .live(configStore: configStore, keyStore: keyStore, configuration: runtimeConfiguration) : nil,
+            requireNoPendingReplacement: {
+                guard runtimeConfiguration.experimentalRecoveryEnabled,
+                      try configStore.hasConfiguration(),
+                      let vaultID = try configStore.configuredVaultRuntimeSelection().vaultID
+                else { return }
+                guard try V3ReplacementEnrollmentAdmission(
+                    intentStore: V3ReplacementEnrollmentIntentKeychainStore(configuration: runtimeConfiguration)
+                ).state(vaultID: vaultID) == .inactive else {
+                    throw AppError.operationRefused("Finish this Mac's saved device replacement before changing the vault folder or recovery setup.")
+                }
+            }
         )
     }
 
@@ -177,7 +191,10 @@ public final class KeyServiceHost {
         if restartPending {
             return request == .lock ? .success() : restarting()
         }
-        if case .setVaultDirectory = request { try requireNoRecoveryPending() }
+        if case .setVaultDirectory = request {
+            try requireNoRecoveryPending()
+            try requireNoPendingReplacement()
+        }
         let resolved = try compositionLock.withLock {
             if let handler { return handler }
             if request == .lock { return { _ in .success() } }
@@ -370,6 +387,7 @@ public final class KeyServiceHost {
             guard try hasConfiguration() else {
                 throw AppError.operationRefused("Configured recovery operations require this Mac's selected vault.")
             }
+            try requireNoPendingReplacement()
             // The host barrier excludes all ordinary configured requests. A
             // checkpoint-changing setup never leaves an old resident runtime
             // usable, including after an ambiguous failure or lost result.

@@ -366,6 +366,25 @@ exact inviter ceremony after authenticated commitment while the pin remains;
 marker failure retains ownership, and consumed-marker cleanup is idempotent.
 Joining trust is nil-or-exact only and cannot substitute a later/competing epoch.
 
+### Replacing a revoked Mac
+
+Replacement changes this Mac's local setup; it grants no access to a newer vault
+version. Authenticate its exact locally trusted floor, then verify the complete
+visible public roster history using the ordinary epoch observer. Require one
+exact owner-authorized active-to-revoked transition for the same local identity,
+with that identity still revoked at the unique head. Recheck the source, local
+floor and request after authentication and before confirmed cleanup. Conflicts,
+missing required state or a changed identity refuse. Future vault keys are not
+opened or adopted to establish this deletion eligibility.
+
+Confirmation binds the exact old credential record, local checkpoint, revocation
+proof and joining invitation. Existing compare-and-swap deletion and durable
+phases permit explicit resume after the old key is gone. Unrelated ownership
+blocks cleanup, and ordinary work stays fenced until fresh compared enrollment
+verifies the new identity, current authentication and all contents. A stopped
+creation request cannot save a credential whose native generation completes
+late; any already committed exact prefix remains available for explicit resume.
+
 Initial and interrupted authority services bind authentication tickets before
 loading keys. Lock, expiry or reauthentication with the same old key is a different
 session. Authenticate exact committed current state and absent-or-exact committed
@@ -763,6 +782,7 @@ alone never grants publication, native activation or checkpoint authority.
 | History/snapshot/budgets | [History](../Sources/KeyCore/V3RecoveryHistory.swift), [snapshot](../Sources/KeyCore/V3RecoverySnapshot.swift) | [Publication budgets](../Tests/KeyCoreTests/V3RecoveryPublicationBudgetTests.swift), graph/snapshot tests. |
 | Ordinary state/conflicts | [Runtime](../Sources/KeyCore/V3RecoveryVaultRuntime.swift), [mutation](../Sources/KeyCore/V3RecoveryVaultMutationService.swift), [merge publisher](../Sources/KeyCore/V3RecoveryMergeMutationPublisher.swift) | [Mutation tests](../Tests/KeyCoreTests/V3RecoveryVaultMutationServiceTests.swift), [conflict reads](../Tests/KeyCoreTests/V3RecoveryConflictReadTests.swift). |
 | Authority policy/services | [Rotation](../Sources/KeyCore/V3RecoveryKeyRotationService.swift), [enrollment](../Sources/KeyCore/V3RecoveryEnrollmentOwnerService.swift), [revocation/removal](../Sources/KeyCore/V3RecoveryAuthorityChangeService.swift), [catch-up](../Sources/KeyCore/V3RecoveryCatchUpCoordinator.swift) | [Lifecycle composition](../Tests/KeyCoreTests/V3RecoveryLifecycleIntegrationTests.swift) and dedicated publisher/restart suites. |
+| Device product flows | [Sharing admission](../Sources/KeyCore/KeyRecoveryDeviceSharingWorkflow.swift), [replacement](../Sources/KeyCore/KeyRecoveryDeviceReplacementWorkflow.swift) | Enrollment, revocation and replacement product suites exercise compared first trust, exact reviews, recovery preservation and cleanup/rejoin. |
 | Setup/adoption | [Registration](../Sources/KeyCore/V3RecoveryRegistrationService.swift), [adoption](../Sources/KeyCore/V3RecoveryAdoptionService.swift) | Registration/status/journal/adoption suites and scoped signed setup evidence. |
 | Restore durability | [Service](../Sources/KeyCore/V3RecoveryRestoreService.swift), [journal](../Sources/KeyCore/V3RecoveryRestoreJournal.swift), [finalizer](../Sources/KeyCore/V3RecoveryRestoreFinalizer.swift) | [Completion tests](../Tests/KeyCoreTests/V3RecoveryRestoreCompletionServiceTests.swift), publisher/trust/selection/workflow suites. |
 | Native/XPC/presentation | [Reader](../Sources/KeyCore/PIVRecoveryTokenReader.swift), [agreement](../Sources/KeyCore/PIVRecoveryAgreement.swift), [host](../Sources/KeyCore/KeyServiceHost.swift) | [Agreement](../Tests/KeyCoreTests/PIVRecoveryAgreementTests.swift), [routing](../Tests/KeyCoreTests/KeyRecoveryRoutingTests.swift), [progress/XPC](../Tests/KeyCoreTests/RecoveryProgressXPCTests.swift), signed qualification. |

@@ -82,7 +82,8 @@ func makeLiveV3EnrollmentWorkflowService(
         recordStore: V3EnrollmentDeviceKeyRecordKeychainStore(
             configuration: runtimeConfiguration
         ),
-        keyOperations: V3SecureEnclaveEnrollmentDeviceKeyOperations()
+        keyOperations: V3SecureEnclaveEnrollmentDeviceKeyOperations(),
+        validateScope: validateScope
     )
     let cache = try KeyServiceHandler.makeV3CheckpointManifestCache(
         keyConfiguration: keyConfiguration

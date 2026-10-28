@@ -193,6 +193,25 @@ public final class KeyServiceHandler {
         let objectStore = V3FilesystemTransactionArtifactStore(
             rootHandle: rootHandle
         )
+        let replacementIntentStore =
+            V3ReplacementEnrollmentIntentKeychainStore(
+                configuration: runtimeConfiguration
+            )
+        let replacementAdmission = V3ReplacementEnrollmentAdmission(
+            intentStore: replacementIntentStore
+        )
+        let replacementAdmissionState = try replacementAdmission.state(
+            vaultID: vaultID
+        )
+        // Durable replacement can outlive deletion of the old checkpoint or
+        // identity. Fence ordinary work before any profile/runtime composition.
+        if runtimeConfiguration.experimentalRecoveryEnabled,
+           [.cleanupPending, .enrollmentPending].contains(replacementAdmissionState) {
+            return KeyServiceHandler(
+                keyStore: keyStore, entryStore: entryStore, configStore: configStore,
+                mutationOwner: VaultTransactionMutationOwner(), configuredVaultID: vaultID,
+                replacementAdmissionState: replacementAdmissionState)
+        }
         let session = V3DeviceWrappedVaultKeySessionStore()
         if runtimeConfiguration.experimentalRecoveryEnabled,
            case .recovery = try v3SelectedCheckpointProfile(
@@ -200,6 +219,12 @@ public final class KeyServiceHandler {
            ).profile {
             guard #available(macOS 26.0, *) else {
                 throw AppError.operationRefused("Recovery-capable vaults require macOS 26 or later in this experimental build.")
+            }
+            if replacementAdmissionState != .inactive {
+                return KeyServiceHandler(
+                    keyStore: keyStore, entryStore: entryStore, configStore: configStore,
+                    mutationOwner: VaultTransactionMutationOwner(), configuredVaultID: vaultID,
+                    replacementAdmissionState: replacementAdmissionState)
             }
             let mutationOwner = VaultTransactionMutationOwner()
             let runtime = V3RecoveryVaultRuntime(
@@ -211,8 +236,8 @@ public final class KeyServiceHandler {
                     configuration: runtimeConfiguration, namespace: .adoption),
                 cache: cache, identityLoader: identityManager, session: session,
                 mutationOwner: mutationOwner)
-            // Permanent-profile enrollment/replacement services must not be
-            // reused for a recovery profile. Dedicated lifecycle routes remain.
+            // Sharing uses dedicated host-scoped recovery services. This
+            // cached composition owns only ordinary data access.
             return KeyServiceHandler(
                 keyStore: keyStore, entryStore: entryStore, keychainMode: keyConfiguration.keychainMode,
                 configStore: configStore, mutationOwner: mutationOwner, vaultUXService: runtime,
@@ -299,13 +324,6 @@ public final class KeyServiceHandler {
                 configuration: runtimeConfiguration
             )
         )
-        let replacementIntentStore =
-            V3ReplacementEnrollmentIntentKeychainStore(
-                configuration: runtimeConfiguration
-            )
-        let replacementAdmission = V3ReplacementEnrollmentAdmission(
-            intentStore: replacementIntentStore
-        )
         let approvalService =
             V3DeviceWrappedEnrollmentOwnerApprovalService(
                 vaultID: vaultID,
@@ -324,9 +342,6 @@ public final class KeyServiceHandler {
                 },
                 session: session
             )
-        let replacementAdmissionState = try replacementAdmission.state(
-            vaultID: vaultID
-        )
         let enrollmentService: any V3EnrollmentWorkflowServicing
         if replacementAdmissionState == .enrollmentPending {
             enrollmentService = try makeLiveV3EnrollmentWorkflowService(

@@ -8,6 +8,7 @@ import Testing
 /// over contained files with independent Mac-local state and software keys.
 struct V3RecoveryEnrollmentProductTests {
   private typealias Core = V3RecoveryRegistrationTestSupport
+  private typealias Ceremonies = V3RecoveryDeviceProductTestSupport.Ceremonies
   private typealias Disk = V3RecoveryPublicationTestSupport
   private static let now = V3RecoveryEnrollmentTestSupport.now
 
@@ -293,22 +294,5 @@ struct V3RecoveryEnrollmentProductTests {
     private var stored: [String] = []
     var values: [String] { lock.withLock { stored } }
     func append(_ value: String) { lock.withLock { stored.append(value) } }
-  }
-  private final class Ceremonies: V3EnrollmentCeremonyStateStoring, @unchecked Sendable {
-    private let lock = NSLock()
-    private var values: [Data: Data] = [:]
-    func loadState(vaultID: String, invitationDigest: Data) throws -> Data? {
-      lock.withLock { values[invitationDigest] }
-    }
-    func replaceState(_ state: Data, expectedState: Data?, vaultID: String, invitationDigest: Data)
-      throws
-    {
-      try lock.withLock {
-        guard values[invitationDigest] == expectedState else {
-          throw V3EnrollmentCeremonyStateError.conflict
-        }
-        values[invitationDigest] = state
-      }
-    }
   }
 }

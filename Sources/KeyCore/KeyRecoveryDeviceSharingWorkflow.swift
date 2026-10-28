@@ -48,6 +48,14 @@ extension KeyRecoverySharingCapability {
       let source = V3FilesystemTransactionArtifactStore(rootHandle: root)
       let checkpoints = V3ManifestCheckpointKeychainStore(configuration: configuration)
       let cache = try KeyServiceHandler.makeV3CheckpointManifestCache(keyConfiguration: selected)
+      let replacementState = try V3ReplacementEnrollmentAdmission(
+        intentStore: V3ReplacementEnrollmentIntentKeychainStore(configuration: configuration)
+      ).state(vaultID: vaultID)
+      if [.cleanupPending, .enrollmentPending].contains(replacementState) {
+        return try KeyRecoveryDeviceReplacementWorkflow.prepare(
+          request, selected: selected, configStore: configStore, keyStore: keyStore,
+          configuration: configuration, scope: scope)
+      }
       guard
         case .recovery = try v3SelectedCheckpointProfile(
           vaultID: vaultID, checkpoints: checkpoints, source: source, cache: cache
@@ -93,10 +101,10 @@ extension KeyRecoverySharingCapability {
           )
           .handle(.share(request))
         }
-      case .join:
-        throw AppError.operationRefused(
-          "This Mac already uses a vault. Joining requires an unconfigured Mac or an explicitly reviewed replacement of a revoked identity."
-        )
+      case .join, .reviewReplacement, .replaceCurrentDevice:
+        return try KeyRecoveryDeviceReplacementWorkflow.prepare(
+          request, selected: selected, configStore: configStore, keyStore: keyStore,
+          configuration: configuration, scope: scope)
       default: return nil
       }
       let verifySelection = configStore.selectionValidator(expected: selected)
@@ -116,7 +124,7 @@ extension KeyRecoverySharingCapability {
       let ceremonies = V3EnrollmentCeremonyStateKeychainStore(configuration: configuration)
       let identities = V3EnrollmentDeviceIdentityManager(
         recordStore: V3EnrollmentDeviceKeyRecordKeychainStore(configuration: configuration),
-        keyOperations: V3SecureEnclaveEnrollmentDeviceKeyOperations())
+        keyOperations: V3SecureEnclaveEnrollmentDeviceKeyOperations(), validateScope: validate)
       let unlock = V3RecoveryVaultUnlockRuntime(
         vaultID: vaultID, checkpointStore: checkpoints, source: source, cache: cache,
         identityLoader: V3ScopedDeviceIdentityLoader(base: identities, validate: validate),

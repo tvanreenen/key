@@ -56,6 +56,7 @@ struct V3ReplacementEnrollmentCoordinator: Sendable {
     private let identityDeleter: V3EnrollmentDeviceIdentityDeleter
     private let checkpointStore: any V3ManifestCheckpointDeleting
     private let intentStore: any V3ReplacementEnrollmentIntentStoring
+    private let validateScope: @Sendable () throws -> Void
 
     init(
         vaultID: String,
@@ -64,7 +65,8 @@ struct V3ReplacementEnrollmentCoordinator: Sendable {
             any V3ReplacementDeviceIdentityAuthorityClassifying,
         identityDeleter: V3EnrollmentDeviceIdentityDeleter,
         checkpointStore: any V3ManifestCheckpointDeleting,
-        intentStore: any V3ReplacementEnrollmentIntentStoring
+        intentStore: any V3ReplacementEnrollmentIntentStoring,
+        validateScope: @escaping @Sendable () throws -> Void = {}
     ) {
         precondition(isValidV3UUID(vaultID))
         self.vaultID = vaultID
@@ -73,12 +75,14 @@ struct V3ReplacementEnrollmentCoordinator: Sendable {
         self.identityDeleter = identityDeleter
         self.checkpointStore = checkpointStore
         self.intentStore = intentStore
+        self.validateScope = validateScope
     }
 
     func begin(
         review: V3ReplacementEnrollmentReview,
         confirmedReviewDigest: Data
     ) throws -> V3ReplacementEnrollmentIntent {
+        try validateScope()
         guard review.vaultID == vaultID else {
             throw V3ReplacementEnrollmentCoordinatorError.invalidRequest
         }
@@ -113,6 +117,7 @@ struct V3ReplacementEnrollmentCoordinator: Sendable {
             try requireCurrentAuthority(for: review)
             let prepared = V3ReplacementEnrollmentIntent(review: review)
             let preparedData = prepared.canonicalBytes
+            try validateScope()
             try intentStore.replaceReplacementIntent(
                 preparedData,
                 expectedIntent: nil,
@@ -127,7 +132,9 @@ struct V3ReplacementEnrollmentCoordinator: Sendable {
     }
 
     func resume() throws -> V3ReplacementEnrollmentIntent {
-        try mutationOwner.perform(.enrollDevice) { _ in
+        try validateScope()
+        return try mutationOwner.perform(.enrollDevice) { _ in
+            try validateScope()
             guard let currentData = try intentStore
                 .loadReplacementIntent(vaultID: vaultID)
             else {
@@ -153,6 +160,7 @@ struct V3ReplacementEnrollmentCoordinator: Sendable {
         currentData initialData: Data,
         preparedAuthorityAlreadyValidated: Bool
     ) throws -> V3ReplacementEnrollmentIntent {
+        try validateScope()
         var intent = initial
         var currentData = initialData
 
@@ -164,6 +172,7 @@ struct V3ReplacementEnrollmentCoordinator: Sendable {
                 to: .identityDeletionStarted
             )
             let advancedData = advanced.canonicalBytes
+            try validateScope()
             try intentStore.replaceReplacementIntent(
                 advancedData,
                 expectedIntent: currentData,
@@ -174,9 +183,12 @@ struct V3ReplacementEnrollmentCoordinator: Sendable {
         }
 
         if intent.phase == .identityDeletionStarted {
+            try validateScope()
             try identityDeleter.deleteIdentity(intent.review.target)
+            try validateScope()
             let advanced = try intent.advanced(to: .identityDeleted)
             let advancedData = advanced.canonicalBytes
+            try validateScope()
             try intentStore.replaceReplacementIntent(
                 advancedData,
                 expectedIntent: currentData,
@@ -187,12 +199,14 @@ struct V3ReplacementEnrollmentCoordinator: Sendable {
         }
 
         if intent.phase == .identityDeleted {
+            try validateScope()
             try checkpointStore.deleteCheckpoint(
                 expectedCheckpoint:
                     intent.review.expectedCheckpoint.canonicalBytes,
                 vaultID: vaultID
             )
             let advanced = try intent.advanced(to: .checkpointDeleted)
+            try validateScope()
             try intentStore.replaceReplacementIntent(
                 advanced.canonicalBytes,
                 expectedIntent: currentData,
@@ -204,6 +218,7 @@ struct V3ReplacementEnrollmentCoordinator: Sendable {
         guard intent.phase == .checkpointDeleted else {
             throw V3ReplacementEnrollmentIntentError.invalidIntent
         }
+        try validateScope()
         return intent
     }
 
@@ -232,6 +247,7 @@ struct V3ReplacementEnrollmentCoordinator: Sendable {
         try requireCurrentAuthority(for: review)
         let replacement = V3ReplacementEnrollmentIntent(review: review)
         let replacementData = replacement.canonicalBytes
+        try validateScope()
         try intentStore.replaceReplacementIntent(
             replacementData,
             expectedIntent: currentData,
@@ -247,8 +263,10 @@ struct V3ReplacementEnrollmentCoordinator: Sendable {
     private func requireCurrentAuthority(
         for review: V3ReplacementEnrollmentReview
     ) throws {
+        try validateScope()
         let classification = try authorityClassifier
             .classifyCurrentAuthority(for: review.target)
+        try validateScope()
         guard case .revoked = classification,
               let currentReview = try? V3ReplacementEnrollmentReview(
                   classification: classification

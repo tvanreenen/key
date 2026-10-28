@@ -9,6 +9,49 @@ struct KeyRecoverySharingRoutingTests {
     vaultID: "vault", invitationID: "invitation", comparisonCode: "compared")
 
   @Test(arguments: [false, true])
+  func pendingReplacementBlocksOtherSetupBeforeCompositionOrRetirement(warm: Bool) {
+    var effects: [String] = []
+    let host = KeyServiceHost(
+      hasConfiguration: { true },
+      makeHandler: {
+        effects.append("compose")
+        return { request in
+          effects.append(request == .lock ? "lock" : "ordinary")
+          return .success()
+        }
+      }, initialize: { _ in "" }, updateVaultDirectory: { _ in effects.append("move") },
+      registerRecovery: { _, _ in
+        effects.append("register")
+        return .success()
+      },
+      rotateRecovery: { _, _ in
+        effects.append("rotate")
+        return .success()
+      },
+      requireNoPendingReplacement: { throw AppError.operationRefused("Replacement unfinished") })
+    if warm { #expect(host.handle(.list).exitCode == EXIT_SUCCESS) }
+    let before = effects
+    for request in [
+      KeyServiceRequest.setVaultDirectory(path: "/other"),
+      .recoveryRegistration(.status), .recoveryRegistration(.adopt), .recoveryRotation(.rotate),
+    ] {
+      #expect(host.handle(request).errorMessage?.contains("Replacement unfinished") == true)
+      #expect(effects == before)
+    }
+  }
+
+  @Test func replacementAdmissionStillAllowsItsOwnExplicitHandoff() {
+    let host = KeyServiceHost(
+      hasConfiguration: { true }, makeHandler: { { _ in .success() } },
+      initialize: { _ in "" },
+      recoverySharing: .init { _, _, scope in
+        try scope.requireCurrent()
+        return .init(changesCheckpoint: false) { .success("handoff") }
+      }, requireNoPendingReplacement: { Issue.record("Handoff was treated as competing setup") })
+    #expect(host.handle(.share(.reviewReplacement)) == .success("handoff"))
+  }
+
+  @Test(arguments: [false, true])
   func checkpointChangeRetiresOldRuntimeAndAllowsFreshCompositionAfterUncertainty(throwing: Bool) {
     var events: [String] = []
     var generation = 0

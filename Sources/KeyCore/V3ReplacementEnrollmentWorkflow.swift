@@ -238,6 +238,7 @@ struct V3ReplacementEnrollmentWorkflow:
         any V3ReplacementDeviceIdentityAuthorityClassifying
     private let intentStore: any V3ReplacementEnrollmentIntentStoring
     private let coordinator: any V3ReplacementEnrollmentCoordinating
+    private let validateScope: @Sendable () throws -> Void
 
     init(
         vaultID: String,
@@ -245,7 +246,8 @@ struct V3ReplacementEnrollmentWorkflow:
         authorityClassifier:
             any V3ReplacementDeviceIdentityAuthorityClassifying,
         intentStore: any V3ReplacementEnrollmentIntentStoring,
-        coordinator: any V3ReplacementEnrollmentCoordinating
+        coordinator: any V3ReplacementEnrollmentCoordinating,
+        validateScope: @escaping @Sendable () throws -> Void = {}
     ) {
         precondition(isValidV3UUID(vaultID))
         self.vaultID = vaultID
@@ -253,9 +255,11 @@ struct V3ReplacementEnrollmentWorkflow:
         self.authorityClassifier = authorityClassifier
         self.intentStore = intentStore
         self.coordinator = coordinator
+        self.validateScope = validateScope
     }
 
     func review() throws -> V3ReplacementEnrollmentReview {
+        try validateScope()
         if let stored = try storedIntent(), stored.phase != .prepared {
             return stored.review
         }
@@ -268,6 +272,7 @@ struct V3ReplacementEnrollmentWorkflow:
     func replace(
         confirmedReviewDigest: Data
     ) throws -> V3ReplacementEnrollmentIntent {
+        try validateScope()
         guard confirmedReviewDigest.count == 32 else {
             throw V3ReplacementEnrollmentWorkflowError
                 .invalidConfirmation
@@ -306,6 +311,7 @@ struct V3ReplacementEnrollmentWorkflow:
     ) throws -> V3ReplacementEnrollmentReview {
         let classification = try authorityClassifier
             .classifyCurrentAuthority(for: target)
+        try validateScope()
         switch classification {
         case .noLocalIdentity:
             throw V3ReplacementEnrollmentWorkflowError.noLocalIdentity
@@ -330,6 +336,7 @@ struct V3ReplacementEnrollmentWorkflow:
         let intent = try V3ReplacementEnrollmentIntent(
             canonicalBytes: data
         )
+        try validateScope()
         guard intent.vaultID == vaultID else {
             throw V3ReplacementEnrollmentIntentError.invalidIntent
         }
