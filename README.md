@@ -108,16 +108,17 @@ modify Stable configuration, vault selection, or Keychain state.
 ### Install Stable
 
 ```sh
-brew tap tvanreenen/tap
-brew install --cask key
+brew tap tvr-works/tap
+brew install --cask tvr-works/tap/key
 open -a Key
 ```
 
-Existing Homebrew users can update in place:
+Existing Homebrew users can update in place. Add the organization tap first; keep the personal tap if you also use Frame or xkcdpass:
 
 ```sh
 brew update
-brew upgrade --cask key
+brew tap tvr-works/tap
+brew upgrade --cask tvr-works/tap/key
 open -a Key
 ```
 
@@ -133,7 +134,7 @@ key status
 ### Install Preview (optional)
 
 ```sh
-brew install --cask tvanreenen/tap/key@beta
+brew install --cask tvr-works/tap/key@beta
 open -a "Key Preview"
 key-preview version
 key-preview status

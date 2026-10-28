@@ -56,7 +56,7 @@ installation onto a prerelease while allowing Stable and Preview to coexist. A
 tester can opt into a numbered prerelease channel, for example:
 
 ```bash
-brew install --cask tvanreenen/tap/key@alpha
+brew install --cask tvr-works/tap/key@alpha
 ```
 
 The prerelease casks are mutually exclusive because alpha, beta, and rc all
@@ -69,8 +69,8 @@ Before installing the first side-by-side Preview alpha, remove that older cask
 installation and reinstall the channel:
 
 ```bash
-brew uninstall --cask tvanreenen/tap/key@alpha
-brew install --cask tvanreenen/tap/key@alpha
+brew uninstall --cask tvr-works/tap/key@alpha
+brew install --cask tvr-works/tap/key@alpha
 ```
 
 ## What the release workflow guarantees
@@ -96,7 +96,7 @@ replace different bytes or tolerate another asset. This matches GitHub's
 `just release <tag>` stops after source release publication. Homebrew is a
 separate manual checkpoint. `just publish-homebrew <tag>` uses the operator's
 existing `gh` login to dispatch only
-`tvanreenen/homebrew-tap/.github/workflows/publish-package.yml` on `main` with
+`tvr-works/homebrew-tap/.github/workflows/publish-package.yml` on `main` with
 `package=key` and the version. Key does not clone, edit, commit, or push the tap,
 and it stores no cross-repository credential. The tap verifies the published
 release and checksum, renders the cask, runs Homebrew checks, and owns its pull
@@ -164,8 +164,8 @@ For an alpha Preview release:
 
 ```bash
 brew update
-brew install --cask tvanreenen/tap/key@alpha   # first installation
-brew upgrade --cask tvanreenen/tap/key@alpha   # later alpha releases
+brew install --cask tvr-works/tap/key@alpha   # first installation
+brew upgrade --cask tvr-works/tap/key@alpha   # later alpha releases
 spctl --assess --type execute --verbose "/Applications/Key Preview.app"
 open -a "Key Preview"
 key-preview version --json
@@ -206,7 +206,7 @@ at a test vault.
 
 This project currently publishes its cask through:
 
-- [tvanreenen/homebrew-tap](https://github.com/tvanreenen/homebrew-tap)
+- [tvr-works/homebrew-tap](https://github.com/tvr-works/homebrew-tap)
 
 No local tap checkout or cross-repository Actions credential is required.
 

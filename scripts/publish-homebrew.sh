@@ -18,13 +18,13 @@ if ! command -v gh >/dev/null 2>&1; then
 fi
 
 gh workflow run publish-package.yml \
-  --repo tvanreenen/homebrew-tap \
+  --repo tvr-works/homebrew-tap \
   --ref main \
   --raw-field package=key \
   --raw-field version="${version}"
 
 echo "Dispatched Homebrew publication:"
-echo "  repository: tvanreenen/homebrew-tap"
+echo "  repository: tvr-works/homebrew-tap"
 echo "  workflow:   publish-package.yml"
 echo "  ref:        main"
 echo "  package:    key"
@@ -32,4 +32,4 @@ echo "  version:    ${version}"
 echo "  cask:       ${homebrew_cask_token}"
 echo
 echo "Follow the run:"
-echo "  gh run list --repo tvanreenen/homebrew-tap --workflow publish-package.yml"
+echo "  gh run list --repo tvr-works/homebrew-tap --workflow publish-package.yml"
