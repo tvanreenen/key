@@ -73,9 +73,9 @@ package is newly declared qualified/released by this consolidation.
 | `REC-807` Native token/setup | Bound read-only reader, scoped agreement and external administration boundary; one physical key tested. | Setup instructions, certificate/key/reset lifecycle, platform matrix and remaining enforcement cases. |
 | `REC-808` Registration/adoption | Durable prepare/export/finish, authenticated status and exact reconciliation; initial signed registration/adoption passed. | Remaining interrupted setup/adoption cases and independent backup registration. |
 | `REC-809` Content/branches | Mutation, merge/resolution, catch-up and coverage guards implemented; edited contents recovered on both Macs. | Signed independent-Mac branch/conflict-resolution acceptance. |
-| `REC-810` Authority lifecycle | Rotation, enrollment/adoption, revocation/removal, catch-up and restart domain services implemented; signed token-free rotation recovered on Air. Gated sharing commands connect recovery-profile enrollment, first trust, reviewed device revocation and exact local replacement/rejoin with scoped cancellation and retry. | Recipient removal product route, informed confirmations and physical lifecycle qualification. |
+| `REC-810` Authority lifecycle | Rotation, enrollment/adoption, revocation/removal, catch-up and restart domain services implemented; signed token-free rotation recovered on Air. Gated sharing commands connect recovery-profile enrollment, first trust, reviewed device revocation and exact local replacement/rejoin with scoped cancellation and retry. | Final integrated review and signed device/recipient lifecycle qualification. |
 | `REC-811` Restore/resume | Verified snapshot to fresh vault; encrypted preparation and exact authenticated resume; signed separate-process reads passed. | Complete durable-phase/failure matrix and restored-vault ordinary mutation acceptance. |
-| `REC-812` CLI/helper | Gated workflow, progress/touch UI, configured runtime and scoped native results recorded. | Remaining lifecycle integration, helper/concurrency/history acceptance and UX review. |
+| `REC-812` CLI/helper | Gated workflow, progress/touch UI, configured runtime and scoped native results recorded. | Helper/concurrency/history acceptance and signed UX review of the completed lifecycle routes. |
 | `REC-813` Backup/physical lifecycle | Primary/backup software fixtures; one physical credential tested in recorded cases. | Two independently generated physical keys and the lifecycle matrix below. |
 | `REC-814` Security/release qualification | Earlier integrated AI review/fixes, historical full regression/CI pass and exact signed/notarized build25 installs. | Fresh review/CI on latest changes, full regression, compatibility/provider and exact-candidate release checks. |
 | `REC-815` Adoption/publication | Explicit gated adoption implemented and exercised on disposable data. | Supported upgrade/migration/rollback qualification, real-vault opt-in gate and authorized publication. |
@@ -92,10 +92,12 @@ every physical test before dependent coding or review can start.
    integrated AI review. Reuse established evidence; repeat a basic two-Mac restore
    only for changed code or an unresolved question.
 2. **Lifecycle completion.** Device enrollment, reviewed revocation and replacement/rejoin product integration
-   is under review above #81. Software tests cover compared admission, exact
-   confirmation, stopped requests and retained recovery coverage. Signed two-Mac
-   lifecycle qualification remains open. Next finish recipient removal, including informed
-   exact-plan confirmations. Close the matrix below with a second independently
+   and recovery-key removal are implemented above #81 as focused review increments.
+   Software tests cover compared admission, exact confirmation, stopped requests,
+   retained cleanup and continuing recovery coverage. Last-recipient removal requires
+   a distinct acknowledgment that recovery will be unavailable. The
+   [user guide](recovery-user-guide.md) describes the gated flows. Signed two-Mac
+   lifecycle qualification remains open. Close the matrix below with a second independently
    provisioned physical key. Its acquisition/provisioning is an owner prerequisite;
    scope hardware actions separately.
 3. **Release/adoption qualification.** Freeze supported format/platform promises,
@@ -174,6 +176,7 @@ neither review nor green CI enables the shipping recovery gates.
 | Historical full Release run | At `0ffaee776050da2a5452505b9b4c76be352e5022`, `swift test -c release --no-parallel` passed 1,754 KeyCore tests/141 suites plus six canonical-JSON tests. Opt-in large mixed migration was skipped. Raw: `tmp/piv-recovery/2026-10-20-review-fixes-full-release.log`. This is not a full run on the latest local head. |
 | Native follow-up review, 2026-10-26 | At `93303c3`, three fresh AI reviewers found no actionable issue in the inspected integrated paths. A fresh full Release run reported 1,784 KeyCore tests/143 suites and six canonical-JSON tests passed; opt-in large migration was skipped. Stable, Preview and helper-security CI passed. [Qualification](piv-recovery-signed-test.md) retains exact native artifact limits. This evidence predates the lifecycle cleanup and does not qualify it or a release. Raw review/regression evidence: `tmp/piv-recovery/integrated-review-2026-10-26/`. |
 | Integrated review follow-up, 2026-10-27 | Review at `943b23b` confirmed stopped-save session continuity, exact registration ownership, and pre-signing budget ordering gaps. `0e5c4e2`, `346e5cd`, and `af11331` address them; `6d0c463` keeps per-entry ownership guards bounded. Final focused verification passed 94 tests/seven suites, including 41 new CI-selected cases. The complete serial Release run on `6d0c463` passed 1,795 KeyCore tests/144 suites plus six canonical-JSON tests, without exclusions, after unlocking the Mini. The opt-in large migration case was not enabled. Current raw run evidence: `tmp/piv-recovery/review-fixes-2026-10-27/08-full-release-restored-unlocked{.log,-result.json}`. Native artifact limits remain unchanged. |
+| Product lifecycle follow-ups, 2026-10-27 | The complete serial Release run on `b797333` passed 1,842 KeyCore tests/151 suites plus six canonical-JSON tests, with a clean and unchanged source snapshot. The optional large mixed migration qualification case was not enabled. Focused recipient-removal checks passed 111 tests/10 suites; final ceremony/enrollment/replacement checks passed 23 tests/three suites. The four review increments above #81 connect compared enrollment, reviewed revocation, exact replacement/rejoin and informed recipient removal. After correcting Xcode source membership, both unsigned app variants, bundle-isolation checks and built-CLI help checks passed with unchanged Swift/test sources. No new physical or signed-artifact qualification is claimed. Raw results: `tmp/piv-recovery/device-product-flows-2026-10-27/`. |
 
 ## Recording future work
 

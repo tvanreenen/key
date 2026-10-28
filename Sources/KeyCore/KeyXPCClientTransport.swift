@@ -282,6 +282,7 @@ private extension KeyServiceRequest {
         case .recoveryReview: "public recovery review"
         case .recoveryRegistration: "recovery registration"
         case .recoveryRotation: "recovery-profile key rotation"
+        case .recoveryRecipientRemoval: "recovery key removal"
         case .list: "list"
         case .migrationPreflight: "migration preflight"
         case .migrationApply: "migration"

@@ -62,6 +62,7 @@ public enum Command: Equatable {
     case recoveryReview(KeyRecoveryReviewRequest, json: Bool)
     case recoveryRegistration(KeyRecoveryRegistrationRequest, exportPath: String?, json: Bool)
     case recoveryRotation(KeyRecoveryRotationRequest)
+    case recoveryRecipientRemoval(recipientID: String)
     case unlock
     case lock
     case get(name: String, allowStale: Bool)

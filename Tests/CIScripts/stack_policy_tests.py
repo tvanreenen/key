@@ -26,7 +26,7 @@ class StackVerificationPolicyTests(unittest.TestCase):
             name = block.split(":", 1)[0].strip()
             condition = re.search(r"^    if: (.+)$", block, re.MULTILINE)
             self.assertIsNotNone(condition, name)
-            if name == "migration-scale":
+            if name in {"migration-scale", "static-analysis", "extended-products"}:
                 self.assertEqual(condition[1],
                                  "github.event_name == 'schedule' || "
                                  "github.event_name == 'workflow_dispatch'")

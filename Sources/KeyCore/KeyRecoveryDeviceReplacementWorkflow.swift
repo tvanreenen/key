@@ -77,7 +77,8 @@ enum KeyRecoveryDeviceReplacementWorkflow {
         intentStore: intents, validateScope: validate), validateScope: validate)
     let exchange = V3EnrollmentExchangeCoordinator(
       mailbox: V3FilesystemEnrollmentMailbox(rootHandle: root),
-      stateStore: V3EnrollmentCeremonyStateKeychainStore(configuration: configuration))
+      stateStore: V3EnrollmentCeremonyStateKeychainStore(configuration: configuration),
+      validateScope: validate)
     let enrollment = try makeLiveV3EnrollmentWorkflowService(
       rootHandle: root, selectedVaultID: state == .enrollmentPending ? nil : vaultID,
       replacementVaultID: state == .enrollmentPending ? vaultID : nil,

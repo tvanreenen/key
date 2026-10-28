@@ -17,6 +17,8 @@ public final class KeyServiceHost {
     private let reviewRecovery: ((KeyRecoveryReviewRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)?
     private let registerRecovery: ((KeyRecoveryRegistrationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)?
     private let rotateRecovery: ((KeyRecoveryRotationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)?
+    private let removeRecoveryRecipient: ((KeyRecoveryRecipientRemovalRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)?
+    private enum ConfiguredRuntimeEffect { case none, checkpoint, selection }
     private let recoveryLock = NSLock()
     private let recoveryAuthentication = V3DeviceWrappedVaultKeySessionStore()
     private var recoveryRequest: KeyRecoveryRequestScope?
@@ -39,6 +41,7 @@ public final class KeyServiceHost {
         registerRecovery: ((KeyRecoveryRegistrationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil,
         rotateRecovery: ((KeyRecoveryRotationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil,
         recoverySharing: KeyRecoverySharingCapability? = nil,
+        removeRecoveryRecipient: ((KeyRecoveryRecipientRemovalRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil,
         requireNoPendingReplacement: @escaping () throws -> Void = {}
     ) {
         self.hasConfiguration = hasConfiguration
@@ -53,6 +56,7 @@ public final class KeyServiceHost {
         self.reviewRecovery = reviewRecovery
         self.registerRecovery = registerRecovery
         self.rotateRecovery = rotateRecovery
+        self.removeRecoveryRecipient = removeRecoveryRecipient
     }
 
     public static func live(
@@ -106,16 +110,24 @@ public final class KeyServiceHost {
                 } : nil,
             recoverySharing: runtimeConfiguration.experimentalRecoveryEnabled
                 ? .live(configStore: configStore, keyStore: keyStore, configuration: runtimeConfiguration) : nil,
+            removeRecoveryRecipient: runtimeConfiguration.experimentalRecoveryEnabled
+                ? { request, scope in
+                    try scope.requireCurrent()
+                    let workflow = try KeyRecoveryRecipientRemovalWorkflow.live(
+                        configStore: configStore, configuration: runtimeConfiguration, scope: scope)
+                    defer { workflow.session.invalidate() }
+                    let result = try workflow.handle(request)
+                    try scope.requireCurrent()
+                    return .recoveryRecipientRemoval(result)
+                } : nil,
             requireNoPendingReplacement: {
                 guard runtimeConfiguration.experimentalRecoveryEnabled,
                       try configStore.hasConfiguration(),
                       let vaultID = try configStore.configuredVaultRuntimeSelection().vaultID
                 else { return }
-                guard try V3ReplacementEnrollmentAdmission(
+                try V3ReplacementEnrollmentAdmission(
                     intentStore: V3ReplacementEnrollmentIntentKeychainStore(configuration: runtimeConfiguration)
-                ).state(vaultID: vaultID) == .inactive else {
-                    throw AppError.operationRefused("Finish this Mac's saved device replacement before changing the vault folder or recovery setup.")
-                }
+                ).requireInactive(vaultID: vaultID)
             }
         )
     }
@@ -145,8 +157,15 @@ public final class KeyServiceHost {
             guard let rotateRecovery else {
                 return .failure("Recovery-profile key rotation is not enabled in this product build.")
             }
-            return handleConfiguredRecovery(connection: connection, changesCheckpoint: true,
+            return handleConfiguredRecovery(connection: connection, effect: .selection,
                 validate: action.validate, perform: { try rotateRecovery(action, $0) })
+        }
+        if case let .recoveryRecipientRemoval(action) = request {
+            guard let removeRecoveryRecipient else {
+                return .failure("Recovery key removal is not enabled in this product build.")
+            }
+            return handleConfiguredRecovery(connection: connection, effect: .checkpoint,
+                validate: action.validate, perform: { try removeRecoveryRecipient(action, $0) })
         }
         if let recoverySharing {
             switch request {
@@ -258,6 +277,15 @@ public final class KeyServiceHost {
         return response
     }
 
+    private func retireConfiguredHandler() {
+        let retired = compositionLock.withLock {
+            let previous = handler
+            handler = nil
+            return previous
+        }
+        if let retired { _ = retired(.lock) }
+    }
+
     private func handleRecoverySharing(
         _ action: KeyShareRequest, path: String?, capability: KeyRecoverySharingCapability,
         connection: KeyServiceConnection?
@@ -285,12 +313,7 @@ public final class KeyServiceHost {
             }
             try scope.requireCurrent()
             if invocation.changesCheckpoint {
-                let retired = compositionLock.withLock {
-                    let previous = handler
-                    handler = nil
-                    return previous
-                }
-                if let retired { _ = retired(.lock) }
+                retireConfiguredHandler()
             }
             try recoveryLock.withLock {
                 try scope.requireCurrent()
@@ -368,14 +391,14 @@ public final class KeyServiceHost {
         guard let registerRecovery else {
             return .failure("Recovery registration is not enabled in this product build.")
         }
-        return handleConfiguredRecovery(connection: connection, progress: progress, changesCheckpoint: request.changesCheckpoint,
+        return handleConfiguredRecovery(connection: connection, progress: progress, effect: request.changesCheckpoint ? .selection : .none,
             validate: request.validate, perform: { try registerRecovery(request, $0) })
     }
 
     /// Shared configured admission only. Individual services still own exact
     /// operation selection, authenticated publication and durable reconciliation.
     private func handleConfiguredRecovery(
-        connection: KeyServiceConnection?, progress: KeyRecoveryProgress? = nil, changesCheckpoint: Bool,
+        connection: KeyServiceConnection?, progress: KeyRecoveryProgress? = nil, effect: ConfiguredRuntimeEffect,
         validate: () throws -> Void,
         perform: (KeyRecoveryRequestScope) throws -> KeyServiceResponse
     ) -> KeyServiceResponse {
@@ -391,8 +414,11 @@ public final class KeyServiceHost {
             // The host barrier excludes all ordinary configured requests. A
             // checkpoint-changing setup never leaves an old resident runtime
             // usable, including after an ambiguous failure or lost result.
-            if changesCheckpoint {
-                if let handler { _ = handler(.lock) }
+            switch effect {
+            case .none: break
+            case .checkpoint: retireConfiguredHandler()
+            case .selection:
+                retireConfiguredHandler()
                 restartPending = true
             }
             try recoveryLock.withLock {

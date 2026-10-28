@@ -149,6 +149,12 @@ struct V3ReplacementEnrollmentAdmission: Sendable {
         }
     }
 
+    func requireInactive(vaultID: String) throws {
+        guard try state(vaultID: vaultID) == .inactive else {
+            throw AppError.operationRefused("Finish this Mac's saved device replacement before changing the vault folder or recovery setup.")
+        }
+    }
+
     func consumeCompletedIntent(vaultID: String) throws {
         guard let data = try intentStore.loadReplacementIntent(
             vaultID: vaultID

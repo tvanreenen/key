@@ -30,6 +30,15 @@ verify-products variant="stable":
   scripts/verify-product.sh "{{variant}}" release bundle
   scripts/verify-product.sh "{{variant}}" release cli
 
+# Verify one product configuration, matching the Stable Release PR gate.
+verify-product variant="stable" mode="release":
+  scripts/verify-product.sh "{{variant}}" "{{mode}}" build
+  scripts/verify-product.sh "{{variant}}" "{{mode}}" bundle
+  scripts/verify-product.sh "{{variant}}" "{{mode}}" cli
+
+# Run the repository checks grouped together in PR CI.
+verify-repository: verify-style verify-static-analysis verify-scripts verify-dependencies
+
 # Verify script syntax, CI failure boundaries, release behavior, and Preview installation safety.
 verify-scripts:
   scripts/verify-shell-syntax.sh

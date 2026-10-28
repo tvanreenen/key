@@ -17,7 +17,8 @@ extension KeyRecoverySharingCapability {
         let source = V3FilesystemTransactionArtifactStore(rootHandle: root)
         let exchange = V3EnrollmentExchangeCoordinator(
           mailbox: V3FilesystemEnrollmentMailbox(rootHandle: root),
-          stateStore: V3EnrollmentCeremonyStateKeychainStore(configuration: configuration))
+          stateStore: V3EnrollmentCeremonyStateKeychainStore(configuration: configuration),
+          validateScope: { try scope.requireCurrent() })
         let invitation: V3EnrollmentInvitation
         let now = UInt64(max(0, Date().timeIntervalSince1970))
         switch request {
@@ -73,7 +74,8 @@ extension KeyRecoverySharingCapability {
         guard requestedVaultID == vaultID else { throw V3EnrollmentCeremonyStateError.wrongRole }
         let exchange = V3EnrollmentExchangeCoordinator(
           mailbox: V3FilesystemEnrollmentMailbox(rootHandle: root),
-          stateStore: V3EnrollmentCeremonyStateKeychainStore(configuration: configuration))
+          stateStore: V3EnrollmentCeremonyStateKeychainStore(configuration: configuration),
+          validateScope: { try scope.requireCurrent() })
         let state = try exchange.resumeJoinerAdoption(
           vaultID: vaultID, invitationDigest: enrollmentDigest(invitationID),
           at: UInt64(max(0, Date().timeIntervalSince1970)))
@@ -105,13 +107,15 @@ extension KeyRecoverySharingCapability {
         return try KeyRecoveryDeviceReplacementWorkflow.prepare(
           request, selected: selected, configStore: configStore, keyStore: keyStore,
           configuration: configuration, scope: scope)
-      default: return nil
       }
       let verifySelection = configStore.selectionValidator(expected: selected)
       let validate: @Sendable () throws -> Void = {
         try scope.requireCurrent()
         try root.requireConfiguredRootIdentity()
         try verifySelection()
+        try V3ReplacementEnrollmentAdmission(
+          intentStore: V3ReplacementEnrollmentIntentKeychainStore(configuration: configuration)
+        ).requireInactive(vaultID: vaultID)
       }
       try validate()
       let session = V3DeviceWrappedVaultKeySessionStore()
@@ -143,7 +147,8 @@ extension KeyRecoverySharingCapability {
       let workflow = V3RecoveryEnrollmentOwnerWorkflow(
         vaultID: vaultID, unlock: unlock, session: session,
         exchange: V3EnrollmentExchangeCoordinator(
-          mailbox: V3FilesystemEnrollmentMailbox(rootHandle: root), stateStore: ceremonies),
+          mailbox: V3FilesystemEnrollmentMailbox(rootHandle: root), stateStore: ceremonies,
+          validateScope: validate),
         ownership: transaction,
         loadIdentity: loadOwner,
         makeService: { identity in

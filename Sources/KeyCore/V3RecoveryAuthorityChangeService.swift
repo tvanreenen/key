@@ -61,10 +61,11 @@ struct V3RecoveryAuthorityChangeService: Sendable {
     return try revocationPlan(base, deviceID: deviceID)
   }
 
-  func prepareRemoval(removing recipientID: V3RecoveryRecipientID) throws
-    -> V3RecoveryRecipientRemovalPlan
-  {
-    let base = try loadCurrent()
+  func prepareRemoval(
+    removing recipientID: V3RecoveryRecipientID,
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil
+  ) throws -> V3RecoveryRecipientRemovalPlan {
+    let base = try loadCurrent(continuing: ticket)
     return try removalPlan(base, recipientID: recipientID)
   }
 
@@ -97,10 +98,12 @@ struct V3RecoveryAuthorityChangeService: Sendable {
 
   func remove(
     _ plan: V3RecoveryRecipientRemovalPlan, operationID: VaultTransactionOperationID,
-    protectionLossAcknowledgement: V3RecoveryProtectionLossAcknowledgement? = nil
+    protectionLossAcknowledgement: V3RecoveryProtectionLossAcknowledgement? = nil,
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil
   ) throws -> V3RecoveryRecipientRemovalCommit {
     let committed = try change(
       checkpoint: plan.expectedCheckpoint, kind: .removeRecoveryRecipient, operationID: operationID,
+      continuing: ticket,
       review: { base in
         guard try removalPlan(base, recipientID: plan.removedRecipient.recipientID) == plan else {
           throw V3RecoveryRecipientRemovalError.invalidPlan
@@ -166,6 +169,39 @@ struct V3RecoveryAuthorityChangeService: Sendable {
         parent: parent, expectedOwner: identity.publicIdentity)
       try requireRecoveryState(state)
       return .init(plan: plan, anchor: state.anchorData, checkpoint: state.candidateCheckpoint)
+    }
+  }
+
+  struct PendingRemoval: Sendable {
+    let plan: V3RecoveryRecipientRemovalPlan
+    let anchor: Data
+    let checkpoint: V3ManifestCheckpoint
+    let operationID: VaultTransactionOperationID
+  }
+
+  /// Exact owned removal metadata for informed product confirmation. It is not
+  /// authentication of the pending contents or permission to start a new epoch.
+  func pendingRemoval(operationID: VaultTransactionOperationID) throws -> PendingRemoval? {
+    try validateScope()
+    switch try prepareRecovery(.recipient, operationID: operationID, expectedAnchor: nil) {
+    case .finished(.nothingToRecover): return nil
+    case .finished:
+      throw AppError.operationRefused(
+        "The incomplete removal was released without publication. Review the recovery keys again before a new attempt."
+      )
+    case .ready(let state):
+      let checked = try preflightRecovery(state, kind: .recipient)
+      let parent = try V3RecoveryManifestCodec().parseEnvelope(
+        objects.readManifest(state.intent.expectedCheckpoint.envelopeDigest))
+      let plan = try removalValidator(oldKey: nil).reconstructPublicPlan(
+        input(state), envelope: checked.envelope, parent: parent)
+      try V3RecoveryRecipientRemovalValidator(limits: limits).preflightPublic(
+        .init(plan: plan, envelope: checked.envelope, stagedEntries: state.availableEntries),
+        parent: parent, expectedOwner: identity.publicIdentity)
+      try requireRecoveryState(state)
+      return .init(
+        plan: plan, anchor: state.anchorData, checkpoint: state.candidateCheckpoint,
+        operationID: state.intent.operationID)
     }
   }
 
