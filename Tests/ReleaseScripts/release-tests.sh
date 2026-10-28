@@ -645,7 +645,7 @@ assert_dispatch() {
   DISPATCHER_LOG="${dispatcher_log}" \
     "${repo_root}/scripts/publish-homebrew.sh" "${version}" > "${output}"
   tail -n 1 "${dispatcher_log}" | grep -qx \
-    "workflow run publish-package.yml --repo tvanreenen/homebrew-tap --ref main --raw-field package=key --raw-field version=${version}"
+    "workflow run publish-package.yml --repo tvr-works/homebrew-tap --ref main --raw-field package=key --raw-field version=${version}"
   grep -q "^  cask:       ${expected_cask}$" "${output}"
 }
 
