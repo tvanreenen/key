@@ -369,22 +369,23 @@ The Swift package and release-script checks run with:
 just test
 ```
 
-CI runs the full `Verify` checks on ready pull requests and pushes to `main`.
-Draft pull requests skip verification jobs until marked ready for review; later
-pushes to a ready PR rerun its checks. Manual and scheduled runs retain their
-existing scopes. The checks have matching local commands:
+CI verifies ready pull requests and pushes to `main`. For a registered PR stack,
+only its ready top PR runs the complete merge gate; intermediate PRs do not
+repeat the same work. Draft PRs skip verification until marked ready.
 
-| Check | Local command | Scope |
+| PR/main check | Local command | Scope |
 |---|---|---|
-| Verify Swift tests | `just verify-tests` | Compile package/test targets with warnings as errors, then run all Swift suites |
-| Verify products (Stable) | `just verify-products stable` | Unsigned Debug and Release builds, product isolation, and bundled CLI behavior |
-| Verify products (Preview) | `just verify-products preview` | The same checks for Preview |
-| Verify scripts | `just verify-scripts` | Zsh syntax, CI verification failure boundaries, release/publication fixtures, and Preview install safety |
-| Verify Swift style | `just verify-style` | SwiftFormat and patch whitespace |
+| Verify Swift tests | `just verify-tests` | All Swift suites in four independently reported groups; compile with warnings as errors |
+| Verify products (Stable Release) | `just verify-product stable release` | Unsigned Release build, product identities, helper isolation, and bundled CLI behavior |
+| Verify repository checks | `just verify-repository` | Formatting, correctness lint, whitespace, shell syntax, script fixtures, and dependency consistency; CI also reviews PR dependency advisories |
 | Verify workflows | `just verify-workflows` | actionlint plus zizmor workflow security and Action advisories |
-| Verify secrets | `just verify-secrets` | Redacted Gitleaks scanning of Git history; accepts an optional `base..head` range |
-| Verify dependencies | `just verify-dependencies` | SwiftPM/Xcode requirement and lockfile consistency; CI also reviews PR dependency advisories |
-| Verify static analysis | `just verify-static-analysis` | Correctness-focused SwiftLint; CI additionally builds the complete Stable product for CodeQL |
+| Verify secrets | `just verify-secrets` | Redacted Gitleaks scanning of introduced Git history; accepts an optional `base..head` range |
+
+Weekly and manual verification additionally run CodeQL, Stable Debug, both
+Preview configurations, and migration-scale qualification. Manual runs include
+the complete PR gate as well. `just verify-products stable` and
+`just verify-products preview` remain available for checking both configurations
+of either product locally.
 
 The workflow selects Xcode 26.4.1 / Swift 6.3 explicitly. Exit tests that capture
 state from the parent process require Swift 6.3 or later. Local commands use the selected
@@ -438,16 +439,15 @@ the runner's actual arm64 Mac and execute the resulting bundled CLIs.
 Static analysis runs on the standard Intel macOS runner so the tracer and
 compiler run natively; it cross-compiles the same arm64 product. Product and
 runtime tests continue to run on Apple Silicon.
-Its analysis/upload job and GitHub's **Code scanning results / CodeQL** check
-are distinct: after the first hosted run, require both the `Verify` check names
-above and the CodeQL results check in the repository's merge rules. Configure
-CodeQL results to block new high/critical security findings and error-level
-findings. Scanner failures must not be converted to successful warning-only runs.
-The initial hosted CodeQL and dependency-review results need review before
-enabling required merge checks.
+CodeQL runs weekly or on demand rather than blocking each PR. Its analysis
+job and GitHub's **Code scanning results / CodeQL** check are distinct. Review
+scheduled findings and scanner failures; a skipped PR analysis is not evidence
+of a clean scan. Keep merge requirements aligned with the PR/main checks in
+the table above, including the aggregate `Verify Swift tests` check.
 
-On Mondays the workflow reruns online workflow audits, CodeQL, and
-**Verify migration scale**, the existing opt-in 300-entry migration gate.
+On Mondays the workflow reruns online workflow audits, CodeQL, the additional
+product configurations, and **Verify migration scale**, the existing opt-in
+300-entry migration gate.
 `workflow_dispatch` runs all checks, including that scale gate. Signing,
 notarization, Gatekeeper assessment, and installed Secure Enclave/user-presence
 qualification remain part of the existing release process; unsigned CI builds
