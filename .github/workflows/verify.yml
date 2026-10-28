@@ -100,7 +100,7 @@ jobs:
         run: test "$GROUP_RESULT" = success
 
   products:
-    name: Verify products (${{ matrix.name }})
+    name: Verify products (Stable Release)
     if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
     runs-on: macos-26
     timeout-minutes: 25
