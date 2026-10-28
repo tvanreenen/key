@@ -43,7 +43,7 @@ enum V3DeviceWrappedEnrollmentAdoptionError:
     }
 }
 
-struct V3DeviceWrappedEnrollmentAdoptionReport: Equatable, Sendable {
+struct V3DeviceEnrollmentAdoptionReport: Equatable, Sendable {
     let vaultID: String
     let deviceName: String
 
@@ -57,14 +57,14 @@ struct V3DeviceWrappedEnrollmentAdoptionReport: Equatable, Sendable {
     }
 }
 
-protocol V3DeviceWrappedEnrollmentAdoptionServicing: Sendable {
+protocol V3EnrollmentFirstTrustAdopting: Sendable {
     func adopt(
         vaultID: String,
         invitationDigest: Data,
         approvedTranscriptDigest: Data,
         at unixTime: UInt64,
         operationID: VaultTransactionOperationID
-    ) throws -> V3DeviceWrappedEnrollmentAdoptionReport
+    ) throws -> V3DeviceEnrollmentAdoptionReport
 }
 
 /// Establishes permanent-profile first trust on the joining Mac.
@@ -74,7 +74,7 @@ protocol V3DeviceWrappedEnrollmentAdoptionServicing: Sendable {
 /// opens only this device's wrapper, verifies the complete encrypted snapshot,
 /// and selects the vault only after all device-local trust is usable.
 struct V3DeviceWrappedEnrollmentAdoptionService:
-    V3DeviceWrappedEnrollmentAdoptionServicing,
+    V3EnrollmentFirstTrustAdopting,
     Sendable
 {
     typealias IdentityLoader = @Sendable (
@@ -131,7 +131,7 @@ struct V3DeviceWrappedEnrollmentAdoptionService:
         approvedTranscriptDigest: Data,
         at unixTime: UInt64,
         operationID _: VaultTransactionOperationID
-    ) throws -> V3DeviceWrappedEnrollmentAdoptionReport {
+    ) throws -> V3DeviceEnrollmentAdoptionReport {
         guard isValidV3UUID(vaultID),
               invitationDigest.count == 32,
               approvedTranscriptDigest.count == 32
@@ -208,7 +208,7 @@ struct V3DeviceWrappedEnrollmentAdoptionService:
         }
         try completeReplacement?(vaultID)
         selected = true
-        return V3DeviceWrappedEnrollmentAdoptionReport(
+        return V3DeviceEnrollmentAdoptionReport(
             vaultID: vaultID,
             deviceName: identity.publicIdentity.displayName
         )

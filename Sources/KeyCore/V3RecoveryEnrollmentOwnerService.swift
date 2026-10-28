@@ -24,6 +24,7 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
   private let cache: any V3CheckpointManifestCaching
   private let limits: V3ManifestRepositoryLimits
   private let phaseObserver: any V3ImmutableTransactionPhaseObserving
+  private let validateScope: @Sendable () throws -> Void
 
   init(
     vaultID: String, identity: Identity, session: V3DeviceWrappedVaultKeySessionStore,
@@ -34,7 +35,8 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
     ceremonyStore: any V3EnrollmentCeremonyStateStoring,
     cache: any V3CheckpointManifestCaching, limits: V3ManifestRepositoryLimits = .standard,
     phaseObserver: any V3ImmutableTransactionPhaseObserving =
-      V3NoopContentTransactionPhaseObserver()
+      V3NoopContentTransactionPhaseObserver(),
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) {
     self.vaultID = vaultID
     self.identity = identity
@@ -48,25 +50,32 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
     self.cache = cache
     self.limits = limits
     self.phaseObserver = phaseObserver
+    self.validateScope = validateScope
   }
 
-  func prepare(invitationDigest: Data, at unixTime: UInt64) throws -> V3RecoveryEnrollmentReview {
+  func prepare(
+    invitationDigest: Data, at unixTime: UInt64,
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil
+  ) throws -> V3RecoveryEnrollmentReview {
     try loadBase(
       invitationDigest: invitationDigest, at: unixTime,
-      continuing: session.beginAuthentication()).review
+      continuing: ticket ?? session.beginAuthentication()
+    ).review
   }
 
   func approve(
     invitationDigest: Data, approvedTranscriptDigest: Data,
     expectedCheckpoint: V3ManifestCheckpoint, at unixTime: UInt64,
-    operationID: VaultTransactionOperationID
+    operationID: VaultTransactionOperationID,
+    continuing admission: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil
   ) throws -> V3RecoveryDeviceEnrollmentCommit {
     do {
       guard expectedCheckpoint.vaultID == vaultID else {
         throw V3RecoveryDeviceEnrollmentError.invalidCandidate
       }
       try lifecycle.requireCheckpoint(expectedCheckpoint)
-      let ticket = session.beginAuthentication()
+      let ticket = admission ?? session.beginAuthentication()
+      try session.requireCurrent(ticket)
       let base = try loadBase(
         invitationDigest: invitationDigest, at: unixTime, continuing: ticket)
       guard base.review.checkpoint == expectedCheckpoint,
@@ -78,12 +87,13 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
       let candidate = try V3RecoveryDeviceEnrollmentBuilder(limits: limits).build(
         checkpoint: expectedCheckpoint, parent: base.current.envelope,
         currentEntries: base.current.source.entries,
-        state: base.ceremony, currentVaultKey: base.current.key, nextVaultKey: nextKey, owner: identity,
+        state: base.ceremony, currentVaultKey: base.current.key, nextVaultKey: nextKey,
+        owner: identity,
         at: unixTime,
         reason: "Give the Mac whose code you compared access and change the vault key.")
       try requireSameCeremony(base.ceremony, consumed: false)
       try lifecycle.revalidate(base.current)
-      let publisher = publisher(operationID)
+      let publisher = publisher(operationID, continuing: ticket)
       let commit = try publisher.publish(
         candidate, state: base.ceremony, approvedTranscriptDigest: approvedTranscriptDigest,
         currentVaultKey: base.current.key, nextVaultKey: nextKey,
@@ -100,6 +110,32 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
       }
       throw error
     }
+  }
+
+  /// A lost reply is acknowledged only when the exact compared enrollment is
+  /// still the authenticated local floor. Never interpret a newer head as the
+  /// same approval, or sign another transition for a consumed ceremony.
+  func confirmCompletedEnrollment(
+    invitationDigest: Data, approvedTranscriptDigest: Data,
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  ) throws {
+    let ceremony = try loadCeremony(invitationDigest)
+    let compared = try transcript(ceremony)
+    guard ceremony.phase == .consumed, compared.digest == approvedTranscriptDigest else {
+      throw V3RecoveryDeviceEnrollmentError.invalidCeremony
+    }
+    let current = try lifecycle.current(continuing: ticket)
+    let parentCheckpoint = try V3ManifestCheckpoint(
+      vaultID: vaultID, envelopeDigest: compared.invitation.parentManifestDigest)
+    let parent = try V3RecoveryManifestCodec().parseEnvelope(
+      objects.readManifest(parentCheckpoint.envelopeDigest))
+    let candidate = V3RecoveryDeviceEnrollmentCandidate(
+      expectedCheckpoint: parentCheckpoint, envelope: current.envelope,
+      stagedEntries: Array(current.source.entries.values), transcriptDigest: compared.digest)
+    try V3RecoveryDeviceEnrollmentValidator(limits: limits).preflightComparedEnrollment(
+      candidate, parent: parent, transcript: compared)
+    try requireSameCeremony(ceremony, consumed: true)
+    try lifecycle.revalidate(current)
   }
 
   func recoverInterruptedEnrollment(
@@ -154,7 +190,8 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
       }
       try session.requireCurrent(ticket)
       try recheck(state, checked: checked, ceremony: ceremony, publisher: publisher)
-      let outcome = try publisher.recoverInterruptedTransaction(
+      let authorizedPublisher = self.publisher(operationID, continuing: ticket)
+      let outcome = try authorizedPublisher.recoverInterruptedTransaction(
         vaultID: vaultID, state: ceremony, approvedTranscriptDigest: digest,
         currentVaultKey: oldKey, nextVaultKey: nextKey, expectedOwner: identity.publicIdentity,
         expectedAnchor: state.anchorData)
@@ -163,7 +200,7 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
         try lifecycle.requireNoPending()
         try installCommitted(
           checked.candidate.envelope, ceremony: ceremony, vaultKey: nextKey,
-          continuing: ticket, operationID: state.intent.operationID, publisher: publisher)
+          continuing: ticket, operationID: state.intent.operationID, publisher: authorizedPublisher)
       case .nothingToRecover, .abandoned: session.invalidate()
       }
       return outcome
@@ -183,8 +220,9 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
   private var lifecycle: V3RecoveryLifecycleContext {
     .init(
       vaultID: vaultID, identity: identity.publicIdentity, session: session, source: store,
-      checkpoints: checkpoints, ownership: ownership, registration: registration, adoption: adoption,
-      limits: limits, validateScope: {})
+      checkpoints: checkpoints, ownership: ownership, registration: registration,
+      adoption: adoption,
+      limits: limits, validateScope: validateScope)
   }
 
   private func loadBase(
@@ -206,8 +244,9 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
     _ = try policy.resultingDevices(
       parent: envelope.body.fields.devices, joining: compared.joinRequest.joiningDevice)
     let current: V3RecoveryLifecycleContext.Current
-    do { current = try lifecycle.current(continuing: ticket) }
-    catch V3RecoveryLifecycleContextError.invalidOwner {
+    do { current = try lifecycle.current(continuing: ticket) } catch V3RecoveryLifecycleContextError
+      .invalidOwner
+    {
       throw V3RecoveryDeviceEnrollmentError.invalidOwner
     }
     guard current.checkpoint == checkpoint, current.envelope == envelope else {
@@ -404,7 +443,10 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
     }
     throw V3RecoveryDeviceEnrollmentError.invalidCandidate
   }
-  private func publisher(_ operationID: VaultTransactionOperationID)
+  private func publisher(
+    _ operationID: VaultTransactionOperationID,
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil
+  )
     -> V3RecoveryDeviceEnrollmentPublisher
   {
     .init(
@@ -412,7 +454,11 @@ struct V3RecoveryEnrollmentOwnerService: Sendable {
       objectStore: store, checkpointStore: checkpoints, recoveryAnchorStore: ownership,
       registrationAnchorStore: registration, adoptionAnchorStore: adoption,
       ceremonyStore: ceremonies,
-      cache: cache, limits: limits, phaseObserver: phaseObserver)
+      cache: cache, limits: limits, phaseObserver: phaseObserver,
+      validateScope: {
+        try validateScope()
+        if let ticket { try session.requireCurrent(ticket) }
+      })
   }
   private struct SessionBoundUnwrapper: V3DeviceWrappedVaultKeyUnwrapping {
     let base: Identity

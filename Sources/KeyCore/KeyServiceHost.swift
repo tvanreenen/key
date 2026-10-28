@@ -12,6 +12,7 @@ public final class KeyServiceHost {
     private let configuredDirectory: (() throws -> URL)?
     private let enroll: ((KeyShareRequest, String) throws -> KeyServiceResponse)?
     private let recovery: KeyRecoveryCapability?
+    private let recoverySharing: KeyRecoverySharingCapability?
     private let reviewRecovery: ((KeyRecoveryReviewRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)?
     private let registerRecovery: ((KeyRecoveryRegistrationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)?
     private let rotateRecovery: ((KeyRecoveryRotationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)?
@@ -35,7 +36,8 @@ public final class KeyServiceHost {
         recovery: KeyRecoveryCapability? = nil,
         reviewRecovery: ((KeyRecoveryReviewRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil,
         registerRecovery: ((KeyRecoveryRegistrationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil,
-        rotateRecovery: ((KeyRecoveryRotationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil
+        rotateRecovery: ((KeyRecoveryRotationRequest, KeyRecoveryRequestScope) throws -> KeyServiceResponse)? = nil,
+        recoverySharing: KeyRecoverySharingCapability? = nil
     ) {
         self.hasConfiguration = hasConfiguration
         self.makeHandler = makeHandler
@@ -44,6 +46,7 @@ public final class KeyServiceHost {
         self.configuredDirectory = configuredDirectory
         self.enroll = enroll
         self.recovery = recovery
+        self.recoverySharing = recoverySharing
         self.reviewRecovery = reviewRecovery
         self.registerRecovery = registerRecovery
         self.rotateRecovery = rotateRecovery
@@ -97,7 +100,9 @@ public final class KeyServiceHost {
                     let workflow = try KeyRecoveryRegistrationWorkflow.live(configStore: configStore, configuration: runtimeConfiguration)
                     try scope.requireCurrent()
                     return try workflow.rotate(request, scope: scope)
-                } : nil
+                } : nil,
+            recoverySharing: runtimeConfiguration.experimentalRecoveryEnabled
+                ? .live(configStore: configStore, keyStore: keyStore, configuration: runtimeConfiguration) : nil
         )
     }
 
@@ -129,40 +134,18 @@ public final class KeyServiceHost {
             return handleConfiguredRecovery(connection: connection, changesCheckpoint: true,
                 validate: action.validate, perform: { try rotateRecovery(action, $0) })
         }
+        if let recoverySharing {
+            switch request {
+            case .share(let action):
+                return handleRecoverySharing(action, path: nil, capability: recoverySharing, connection: connection)
+            case .shareInDirectory(let action, let path):
+                return handleRecoverySharing(action, path: path, capability: recoverySharing, connection: connection)
+            default: break
+            }
+        }
         if case let .shareInDirectory(action, path) = request {
             return queue.sync(flags: .barrier) {
-                respond {
-                    guard !restartPending else { return restarting() }
-                    try requireNoRecoveryPending()
-                    guard action.supportsDirectorySelection,
-                          path.hasPrefix("/"), !path.utf8.contains(0)
-                    else {
-                        throw AppError.operationRefused("Invalid directory-scoped enrollment request.")
-                    }
-                    if try hasConfiguration() {
-                        guard let configuredDirectory,
-                              try configuredDirectory().standardizedFileURL.path
-                                == URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL.path
-                        else {
-                            throw AppError.operationRefused("This Mac already has a configured vault. --vault-dir cannot switch it to another folder.")
-                        }
-                        let resolved = try compositionLock.withLock {
-                            if let handler { return handler }
-                            let composed = try makeHandler()
-                            handler = composed
-                            return composed
-                        }
-                        return resolved(.share(action))
-                    }
-                    guard handler == nil, let enroll else {
-                        throw AppError.operationRefused("Unconfigured enrollment is unavailable while a configured runtime is active. Run `key lock`, then retry.")
-                    }
-                    let response = try enroll(action, path)
-                    if case .accept = action, response.exitCode == EXIT_SUCCESS {
-                        restartPending = true
-                    }
-                    return response
-                }
+                respond { try handleDirectorySharing(action, path: path) }
             }
         }
         if case let .initializeVault(path) = request {
@@ -186,40 +169,126 @@ public final class KeyServiceHost {
             flags = []
         }
         return queue.sync(flags: flags) {
-            respond {
-                if restartPending {
-                    return request == .lock ? .success() : restarting()
+            respond { try handleConfiguredRequest(request) }
+        }
+    }
+
+    private func handleConfiguredRequest(_ request: KeyServiceRequest) throws -> KeyServiceResponse {
+        if restartPending {
+            return request == .lock ? .success() : restarting()
+        }
+        if case .setVaultDirectory = request { try requireNoRecoveryPending() }
+        let resolved = try compositionLock.withLock {
+            if let handler { return handler }
+            if request == .lock { return { _ in .success() } }
+            if try !hasConfiguration() {
+                // Opening the app polls this endpoint. It must not
+                // accidentally select v2 before the first `key init`.
+                if request == .status {
+                    return { _ in .success(helperStatus: .locked(inactivityTimeoutSeconds: 15 * 60)) }
                 }
-                if case .setVaultDirectory = request { try requireNoRecoveryPending() }
-                let resolved = try compositionLock.withLock {
-                    if let handler { return handler }
-                    if request == .lock { return { _ in .success() } }
-                    if try !hasConfiguration() {
-                        // Opening the app polls this endpoint. It must not
-                        // accidentally select v2 before the first `key init`.
-                        if request == .status {
-                            return { _ in .success(helperStatus: .locked(inactivityTimeoutSeconds: 15 * 60)) }
-                        }
-                        return { _ in .failure(KeyConfigStore.notInitializedError) }
-                    }
-                    // A selected restore can still own unfinished completion.
-                    // A restarted helper must not compose ordinary authority
-                    // until explicit resume has validated and cleared its pins.
-                    try requireNoRecoveryPending()
-                    // A moved vault cannot compose its old runtime. Correct
-                    // only an existing selection, without opening the old root.
-                    if case let .setVaultDirectory(path) = request,
-                       let updateVaultDirectory {
-                        try updateVaultDirectory(path)
-                        restartPending = true
-                        return { _ in .success() }
-                    }
-                    let composed = try makeHandler()
-                    handler = composed
-                    return composed
-                }
-                return resolved(request)
+                return { _ in .failure(KeyConfigStore.notInitializedError) }
             }
+            // A selected restore can still own unfinished completion.
+            // A restarted helper must not compose ordinary authority
+            // until explicit resume has validated and cleared its pins.
+            try requireNoRecoveryPending()
+            // A moved vault cannot compose its old runtime. Correct
+            // only an existing selection, without opening the old root.
+            if case let .setVaultDirectory(path) = request,
+               let updateVaultDirectory {
+                try updateVaultDirectory(path)
+                restartPending = true
+                return { _ in .success() }
+            }
+            let composed = try makeHandler()
+            handler = composed
+            return composed
+        }
+        return resolved(request)
+    }
+
+    private func handleDirectorySharing(_ action: KeyShareRequest, path: String) throws -> KeyServiceResponse {
+        guard !restartPending else { return restarting() }
+        try requireNoRecoveryPending()
+        guard action.supportsDirectorySelection,
+              path.hasPrefix("/"), !path.utf8.contains(0)
+        else {
+            throw AppError.operationRefused("Invalid directory-scoped enrollment request.")
+        }
+        if try hasConfiguration() {
+            guard let configuredDirectory,
+                  try configuredDirectory().standardizedFileURL.path
+                    == URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL.path
+            else {
+                throw AppError.operationRefused("This Mac already has a configured vault. --vault-dir cannot switch it to another folder.")
+            }
+            let resolved = try compositionLock.withLock {
+                if let handler { return handler }
+                let composed = try makeHandler()
+                handler = composed
+                return composed
+            }
+            return resolved(.share(action))
+        }
+        guard handler == nil, let enroll else {
+            throw AppError.operationRefused("Unconfigured enrollment is unavailable while a configured runtime is active. Run `key lock`, then retry.")
+        }
+        let response = try enroll(action, path)
+        if case .accept = action, response.exitCode == EXIT_SUCCESS {
+            restartPending = true
+        }
+        return response
+    }
+
+    private func handleRecoverySharing(
+        _ action: KeyShareRequest, path: String?, capability: KeyRecoverySharingCapability,
+        connection: KeyServiceConnection?
+    ) -> KeyServiceResponse {
+        withRecoveryScope(connection: connection, flags: .barrier, progress: nil) { scope in
+            guard !restartPending else { return restarting() }
+            try scope.requireCurrent()
+            try requireNoRecoveryPending()
+            if let path {
+                guard action.supportsDirectorySelection, path.hasPrefix("/"), !path.utf8.contains(0)
+                else { throw AppError.operationRefused("Invalid directory-scoped enrollment request.") }
+                if try hasConfiguration() {
+                    guard let configuredDirectory,
+                        try configuredDirectory().standardizedFileURL.path
+                          == URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL.path
+                    else { throw AppError.operationRefused("--vault-dir cannot switch this Mac to another vault.") }
+                } else if handler != nil {
+                    throw AppError.operationRefused("An unconfigured enrollment cannot reuse a configured runtime. Run `key lock`, then retry.")
+                }
+            }
+            guard let invocation = try capability.prepare(action, path, scope) else {
+                try scope.requireCurrent()
+                if let path { return try handleDirectorySharing(action, path: path) }
+                return try handleConfiguredRequest(.share(action))
+            }
+            try scope.requireCurrent()
+            if invocation.changesCheckpoint {
+                let retired = compositionLock.withLock {
+                    let previous = handler
+                    handler = nil
+                    return previous
+                }
+                if let retired { _ = retired(.lock) }
+            }
+            try recoveryLock.withLock {
+                try scope.requireCurrent()
+                activeRecovery = scope.id
+            }
+            defer { recoveryLock.withLock { activeRecovery = nil } }
+            defer {
+                if case .accept = action {
+                    do { if try hasConfiguration() { restartPending = true } }
+                    catch { restartPending = true }
+                }
+            }
+            let result = try invocation.perform()
+            try scope.requireCurrent()
+            return result
         }
     }
 

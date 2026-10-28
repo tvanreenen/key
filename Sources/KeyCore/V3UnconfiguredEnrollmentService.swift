@@ -11,8 +11,10 @@ struct V3UnconfiguredEnrollmentService {
         @escaping (String) throws -> Void
     ) throws -> KeyServiceResponse
     var now: () -> Date = Date.init
+    var validateScope: @Sendable () throws -> Void = {}
 
     func handle(_ request: KeyShareRequest, path: String) throws -> KeyServiceResponse {
+        try validateScope()
         guard request.supportsDirectorySelection,
               path.hasPrefix("/"), !path.utf8.contains(0)
         else {
@@ -49,11 +51,18 @@ struct V3UnconfiguredEnrollmentService {
         default:
             throw AppError.operationRefused("This command requires an existing vault configuration.")
         }
+        try validateScope()
         let select = try configStore.prepareEnrollmentSelection(
             rootHandle: root, invitationDigest: digest, vaultID: vaultID, create: create
         )
         try root.requireConfiguredRootIdentity()
-        let response = try perform(root, request, select)
+        try validateScope()
+        let response = try perform(root, request) { vaultID in
+            try validateScope()
+            try select(vaultID)
+            try validateScope()
+        }
+        try validateScope()
         guard response.exitCode == EXIT_SUCCESS else { return response }
         if case .accept = request {
             let selected = try configStore.configuredVaultRuntimeSelection()
@@ -71,7 +80,8 @@ struct V3UnconfiguredEnrollmentService {
     static func live(
         configStore: KeyConfigStore,
         keyStore: any VaultKeyStoring,
-        runtimeConfiguration: RuntimeConfiguration
+        runtimeConfiguration: RuntimeConfiguration,
+        validateScope: @escaping @Sendable () throws -> Void = {}
     ) -> Self {
         Self(configStore: configStore, exchange: { root in
             V3EnrollmentExchangeCoordinator(
@@ -92,7 +102,7 @@ struct V3UnconfiguredEnrollmentService {
                 keyConfiguration: configuration, configStore: configStore,
                 runtimeConfiguration: runtimeConfiguration,
                 unconfiguredSelection: select,
-                deviceWrappedSession: session
+                deviceWrappedSession: session, validateScope: validateScope
             )
             // This handler is scoped to one admitted share request. It is never
             // retained as an unconfigured runtime for ordinary vault commands.
@@ -101,6 +111,6 @@ struct V3UnconfiguredEnrollmentService {
                 mutationOwner: VaultTransactionMutationOwner(),
                 enrollmentService: enrollment
             ).handle(.share(request))
-        })
+        }, validateScope: validateScope)
     }
 }
