@@ -1,4 +1,4 @@
-name: Compare captured enrollment signature
+name: Compare signature verification across macOS versions
 
 on:
   push:
@@ -9,41 +9,47 @@ permissions:
 
 jobs:
   replay:
-    name: Compare captured signature across Xcode versions
-    runs-on: macos-26
+    name: Investigate signature verification (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS 26
+            runner: macos-26
+            artifact: macos-26
+          - name: macOS 27
+            runner: xcode-27
+            artifact: macos-27
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 2
     steps:
-      - name: Check out the standalone replay without persisted credentials
+      - name: Check out the standalone diagnostic without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Record the runner operating system
-        run: sw_vers
-      - name: Replay the captured vector with the original Xcode 26.4.1
-        env:
-          DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+      - name: Record the operating system, architecture, and Xcode toolchain
         run: |
-          mkdir -p .build/verification
-          set -o pipefail
+          sw_vers
+          uname -m
           xcodebuild -version
           swift --version
-          swift Diagnostics/signature-vector-comparison.swift Diagnostics/signature-vectors.json \
-            2>&1 | tee .build/verification/signature-replay-xcode-26.4.1.log
-      - name: Replay the same vector with Xcode 26.6
-        if: always()
-        env:
-          DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      - name: Verify the public vector using independent arithmetic and OpenSSL
         run: |
-          mkdir -p .build/verification
+          mkdir -p .build/verification/signature-platform
           set -o pipefail
-          xcodebuild -version
-          swift --version
-          swift Diagnostics/signature-vector-comparison.swift Diagnostics/signature-vectors.json \
-            2>&1 | tee .build/verification/signature-replay-xcode-26.6.log
-      - name: Retain verification API and toolchain comparison results
+          python3 Diagnostics/signature-platform-reference.py Diagnostics/signature-vectors.json \
+            .build/verification/signature-platform \
+            2>&1 | tee .build/verification/signature-platform/reference.log
+      - name: Compare Apple encodings, hashes, and signature verification APIs
+        run: |
+          set -o pipefail
+          swift Diagnostics/signature-platform-comparison.swift \
+            .build/verification/signature-platform/expected.json \
+            2>&1 | tee .build/verification/signature-platform/apple.log
+      - name: Retain the platform comparison and public reference data
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: enrollment-signature-vector-comparison
-          path: .build/verification/signature-replay-*.log
+          name: signature-platform-${{ matrix.artifact }}
+          path: .build/verification/signature-platform/
           retention-days: 7
