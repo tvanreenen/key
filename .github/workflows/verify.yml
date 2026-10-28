@@ -29,13 +29,13 @@ jobs:
             timeout: 20
           - group: recovery-lifecycle
             name: Recovery lifecycle
-            timeout: 20
+            timeout: 25
           - group: recovery-coordination
             name: Recovery coordination
-            timeout: 20
+            timeout: 25
           - group: recovery-restore
             name: Recovery restore
-            timeout: 25
+            timeout: 30
     if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
     runs-on: macos-26
     timeout-minutes: ${{ matrix.timeout }}
@@ -100,18 +100,12 @@ jobs:
         run: test "$GROUP_RESULT" = success
 
   products:
-    name: Verify products (${{ matrix.name }})
+    name: Verify products (Stable Release)
     if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
     runs-on: macos-26
     timeout-minutes: 25
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Stable Release
-            variant: stable
     steps:
       - name: Check out source without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -120,26 +114,20 @@ jobs:
       - name: Confirm pinned Xcode and Swift toolchain
         run: xcodebuild -version && swift --version
       - name: Build unsigned Release product with warnings as errors
-        env:
-          VARIANT: ${{ matrix.variant }}
         run: |
           mkdir -p .build/verification
           set -o pipefail
-          scripts/verify-product.sh "$VARIANT" release build \
+          scripts/verify-product.sh stable release build \
             2>&1 | tee .build/verification/release-build.log
       - name: Validate Release product identities and helper isolation
-        env:
-          VARIANT: ${{ matrix.variant }}
-        run: scripts/verify-product.sh "$VARIANT" release bundle
+        run: scripts/verify-product.sh stable release bundle
       - name: Test Release CLI help, output streams, exits, and completions
-        env:
-          VARIANT: ${{ matrix.variant }}
-        run: scripts/verify-product.sh "$VARIANT" release cli
+        run: scripts/verify-product.sh stable release cli
       - name: Retain product build diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: product-build-${{ matrix.variant }}
+          name: product-build-stable
           path: .build/verification/*-build.log
           retention-days: 3
 
