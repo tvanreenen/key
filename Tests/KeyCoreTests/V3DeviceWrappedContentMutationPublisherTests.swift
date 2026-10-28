@@ -37,7 +37,7 @@ struct V3DeviceWrappedContentMutationPublisherTests {
     private static let seedOperationID = try! VaultTransactionOperationID(
         validating: "018f4d3c-152e-7711-8ea9-8fa684d7353b"
     )
-    private static let vaultKey = Data(0..<32)
+    private static let vaultKey = Data(0 ..< 32)
 
     @Test
     func publishesEntriesBeforeManifestAndAdvancesCheckpointLast() throws {

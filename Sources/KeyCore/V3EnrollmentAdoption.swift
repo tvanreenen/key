@@ -17,21 +17,21 @@ enum V3EnrollmentAdoptionError: Error, Equatable, LocalizedError {
         case .invalidCeremony:
             "Joining this vault requires the exact enrollment comparison that was approved on both devices."
         case .approvalUnavailable:
-            "The approved shared vault state is not available from the file provider yet."
+            "The approved vault files are unavailable on this Mac. Check file synchronization, then retry acceptance from the same folder."
         case .ambiguousApproval:
-            "More than one shared vault state matches this enrollment ceremony. Wait for synchronization to settle and try again."
+            "More than one vault version matches this joining attempt. Key cannot safely choose one. Keep the vault files and local joining records intact for investigation."
         case .invalidApproval:
-            "The shared vault state does not authenticate the exact approved enrollment ceremony."
+            "The vault files do not verify the joining request you approved. Key has stopped joining; keep the files and local records intact."
         case .identityUnavailable:
-            "This Mac no longer has the Secure Enclave identity that created the enrollment request."
+            "This Mac no longer has the access credentials used for this joining request. Keep the local records intact for investigation."
         case .invalidWrappedKey:
             "The approved shared vault does not contain a valid vault key for this Mac."
         case .conflictingVaultKey:
             "This Mac already stores a different vault key. The existing key was not replaced."
         case .conflictingCheckpoint:
-            "This Mac already trusts a different version 3 vault state. The checkpoint was not replaced."
+            "This Mac has already verified a different vault state. Its saved record was not replaced."
         case .selectionFailed:
-            "The verified shared vault could not be selected on this Mac."
+            "Key verified the approved vault but could not finish configuring this Mac to use it. Keep this attempt's files and local records intact."
         }
     }
 }
@@ -43,10 +43,10 @@ struct V3EnrollmentAdoptionReport: Equatable, Sendable {
 
     var rendered: String {
         [
-            "Enrollment completed.",
-            "This Mac (\(deviceName)) is now an active \(role.rawValue) of version 3 vault '\(vaultID)'.",
-            "The approved vault key is stored locally and the exact shared manifest is trusted on this Mac.",
-            "Ordinary version 3 vault commands are now available on this Mac."
+            "This Mac can now use the vault.",
+            "Mac: \(deviceName) (role: \(role.rawValue))",
+            "Vault ID: \(vaultID)",
+            "Run `key status` to check the vault."
         ].joined(separator: "\n") + "\n"
     }
 }
@@ -159,7 +159,7 @@ struct V3EnrollmentAdoptionService: V3EnrollmentAdoptionServicing {
 
         guard let identity = try identityManager.loadIdentity(
             vaultID: vaultID,
-            reason: "Use this Mac's Secure Enclave identity to join the approved vault."
+            reason: "Use this Mac's access credentials to join the approved vault."
         ), identity.publicIdentity == transcript.joinRequest.joiningDevice
         else {
             throw V3EnrollmentAdoptionError.identityUnavailable

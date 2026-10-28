@@ -11,13 +11,19 @@ let package = Package(
         .executable(name: "key", targets: ["key"]),
         .executable(name: "KeyLaunchAgentHelper", targets: ["KeyLaunchAgentHelper"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-argument-parser.git", exact: "1.8.2")
+    ],
     targets: [
         .target(
             name: "JSONCanonicalization"
         ),
         .target(
             name: "KeyCore",
-            dependencies: ["JSONCanonicalization"],
+            dependencies: [
+                "JSONCanonicalization",
+                .product(name: "ArgumentParser", package: "swift-argument-parser")
+            ],
             linkerSettings: [
                 .linkedFramework("LocalAuthentication"),
                 .linkedFramework("Security")

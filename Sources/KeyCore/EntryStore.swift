@@ -143,7 +143,7 @@ public struct EntryStore {
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
 
         if fileManager.fileExists(atPath: destination.path(percentEncoded: false)), !overwrite {
-            throw AppError.entryExists("Secret '\(name)' already exists. Use --force to overwrite it.")
+            throw AppError.entryExists("Secret '\(name)' already exists. Use key edit to replace its value.")
         }
 
         let tempURL = directory.appendingPathComponent(".\(destination.lastPathComponent).\(UUID().uuidString).tmp")

@@ -118,7 +118,7 @@ public enum CanonicalJSON {
                 bytes.append(contentsOf: "\\\"".utf8)
             case 0x5C:
                 bytes.append(contentsOf: "\\\\".utf8)
-            case 0x00...0x1F:
+            case 0x00 ... 0x1F:
                 bytes.append(contentsOf: String(format: "\\u%04x", scalar.value).utf8)
             default:
                 bytes.append(contentsOf: String(scalar).utf8)
@@ -161,7 +161,7 @@ private struct Parser {
             return try parseArray(containerDepth: containerDepth + 1)
         case CharacterByte.quote:
             return .string(try parseString())
-        case CharacterByte.zero...CharacterByte.nine:
+        case CharacterByte.zero ... CharacterByte.nine:
             return .integer(try parseInteger())
         case CharacterByte.t:
             try consume("true")
@@ -253,7 +253,7 @@ private struct Parser {
             case CharacterByte.backslash:
                 index += 1
                 try appendEscape(to: &decoded)
-            case 0x00...0x1F:
+            case 0x00 ... 0x1F:
                 throw CanonicalJSONError.invalidJSON
             default:
                 decoded.append(byte)
@@ -289,19 +289,19 @@ private struct Parser {
         case CharacterByte.u:
             let first = try parseHexQuad()
             let scalarValue: UInt32
-            if (0xD800...0xDBFF).contains(first) {
+            if (0xD800 ... 0xDBFF).contains(first) {
                 guard consumeIf(CharacterByte.backslash), consumeIf(CharacterByte.u) else {
                     throw CanonicalJSONError.invalidJSON
                 }
                 let second = try parseHexQuad()
-                guard (0xDC00...0xDFFF).contains(second) else {
+                guard (0xDC00 ... 0xDFFF).contains(second) else {
                     throw CanonicalJSONError.invalidJSON
                 }
                 scalarValue = 0x10000
                     + (UInt32(first - 0xD800) << 10)
                     + UInt32(second - 0xDC00)
             } else {
-                guard !(0xDC00...0xDFFF).contains(first) else {
+                guard !(0xDC00 ... 0xDFFF).contains(first) else {
                     throw CanonicalJSONError.invalidJSON
                 }
                 scalarValue = UInt32(first)
@@ -320,7 +320,7 @@ private struct Parser {
             throw CanonicalJSONError.invalidJSON
         }
         var value: UInt16 = 0
-        for _ in 0..<4 {
+        for _ in 0 ..< 4 {
             guard let digit = hexValue(bytes[index]) else {
                 throw CanonicalJSONError.invalidJSON
             }
@@ -334,11 +334,11 @@ private struct Parser {
         let start = index
         if current == CharacterByte.zero {
             index += 1
-            if let next = current, (CharacterByte.zero...CharacterByte.nine).contains(next) {
+            if let next = current, (CharacterByte.zero ... CharacterByte.nine).contains(next) {
                 throw CanonicalJSONError.invalidJSON
             }
         } else {
-            while let byte = current, (CharacterByte.zero...CharacterByte.nine).contains(byte) {
+            while let byte = current, (CharacterByte.zero ... CharacterByte.nine).contains(byte) {
                 index += 1
             }
         }
@@ -346,7 +346,7 @@ private struct Parser {
         if let next = current, next == CharacterByte.period || next == CharacterByte.e || next == CharacterByte.upperE {
             throw CanonicalJSONError.invalidJSON
         }
-        guard let text = String(bytes: bytes[start..<index], encoding: .utf8),
+        guard let text = String(bytes: bytes[start ..< index], encoding: .utf8),
               let value = UInt64(text),
               value <= 9_007_199_254_740_991
         else {
@@ -383,11 +383,11 @@ private struct Parser {
 
     private func hexValue(_ byte: UInt8) -> UInt8? {
         switch byte {
-        case CharacterByte.zero...CharacterByte.nine:
+        case CharacterByte.zero ... CharacterByte.nine:
             byte - CharacterByte.zero
-        case CharacterByte.upperA...CharacterByte.upperF:
+        case CharacterByte.upperA ... CharacterByte.upperF:
             byte - CharacterByte.upperA + 10
-        case CharacterByte.lowerA...CharacterByte.lowerF:
+        case CharacterByte.lowerA ... CharacterByte.lowerF:
             byte - CharacterByte.lowerA + 10
         default:
             nil

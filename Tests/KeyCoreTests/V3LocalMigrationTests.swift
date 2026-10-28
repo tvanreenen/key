@@ -4,7 +4,7 @@ import Testing
 
 @Suite
 struct V3LocalMigrationTests {
-    private static let vaultKey = Data((0..<32).map(UInt8.init))
+    private static let vaultKey = Data((0 ..< 32).map(UInt8.init))
     private static let operationID = try! VaultTransactionOperationID(
         validating: "018f4d38-7d5a-7b20-b0f1-97d6e96c44c0"
     )

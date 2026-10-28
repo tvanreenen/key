@@ -15,7 +15,7 @@ struct V3DeviceWrappedManifestCandidateBuilderTests {
         "018f4d3a-a844-72ad-983e-b09a8fc0e924"
     private static let addedID =
         "018f4d3b-033d-770e-a63c-ddb280e24d1f"
-    private static let vaultKey = Data(0..<32)
+    private static let vaultKey = Data(0 ..< 32)
 
     @Test
     func addBuildsAnExactParentAndPreservesAuthority() throws {

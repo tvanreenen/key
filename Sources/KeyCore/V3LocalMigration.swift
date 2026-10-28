@@ -12,19 +12,19 @@ enum V3LocalMigrationError: Error, Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidGeneratedIdentity:
-            "Migration generated an invalid version 3 identity."
+            "Key generated an invalid ID while creating the migrated vault."
         case .duplicateGeneratedIdentity:
-            "Migration generated a duplicate version 3 identity."
+            "Key generated a duplicate ID while creating the migrated vault."
         case .objectTooLarge:
-            "The migrated version 3 vault would exceed a repository resource limit."
+            "The migrated vault would exceed Key's size or item-count limits."
         case .stagedObjectUnavailable:
-            "A staged version 3 migration object could not be reopened exactly."
+            "Key could not read back and verify a temporary migration file."
         case .publishedObjectUnavailable:
-            "A published version 3 migration object could not be reopened exactly."
+            "Key could not read back and verify a file saved in the migrated vault."
         case .verifiedReopenMismatch:
-            "The completed version 3 vault did not reproduce the exact version 2 source."
+            "The migrated vault did not match the original entries when Key reopened it."
         case .sourceChanged:
-            "The version 2 vault changed during migration. Version 2 remains selected; retry after file synchronization settles."
+            "The original vault changed during migration. This Mac still uses it. Check that file synchronization has finished before trying again."
         }
     }
 }
@@ -68,10 +68,10 @@ struct V3LocalMigrationReport: Equatable, Sendable {
         [
             "Migration completed.",
             "Entries migrated: \(entryCount) (\(secretCount) \(secretCount == 1 ? "secret" : "secrets"), \(totpCount) \(totpCount == 1 ? "TOTP entry" : "TOTP entries")).",
-            "This Mac now uses authenticated version 3 vault '\(vaultID)'.",
-            "The version 2 source files were retained unchanged. No cleanup was performed.",
-            "After Key Agent restarts, ordinary entry commands publish guarded version 3 history.",
-            "Other devices remain on version 2 and their later changes are not copied into this snapshot. To enroll a second Mac into this v3 vault, start with `key share invite --name <device-name>`."
+            "This Mac now uses the migrated vault. Vault ID: \(vaultID).",
+            "Your original vault files were kept unchanged. No files were removed.",
+            "Run `key status` after Key's background service restarts to check the migrated vault.",
+            "Other Macs still use the original vault. Later changes there are not copied into this one. Run `key help share` to add another Mac to the migrated vault."
         ].joined(separator: "\n") + "\n"
     }
 
@@ -79,12 +79,12 @@ struct V3LocalMigrationReport: Equatable, Sendable {
         [
             "Migration completed.",
             "Entries migrated: \(entryCount) (\(secretCount) \(secretCount == 1 ? "secret" : "secrets"), \(totpCount) \(totpCount == 1 ? "TOTP entry" : "TOTP entries")).",
-            "This Mac now uses permanent version 3 vault '\(vaultID)'.",
-            "Its new vault key is wrapped to this Mac's Secure Enclave identity and exists in plaintext only in Key Agent's unlocked memory session.",
-            "The version 2 source files were retained unchanged. No cleanup was performed.",
-            "Keep that version 2 copy while you validate the migration. It can help you return to version 2, but it cannot recover this version 3 vault.",
-            "Other devices are not converted automatically. After they install a compatible release, enroll at least one other Mac before relying on version 3.",
-            "If every enrolled Mac is lost, synchronized version 3 files cannot unlock or recover the vault."
+            "This Mac now uses the migrated vault. Vault ID: \(vaultID).",
+            "Key verified that this Mac can unlock the new vault. Run `key status` to check it.",
+            "Your original vault files were kept unchanged. No files were removed.",
+            "Keep the original files while checking the migration. They do not receive later changes from the new vault and cannot restore access to it.",
+            "Other Macs are not migrated automatically. Install a compatible release on them, then use `key help share` to add at least one other Mac before relying on the new vault.",
+            "If every enrolled Mac is lost, a backup of the vault folder alone cannot restore access."
         ].joined(separator: "\n") + "\n"
     }
 }
@@ -200,7 +200,7 @@ struct V3LocalMigrationService: V3LocalMigrationServicing {
     ) throws -> V3LocalMigrationReport {
         let inspection = try preflight.inspectForMigration {
             try loadVaultKey(
-                "Unlock key vault to verify version 2 migration readiness.",
+                "Unlock the original vault to check migration readiness.",
                 false
             )
         }
@@ -214,7 +214,7 @@ struct V3LocalMigrationService: V3LocalMigrationServicing {
         } else {
             do {
                 vaultKey = try loadVaultKey(
-                    "Unlock the existing key for this empty version 2 vault.",
+                    "Unlock the original vault to check migration readiness.",
                     false
                 )
             } catch AppError.entryNotFound {

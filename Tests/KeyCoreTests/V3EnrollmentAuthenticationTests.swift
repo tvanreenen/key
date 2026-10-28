@@ -33,7 +33,7 @@ struct V3EnrollmentAuthenticationTests {
             nonce: Data(repeating: 0xB1, count: 32)
         )
 
-        for _ in 0..<512 {
+        for _ in 0 ..< 512 {
             _ = try authenticator.sign(
                 invitation,
                 using: signer,
@@ -491,7 +491,7 @@ struct V3EnrollmentAuthenticationTests {
             0xF3, 0xB9, 0xCA, 0xC2, 0xFC, 0x63, 0x25, 0x51,
         ]
         let bytes = Array(signature)
-        let s = Array(bytes[32..<64])
+        let s = Array(bytes[32 ..< 64])
         var highS = [UInt8](repeating: 0, count: 32)
         var borrow = 0
         for index in stride(from: 31, through: 0, by: -1) {
@@ -504,7 +504,7 @@ struct V3EnrollmentAuthenticationTests {
                 borrow = 0
             }
         }
-        return Data(bytes[0..<32] + highS)
+        return Data(bytes[0 ..< 32] + highS)
     }
 }
 

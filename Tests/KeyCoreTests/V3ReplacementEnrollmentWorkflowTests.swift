@@ -278,7 +278,7 @@ struct V3ReplacementEnrollmentWorkflowTests {
         )))
 
         #expect(response.exitCode == EXIT_FAILURE)
-        #expect(response.errorMessage?.contains("mailbox message") == true)
+        #expect(response.errorMessage?.contains("invitation or join-request file") == true)
         #expect(service.reviewCount == 0)
     }
 

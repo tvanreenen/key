@@ -58,7 +58,7 @@ final class MemoryVaultKeyStore: VaultKeyStoring, @unchecked Sendable {
         guard createIfMissing else {
             throw AppError.entryNotFound("Vault key does not exist yet.")
         }
-        let generated = Data((0..<32).map(UInt8.init))
+        let generated = Data((0 ..< 32).map(UInt8.init))
         switch mode {
         case .local:
             localKeyData = generated

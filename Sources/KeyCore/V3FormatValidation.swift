@@ -83,9 +83,9 @@ func v3UUIDBytes(_ value: String) -> Data? {
     var bytes = Data()
     bytes.reserveCapacity(16)
     var index = compact.startIndex
-    for _ in 0..<16 {
+    for _ in 0 ..< 16 {
         let next = compact.index(index, offsetBy: 2)
-        guard let byte = UInt8(compact[index..<next], radix: 16) else {
+        guard let byte = UInt8(compact[index ..< next], radix: 16) else {
             return nil
         }
         bytes.append(byte)
@@ -115,7 +115,7 @@ func normalizedV3EntryName(_ name: String) throws -> String {
     let normalized = name.precomposedStringWithCanonicalMapping
     guard isValidV3EntryName(normalized) else {
         throw AppError.invalidEntryName(
-            "Entry name '\(name)' is not valid for a version 3 vault."
+            "Entry name '\(name)' is invalid. Use a name like github/personal: no leading or trailing whitespace or slashes, backslashes, control characters, or empty, '.' or '..' path parts. Names can use up to 1,024 UTF-8 bytes, with up to 255 bytes per path part."
         )
     }
     return normalized
@@ -135,7 +135,7 @@ func v3ManifestEntryPrecedes(
 }
 
 func isV3ControlCharacter(_ scalar: UnicodeScalar) -> Bool {
-    scalar.value <= 0x1F || (0x7F...0x9F).contains(scalar.value)
+    scalar.value <= 0x1F || (0x7F ... 0x9F).contains(scalar.value)
 }
 
 func isValidV3DeviceDisplayName(_ name: String) -> Bool {

@@ -8,18 +8,18 @@ struct V3ManifestReplayProtectionTests {
     private static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
     private static let otherVaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b4"
     private static let entryID = "018f4d39-930c-735d-8d6f-588e9b0a3a48"
-    private static let key = Data(0..<32)
+    private static let key = Data(0 ..< 32)
 
     @Test
     func checkpointHasStrictCanonicalRepresentation() throws {
         let checkpoint = try V3ManifestCheckpoint(
             vaultID: Self.vaultID,
-            envelopeDigest: Data(0..<32)
+            envelopeDigest: Data(0 ..< 32)
         )
         let expected = Data(#"{"envelopeDigest":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8","format":"key-vault-manifest-checkpoint","vaultID":"018f4d38-7d5a-7b20-b0f1-97d6e96c44b3","version":1}"#.utf8)
         let expectedHead = try V3VaultHead(
             vaultID: Self.vaultID,
-            envelopeDigest: Data(0..<32)
+            envelopeDigest: Data(0 ..< 32)
         )
 
         #expect(checkpoint.canonicalBytes == expected)
@@ -28,7 +28,7 @@ struct V3ManifestReplayProtectionTests {
         #expect(throws: V3VaultHeadError.invalidVaultID) {
             _ = try V3VaultHead(
                 vaultID: "not-a-vault-id",
-                envelopeDigest: Data(0..<32)
+                envelopeDigest: Data(0 ..< 32)
             )
         }
         #expect(throws: V3VaultHeadError.invalidDigest) {

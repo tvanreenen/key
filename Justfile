@@ -4,13 +4,73 @@ default:
 
 # Run the Swift and release-script test suites.
 test:
-  swift test
+  swift test --no-parallel --force-resolved-versions
   Tests/ReleaseScripts/release-tests.sh
   Tests/PreviewScripts/preview-install-tests.sh
+
+# Install the exact checksum-pinned CLI used by CI (see .github/ci-tools.json).
+install-verify-tool tool:
+  python3 scripts/ci-tool.py install "{{tool}}"
+
+# Compile package tests with warnings as errors and run them without suite oversubscription.
+verify-tests:
+  mkdir -p .build/verification
+  swift package resolve --force-resolved-versions
+  swift build --build-tests --force-resolved-versions -Xswiftc -warnings-as-errors
+  rm -f .build/verification/swift-tests*.xml
+  swift test --skip-build --no-parallel --force-resolved-versions --xunit-output .build/verification/swift-tests.xml
+  python3 scripts/verify-test-results.py .build/verification/swift-tests.xml
+
+# Build both unsigned configurations, verify product identities, and exercise bundled CLIs.
+verify-products variant="stable":
+  scripts/verify-product.sh "{{variant}}" debug build
+  scripts/verify-product.sh "{{variant}}" debug bundle
+  scripts/verify-product.sh "{{variant}}" debug cli
+  scripts/verify-product.sh "{{variant}}" release build
+  scripts/verify-product.sh "{{variant}}" release bundle
+  scripts/verify-product.sh "{{variant}}" release cli
+
+# Verify script syntax, CI failure boundaries, release behavior, and Preview installation safety.
+verify-scripts:
+  scripts/verify-shell-syntax.sh
+  python3 -m unittest discover -s Tests/CIScripts -p '*_tests.py'
+  Tests/ReleaseScripts/release-tests.sh
+  Tests/PreviewScripts/preview-install-tests.sh
+
+# Check repository Swift formatting without rewriting files.
+verify-style:
+  python3 scripts/ci-tool.py run swiftformat . --lint --cache ignore
+  git diff --check
+
+# Apply the same conservative SwiftFormat rules used by CI.
+format:
+  python3 scripts/ci-tool.py run swiftformat . --cache ignore
+
+# Check workflow syntax and security; GH_TOKEN enables online Action advisory checks.
+verify-workflows:
+  python3 scripts/ci-tool.py run actionlint
+  python3 scripts/ci-tool.py run zizmor --strict-collection .github/workflows
+
+# Scan all reachable history by default, or an explicit base..head range.
+verify-secrets revision_range="--all":
+  scripts/verify-secrets.sh "{{revision_range}}"
+
+# Compare parsed dependency declarations and both committed resolution files.
+verify-dependencies:
+  python3 scripts/verify-dependencies.py
+
+# Run correctness-focused SwiftLint; full CodeQL product extraction runs in CI.
+verify-static-analysis:
+  python3 scripts/ci-tool.py run swiftlint lint --strict --no-cache
 
 # Verify release targeting, publication, and Homebrew dispatch behavior.
 test-release-scripts:
   Tests/ReleaseScripts/release-tests.sh
+
+# Build and verify real CLI help at narrow, standard, and wide terminal widths.
+test-cli-help:
+  swift build --product key
+  zsh Tests/CLIScripts/help-tests.sh .build/debug/key
 
 # Run the opt-in 300-entry in-process migration scale gate.
 test-migration-scale:

@@ -64,9 +64,9 @@ struct V3DeviceWrappedRevocationService:
         limits: V3ManifestRepositoryLimits = .standard,
         makeVaultKey: @escaping VaultKeyGenerator = {
             var generator = SystemRandomNumberGenerator()
-            return Data((0..<32).map { _ in
+            return Data((0 ..< 32).map { _ in
                 UInt8.random(
-                    in: UInt8.min...UInt8.max,
+                    in: UInt8.min ... UInt8.max,
                     using: &generator
                 )
             })
@@ -103,9 +103,9 @@ struct V3DeviceWrappedRevocationService:
         limits: V3ManifestRepositoryLimits = .standard,
         makeVaultKey: @escaping VaultKeyGenerator = {
             var generator = SystemRandomNumberGenerator()
-            return Data((0..<32).map { _ in
+            return Data((0 ..< 32).map { _ in
                 UInt8.random(
-                    in: UInt8.min...UInt8.max,
+                    in: UInt8.min ... UInt8.max,
                     using: &generator
                 )
             })
@@ -154,7 +154,7 @@ struct V3DeviceWrappedRevocationService:
                 .invalidAuthorizingDevice
         }
         let trusted = try stateLoader.authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to review device revocation."
+            reason: "Unlock the vault to review removal of a Mac's access."
         )
         let plan = try planner.plan(
             from: trusted,
@@ -210,7 +210,7 @@ struct V3DeviceWrappedRevocationService:
         }
 
         let parent = try stateLoader.authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to revoke the reviewed device."
+            reason: "Unlock the vault to remove the reviewed Mac's access."
         )
         guard parent.checkpoint == plan.expectedCheckpoint else {
             throw V3ImmutableTransactionError.expectedHeadsChanged
@@ -243,7 +243,7 @@ struct V3DeviceWrappedRevocationService:
             nextVaultKey: nextVaultKey,
             authorityTransitionID: transitionID,
             owner: identity,
-            authorizationReason: "Revoke the reviewed device and rotate this vault's key."
+            authorizationReason: "Remove the reviewed Mac's access and change the vault's encryption key."
         )
         return try publisher.publish(
             candidate,
@@ -310,7 +310,7 @@ struct V3DeviceWrappedRevocationService:
     }
 
     private func freshVaultKey(excluding current: Data) throws -> Data {
-        for _ in 0..<16 {
+        for _ in 0 ..< 16 {
             let candidate = makeVaultKey()
             guard candidate.count == 32 else {
                 throw V3DeviceWrappedRevocationTransitionError
@@ -324,7 +324,7 @@ struct V3DeviceWrappedRevocationService:
     }
 
     private func freshTransitionID(excluding current: String) throws -> String {
-        for _ in 0..<16 {
+        for _ in 0 ..< 16 {
             let candidate = makeTransitionID()
             guard isValidV3UUID(candidate) else {
                 throw V3DeviceWrappedRevocationTransitionError.invalidCandidate

@@ -100,7 +100,7 @@ struct V3DeviceWrappedKeyTransitionCatchUpStepService:
     ) throws -> V3DeviceWrappedTrustedCheckpoint {
         do {
             let trusted = try stateManager.advanceKeyTransition(
-                reason: "Unlock version 3 vault to authenticate its next key epoch."
+                reason: "Unlock the vault to verify its updated encryption key."
             ) { parent, currentVaultKey in
                 guard parent.checkpoint.vaultID == vaultID else {
                     throw V3DeviceWrappedCatchUpError.recoveryRequired
@@ -113,7 +113,7 @@ struct V3DeviceWrappedKeyTransitionCatchUpStepService:
                         parent: parent,
                         currentVaultKey: currentVaultKey,
                         identity: identity,
-                        reason: "Open the authenticated next vault-key epoch."
+                        reason: "Use this Mac's access credentials to open the updated vault key."
                     )
                 } catch let error as
                     V3DeviceWrappedCatchUpTransitionOpeningError

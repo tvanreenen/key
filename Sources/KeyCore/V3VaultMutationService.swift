@@ -455,7 +455,7 @@ struct V3VaultMutationService: VaultMutationServicing, Sendable {
         operationID: VaultTransactionOperationID
     ) throws -> V3VaultRuntimeState {
         var state = try context.loadState(
-            reason: "Unlock version 3 vault to publish a guarded change."
+            reason: "Unlock the vault to save your change."
         )
         let publisher = makePublisher(
             vaultKey: state.vaultKey,
@@ -480,7 +480,7 @@ struct V3VaultMutationService: VaultMutationServicing, Sendable {
             throw vaultUXError(for: error)
         }
         state = try context.loadState(
-            reason: "Revalidate version 3 vault before publication."
+            reason: "Verify the vault before saving your change."
         )
         return state
     }

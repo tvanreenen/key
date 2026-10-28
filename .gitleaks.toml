@@ -1,0 +1,26 @@
+title = "Key secret detection"
+
+[extend]
+useDefault = true
+
+# The generic rule mistakes Swift type annotations for unquoted credentials.
+# Suppress only these exact source identifiers, and only in Swift files.
+[[allowlists]]
+description = "Reviewed Swift type annotations and deterministic test expressions"
+condition = "AND"
+paths = ['''\.swift$''']
+regexTarget = "secret"
+regexes = [
+  '''^P256\.(KeyAgreement|Signing)\.PrivateKey$''',
+  '''^V3EpochSigningKeyCapsule$''',
+  '''^V3HPKEWrappedVaultKey$''',
+  '''^V3EnrollmentOwnerTransitionTests\.vaultKey$''',
+  '''^v3MaximumSafeInteger$'''
+]
+
+[[allowlists]]
+description = "Reviewed historical prose about missing or corrupt local records"
+condition = "AND"
+paths = ['''^docs/piv-recovery-plan\.md$''']
+regexTarget = "secret"
+regexes = ['''^missing/corrupt$''']

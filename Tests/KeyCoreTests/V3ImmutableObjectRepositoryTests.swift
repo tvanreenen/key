@@ -7,7 +7,7 @@ import Testing
 struct V3ImmutableObjectRepositoryTests {
     fileprivate static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
     fileprivate static let entryID = "018f4d39-930c-735d-8d6f-588e9b0a3a48"
-    fileprivate static let vaultKey = Data(0..<32)
+    fileprivate static let vaultKey = Data(0 ..< 32)
 
     @Test
     func discoversDescendantsAndSiblingBranchesFromCheckpointAncestry() throws {

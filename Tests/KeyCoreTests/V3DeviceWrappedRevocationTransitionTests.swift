@@ -14,7 +14,7 @@ struct V3DeviceWrappedRevocationTransitionTests {
         "018f4d38-7d5a-7b20-b0f1-97d6e96c94b5"
     fileprivate static let entryID =
         "018f4d38-7d5a-7b20-b0f1-97d6e96c94b6"
-    fileprivate static let currentKey = Data(0..<32)
+    fileprivate static let currentKey = Data(0 ..< 32)
     fileprivate static let nextKey = Data(repeating: 0x51, count: 32)
 
     @Test

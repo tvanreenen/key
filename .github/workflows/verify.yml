@@ -1,0 +1,327 @@
+name: Verify
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Standalone PRs verify normally; registered stacks verify their complete top.
+# Main, scheduled, and manual verification keep their existing scopes.
+jobs:
+  swift-tests:
+    name: Verify Swift tests
+    if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
+    runs-on: macos-26
+    timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Confirm pinned Xcode and Swift toolchain
+        run: xcodebuild -version && swift --version
+      - name: Resolve committed Swift dependency versions
+        run: swift package resolve --force-resolved-versions
+      - name: Compile package and test targets with warnings as errors
+        run: |
+          mkdir -p .build/verification
+          set -o pipefail
+          swift build --build-tests --force-resolved-versions -Xswiftc -warnings-as-errors \
+            2>&1 | tee .build/verification/swift-build.log
+      - name: Run all Swift test suites
+        id: tests
+        run: |
+          mkdir -p .build/verification
+          rm -f .build/verification/swift-tests*.xml
+          set -o pipefail
+          swift test --skip-build --no-parallel --force-resolved-versions \
+            --xunit-output .build/verification/swift-tests.xml \
+            2>&1 | tee .build/verification/swift-tests.log
+      - name: Summarize executed tests and expected qualification skips
+        if: ${{ !cancelled() && steps.tests.outcome != 'skipped' }}
+        run: python3 scripts/verify-test-results.py .build/verification/swift-tests.xml
+      - name: Retain Swift test reports and failure logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: swift-test-results
+          path: .build/verification/swift-*
+          retention-days: 3
+
+  products:
+    name: Verify products (${{ matrix.name }})
+    if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
+    runs-on: macos-26
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Stable
+            variant: stable
+          - name: Preview
+            variant: preview
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Confirm pinned Xcode and Swift toolchain
+        run: xcodebuild -version && swift --version
+      - name: Build unsigned Debug product with warnings as errors
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          mkdir -p .build/verification
+          set -o pipefail
+          scripts/verify-product.sh "$VARIANT" debug build \
+            2>&1 | tee .build/verification/debug-build.log
+      - name: Validate Debug product identities and helper isolation
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: scripts/verify-product.sh "$VARIANT" debug bundle
+      - name: Test Debug CLI help, output streams, exits, and completions
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: scripts/verify-product.sh "$VARIANT" debug cli
+      - name: Build unsigned Release product with warnings as errors
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          set -o pipefail
+          scripts/verify-product.sh "$VARIANT" release build \
+            2>&1 | tee .build/verification/release-build.log
+      - name: Validate Release product identities and helper isolation
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: scripts/verify-product.sh "$VARIANT" release bundle
+      - name: Test Release CLI help, output streams, exits, and completions
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: scripts/verify-product.sh "$VARIANT" release cli
+      - name: Retain product build diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: product-build-${{ matrix.variant }}
+          path: .build/verification/*-build.log
+          retention-days: 3
+
+  scripts:
+    name: Verify scripts
+    if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Parse Zsh scripts and shipped completions
+        run: scripts/verify-shell-syntax.sh
+      - name: Test CI verification failure boundaries
+        run: python3 -m unittest discover -s Tests/CIScripts -p '*_tests.py'
+      - name: Test release targeting, artifact rejection, publication, and retries
+        run: Tests/ReleaseScripts/release-tests.sh
+      - name: Test isolated Preview installation, removal, and state preservation
+        run: Tests/PreviewScripts/preview-install-tests.sh
+
+  swift-style:
+    name: Verify Swift style
+    if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - name: Check out the full comparison history without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install checksum-pinned SwiftFormat
+        run: python3 scripts/ci-tool.py install swiftformat
+      - name: Check Swift formatting without rewriting source
+        run: python3 scripts/ci-tool.py run swiftformat . --lint --cache ignore
+      - name: Check introduced patch whitespace
+        env:
+          PR_BASE: ${{ github.event.pull_request.stack.base.sha || github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [[ -n "$PR_BASE" ]]; then
+            git diff --check "$PR_BASE...$PR_HEAD"
+          elif [[ -n "$PUSH_BEFORE" && "$PUSH_BEFORE" != 0000000000000000000000000000000000000000 ]]; then
+            git diff --check "$PUSH_BEFORE" "$GITHUB_SHA"
+          else
+            git show --format= --check HEAD
+          fi
+
+  workflows:
+    name: Verify workflows
+    if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install checksum-pinned workflow analyzers
+        run: |
+          python3 scripts/ci-tool.py install actionlint
+          python3 scripts/ci-tool.py install zizmor
+      - name: Validate workflow syntax, expressions, matrices, and job references
+        run: python3 scripts/ci-tool.py run actionlint
+      - name: Audit workflow permissions, injection risks, and referenced Actions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci-tool.py run zizmor --strict-collection .github/workflows
+
+  secrets:
+    name: Verify secrets
+    if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Fetch complete commit history without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install checksum-pinned Gitleaks
+        run: python3 scripts/ci-tool.py install gitleaks
+      - name: Verify the prose exception and redacted detection of removed credentials
+        run: python3 Tests/CIScripts/secret_scanner_probe.py
+      - name: Scan introduced commits with secret values fully redacted
+        env:
+          PR_BASE: ${{ github.event.pull_request.stack.base.sha || github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        shell: bash
+        run: |
+          if [[ -n "$PR_BASE" ]]; then
+            scan_range="$PR_BASE..$PR_HEAD"
+          elif [[ -n "$PUSH_BEFORE" && "$PUSH_BEFORE" != 0000000000000000000000000000000000000000 ]]; then
+            scan_range="$PUSH_BEFORE..$GITHUB_SHA"
+          else
+            scan_range=--all
+          fi
+          # Ubuntu does not need Zsh: the scanner itself is a portable CLI.
+          mkdir -p .build/verification
+          git rev-list "$scan_range" >/dev/null
+          python3 scripts/ci-tool.py run gitleaks git --redact=100 --no-banner \
+            --config .gitleaks.toml --log-opts="$scan_range" \
+            --report-format json --report-path .build/verification/secrets.json
+      - name: Retain only the redacted secret-detection report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: secret-detection-results
+          path: .build/verification/secrets.json
+          retention-days: 3
+
+  dependencies:
+    name: Verify dependencies
+    if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
+    runs-on: macos-26
+    timeout-minutes: 10
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Compare SwiftPM and Xcode declarations, versions, and revisions
+        run: python3 scripts/verify-dependencies.py
+      - name: Reject PR dependency changes with moderate or higher advisories
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          base-ref: ${{ github.event.pull_request.stack.base.sha || github.event.pull_request.base.sha }}
+          head-ref: ${{ github.event.pull_request.head.sha }}
+          fail-on-severity: moderate
+          comment-summary-in-pr: never
+          retry-on-snapshot-warnings: true
+          retry-on-snapshot-warnings-timeout: 120
+          show-openssf-scorecard: false
+
+  static-analysis:
+    name: Verify static analysis
+    if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size))
+    # CodeQL's build tracer is x86_64. Avoid emulating the entire Xcode build.
+    runs-on: macos-26-intel
+    # The first hosted analysis took 25 minutes; leave room for runner variation.
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Confirm the supported compiler used for Swift extraction
+        run: xcodebuild -version && swift --version
+      - name: Install checksum-pinned SwiftLint
+        run: python3 scripts/ci-tool.py install swiftlint
+      - name: Check Swift correctness rules without formatting rules
+        run: python3 scripts/ci-tool.py run swiftlint lint --strict --no-cache
+      - name: Initialize CodeQL Swift extraction and security queries
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        with:
+          languages: swift
+          build-mode: manual
+          tools: linked
+          queries: security-extended
+      - name: Build host, CLI, helper, and shared code for analysis
+        run: |
+          mkdir -p .build/verification
+          set -o pipefail
+          scripts/verify-product.sh stable release codeql "${RUNNER_TEMP}/CodeQLDerivedData" \
+            2>&1 | tee .build/verification/codeql-build.log
+      - name: Analyze Swift and publish CodeQL findings
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        with:
+          category: /language:swift
+          output: .build/verification/codeql
+      - name: Retain static-analysis diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: static-analysis-results
+          path: .build/verification/codeql*
+          retention-days: 3
+
+  migration-scale:
+    name: Verify migration scale
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Resolve committed Swift dependency versions
+        run: swift package resolve --force-resolved-versions
+      - name: Qualify a 300-entry migration without changing the source vault
+        run: scripts/test-migration-qualification.sh

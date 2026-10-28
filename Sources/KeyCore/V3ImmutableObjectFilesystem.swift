@@ -219,10 +219,10 @@ func v3Digest(fromJSONFilename filename: String) -> Data? {
     var bytes = Data()
     bytes.reserveCapacity(32)
     var index = stem.startIndex
-    for _ in 0..<32 {
+    for _ in 0 ..< 32 {
         let next = stem.index(after: index)
         let end = stem.index(after: next)
-        guard let byte = UInt8(stem[index..<end], radix: 16) else {
+        guard let byte = UInt8(stem[index ..< end], radix: 16) else {
             return nil
         }
         bytes.append(byte)

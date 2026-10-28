@@ -7,7 +7,7 @@ import Testing
 struct V3EnrollmentAdoptionTests {
     fileprivate static let vaultID =
         "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
-    fileprivate static let vaultKey = Data((0..<32).map(UInt8.init))
+    fileprivate static let vaultKey = Data((0 ..< 32).map(UInt8.init))
     fileprivate static let activeTime: UInt64 = 1_900_000_000
 
     @Test
@@ -481,7 +481,7 @@ struct V3EnrollmentAdoptionTests {
             at: Self.activeTime
         )
 
-        #expect(rendered.contains("Join request published."))
+        #expect(rendered.contains("Request sent. This Mac still needs approval."))
         #expect(mailbox.publishedJoinRequests.count == 1)
 
         let wrongVaultService = V3EnrollmentWorkflowService(

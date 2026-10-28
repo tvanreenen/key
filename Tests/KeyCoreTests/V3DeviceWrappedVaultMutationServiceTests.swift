@@ -14,7 +14,7 @@ struct V3DeviceWrappedVaultMutationServiceTests {
         "018f4d39-930c-735d-8d6f-588e9b0a3a48"
     private static let addedID =
         "018f4d3a-a844-72ad-983e-b09a8fc0e924"
-    private static let vaultKey = Data(0..<32)
+    private static let vaultKey = Data(0 ..< 32)
     private static let operationID = try! VaultTransactionOperationID(
         validating: "018f4d3b-033d-770e-a63c-ddb280e24d1f"
     )

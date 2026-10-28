@@ -57,7 +57,7 @@ struct V3ReadRuntimeContext: Sendable {
 
     func snapshot() throws -> V3VaultUXSnapshot {
         let state = try loadState(
-            reason: "Unlock version 3 vault to inspect its authenticated state."
+            reason: "Unlock the vault to check its status."
         )
         return try observationBuilder.build(
             state.classification,
@@ -70,7 +70,7 @@ struct V3ReadRuntimeContext: Sendable {
         allowStale: Bool
     ) throws -> VaultReadValue {
         let state = try loadState(
-            reason: "Unlock version 3 vault to read '\(name)'."
+            reason: "Unlock the vault to read '\(name)'."
         )
         let plan = try planner.planRead(
             named: name,
@@ -79,7 +79,7 @@ struct V3ReadRuntimeContext: Sendable {
             trustedCurrent: state.trustedCurrent
         )
         let plaintext = try executor(
-            reason: "Unlock version 3 vault to read '\(name)'."
+            reason: "Unlock the vault to read '\(name)'."
         ).execute(plan)
         return VaultReadValue(
             type: plan.entry.type,
@@ -89,7 +89,7 @@ struct V3ReadRuntimeContext: Sendable {
 
     func unlock() throws {
         let state = try loadState(
-            reason: "Unlock and authenticate version 3 vault."
+            reason: "Unlock the vault."
         )
         switch state.classification.status {
         case .ready:
@@ -110,7 +110,7 @@ struct V3ReadRuntimeContext: Sendable {
         allowStale: Bool
     ) throws {
         let state = try loadState(
-            reason: "Unlock version 3 vault to authenticate '\(name)'."
+            reason: "Unlock the vault to verify '\(name)'."
         )
         _ = try planner.planRead(
             named: name,
@@ -122,7 +122,7 @@ struct V3ReadRuntimeContext: Sendable {
 
     func list(allowStale: Bool) throws -> [String] {
         let state = try loadState(
-            reason: "Unlock version 3 vault to list authenticated entries."
+            reason: "Unlock the vault to list saved entries."
         )
         let plan = try planner.planList(
             allowStale: allowStale,
@@ -138,7 +138,7 @@ struct V3ReadRuntimeContext: Sendable {
         expectedHeads: [V3VaultHead]
     ) throws -> String {
         let state = try loadState(
-            reason: "Unlock version 3 vault to read an authenticated conflict version."
+            reason: "Unlock the vault to read the selected version of a conflicting entry."
         )
         let plan = try planner.planConflictRead(
             entry: entry,
@@ -147,7 +147,7 @@ struct V3ReadRuntimeContext: Sendable {
             trustedCurrent: state.trustedCurrent
         )
         return try executor(
-            reason: "Unlock version 3 vault to read an authenticated conflict version."
+            reason: "Unlock the vault to read the selected version of a conflicting entry."
         ).execute(plan)
     }
 
@@ -235,7 +235,7 @@ struct V3ReadRuntimeContext: Sendable {
             currentStateProvider: { expectedCheckpoint in
                 do {
                     let state = try loadState(
-                        reason: "Revalidate version 3 vault state."
+                        reason: "Verify the vault before continuing."
                     )
                     guard state.trustedCurrent.checkpoint
                             == expectedCheckpoint,

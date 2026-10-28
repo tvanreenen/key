@@ -25,7 +25,7 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
     private static let seedOperationID = try! VaultTransactionOperationID(
         validating: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b8"
     )
-    private static let currentKey = Data(0..<32)
+    private static let currentKey = Data(0 ..< 32)
     private static let nextKey = Data(repeating: 0x41, count: 32)
     private static let approvalTime: UInt64 = 4_102_444_800
 
@@ -873,7 +873,7 @@ struct V3DeviceWrappedEnrollmentTransitionPublisherTests {
         #expect(keys.loadCount == 0)
         #expect(keys.storeCount == 0)
         #expect(restarted.handle(.list).errorMessage?.contains("restarting") == true)
-        #expect(io.stdout.contains("Verified and selected the existing vault"))
+        #expect(io.stdout.contains("Key will use the existing vault"))
     }
 
     @Test

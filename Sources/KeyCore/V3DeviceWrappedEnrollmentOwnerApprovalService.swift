@@ -57,9 +57,9 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
         limits: V3ManifestRepositoryLimits = .standard,
         makeVaultKey: @escaping VaultKeyGenerator = {
             var generator = SystemRandomNumberGenerator()
-            return Data((0..<32).map { _ in
+            return Data((0 ..< 32).map { _ in
                 UInt8.random(
-                    in: UInt8.min...UInt8.max,
+                    in: UInt8.min ... UInt8.max,
                     using: &generator
                 )
             })
@@ -100,7 +100,7 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
         }
         guard let identity = try loadIdentity(
             vaultID,
-            "Load this Mac's permanent enrollment identity."
+            "Use this Mac's vault access credentials."
         ) else {
             throw V3EnrollmentAdoptionError.identityUnavailable
         }
@@ -135,7 +135,7 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
         }
         try state.signedInvitation.invitation.requireUnexpired(at: unixTime)
         let parent = try stateLoader.authenticatedCheckpoint(
-            reason: "Unlock version 3 vault to approve the compared Mac."
+            reason: "Unlock the vault to approve the Mac whose code you compared."
         )
         guard parent.checkpoint.envelopeDigest
                 == state.signedInvitation.invitation.parentManifestDigest
@@ -168,7 +168,7 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
             authorityTransitionID: authorityTransitionID,
             owner: identity,
             at: unixTime,
-            authorizationReason: "Approve the compared Mac and rotate this vault's key."
+            authorizationReason: "Give the Mac whose code you compared access to this vault and change its encryption key."
         )
         return try publisher.publish(
             candidate,
@@ -226,7 +226,7 @@ struct V3DeviceWrappedEnrollmentOwnerApprovalService:
     }
 
     private func freshVaultKey(excluding current: Data) throws -> Data {
-        for _ in 0..<16 {
+        for _ in 0 ..< 16 {
             let candidate = makeVaultKey()
             guard candidate.count == 32 else {
                 throw V3DeviceWrappedEnrollmentTransitionError

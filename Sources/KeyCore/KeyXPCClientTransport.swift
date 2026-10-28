@@ -187,7 +187,15 @@ public final class KeyXPCClientTransport: KeyServiceTransport {
         timeoutSeconds: Int
     ) -> AppError {
         if case .initializeVault = request {
-            return AppError.service("Vault initialization completed, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Run `key status` after the helper restarts; do not initialize another vault.")
+            return AppError.service("Your new vault is ready, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Run `key status` after it restarts. Do not run init again.")
+        }
+        switch request {
+        case .share(.accept), .shareInDirectory(.accept, _):
+            return AppError.service("This Mac has joined the vault, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Run `key status` after it restarts. You do not need to accept the invitation again.")
+        case .migrationApply:
+            return AppError.service("Migration completed and this Mac now uses the new vault, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Run `key status` after it restarts. Do not run migration again.")
+        default:
+            break
         }
         return AppError.service(
             "The \(request.completedOperationDescription) completed, but \(helperName) is still restarting after \(timeoutSeconds) seconds. Run the same command again; Key will resume safely from the completed state."

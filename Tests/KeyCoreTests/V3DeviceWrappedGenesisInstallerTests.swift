@@ -8,8 +8,8 @@ private let runLargeMigrationQualification =
 
 @Suite
 struct V3DeviceWrappedGenesisInstallerTests {
-    private static let v2Key = Data((0..<32).map(UInt8.init))
-    private static let newVaultKey = Data((32..<64).map(UInt8.init))
+    private static let v2Key = Data((0 ..< 32).map(UInt8.init))
+    private static let newVaultKey = Data((32 ..< 64).map(UInt8.init))
     private static let operationID = try! VaultTransactionOperationID(
         validating: "018f4d38-7d5a-7b20-b0f1-97d6e96c4500"
     )
@@ -48,7 +48,7 @@ struct V3DeviceWrappedGenesisInstallerTests {
             configStore: config, currentDirectory: { existingDirectory ? root : home }
         )
         #expect(app.run(arguments: existingDirectory ? ["init"] : ["init", "Vault"]) == EXIT_SUCCESS)
-        #expect(io.stdout.contains("Created and selected"))
+        #expect(io.stdout.contains("Created a new vault"))
         #expect(try config.configuredVaultRuntimeSelection().vaultID == Self.vaultID)
         #expect(try config.configuredVaultRuntimeSelection().rootURL.standardizedFileURL == root.standardizedFileURL)
         let completed = try #require(fixture)
@@ -241,7 +241,7 @@ struct V3DeviceWrappedGenesisInstallerTests {
 
     @Test(.enabled(if: runLargeMigrationQualification))
     func migratesRealisticLargeMixedSnapshotWithoutChangingV2Source() throws {
-        let sources = (0..<300).map { index in
+        let sources = (0 ..< 300).map { index in
             let group = String(format: "%02d", index / 25)
             let item = String(format: "%03d", index)
             if index.isMultiple(of: 5) {
@@ -322,12 +322,12 @@ struct V3DeviceWrappedGenesisInstallerTests {
         #expect(report.rendered == """
             Migration completed.
             Entries migrated: 2 (1 secret, 1 TOTP entry).
-            This Mac now uses permanent version 3 vault '\(Self.vaultID)'.
-            Its new vault key is wrapped to this Mac's Secure Enclave identity and exists in plaintext only in Key Agent's unlocked memory session.
-            The version 2 source files were retained unchanged. No cleanup was performed.
-            Keep that version 2 copy while you validate the migration. It can help you return to version 2, but it cannot recover this version 3 vault.
-            Other devices are not converted automatically. After they install a compatible release, enroll at least one other Mac before relying on version 3.
-            If every enrolled Mac is lost, synchronized version 3 files cannot unlock or recover the vault.
+            This Mac now uses the migrated vault. Vault ID: \(Self.vaultID).
+            Key verified that this Mac can unlock the new vault. Run `key status` to check it.
+            Your original vault files were kept unchanged. No files were removed.
+            Keep the original files while checking the migration. They do not receive later changes from the new vault and cannot restore access to it.
+            Other Macs are not migrated automatically. Install a compatible release on them, then use `key help share` to add at least one other Mac before relying on the new vault.
+            If every enrolled Mac is lost, a backup of the vault folder alone cannot restore access.
 
             """)
     }

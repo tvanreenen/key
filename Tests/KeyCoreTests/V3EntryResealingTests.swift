@@ -8,13 +8,13 @@ struct V3EntryResealingTests {
     private static let sourceEntryID = "018f4d39-930c-735d-8d6f-588e9b0a3a48"
     private static let destinationEntryID = "018f4d3a-a844-72ad-983e-b09a8fc0e924"
     private static let otherEntryID = "018f4d3b-033d-770e-a63c-ddb280e24d1f"
-    private static let key = Data(0..<32)
+    private static let key = Data(0 ..< 32)
     private static let keyID = try! V3VaultKeyID.derive(
         vaultKey: key,
         vaultID: vaultID
     )
-    private static let sourceNonce = Data(0xA0...0xAB)
-    private static let destinationNonce = Data(0xB0...0xBB)
+    private static let sourceNonce = Data(0xA0 ... 0xAB)
+    private static let destinationNonce = Data(0xB0 ... 0xBB)
 
     @Test
     func copyCreatesNewIdentityAtRevisionOneAndReseals() throws {

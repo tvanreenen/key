@@ -20,23 +20,23 @@ enum V3DeviceWrappedContentMutationError:
     var errorDescription: String? {
         switch self {
         case .invalidTrustedCheckpoint:
-            "The permanent version 3 mutation base is not the exact authenticated checkpoint."
+            "The vault state for this change does not match this Mac's last verified record. Key has stopped the change."
         case .invalidVaultKey:
-            "The in-memory vault key does not match the permanent version 3 checkpoint."
+            "The unlocked encryption key does not match this Mac's verified vault record. Key has stopped the change."
         case .invalidEntryID:
-            "The permanent version 3 destination entry ID is invalid."
+            "The ID for the destination entry is invalid."
         case .invalidEntryName:
-            "The permanent version 3 entry name is invalid."
+            "The entry name is invalid. Use a name like github/personal with no leading or trailing spaces or slashes. Path parts cannot be empty, '.' or '..'."
         case .entryNotFound:
-            "The requested permanent version 3 entry was not found."
+            "The requested entry was not found. Run `key list` to see saved names."
         case .entryExists:
-            "The permanent version 3 destination entry already exists."
+            "An entry already uses the destination name. Use `key edit` to replace its secret, or see `key help duplicate` and `key help rename` for overwrite options."
         case .unchangedName:
-            "The permanent version 3 destination name is unchanged."
+            "The new name is the same as the existing name."
         case .revisionOverflow:
-            "The permanent version 3 entry revision cannot be incremented."
+            "This entry has reached the maximum supported revision number. Key cannot save another change to it."
         case .invalidCandidate:
-            "The permanent version 3 mutation candidate could not be constructed."
+            "Key could not prepare a valid vault update for this change."
         }
     }
 }

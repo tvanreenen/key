@@ -7,8 +7,8 @@ import Testing
 struct V3EntryCipherTests {
     private static let vaultID = "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
     private static let entryID = "018f4d39-930c-735d-8d6f-588e9b0a3a48"
-    private static let key = Data(0..<32)
-    private static let nonce = Data(0xA0...0xAB)
+    private static let key = Data(0 ..< 32)
+    private static let nonce = Data(0xA0 ... 0xAB)
     private static let keyID = try! V3VaultKeyID.derive(
         vaultKey: key,
         vaultID: vaultID
@@ -139,7 +139,7 @@ struct V3EntryCipherTests {
             Data("current".utf8),
             context: currentContext,
             vaultKey: Self.key,
-            nonce: AES.GCM.Nonce(data: Data(0xB0...0xBB))
+            nonce: AES.GCM.Nonce(data: Data(0xB0 ... 0xBB))
         )
         let manifest = trustedManifest(
             context: currentContext,
@@ -151,7 +151,7 @@ struct V3EntryCipherTests {
             Data("historical".utf8),
             context: historicalContext,
             vaultKey: Self.key,
-            nonce: AES.GCM.Nonce(data: Data(0xC0...0xCB))
+            nonce: AES.GCM.Nonce(data: Data(0xC0 ... 0xCB))
         )
         #expect(throws: V3EncryptedEntryError.replayedRevision(
             trustedRevision: 5,
@@ -169,7 +169,7 @@ struct V3EntryCipherTests {
             Data("fork".utf8),
             context: currentContext,
             vaultKey: Self.key,
-            nonce: AES.GCM.Nonce(data: Data(0xD0...0xDB))
+            nonce: AES.GCM.Nonce(data: Data(0xD0 ... 0xDB))
         )
         #expect(throws: V3EncryptedEntryError.conflictingRevision(
             trustedRevision: 5,
@@ -191,7 +191,7 @@ struct V3EntryCipherTests {
             Data("current".utf8),
             context: currentContext,
             vaultKey: Self.key,
-            nonce: AES.GCM.Nonce(data: Data(0xB0...0xBB))
+            nonce: AES.GCM.Nonce(data: Data(0xB0 ... 0xBB))
         )
         let dishonestContext = try makeContext(
             keyID: Self.alternateKeyID,
@@ -200,12 +200,12 @@ struct V3EntryCipherTests {
         let sealed = try AES.GCM.seal(
             Data("historical".utf8),
             using: SymmetricKey(data: Self.key),
-            nonce: AES.GCM.Nonce(data: Data(0xC0...0xCB)),
+            nonce: AES.GCM.Nonce(data: Data(0xC0 ... 0xCB)),
             authenticating: dishonestContext.associatedData
         )
         let dishonestData = entryData(
             context: dishonestContext,
-            nonce: Data(0xC0...0xCB),
+            nonce: Data(0xC0 ... 0xCB),
             ciphertext: sealed.ciphertext,
             tag: sealed.tag
         )

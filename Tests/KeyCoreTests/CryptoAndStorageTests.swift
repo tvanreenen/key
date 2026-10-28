@@ -31,7 +31,7 @@ struct CryptoAndStorageTests {
     @Test
     func cipherEncryptsAndDecrypts() throws {
         let cipher = VaultCipher()
-        let keyData = Data((0..<32).map(UInt8.init))
+        let keyData = Data((0 ..< 32).map(UInt8.init))
         let encrypted = try cipher.encrypt("super-secret", keyData: keyData)
         let decrypted = try cipher.decrypt(encrypted, keyData: keyData)
         #expect(decrypted == "super-secret")
@@ -42,7 +42,7 @@ struct CryptoAndStorageTests {
     @Test
     func cipherEncryptsTOTPSecretsWithTypedEnvelope() throws {
         let cipher = VaultCipher()
-        let keyData = Data((0..<32).map(UInt8.init))
+        let keyData = Data((0 ..< 32).map(UInt8.init))
         let encrypted = try cipher.encrypt("JBSWY3DPEHPK3PXP", type: .totp, keyData: keyData)
         let decrypted = try cipher.decrypt(encrypted, keyData: keyData)
 
@@ -59,7 +59,7 @@ struct CryptoAndStorageTests {
 
     @Test
     func totpSeedValidationRejectsInvalidBase32() {
-        #expect(throws: AppError.invalidSecret("TOTP seed must be valid Base32.")) {
+        #expect(throws: AppError.invalidSecret("Enter a Base32 authenticator setup secret, not a current one-time code or a full otpauth:// URL.")) {
             _ = try TOTPGenerator.normalizeBase32Seed("nope!")
         }
     }
