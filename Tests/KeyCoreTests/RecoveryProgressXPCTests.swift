@@ -88,9 +88,10 @@ struct RecoveryProgressXPCTests {
     func completeShutdown() {}
     func sendRecoveryRequest(_ data: NSData, operationID: NSUUID,
       withReply reply: @escaping @Sendable (NSData?, NSString?) -> Void) {
+      let requestData = data as Data
       // Match the production helper: never wait on the XPC delivery queue.
       DispatchQueue.global(qos: .userInitiated).async { [self] in
-        guard let request = try? JSONDecoder().decode(KeyServiceRequest.self, from: data as Data),
+        guard let request = try? JSONDecoder().decode(KeyServiceRequest.self, from: requestData),
           request.supportsRecoveryProgress,
           let sink = connection?.remoteObjectProxy as? KeyXPCRecoveryProgressProtocol else {
           reply(nil, "Invalid fixture request")
