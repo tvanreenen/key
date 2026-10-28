@@ -802,9 +802,7 @@ private struct EnrollmentExchangeSoftwareSigner:
 }
 
 private func enrollmentPrivateKeyBytes(_ scalar: UInt8) -> Data {
-    var bytes = Data(repeating: 0, count: 32)
-    bytes[31] = scalar
-    return bytes
+    Data(SHA256.hash(data: Data([scalar])))
 }
 
 private func enrollmentExchangeReplacing(
