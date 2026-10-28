@@ -63,6 +63,7 @@ struct V3RecoveryCatchUpCoordinator: Sendable {
   private let mutationOwner: any VaultTransactionMutationOwning
   private let identity: any V3DeviceWrappedVaultKeyUnwrapping
   private let session: V3DeviceWrappedVaultKeySessionStore
+  private let validateScope: @Sendable () throws -> Void
   private let source: any V3ImmutableObjectReading
   private let checkpoints: any V3ManifestCheckpointStoring
   private let ownership: [any V3ImmutableTransactionRecoveryAnchorStoring]
@@ -81,12 +82,14 @@ struct V3RecoveryCatchUpCoordinator: Sendable {
     adoptionAnchorStore: any V3ImmutableTransactionRecoveryAnchorStoring,
     cache: any V3CheckpointManifestCaching, limits: V3ManifestRepositoryLimits = .standard,
     maximumParentEdges: Int = 16_384,
-    maximumStepCount: Int = V3ManifestRepositoryLimits.standard.maximumManifestObjects
+    maximumStepCount: Int = V3ManifestRepositoryLimits.standard.maximumManifestObjects,
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) {
     precondition(maximumParentEdges > 0 && maximumStepCount > 0)
     self.mutationOwner = mutationOwner
     self.identity = identity
     self.session = session
+    self.validateScope = validateScope
     self.source = source
     checkpoints = checkpointStore
     ownership = [recoveryAnchorStore, registrationAnchorStore, adoptionAnchorStore]
@@ -134,7 +137,8 @@ struct V3RecoveryCatchUpCoordinator: Sendable {
           mutationOwner: direct, identity: identity, session: session, source: source,
           checkpointStore: checkpoints, recoveryAnchorStore: ownership[0],
           registrationAnchorStore: ownership[1], adoptionAnchorStore: ownership[2],
-          cache: cache, limits: limits, maximumParentEdges: maximumParentEdges)
+          cache: cache, limits: limits, maximumParentEdges: maximumParentEdges,
+          validateScope: validateScope)
         var current = floor
         var contentCount = 0
         var epochCount = 0
@@ -176,7 +180,10 @@ struct V3RecoveryCatchUpCoordinator: Sendable {
               recoveryAnchorStore: ownership[0], registrationAnchorStore: ownership[1],
               adoptionAnchorStore: ownership[2], cache: cache, limits: limits,
               maximumParentEdges: maximumParentEdges,
-              validateScope: { try session.requireCurrent(contentTicket) })
+              validateScope: {
+                try validateScope()
+                try session.requireCurrent(contentTicket)
+              })
             let key = try session.load(
               vaultID: current.checkpoint.vaultID, keyID: current.envelope.body.fields.keyID)
             guard
@@ -291,6 +298,7 @@ struct V3RecoveryCatchUpCoordinator: Sendable {
     _ checkpoint: V3ManifestCheckpoint,
     ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
   ) throws {
+    try validateScope()
     try session.requireCurrent(ticket)
     for store in ownership where try store.loadRecoveryAnchor(vaultID: checkpoint.vaultID) != nil {
       throw V3RecoveryContentCatchUpError.localMutationPending

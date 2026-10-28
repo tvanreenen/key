@@ -16,7 +16,7 @@ public final class KeyServiceHandler {
     private let validateJoinInvitation:
         (@Sendable (_ digest: Data, _ unixTime: UInt64) throws -> Void)?
     private let revocationService:
-        (any V3DeviceWrappedRevocationWorkflowServicing)?
+        (any V3DeviceRevocationWorkflowServicing)?
     private let replacementService:
         (any V3ReplacementEnrollmentWorkflowServicing)?
     private let vaultUXService: any VaultUXServicing
@@ -72,7 +72,7 @@ public final class KeyServiceHandler {
         validateJoinInvitation:
             (@Sendable (Data, UInt64) throws -> Void)? = nil,
         revocationService:
-            (any V3DeviceWrappedRevocationWorkflowServicing)? = nil,
+            (any V3DeviceRevocationWorkflowServicing)? = nil,
         replacementService:
             (any V3ReplacementEnrollmentWorkflowServicing)? = nil,
         vaultUXService: (any VaultUXServicing)? = nil,
@@ -666,10 +666,9 @@ public final class KeyServiceHandler {
                 }
                 return .success()
             case let .share(action):
-                return try handleShare(
-                    action,
-                    mutationContext: mutationContext
-                )
+                return try translatingV3RecoveryRuntimeErrors {
+                    try handleShare(action, mutationContext: mutationContext)
+                }
             case .shareInDirectory:
                 throw AppError.operationRefused("Directory-scoped enrollment must be dispatched by Key Agent's service host.")
             case .recovery:
@@ -870,7 +869,7 @@ public final class KeyServiceHandler {
                         "Device revocation requires the helper's serialized mutation boundary."
                     )
                 }
-                _ = try requiredRevocationService().revoke(
+                _ = try requiredRevocationService().revokeReviewed(
                     deviceID: deviceID,
                     confirmationToken: confirmationToken,
                     operationID: mutationContext.operationID
@@ -1052,7 +1051,7 @@ public final class KeyServiceHandler {
     }
 
     private func requiredRevocationService() throws
-        -> any V3DeviceWrappedRevocationWorkflowServicing
+        -> any V3DeviceRevocationWorkflowServicing
     {
         guard let revocationService else {
             throw AppError.operationRefused(
@@ -1091,7 +1090,7 @@ public final class KeyServiceHandler {
         _ operation: () throws -> KeyServiceResponse
     ) -> KeyServiceResponse {
         do {
-            return try operation()
+            return try translatingV3RecoveryRuntimeErrors { try operation() }
         } catch let error as AppError {
             return .failure(error)
         } catch let error as VaultUXServiceError {
@@ -1121,7 +1120,7 @@ public final class KeyServiceHandler {
         _ operation: () throws -> KeyServiceResponse
     ) -> KeyServiceResponse {
         do {
-            return try operation()
+            return try translatingV3RecoveryRuntimeErrors { try operation() }
         } catch let error as AppError {
             return .failure(error)
         } catch let error as VaultUXServiceError {

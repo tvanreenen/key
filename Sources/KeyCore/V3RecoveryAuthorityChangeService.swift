@@ -23,6 +23,7 @@ struct V3RecoveryAuthorityChangeService: Sendable {
   private let cache: any V3CheckpointManifestCaching
   private let limits: V3ManifestRepositoryLimits
   private let phaseObserver: any V3ImmutableTransactionPhaseObserving
+  private let validateScope: @Sendable () throws -> Void
 
   init(
     vaultID: String, identity: Identity, session: V3DeviceWrappedVaultKeySessionStore,
@@ -33,7 +34,8 @@ struct V3RecoveryAuthorityChangeService: Sendable {
     adoptionAnchorStore: any V3ImmutableTransactionRecoveryAnchorStoring,
     cache: any V3CheckpointManifestCaching, limits: V3ManifestRepositoryLimits = .standard,
     phaseObserver: any V3ImmutableTransactionPhaseObserving =
-      V3NoopContentTransactionPhaseObserver()
+      V3NoopContentTransactionPhaseObserver(),
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) {
     self.vaultID = vaultID
     self.identity = identity
@@ -46,12 +48,16 @@ struct V3RecoveryAuthorityChangeService: Sendable {
     self.cache = cache
     self.limits = limits
     self.phaseObserver = phaseObserver
+    self.validateScope = validateScope
   }
 
   /// Authenticated review only. Neither preparation saves consent, signs,
   /// generates an epoch, invokes hardware or reserves work.
-  func prepareRevocation(revoking deviceID: String) throws -> V3DeviceWrappedRevocationPlan {
-    let base = try loadCurrent()
+  func prepareRevocation(
+    revoking deviceID: String,
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil
+  ) throws -> V3DeviceWrappedRevocationPlan {
+    let base = try loadCurrent(continuing: ticket)
     return try revocationPlan(base, deviceID: deviceID)
   }
 
@@ -63,10 +69,12 @@ struct V3RecoveryAuthorityChangeService: Sendable {
   }
 
   func revoke(
-    _ plan: V3DeviceWrappedRevocationPlan, operationID: VaultTransactionOperationID
+    _ plan: V3DeviceWrappedRevocationPlan, operationID: VaultTransactionOperationID,
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil
   ) throws -> V3RecoveryDeviceRevocationCommit {
     let committed = try change(
       checkpoint: plan.expectedCheckpoint, kind: .revokeDevice, operationID: operationID,
+      continuing: ticket,
       review: { base in
         guard try revocationPlan(base, deviceID: plan.revokedDevice.identity.deviceID) == plan
         else {
@@ -79,7 +87,7 @@ struct V3RecoveryAuthorityChangeService: Sendable {
           currentVaultKey: base.key, nextVaultKey: nextKey, owner: identity,
           reason: "Remove the reviewed Mac's access and change the vault's encryption key.")
         try lifecycle.revalidate(base)
-        let commit = try revocationPublisher(operationID).publish(
+        let commit = try revocationPublisher(operationID, continuing: base.ticket).publish(
           candidate, approvedPlan: plan, currentVaultKey: base.key, nextVaultKey: nextKey,
           identity: identity, reason: "Verify this Mac can open the vault after removing access.")
         return .init(checkpoint: commit.checkpoint, envelope: commit.envelope)
@@ -107,7 +115,7 @@ struct V3RecoveryAuthorityChangeService: Sendable {
           reason: "Remove the reviewed recovery key and change the vault's encryption key.",
           protectionLossAcknowledgement: protectionLossAcknowledgement)
         try lifecycle.revalidate(base)
-        let commit = try removalPublisher(operationID).publish(
+        let commit = try removalPublisher(operationID, continuing: base.ticket).publish(
           candidate, approvedPlan: plan, currentVaultKey: base.key, nextVaultKey: nextKey,
           identity: identity,
           reason: "Verify this Mac can open the vault after removing the recovery key.",
@@ -129,6 +137,60 @@ struct V3RecoveryAuthorityChangeService: Sendable {
     operationID: VaultTransactionOperationID, expectedAnchor: Data? = nil
   ) throws -> V3ImmutableTransactionRecoveryOutcome {
     try recover(.recipient, operationID: operationID, expectedAnchor: expectedAnchor)
+  }
+
+  struct PendingRevocation: Sendable {
+    let plan: V3DeviceWrappedRevocationPlan
+    let anchor: Data
+    let checkpoint: V3ManifestCheckpoint
+  }
+
+  /// Public preflight of exact locally owned work, so the product can compare
+  /// its review token before requesting a Mac private operation. No new grant.
+  func pendingRevocation(operationID: VaultTransactionOperationID) throws -> PendingRevocation? {
+    try validateScope()
+    switch try prepareRecovery(.device, operationID: operationID, expectedAnchor: nil) {
+    case .finished(.nothingToRecover): return nil
+    case .finished:
+      throw AppError.operationRefused(
+        "The incomplete access change was released without publication. Review the device list again before a new attempt."
+      )
+    case .ready(let state):
+      let checked = try preflightRecovery(state, kind: .device)
+      let parent = try V3RecoveryManifestCodec().parseEnvelope(
+        objects.readManifest(state.intent.expectedCheckpoint.envelopeDigest))
+      let plan = try revocationValidator(oldKey: nil).reconstructPublicPlan(
+        input(state), envelope: checked.envelope, parent: parent)
+      try V3RecoveryDeviceRevocationValidator(limits: limits).preflightPublic(
+        .init(plan: plan, envelope: checked.envelope, stagedEntries: state.availableEntries),
+        parent: parent, expectedOwner: identity.publicIdentity)
+      try requireRecoveryState(state)
+      return .init(plan: plan, anchor: state.anchorData, checkpoint: state.candidateCheckpoint)
+    }
+  }
+
+  /// A completed retry must still be the exact authenticated revocation floor;
+  /// a later edit or unrelated authority change cannot acknowledge that token.
+  func completedRevocationPlan(
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  ) throws -> V3DeviceWrappedRevocationPlan {
+    let current = try loadCurrent(continuing: ticket)
+    guard current.envelope.parents.count == 1, let digest = current.envelope.parents.first else {
+      throw V3RecoveryDeviceRevocationError.invalidCandidate
+    }
+    let checkpoint = try V3ManifestCheckpoint(vaultID: vaultID, envelopeDigest: digest)
+    let parent = try V3RecoveryManifestCodec().parseEnvelope(objects.readManifest(digest))
+    let input = V3ContentTransactionInput(
+      kind: .revokeDevice, expectedCheckpoint: checkpoint,
+      manifestData: current.envelope.canonicalBytes, manifestDigest: current.envelope.digest,
+      stagedEntries: Array(current.source.entries.values))
+    let plan = try revocationValidator(oldKey: nil).reconstructPublicPlan(
+      input, envelope: current.envelope, parent: parent)
+    try V3RecoveryDeviceRevocationValidator(limits: limits).preflightPublic(
+      .init(plan: plan, envelope: current.envelope, stagedEntries: input.stagedEntries),
+      parent: parent, expectedOwner: identity.publicIdentity)
+    try lifecycle.revalidate(current)
+    return plan
   }
 
   private enum PendingChange {
@@ -195,13 +257,15 @@ struct V3RecoveryAuthorityChangeService: Sendable {
       let outcome: V3ImmutableTransactionRecoveryOutcome
       switch kind {
       case .device:
-        outcome = try revocationPublisher(operationID).recoverInterruptedTransaction(
-          vaultID: vaultID, currentVaultKey: oldKey, nextVaultKey: nextKey,
-          expectedOwner: identity.publicIdentity, expectedAnchor: state.anchorData)
+        outcome = try revocationPublisher(operationID, continuing: ticket)
+          .recoverInterruptedTransaction(
+            vaultID: vaultID, currentVaultKey: oldKey, nextVaultKey: nextKey,
+            expectedOwner: identity.publicIdentity, expectedAnchor: state.anchorData)
       case .recipient:
-        outcome = try removalPublisher(operationID).recoverInterruptedTransaction(
-          vaultID: vaultID, currentVaultKey: oldKey, nextVaultKey: nextKey,
-          expectedOwner: identity.publicIdentity, expectedAnchor: state.anchorData)
+        outcome = try removalPublisher(operationID, continuing: ticket)
+          .recoverInterruptedTransaction(
+            vaultID: vaultID, currentVaultKey: oldKey, nextVaultKey: nextKey,
+            expectedOwner: identity.publicIdentity, expectedAnchor: state.anchorData)
       }
       switch outcome {
       case .completed, .alreadyCompleted:
@@ -356,23 +420,37 @@ struct V3RecoveryAuthorityChangeService: Sendable {
       currentVaultKey: oldKey, expectedOwner: identity.publicIdentity, approvedPlan: nil,
       protectionLossAcknowledgement: nil, limits: limits)
   }
-  private func revocationPublisher(_ operationID: VaultTransactionOperationID)
+  private func revocationPublisher(
+    _ operationID: VaultTransactionOperationID,
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil
+  )
     -> V3RecoveryDeviceRevocationPublisher
   {
     .init(
       mutationOwner: DirectVaultTransactionMutationOwner(operationID: operationID),
       objectStore: store, checkpointStore: checkpoints, recoveryAnchorStore: ownership,
       registrationAnchorStore: registration, adoptionAnchorStore: adoption, cache: cache,
-      limits: limits, phaseObserver: phaseObserver)
+      limits: limits, phaseObserver: phaseObserver,
+      validateScope: {
+        try validateScope()
+        if let ticket { try session.requireCurrent(ticket) }
+      })
   }
-  private func removalPublisher(_ operationID: VaultTransactionOperationID)
+  private func removalPublisher(
+    _ operationID: VaultTransactionOperationID,
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil
+  )
     -> V3RecoveryRecipientRemovalPublisher
   {
     .init(
       mutationOwner: DirectVaultTransactionMutationOwner(operationID: operationID),
       objectStore: store, checkpointStore: checkpoints, recoveryAnchorStore: ownership,
       registrationAnchorStore: registration, adoptionAnchorStore: adoption, cache: cache,
-      limits: limits, phaseObserver: phaseObserver)
+      limits: limits, phaseObserver: phaseObserver,
+      validateScope: {
+        try validateScope()
+        if let ticket { try session.requireCurrent(ticket) }
+      })
   }
 
   private struct CommittedEpoch {
@@ -384,19 +462,22 @@ struct V3RecoveryAuthorityChangeService: Sendable {
   private var lifecycle: V3RecoveryLifecycleContext {
     .init(
       vaultID: vaultID, identity: identity.publicIdentity, session: session, source: store,
-      checkpoints: checkpoints, ownership: ownership, registration: registration, adoption: adoption,
-      limits: limits, validateScope: {})
+      checkpoints: checkpoints, ownership: ownership, registration: registration,
+      adoption: adoption,
+      limits: limits, validateScope: validateScope)
   }
 
   private func change(
     checkpoint: V3ManifestCheckpoint, kind: VaultTransactionMutationKind,
-    operationID: VaultTransactionOperationID, review: (Base) throws -> Void,
+    operationID: VaultTransactionOperationID,
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil,
+    review: (Base) throws -> Void,
     publish: (Base, Data) throws -> CommittedEpoch
   ) throws -> CommittedEpoch {
     do {
       guard checkpoint.vaultID == vaultID else { throw V3RecoveryAuthorityChangeError.invalidOwner }
       try lifecycle.requireCheckpoint(checkpoint)
-      let base = try loadCurrent()
+      let base = try loadCurrent(continuing: ticket)
       guard base.checkpoint == checkpoint else {
         throw V3ImmutableTransactionError.expectedHeadsChanged
       }
@@ -422,10 +503,13 @@ struct V3RecoveryAuthorityChangeService: Sendable {
     }
   }
 
-  private func loadCurrent() throws -> Base {
+  private func loadCurrent(
+    continuing ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket? = nil
+  ) throws -> Base {
     guard identity.vaultID == vaultID else { throw V3RecoveryAuthorityChangeError.invalidOwner }
-    do { return try lifecycle.current(continuing: session.beginAuthentication()) }
-    catch V3RecoveryLifecycleContextError.invalidOwner {
+    do {
+      return try lifecycle.current(continuing: ticket ?? session.beginAuthentication())
+    } catch V3RecoveryLifecycleContextError.invalidOwner {
       throw V3RecoveryAuthorityChangeError.invalidOwner
     }
   }
