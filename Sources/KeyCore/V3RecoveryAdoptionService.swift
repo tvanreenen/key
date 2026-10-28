@@ -78,7 +78,11 @@ struct V3RecoveryAdoptionService: Sendable {
       let nextKey = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }
       let candidate = try V3RecoveryProfileAdoptionBuilder(limits: limits).build(
         from: parent, currentEntries: initial.entries, currentVaultKey: currentVaultKey,
-        nextVaultKey: nextKey, owner: identity, reason: "Adopt Key's recovery-capable vault format")
+        nextVaultKey: nextKey, owner: identity, reason: "Adopt Key's recovery-capable vault format"
+      ) { body, staged in
+        try objects.requireUnsignedProjection(
+          initial, body: body, parent: checkpoint, stagedEntries: staged)
+      }
       let preparation = try V3RecoveryAdoptionPreparation(
         operationID: context.operationID,
         ownerDeviceID: identity.publicIdentity.deviceID, candidate: candidate, limits: limits)

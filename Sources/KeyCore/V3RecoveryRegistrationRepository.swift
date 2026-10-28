@@ -47,6 +47,18 @@ struct V3RecoveryRegistrationRepository: Sendable {
       referencedEntries: state.referencedEntries, usage: state.usage)
   }
 
+  func requireUnsignedProjection(
+    _ state: V3RecoveryRegistrationRepositoryState, body: V3RecoveryManifestBody,
+    parent: V3ManifestCheckpoint, stagedEntries: [V3EncryptedEntry]
+  ) throws {
+    try objects.requireUnsignedProjection(
+      V3ExactTransitionRepositoryState(
+        baseBytes: state.base.canonicalBytes, entries: state.entries,
+        manifestBytes: state.manifestBytes, listedObjectCount: state.listedObjectCount,
+        candidatePublished: state.candidatePublished, referencedEntries: state.referencedEntries,
+        usage: state.usage), body: body, parent: parent, stagedEntries: stagedEntries)
+  }
+
   func requireProjectedUsage(
     _ state: V3RecoveryRegistrationRepositoryState, candidate: V3RecoveryRegistrationPreparation
   ) throws {

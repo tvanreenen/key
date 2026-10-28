@@ -380,3 +380,193 @@ struct V3RecoveryVaultRuntimeTests {
     }
   }
 }
+
+extension V3RecoveryVaultRuntimeTests {
+  @Test(arguments: [true, false])
+  func sessionInvalidationStopsSubsequentPublicationEffects(beforeInitialOwnership: Bool) throws {
+    let f = try Fixture()
+    defer { f.disk.disk.remove() }
+    let staged = Core.Counter()
+    let published = Core.Counter()
+    let intents = Core.Counter()
+    let trigger = PublicationBoundaryOnce {
+      // These checks prove the lock happens before any entry staging or object
+      // publication. The true variant additionally fires before the first local
+      // ownership pin or shared intent is written.
+      #expect(f.disk.session.hasResidentKey)
+      #expect(f.disk.local.value == f.disk.floor.checkpoint.canonicalBytes)
+      #expect(staged.value == 0 && published.value == 0)
+      if beforeInitialOwnership {
+        #expect(f.disk.pending[0].value == nil && intents.value == 0)
+      } else {
+        #expect(f.disk.pending[0].value != nil && intents.value == 1)
+      }
+      f.disk.session.invalidate() // The exact same session operation as runtime.lock().
+      #expect(!f.disk.session.hasResidentKey)
+    }
+    let store = PublicationBoundaryStore(
+      base: f.disk.disk.store,
+      beforeStage: { if !beforeInitialOwnership { trigger.fire() } },
+      staged: staged, published: published, intents: intents)
+    let ownership = PublicationBoundaryOwnership(base: f.disk.pending[0]) {
+      if beforeInitialOwnership { trigger.fire() }
+    }
+    let runtime = V3RecoveryVaultRuntime(
+      vaultID: Core.vaultID, objectStore: store, checkpointStore: f.disk.local,
+      transactionOwnershipStore: ownership, registrationOwnershipStore: f.disk.pending[1],
+      adoptionOwnershipStore: f.disk.pending[2], cache: f.disk.localCache,
+      identityLoader: f.loader, session: f.disk.session, mutationOwner: f.owner)
+    var returnedSessionFailure = false
+    do {
+      try f.owner.perform(.addEntry) { scope in
+        try runtime.add(
+          name: "test/after-session-change", secret: "synthetic test value",
+          type: .secret, operationID: scope.operationID)
+      }
+      Issue.record("Mutation unexpectedly returned success after session invalidation")
+    } catch AppError.authFailed {
+      returnedSessionFailure = true
+    }
+    #expect(trigger.count == 1 && returnedSessionFailure)
+    #expect(!f.disk.session.hasResidentKey)
+    #expect(staged.value == (beforeInitialOwnership ? 0 : 1))
+    #expect(published.value == 0 && intents.value == (beforeInitialOwnership ? 0 : 1))
+    #expect(f.disk.local.value == f.disk.floor.checkpoint.canonicalBytes)
+    #expect(f.disk.pending[0].value != nil) // Retain the in-flight durable prefix.
+    #expect(f.disk.receiver.unwraps == 0)
+    // A later request authenticates the exact interrupted prefix and abandons
+    // incomplete staging. It cannot silently finish the cancelled add.
+    #expect(
+      try runtime.read(name: "fixture/secret", allowStale: false).plaintext
+        == "Software fixture secret e\u{301}\r\n")
+    #expect(f.disk.pending.allSatisfy { $0.value == nil })
+    #expect(f.disk.local.value == f.disk.floor.checkpoint.canonicalBytes)
+    #expect(try !runtime.list(allowStale: false).contains("test/after-session-change"))
+  }
+
+  private final class PublicationBoundaryOnce: @unchecked Sendable {
+    private let lock = NSLock()
+    private var fired = false
+    private let action: @Sendable () -> Void
+    var count: Int { lock.withLock { fired ? 1 : 0 } }
+    init(_ action: @escaping @Sendable () -> Void) { self.action = action }
+    func fire() {
+      let first = lock.withLock {
+        guard !fired else { return false }
+        fired = true
+        return true
+      }
+      if first { action() }
+    }
+  }
+
+  private struct PublicationBoundaryOwnership: V3ImmutableTransactionRecoveryAnchorStoring {
+    let base: any V3ImmutableTransactionRecoveryAnchorStoring
+    let beforeInitialPin: @Sendable () -> Void
+    init(
+      base: any V3ImmutableTransactionRecoveryAnchorStoring,
+      beforeInitialPin: @escaping @Sendable () -> Void
+    ) {
+      self.base = base
+      self.beforeInitialPin = beforeInitialPin
+    }
+    func loadRecoveryAnchor(vaultID: String) throws -> Data? {
+      try base.loadRecoveryAnchor(vaultID: vaultID)
+    }
+    func replaceRecoveryAnchor(_ anchor: Data?, expectedAnchor: Data?, vaultID: String) throws {
+      if anchor != nil && expectedAnchor == nil { beforeInitialPin() }
+      try base.replaceRecoveryAnchor(anchor, expectedAnchor: expectedAnchor, vaultID: vaultID)
+    }
+  }
+
+  private struct PublicationBoundaryStore: V3TransactionArtifactStore {
+    let base: any V3TransactionArtifactStore
+    let beforeStage: @Sendable () -> Void
+    let staged: Core.Counter
+    let published: Core.Counter
+    let intents: Core.Counter
+    func manifestDigests(maximumCount: Int) throws -> V3RepositoryDirectoryListing {
+      try base.manifestDigests(maximumCount: maximumCount)
+    }
+    func readManifest(digest: Data, maximumBytes: Int) throws -> V3RepositoryObjectRead {
+      try base.readManifest(digest: digest, maximumBytes: maximumBytes)
+    }
+    func readEntry(entryID: String, digest: Data, maximumBytes: Int) throws
+      -> V3RepositoryObjectRead
+    {
+      try base.readEntry(entryID: entryID, digest: digest, maximumBytes: maximumBytes)
+    }
+    func persistRecoveryIntent(_ data: Data, operationID: VaultTransactionOperationID) throws {
+      try base.persistRecoveryIntent(data, operationID: operationID)
+      intents.increment()
+    }
+    func readRecoveryIntent(operationID: VaultTransactionOperationID, maximumBytes: Int) throws
+      -> V3RepositoryObjectRead
+    {
+      try base.readRecoveryIntent(operationID: operationID, maximumBytes: maximumBytes)
+    }
+    func removeRecoveryIntent(_ data: Data, operationID: VaultTransactionOperationID) throws {
+      try base.removeRecoveryIntent(data, operationID: operationID)
+    }
+    func stageEntry(
+      _ data: Data, entryID: String, digest: Data,
+      operationID: VaultTransactionOperationID
+    ) throws {
+      beforeStage()
+      try base.stageEntry(data, entryID: entryID, digest: digest, operationID: operationID)
+      staged.increment()
+    }
+    func stageManifest(_ data: Data, digest: Data, operationID: VaultTransactionOperationID) throws
+    {
+      try base.stageManifest(data, digest: digest, operationID: operationID)
+    }
+    func readStagedEntry(
+      entryID: String, digest: Data, operationID: VaultTransactionOperationID,
+      maximumBytes: Int
+    ) throws -> V3RepositoryObjectRead {
+      try base.readStagedEntry(
+        entryID: entryID, digest: digest, operationID: operationID,
+        maximumBytes: maximumBytes)
+    }
+    func readStagedManifest(
+      digest: Data, operationID: VaultTransactionOperationID,
+      maximumBytes: Int
+    ) throws -> V3RepositoryObjectRead {
+      try base.readStagedManifest(
+        digest: digest, operationID: operationID,
+        maximumBytes: maximumBytes)
+    }
+    func publishStagedEntry(
+      _ data: Data, entryID: String, digest: Data,
+      operationID: VaultTransactionOperationID
+    ) throws {
+      try base.publishStagedEntry(data, entryID: entryID, digest: digest, operationID: operationID)
+      published.increment()
+    }
+    func publishStagedManifest(
+      _ data: Data, digest: Data,
+      operationID: VaultTransactionOperationID
+    ) throws {
+      try base.publishStagedManifest(data, digest: digest, operationID: operationID)
+      published.increment()
+    }
+    func removeStagedEntry(
+      _ data: Data, entryID: String, digest: Data,
+      operationID: VaultTransactionOperationID
+    ) throws {
+      try base.removeStagedEntry(data, entryID: entryID, digest: digest, operationID: operationID)
+    }
+    func removeStagedManifest(
+      _ data: Data, digest: Data,
+      operationID: VaultTransactionOperationID
+    ) throws {
+      try base.removeStagedManifest(data, digest: digest, operationID: operationID)
+    }
+    func removeEmptyTransactionDirectories(
+      operationID: VaultTransactionOperationID,
+      entryIDs: [String]
+    ) throws {
+      try base.removeEmptyTransactionDirectories(operationID: operationID, entryIDs: entryIDs)
+    }
+  }
+}

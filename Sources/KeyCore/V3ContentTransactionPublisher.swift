@@ -132,6 +132,7 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
             operationID: operationID
         )
 
+        try validator.requireAvailable(vaultID: vaultID)
         try objectStore.persistRecoveryIntent(
             intentData,
             operationID: operationID
@@ -147,6 +148,7 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
             phase: .recoverable
         )
         let armedAnchorData = armedAnchor.canonicalBytes
+        try validator.requireAvailable(vaultID: vaultID)
         try recoveryAnchorStore.replaceRecoveryAnchor(
             armedAnchorData,
             expectedAnchor: preparedAnchorData,
@@ -161,6 +163,7 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
             guard let entry = validated.stagedEntries[key] else {
                 preconditionFailure("A staged entry must retain its bytes.")
             }
+            try validator.requireAvailable(vaultID: vaultID)
             try objectStore.stageEntry(
                 entry.canonicalBytes,
                 entryID: key.entryID,
@@ -172,6 +175,7 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
                 operationID: operationID
             )
         }
+        try validator.requireAvailable(vaultID: vaultID)
         try objectStore.stageManifest(
             candidate.manifestData,
             digest: candidate.manifestDigest,
@@ -218,6 +222,7 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
                 candidate, validated: validated, vaultKey: vaultKey, alreadyCommitted: false)
             try requireExactCheckpoint(candidate.expectedCheckpoint)
             try requireOwnership(armedAnchorData, vaultID: vaultID)
+            try validator.requireAvailable(vaultID: vaultID)
             try objectStore.publishStagedEntry(
                 entry.canonicalBytes,
                 entryID: key.entryID,
@@ -242,6 +247,7 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
         try requireExactCheckpoint(candidate.expectedCheckpoint)
         try requireOwnership(armedAnchorData, vaultID: vaultID)
         try validator.validatePublishedEntries(validated)
+        try validator.requireAvailable(vaultID: vaultID)
         try objectStore.publishStagedManifest(
             candidate.manifestData,
             digest: candidate.manifestDigest,
@@ -267,6 +273,7 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
             candidate, validated: validated, vaultKey: vaultKey, alreadyCommitted: false)
         try requireExactCheckpoint(candidate.expectedCheckpoint)
         try requireOwnership(armedAnchorData, vaultID: vaultID)
+        try validator.requireAvailable(vaultID: vaultID)
         try checkpointStore.replaceCheckpoint(
             checkpoint.canonicalBytes,
             expectedCheckpoint: candidate.expectedCheckpoint.canonicalBytes,
@@ -290,16 +297,19 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
             stagedEntries: validated.stagedEntries,
             manifestData: candidate.manifestData
         )) != nil {
+            try validator.requireAvailable(vaultID: vaultID)
             try? cache.store(candidate.manifestData, for: checkpoint)
             try phaseObserver.didReach(
                 .cleanupCompleted,
                 operationID: operationID
             )
         }
+        try validator.requireAvailable(vaultID: vaultID)
         return validated
     }
 
     private func requireOwnership(_ expected: Data, vaultID: String) throws {
+        try validator.requireAvailable(vaultID: vaultID)
         guard try recoveryAnchorStore.loadRecoveryAnchor(vaultID: vaultID) == expected else {
             throw V3ImmutableTransactionRecoveryError.invalidRecoveryAnchor(vaultID: vaultID)
         }
@@ -332,6 +342,7 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
     private func requireExactCheckpoint(
         _ expected: V3ManifestCheckpoint
     ) throws {
+        try validator.requireAvailable(vaultID: expected.vaultID)
         guard
             try checkpointStore.loadCheckpoint(vaultID: expected.vaultID)
                 == expected.canonicalBytes
@@ -353,6 +364,7 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
             guard let entry = stagedEntries[key] else {
                 preconditionFailure("A staged entry must retain its bytes.")
             }
+            try validator.requireAvailable(vaultID: intent.vaultID)
             try objectStore.removeStagedEntry(
                 entry.canonicalBytes,
                 entryID: key.entryID,
@@ -360,6 +372,7 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
                 operationID: intent.operationID
             )
         }
+        try validator.requireAvailable(vaultID: intent.vaultID)
         try objectStore.removeStagedManifest(
             manifestData,
             digest: intent.candidateManifestDigest,
@@ -367,15 +380,18 @@ struct V3ContentTransactionPublisher<Validator: V3ContentTransactionValidating>:
         )
         try validator.requireAvailable(vaultID: intent.vaultID)
         try requireOwnership(anchorData, vaultID: intent.vaultID)
+        try validator.requireAvailable(vaultID: intent.vaultID)
         try recoveryAnchorStore.replaceRecoveryAnchor(
             nil,
             expectedAnchor: anchorData,
             vaultID: intent.vaultID
         )
+        try validator.requireAvailable(vaultID: intent.vaultID)
         try? objectStore.removeRecoveryIntent(
             intentData,
             operationID: intent.operationID
         )
+        try validator.requireAvailable(vaultID: intent.vaultID)
         try? objectStore.removeEmptyTransactionDirectories(
             operationID: intent.operationID,
             entryIDs: intent.stagedEntries.map(\.entryID)

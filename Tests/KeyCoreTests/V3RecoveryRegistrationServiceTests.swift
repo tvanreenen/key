@@ -531,6 +531,72 @@ struct V3RecoveryRegistrationServiceTests {
     }
   }
 
+  @Test(arguments: 0 ..< 4)
+  func projectedBudgetsRefuseBeforeSigningReservationOrExport(bound: Int) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let entryBytes = f.core.entries.values.reduce(0) { $0 + $1.canonicalBytes.count }
+    let limits: V3ManifestRepositoryLimits
+    switch bound {
+    case 0:
+      limits = .init(
+        maximumManifestObjects: 4_096, maximumHistoryDepth: 1_024, maximumReferencedEntryObjects: 2)
+    case 1:
+      limits = .init(maximumManifestObjects: 1, maximumHistoryDepth: 1_024)
+    case 2:
+      limits = .init(
+        maximumManifestObjects: 4_096, maximumHistoryDepth: 1_024, maximumEntryBytes: entryBytes,
+        maximumTotalEntryBytes: entryBytes)
+    default:
+      // Size the unsigned admission allowance from a separate software-only
+      // candidate. Setup signing is excluded from the operation counter below.
+      let bytes = try f.core.prepare().candidate.body.canonicalBytes.count + 2_048
+      limits = .init(
+        maximumManifestObjects: 4_096, maximumHistoryDepth: 1_024,
+        maximumManifestBytes: bytes, maximumTotalManifestBytes: bytes)
+    }
+    let signatures = f.core.owner.signatures
+    #expect(throws: V3RecoveryValidationError.resourceLimit) {
+      try f.service(limits: limits).prepare(
+        observation: f.observation(), currentVaultKey: Core.oldKey)
+    }
+    #expect(
+      f.core.owner.signatures == signatures && f.core.owner.unwraps == 0 && f.provider.requests == 0
+    )
+    #expect(f.ownership.value == nil && f.transactions.value == nil && f.adoption.value == nil)
+    #expect(f.checkpoints.value == f.core.checkpoint.canonicalBytes)
+  }
+
+  @Test func backupRegistrationRetainsExistingAnchorDepthBeforeSigning() throws {
+    let f = try Fixture(backup: true)
+    defer { f.remove() }
+    let child = try V3RecoveryContentMutationBuilder().build(
+      .edit(name: "fixture/secret", type: .secret, plaintext: "edited"),
+      checkpoint: f.core.checkpoint, parent: f.core.parent, currentEntries: f.core.entries,
+      vaultKey: Core.oldKey)
+    for entry in child.stagedEntries {
+      let operation = VaultTransactionOperationID()
+      let digest = Data(SHA256.hash(data: entry.canonicalBytes))
+      try f.store.stageEntry(
+        entry.canonicalBytes, entryID: entry.context.entryID,
+        digest: digest, operationID: operation)
+      try f.store.publishStagedEntry(
+        entry.canonicalBytes, entryID: entry.context.entryID,
+        digest: digest, operationID: operation)
+    }
+    try f.publish(child.envelope.canonicalBytes, digest: child.envelope.digest)
+    let checkpoint = try V3ManifestCheckpoint(
+      vaultID: Core.vaultID,
+      envelopeDigest: child.envelope.digest)
+    f.checkpoints.value = checkpoint.canonicalBytes
+    #expect(throws: V3RecoveryValidationError.resourceLimit) {
+      try f.service(limits: .init(maximumManifestObjects: 4_096, maximumHistoryDepth: 1)).prepare(
+        observation: f.observation(), currentVaultKey: Core.oldKey)
+    }
+    #expect(f.core.owner.signatures == 0 && f.core.owner.unwraps == 0)
+    #expect(f.ownership.value == nil && f.checkpoints.value == checkpoint.canonicalBytes)
+  }
+
   @Test func serviceUsesTheSharedMutationOwnerAndStablePreparationID() throws {
     let f = try Fixture()
     defer { f.remove() }
@@ -830,6 +896,80 @@ struct V3RecoveryRegistrationServiceTests {
       lock.withLock { writeCount += 1 }
       throw Core.FixtureError.cancelled
     }
+  }
+
+  @Test(arguments: [false, true])
+  func changedRegistrationOwnershipPreventsInitialExport(removed: Bool) throws {
+    let f = try Fixture()
+    defer { f.remove() }
+    let changed: Data? =
+      try removed
+      ? nil
+      : V3ImmutableTransactionRecoveryAnchor(
+        operationID: .init(), vaultID: Core.vaultID,
+        intentDigest: Data(repeating: 0xAC, count: 32), phase: .recoverable
+      ).canonicalBytes
+    #expect(throws: V3RecoveryRegistrationJournalError.ownershipChanged) {
+      try f.prepare(
+        observer: Observer { phase in
+          if phase == .exportPrepared {
+            let expectedAnchor = try #require(f.ownership.value)
+            try f.ownership.replaceRecoveryAnchor(
+              changed, expectedAnchor: expectedAnchor, vaultID: Core.vaultID)
+          }
+        })
+    }
+    #expect(f.ownership.value == changed)
+    #expect(f.checkpoints.value == f.core.checkpoint.canonicalBytes)
+    #expect(f.card.anchor == nil && f.provider.requests == 0)
+  }
+
+  @Test(
+    arguments: [
+      V3RecoveryRegistrationServicePhase.artifactsStaged, .entryPublished(index: 0),
+      .entriesVerified, .manifestVerified, .checkpointAdvanced, .localSessionUpdated,
+    ], [false, true])
+  func changedRegistrationOwnershipStopsRemainingEffectsAndPreservesCommit(
+    phase: V3RecoveryRegistrationServicePhase, removed: Bool
+  ) throws {
+    guard #available(macOS 26.0, *) else { return }
+    let f = try Fixture()
+    defer { f.remove() }
+    f.card.anchor = try f.prepare().anchor
+    let preparation = try #require(try f.pending())
+    let original = try #require(f.ownership.value)
+    let changed: Data? =
+      try removed
+      ? nil
+      : V3ImmutableTransactionRecoveryAnchor(
+        operationID: .init(), vaultID: Core.vaultID,
+        intentDigest: Data(repeating: 0xAD, count: 32), phase: .recoverable
+      ).canonicalBytes
+    let installed = Keys()
+    #expect(throws: V3RecoveryRegistrationJournalError.ownershipChanged) {
+      try f.finish(
+        observer: Observer { reached in
+          if reached == phase {
+            try f.ownership.replaceRecoveryAnchor(
+              changed, expectedAnchor: original, vaultID: Core.vaultID)
+          }
+        }
+      ) { _, key in installed.append(key) }
+    }
+    let committed = phase == .checkpointAdvanced || phase == .localSessionUpdated
+    #expect((f.checkpoints.value != f.core.checkpoint.canonicalBytes) == committed)
+    #expect(installed.count == (phase == .localSessionUpdated ? 1 : 0))
+    #expect(f.ownership.value == changed && f.provider.requests == 1)
+    #expect(f.transactions.value == nil && f.adoption.value == nil)
+    #expect(
+      try Data(contentsOf: f.manifestURL(f.core.parent.digest)) == f.core.parent.canonicalBytes)
+    #expect(
+      FileManager.default.fileExists(atPath: f.bundleURL(preparation.intent.operationID).path))
+    // Restore only the exact original software fixture record, then explicitly
+    // resume. A committed prefix is reconciled rather than rolled back.
+    try f.ownership.replaceRecoveryAnchor(original, expectedAnchor: changed, vaultID: Core.vaultID)
+    #expect(try f.finish().alreadyActivated == committed)
+    #expect(f.provider.requests == (committed ? 1 : 2))
   }
 
   private struct Observer: V3RecoveryRegistrationServicePhaseObserving {
@@ -1147,8 +1287,8 @@ struct V3RecoveryRegistrationServiceTests {
     let reader: PIVRecoveryTokenReader
     let provider: Provider
     let agreement: PIVRecoveryAgreement
-    init() throws {
-      core = try Core.Fixture()
+    init(backup: Bool = false) throws {
+      core = try Core.Fixture(backup: backup)
       root = FileManager.default.temporaryDirectory.appendingPathComponent(
         UUID().uuidString, isDirectory: true)
       try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

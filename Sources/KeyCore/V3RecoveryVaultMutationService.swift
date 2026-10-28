@@ -23,6 +23,23 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
   private let cache: any V3CheckpointManifestCaching
   private let limits: V3ManifestRepositoryLimits
   private let makeEntryID: EntryIDGenerator
+  private var authenticationTicket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket?
+
+  /// The runtime supplies its existing grant; do not recapture consent after
+  /// preparation or while an interrupted publication is being reconciled.
+  func continuingSession(
+    _ ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  ) -> Self {
+    var continued = self
+    continued.authenticationTicket = ticket
+    return continued
+  }
+
+  private func currentTicket() throws -> V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket {
+    let ticket = authenticationTicket ?? session.beginAuthentication()
+    try session.requireCurrent(ticket)
+    return ticket
+  }
 
   init(
     vaultID: String, session: V3DeviceWrappedVaultKeySessionStore,
@@ -49,8 +66,9 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
 
   func authorizeMutation() throws {
     try translated {
+      let ticket = try currentTicket()
       try requireNoAuthorityWork()
-      _ = try loadCurrent()
+      _ = try loadCurrent(ticket: ticket)
     }
   }
 
@@ -72,12 +90,14 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
     operationID: VaultTransactionOperationID, vaultKey: Data, expectedAnchor: Data
   ) throws {
     try translated {
+      let ticket = try currentTicket()
       try requireNoAuthorityWork()
       guard try ownership.loadRecoveryAnchor(vaultID: vaultID) == expectedAnchor else {
         throw VaultUXServiceError.expectedHeadsChanged
       }
-      try resumePinned(operationID, key: vaultKey)
+      try resumePinned(operationID, key: vaultKey, ticket: ticket)
       try requireNoPending()
+      try session.requireCurrent(ticket)
     }
   }
 
@@ -135,7 +155,8 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
   /// boundary as mutations because pinned recovery/catch-up may advance trust.
   func conflicts(operationID: VaultTransactionOperationID) throws -> [VaultConflictDetail] {
     try translated {
-      let base = try prepareObserved(operationID)
+      let ticket = try currentTicket()
+      let base = try prepareObserved(operationID, ticket: ticket)
       return try V3ConflictObservationBuilder().build(base.observed)?.conflicts ?? []
     }
   }
@@ -144,14 +165,15 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
     throws
   {
     try translated {
-      let base = try prepareObserved(operationID)
+      let ticket = try currentTicket()
+      let base = try prepareObserved(operationID, ticket: ticket)
       guard case .contentConflict = try V3RecoveryManifestReconciler().reconcile(base.observed)
       else {
         throw VaultUXServiceError.expectedHeadsChanged
       }
       let candidate = try V3RecoveryMergeMutationBuilder(limits: limits).buildResolution(
         resolutions, from: base.observed, vaultKey: base.key)
-      _ = try mergePublisher(operationID).publish(candidate, vaultKey: base.key)
+      _ = try mergePublisher(operationID, ticket: ticket).publish(candidate, vaultKey: base.key)
     }
   }
 
@@ -159,14 +181,16 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
     _ operationID: VaultTransactionOperationID, request: (Base) throws -> V3EntryMutationRequest
   ) throws {
     try translated {
-      var base = try prepareObserved(operationID)
+      let ticket = try currentTicket()
+      var base = try prepareObserved(operationID, ticket: ticket)
       switch try V3RecoveryManifestReconciler().reconcile(base.observed) {
       case .noMergeRequired: break
       case .automaticMerge:
         let candidate = try V3RecoveryMergeMutationBuilder(limits: limits).buildAutomatic(
           from: base.observed, vaultKey: base.key)
-        _ = try mergePublisher(VaultTransactionOperationID()).publish(candidate, vaultKey: base.key)
-        base = try prepareObserved(operationID)
+        _ = try mergePublisher(VaultTransactionOperationID(), ticket: ticket).publish(
+          candidate, vaultKey: base.key)
+        base = try prepareObserved(operationID, ticket: ticket)
       case .contentConflict: throw VaultUXServiceError.contentConflict
       case .historyConflict: throw VaultUXServiceError.recoveryRequired
       }
@@ -176,21 +200,25 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
       let candidate = try V3RecoveryContentMutationBuilder(limits: limits).build(
         request(base), checkpoint: base.current.checkpoint, parent: base.current.envelope,
         currentEntries: base.observed.entryObjects, vaultKey: base.key)
-      _ = try ordinaryPublisher(operationID).publish(candidate, vaultKey: base.key)
+      _ = try ordinaryPublisher(operationID, ticket: ticket).publish(candidate, vaultKey: base.key)
     }
   }
 
-  private func prepareObserved(_ operationID: VaultTransactionOperationID) throws -> Base {
+  private func prepareObserved(
+    _ operationID: VaultTransactionOperationID,
+    ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  ) throws -> Base {
+    try session.requireCurrent(ticket)
     try requireNoAuthorityWork()
-    var (current, key) = try loadCurrent()
-    try resumePinned(operationID, key: key)
+    var (current, key) = try loadCurrent(ticket: ticket)
+    try resumePinned(operationID, key: key, ticket: ticket)
     try requireNoPending()
-    (current, key) = try loadCurrent()
+    (current, key) = try loadCurrent(ticket: ticket)
     let caught = try V3RecoverySameEpochCatchUpService(
       mutationOwner: DirectVaultTransactionMutationOwner(operationID: operationID), source: store,
       checkpointStore: checkpoints, recoveryAnchorStore: ownership,
       registrationAnchorStore: registration, adoptionAnchorStore: adoption, cache: cache,
-      limits: limits
+      limits: limits, validateScope: { try session.requireCurrent(ticket) }
     ).catchUp(from: current, vaultKey: key)
     switch caught {
     case .current(let commit, _), .contentConflict(let commit, _, _): current = commit
@@ -206,10 +234,14 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
     }
     try requireNoPending()
     try requireCheckpoint(current.checkpoint)
+    try session.requireCurrent(ticket)
     return Base(current: current, key: key, observed: observed)
   }
 
-  private func loadCurrent() throws -> (V3RecoveryContentCommit, Data) {
+  private func loadCurrent(ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket)
+    throws -> (V3RecoveryContentCommit, Data)
+  {
+    try session.requireCurrent(ticket)
     guard isValidV3UUID(vaultID), let data = try checkpoints.loadCheckpoint(vaultID: vaultID),
       data.count <= 1_024, let checkpoint = try? V3ManifestCheckpoint(canonicalBytes: data),
       checkpoint.vaultID == vaultID
@@ -227,12 +259,17 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
     try V3RecoveryContentMutationValidator(limits: limits).validateParent(
       envelope, checkpoint: checkpoint, vaultKey: key)
     try requireCheckpoint(checkpoint)
+    try session.requireCurrent(ticket)
     return (V3RecoveryContentCommit(checkpoint: checkpoint, envelope: envelope), key)
   }
 
   /// Select only the exact intent pinned by local ownership. There is no scan,
   /// guessed validator, provider-intent authority or retry with another key.
-  private func resumePinned(_ operationID: VaultTransactionOperationID, key: Data) throws {
+  private func resumePinned(
+    _ operationID: VaultTransactionOperationID, key: Data,
+    ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  ) throws {
+    try session.requireCurrent(ticket)
     guard let data = try ownership.loadRecoveryAnchor(vaultID: vaultID) else { return }
     guard data.count <= 1_024,
       let anchor = try? V3ImmutableTransactionRecoveryAnchor(canonicalBytes: data),
@@ -260,30 +297,37 @@ struct V3RecoveryVaultMutationService: VaultMutationServicing, Sendable {
       throw VaultUXServiceError.expectedHeadsChanged
     }
     if merge {
-      _ = try mergePublisher(operationID).recoverInterruptedTransaction(
+      _ = try mergePublisher(operationID, ticket: ticket).recoverInterruptedTransaction(
         vaultID: vaultID, vaultKey: key, expectedAnchor: data)
     } else {
-      _ = try ordinaryPublisher(operationID).recoverInterruptedTransaction(
+      _ = try ordinaryPublisher(operationID, ticket: ticket).recoverInterruptedTransaction(
         vaultID: vaultID, vaultKey: key, expectedAnchor: data)
     }
   }
 
-  private func ordinaryPublisher(_ id: VaultTransactionOperationID)
+  private func ordinaryPublisher(
+    _ id: VaultTransactionOperationID,
+    ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  )
     -> V3RecoveryContentMutationPublisher
   {
     .init(
       mutationOwner: DirectVaultTransactionMutationOwner(operationID: id), objectStore: store,
       checkpointStore: checkpoints, recoveryAnchorStore: ownership,
       registrationAnchorStore: registration,
-      adoptionAnchorStore: adoption, cache: cache, limits: limits)
+      adoptionAnchorStore: adoption, cache: cache, limits: limits,
+      validateScope: { try session.requireCurrent(ticket) })
   }
-  private func mergePublisher(_ id: VaultTransactionOperationID) -> V3RecoveryMergeMutationPublisher
-  {
+  private func mergePublisher(
+    _ id: VaultTransactionOperationID,
+    ticket: V3DeviceWrappedVaultKeySessionStore.AuthenticationTicket
+  ) -> V3RecoveryMergeMutationPublisher {
     .init(
       mutationOwner: DirectVaultTransactionMutationOwner(operationID: id), objectStore: store,
       checkpointStore: checkpoints, recoveryAnchorStore: ownership,
       registrationAnchorStore: registration,
-      adoptionAnchorStore: adoption, cache: cache, limits: limits)
+      adoptionAnchorStore: adoption, cache: cache, limits: limits,
+      validateScope: { try session.requireCurrent(ticket) })
   }
   private func requireCheckpoint(_ expected: V3ManifestCheckpoint) throws {
     guard try checkpoints.loadCheckpoint(vaultID: vaultID) == expected.canonicalBytes else {

@@ -179,6 +179,10 @@ Require exact canonical fields/encodings, supported algorithms/versions, valid
 points/lengths and canonical identifiers. Reject unknown/duplicate fields and
 noncanonical encodings. Enforce budgets before decoding, native activation,
 candidate signing/reservation and publication, with projected new objects included.
+Registration and format adoption check unsigned material against cumulative limits
+before signing, reserving the builders' existing 2 KiB envelope/proof allowance in
+the manifest-byte budget. Exact signed-byte and retained-anchor checks still run
+before reservation/publication; unsigned admission conveys no trust.
 
 | Experimental bound | Limit / owner |
 |---|---|

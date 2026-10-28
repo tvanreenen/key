@@ -29,7 +29,8 @@ struct V3RecoveryRegistrationBuilder: Sendable {
     reason: String, operationID: VaultTransactionOperationID = VaultTransactionOperationID(),
     registrationID: String = UUID().uuidString.lowercased(),
     authorityTransitionID: String = UUID().uuidString.lowercased(),
-    generationID: String = UUID().uuidString.lowercased()
+    generationID: String = UUID().uuidString.lowercased(),
+    validateProjection: (V3RecoveryManifestBody, [V3EncryptedEntry]) throws -> Void = { _, _ in }
   ) throws -> V3RecoveryRegistrationPreparation {
     guard occupancy == .absent else { throw V3RecoveryRegistrationError.occupiedAnchor }
     try credential.requireRecoveryPolicy()
@@ -74,6 +75,7 @@ struct V3RecoveryRegistrationBuilder: Sendable {
     let staged = material.stagedEntries
     // Bounds and round-trip parsing must pass before the Mac signer is invoked.
     try validator.requireBodyBounds(body)
+    try validateProjection(body, staged)
     let candidate = try V3RecoveryEpochBoundary().authorize(
       candidate: body, parent: parent, currentVaultKey: currentVaultKey,
       nextVaultKey: nextVaultKey, signer: owner, reason: reason)

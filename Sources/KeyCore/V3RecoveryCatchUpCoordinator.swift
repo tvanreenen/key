@@ -130,11 +130,6 @@ struct V3RecoveryCatchUpCoordinator: Sendable {
           floor.envelope, vaultKey: originalKey)
         let original = try observe(from: floor, key: originalKey)
         let direct = DirectVaultTransactionMutationOwner(operationID: context.operationID)
-        let content = V3RecoverySameEpochCatchUpService(
-          mutationOwner: direct, source: source, checkpointStore: checkpoints,
-          recoveryAnchorStore: ownership[0], registrationAnchorStore: ownership[1],
-          adoptionAnchorStore: ownership[2], cache: cache, limits: limits,
-          maximumParentEdges: maximumParentEdges)
         let epochs = V3RecoveryKeyTransitionCatchUpService(
           mutationOwner: direct, identity: identity, session: session, source: source,
           checkpointStore: checkpoints, recoveryAnchorStore: ownership[0],
@@ -175,6 +170,13 @@ struct V3RecoveryCatchUpCoordinator: Sendable {
             ticket = advanced.ticket
             epochCount += 1
           } else {
+            let contentTicket = ticket
+            let content = V3RecoverySameEpochCatchUpService(
+              mutationOwner: direct, source: source, checkpointStore: checkpoints,
+              recoveryAnchorStore: ownership[0], registrationAnchorStore: ownership[1],
+              adoptionAnchorStore: ownership[2], cache: cache, limits: limits,
+              maximumParentEdges: maximumParentEdges,
+              validateScope: { try session.requireCurrent(contentTicket) })
             let key = try session.load(
               vaultID: current.checkpoint.vaultID, keyID: current.envelope.body.fields.keyID)
             guard

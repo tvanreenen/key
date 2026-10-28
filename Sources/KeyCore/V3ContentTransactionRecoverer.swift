@@ -284,7 +284,9 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
                 stagedEntries: entries.stagedData,
                 stagedManifest: manifest.stagedData
             )
+            try validator.requireAvailable(vaultID: intent.vaultID)
             try? cache.store(manifest.data, for: candidateCheckpoint)
+            try validator.requireAvailable(vaultID: intent.vaultID)
             return .alreadyCompleted(operationID: intent.operationID)
         }
 
@@ -306,6 +308,7 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
             try validator.recheck(
                 input, validated: validated, vaultKey: vaultKey, alreadyCommitted: false)
             try requireState(checkpoint: intent.expectedCheckpoint, anchorData: anchorData)
+            try validator.requireAvailable(vaultID: intent.vaultID)
             try objectStore.publishStagedEntry(
                 entry.canonicalBytes,
                 entryID: key.entryID,
@@ -324,6 +327,7 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
                 input, validated: validated, vaultKey: vaultKey, alreadyCommitted: false)
             try requireState(checkpoint: intent.expectedCheckpoint, anchorData: anchorData)
             try validator.validatePublishedEntries(validated)
+            try validator.requireAvailable(vaultID: intent.vaultID)
             try objectStore.publishStagedManifest(
                 manifest.data,
                 digest: intent.candidateManifestDigest,
@@ -339,6 +343,7 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
         try validator.recheck(
             input, validated: validated, vaultKey: vaultKey, alreadyCommitted: false)
         try requireState(checkpoint: intent.expectedCheckpoint, anchorData: anchorData)
+        try validator.requireAvailable(vaultID: intent.vaultID)
         try checkpointStore.replaceCheckpoint(
             candidateCheckpoint.canonicalBytes,
             expectedCheckpoint: intent.expectedCheckpoint.canonicalBytes,
@@ -354,7 +359,9 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
             stagedEntries: entries.stagedData,
             stagedManifest: manifest.stagedData
         )
+        try validator.requireAvailable(vaultID: intent.vaultID)
         try? cache.store(manifest.data, for: candidateCheckpoint)
+        try validator.requireAvailable(vaultID: intent.vaultID)
         return .completed(operationID: intent.operationID)
     }
 
@@ -560,6 +567,7 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
             guard let data = stagedEntries[key] else {
                 preconditionFailure("Available staging must retain its bytes.")
             }
+            try validator.requireAvailable(vaultID: intent.vaultID)
             try objectStore.removeStagedEntry(
                 data,
                 entryID: key.entryID,
@@ -568,6 +576,7 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
             )
         }
         if let stagedManifest {
+            try validator.requireAvailable(vaultID: intent.vaultID)
             try objectStore.removeStagedManifest(
                 stagedManifest,
                 digest: intent.candidateManifestDigest,
@@ -580,10 +589,12 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
             expectedAnchor: anchorData,
             vaultID: intent.vaultID
         )
+        try validator.requireAvailable(vaultID: intent.vaultID)
         try? objectStore.removeRecoveryIntent(
             intentData,
             operationID: intent.operationID
         )
+        try validator.requireAvailable(vaultID: intent.vaultID)
         try? objectStore.removeEmptyTransactionDirectories(
             operationID: intent.operationID,
             entryIDs: intent.stagedEntries.map(\.entryID)
@@ -591,6 +602,7 @@ struct V3ContentTransactionRecoverer<Validator: V3ContentTransactionValidating>:
     }
 
     private func requireState(checkpoint: V3ManifestCheckpoint, anchorData: Data) throws {
+        try validator.requireAvailable(vaultID: checkpoint.vaultID)
         guard
             try checkpointStore.loadCheckpoint(vaultID: checkpoint.vaultID)
                 == checkpoint.canonicalBytes,

@@ -229,6 +229,7 @@ struct V3RecoverySameEpochCatchUpService: Sendable {
   private let ownership: [any V3ImmutableTransactionRecoveryAnchorStoring]
   private let cache: any V3CheckpointManifestCaching
   private let observer: V3RecoverySameEpochRepositoryObserver
+  private let validateScope: @Sendable () throws -> Void
 
   init(
     mutationOwner: any VaultTransactionMutationOwning,
@@ -239,9 +240,11 @@ struct V3RecoverySameEpochCatchUpService: Sendable {
     adoptionAnchorStore: any V3ImmutableTransactionRecoveryAnchorStoring,
     cache: any V3CheckpointManifestCaching,
     limits: V3ManifestRepositoryLimits = .standard,
-    maximumParentEdges: Int = 16_384
+    maximumParentEdges: Int = 16_384,
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) {
     self.mutationOwner = mutationOwner
+    self.validateScope = validateScope
     checkpoints = checkpointStore
     ownership = [recoveryAnchorStore, registrationAnchorStore, adoptionAnchorStore]
     self.cache = cache
@@ -324,6 +327,7 @@ struct V3RecoverySameEpochCatchUpService: Sendable {
   ) throws -> V3RecoveryContentCommit {
     let next = try V3ManifestCheckpoint(
       vaultID: current.checkpoint.vaultID, envelopeDigest: envelope.digest)
+    try requireState(current.checkpoint)
     do {
       try checkpoints.replaceCheckpoint(
         next.canonicalBytes, expectedCheckpoint: current.checkpoint.canonicalBytes,
@@ -331,13 +335,16 @@ struct V3RecoverySameEpochCatchUpService: Sendable {
     } catch V3ManifestCheckpointStoreError.conflict {
       throw V3RecoveryContentCatchUpError.checkpointChanged
     }
+    try validateScope()
     // A cache failure cannot revoke a committed step. Only a fresh observation
     // can establish that the resulting checkpoint is a visible current head.
     try? cache.store(envelope.canonicalBytes, for: next)
+    try validateScope()
     return V3RecoveryContentCommit(checkpoint: next, envelope: envelope)
   }
 
   private func requireState(_ expected: V3ManifestCheckpoint) throws {
+    try validateScope()
     for store in ownership where try store.loadRecoveryAnchor(vaultID: expected.vaultID) != nil {
       throw V3RecoveryContentCatchUpError.localMutationPending
     }
@@ -345,5 +352,6 @@ struct V3RecoverySameEpochCatchUpService: Sendable {
     else {
       throw V3RecoveryContentCatchUpError.checkpointChanged
     }
+    try validateScope()
   }
 }

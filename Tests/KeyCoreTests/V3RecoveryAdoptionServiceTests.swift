@@ -347,15 +347,34 @@ struct V3RecoveryAdoptionServiceTests {
     #expect(f.core.owner.unwraps == 1 && f.core.owner.signatures == 1)
   }
 
-  @Test func projectedBudgetRejectsMigrationBeforeOwnershipOrUnwrap() throws {
+  @Test(arguments: 0 ..< 4)
+  func projectedBudgetRejectsMigrationBeforeSigningOwnershipOrUnwrap(bound: Int) throws {
     let f = try Fixture()
     defer { f.remove() }
-    let limits = V3ManifestRepositoryLimits(
-      maximumManifestObjects: 10, maximumHistoryDepth: 10, maximumReferencedEntryObjects: 2)
+    let limits: V3ManifestRepositoryLimits
+    switch bound {
+    case 0:
+      limits = .init(
+        maximumManifestObjects: 4_096, maximumHistoryDepth: 1_024, maximumReferencedEntryObjects: 2)
+    case 1: limits = .init(maximumManifestObjects: 1, maximumHistoryDepth: 1_024)
+    case 2:
+      let bytes = f.core.entries.values.reduce(0) { $0 + $1.canonicalBytes.count }
+      limits = .init(
+        maximumManifestObjects: 4_096, maximumHistoryDepth: 1_024,
+        maximumEntryBytes: bytes, maximumTotalEntryBytes: bytes)
+    default:
+      let bytes = try f.core.build().envelope.body.canonicalBytes.count + 2_048
+      limits = .init(
+        maximumManifestObjects: 4_096, maximumHistoryDepth: 1_024,
+        maximumManifestBytes: bytes, maximumTotalManifestBytes: bytes)
+    }
+    let signatures = f.core.owner.signatures
     #expect(throws: (any Error).self) {
       try f.service(limits: limits).adopt(currentVaultKey: Core.oldKey)
     }
-    #expect(f.ownership.value == nil && f.core.owner.unwraps == 0)
+    #expect(
+      f.ownership.value == nil && f.core.owner.unwraps == 0 && f.core.owner.signatures == signatures
+    )
     #expect(try f.manifestCount() == 1)
   }
 

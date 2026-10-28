@@ -18,7 +18,8 @@ struct V3RecoveryMergeMutationPublisher: Sendable {
     cache: any V3CheckpointManifestCaching,
     limits: V3ManifestRepositoryLimits = .standard,
     phaseObserver: any V3ImmutableTransactionPhaseObserving =
-      V3NoopContentTransactionPhaseObserver()
+      V3NoopContentTransactionPhaseObserver(),
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) {
     self.limits = limits
     publisher = V3ContentTransactionPublisher(
@@ -26,7 +27,7 @@ struct V3RecoveryMergeMutationPublisher: Sendable {
       recoveryAnchorStore: recoveryAnchorStore, cache: cache,
       validator: V3RecoveryMergeTransactionValidator(
         objectStore: objectStore, registrationAnchorStore: registrationAnchorStore,
-        adoptionAnchorStore: adoptionAnchorStore, limits: limits),
+        adoptionAnchorStore: adoptionAnchorStore, limits: limits, validateScope: validateScope),
       limits: limits, phaseObserver: phaseObserver)
   }
 
@@ -81,9 +82,11 @@ struct V3RecoveryMergeTransactionValidator: V3ContentTransactionValidating {
   let registrationAnchorStore: any V3ImmutableTransactionRecoveryAnchorStoring
   let adoptionAnchorStore: any V3ImmutableTransactionRecoveryAnchorStoring
   let limits: V3ManifestRepositoryLimits
+  var validateScope: @Sendable () throws -> Void = {}
   private var objects: V3ExactTransitionRepository { .init(source: objectStore, limits: limits) }
 
   func requireAvailable(vaultID: String) throws {
+    try validateScope()
     for store in [registrationAnchorStore, adoptionAnchorStore] {
       guard try store.loadRecoveryAnchor(vaultID: vaultID) == nil else {
         throw V3RecoveryContentPublicationError.otherMutationPending

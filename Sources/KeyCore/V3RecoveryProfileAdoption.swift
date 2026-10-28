@@ -37,7 +37,8 @@ struct V3RecoveryProfileAdoptionBuilder: Sendable {
     currentEntries: [V3EntryObjectKey: V3EncryptedEntry], currentVaultKey: Data,
     nextVaultKey: Data, owner: any V3EnrollmentMessageSigning, reason: String,
     authorityTransitionID: String = UUID().uuidString.lowercased(),
-    generationID: String = UUID().uuidString.lowercased()
+    generationID: String = UUID().uuidString.lowercased(),
+    validateProjection: (V3RecoveryManifestBody, [V3EncryptedEntry]) throws -> Void = { _, _ in }
   ) throws -> V3RecoveryProfileAdoptionCandidate {
     try validator.validateParent(parent, currentVaultKey: currentVaultKey)
     let old = parent.envelope.body.fields
@@ -88,6 +89,7 @@ struct V3RecoveryProfileAdoptionBuilder: Sendable {
       body.canonicalBytes.count <= limits.maximumManifestBytes - 2_048,
       try V3RecoveryManifestCodec().parseCanonicalBody(body.canonicalBytes) == .recovery(body)
     else { throw V3RecoveryProfileAdoptionError.resourceLimit }
+    try validateProjection(body, staged)
     let boundary = V3RecoveryEpochBoundary()
     let unsigned = try boundary.encode(
       body: body, parents: [parent.checkpoint.envelopeDigest], vaultKey: nextVaultKey,
