@@ -125,6 +125,7 @@ jobs:
         env:
           VARIANT: ${{ matrix.variant }}
         run: |
+          mkdir -p .build/verification
           set -o pipefail
           scripts/verify-product.sh "$VARIANT" release build \
             2>&1 | tee .build/verification/release-build.log
