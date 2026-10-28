@@ -204,7 +204,7 @@ jobs:
           persist-credentials: false
       - name: Install checksum-pinned Gitleaks
         run: python3 scripts/ci-tool.py install gitleaks
-      - name: Verify detection of a secret removed in a later commit and report redaction
+      - name: Verify the prose exception and redacted detection of removed credentials
         run: python3 Tests/CIScripts/secret_scanner_probe.py
       - name: Scan introduced commits with secret values fully redacted
         env:

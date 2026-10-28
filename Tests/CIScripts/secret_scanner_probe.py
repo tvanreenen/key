@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prove the configured scanner catches a removed secret without disclosing it."""
+"""Verify a narrow prose exception and redacted detection of removed secrets."""
 
 import hashlib
 import json
@@ -25,9 +25,14 @@ def main():
         marker = hashlib.sha256(b"key scanner synthetic canary").hexdigest()
         sample = work / "Sample.swift"
         sample.write_text(f'let apiKey = "{marker}"\n')
-        git("add", "Sample.swift")
+        document = work / "docs/piv-recovery-plan.md"
+        document.parent.mkdir()
+        prose = "incorrect current keys,\nmissing/corrupt local records and entry bytes\n"
+        document.write_text(prose + f'api_key = "{marker}"\n')
+        git("add", "Sample.swift", "docs/piv-recovery-plan.md")
         git("-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Add synthetic canary")
         sample.unlink()
+        document.write_text(prose)
         git("add", "-u")
         git("-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Remove synthetic canary")
         report = work / "report.json"
@@ -39,11 +44,13 @@ def main():
         if result.returncode != 1 or not report.exists():
             raise RuntimeError("Scanner did not reject the synthetic commit history")
         findings = json.loads(report.read_text())
-        if not any(finding["File"] == "Sample.swift" for finding in findings):
-            raise RuntimeError("Scanner failed to detect the removed Swift canary")
+        if len(findings) != 2 or {finding["File"] for finding in findings} != {
+            "Sample.swift", "docs/piv-recovery-plan.md",
+        }:
+            raise RuntimeError("Scanner must allow reviewed prose and detect both removed canaries")
         if marker in report.read_text() or marker in result.stdout or marker in result.stderr:
             raise RuntimeError("Scanner exposed the synthetic secret despite redaction")
-        print("Verified removed-secret detection and redacted report output.")
+        print("Verified narrow prose exception, removed-secret detection, and redacted output.")
 
 
 if __name__ == "__main__":
