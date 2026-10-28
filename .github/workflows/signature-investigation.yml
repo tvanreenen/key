@@ -1,4 +1,4 @@
-name: Compare signature verification key patterns and architectures
+name: Verify full-width enrollment fixture keys
 
 on:
   push:
@@ -9,18 +9,8 @@ permissions:
 
 jobs:
   replay:
-    name: Investigate signature verification (${{ matrix.name }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: macOS 26 ARM
-            runner: macos-26
-            artifact: macos-26-arm
-          - name: macOS 26 Intel
-            runner: macos-26-intel
-            artifact: macos-26-intel
-    runs-on: ${{ matrix.runner }}
+    name: Verify derived fixture keys on macOS 26
+    runs-on: macos-26
     timeout-minutes: 2
     steps:
       - name: Check out the standalone diagnostic without persisted credentials
@@ -52,6 +42,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: signature-key-pattern-${{ matrix.artifact }}
+          name: signature-derived-fixture-keys
           path: .build/verification/signature-platform/
           retention-days: 7

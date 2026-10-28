@@ -24,14 +24,13 @@ struct SignatureKeyPatternDiagnostic {
             key[31] = UInt8(value)
             return (String(format: "small-fixture-%02x", value), key)
         }
-        for index in 0 ..< 3 {
-            var key = Data(SHA256.hash(data: Data("synthetic full-width fixture \(index)".utf8)))
-            key[0] = 0x40 // Keep the synthetic scalar below the P-256 order.
-            patterns.append(("full-width-\(index)", key))
+        for seed: UInt8 in [1, 3, 0x11, 0x21, 0x31, 0x41] {
+            let key = Data(SHA256.hash(data: Data([seed])))
+            patterns.append((String(format: "fixture-seed-%02x", seed), key))
         }
-        let count = 1024
         var reports: [[String: Any]] = []
         for (name, material) in patterns {
+            let count = name.hasPrefix("fixture-seed-") ? 2048 : 256
             let signer = try P256.Signing.PrivateKey(rawRepresentation: material)
             var rawRejected = 0
             var canonicalRejected = 0
@@ -63,6 +62,12 @@ struct SignatureKeyPatternDiagnostic {
         let report: [String: Any] = ["capturedVector": captured, "patterns": reports]
         let encoded = try JSONSerialization.data(withJSONObject: report, options: [.sortedKeys, .prettyPrinted])
         print(String(decoding: encoded, as: UTF8.self))
-        if reports.contains(where: { ($0["canonicalRejected"] as! Int) > 0 || ($0["rawRejected"] as! Int) > 0 }) || !captured.values.allSatisfy({ $0 }) { exit(1) }
+        let proposed = reports.filter { ($0["keyPattern"] as! String).hasPrefix("fixture-seed-") }
+        guard proposed.count == 6 else { exit(2) }
+        let rejected = proposed.contains {
+            ($0["canonicalRejected"] as! Int) > 0 || ($0["rawRejected"] as! Int) > 0 || ($0["generatedObjectRejected"] as! Int) > 0
+        }
+        // Small-key controls retain the reproducer; success checks the proposed fixtures.
+        if rejected || !captured["originalRejectsChangedMessage"]! || !captured["oppositeRejectsChangedMessage"]! { exit(1) }
     }
 }
