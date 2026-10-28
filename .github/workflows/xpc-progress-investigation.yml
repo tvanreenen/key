@@ -1,0 +1,45 @@
+name: Verify XPC progress diagnostic
+on:
+  push:
+    branches: [codex/investigate-xpc-progress]
+permissions:
+  contents: read
+jobs:
+  xpc-progress:
+    name: Verify XPC progress on macOS 26
+    runs-on: macos-26
+    timeout-minutes: 7
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+    steps:
+      - name: Check out the test-only correction without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Confirm the same OS and compiler as the failed job
+        run: sw_vers && xcodebuild -version && swift --version
+      - name: Compile package and tests with warnings as errors
+        timeout-minutes: 5
+        run: |
+          mkdir -p .build/verification
+          set -o pipefail
+          swift build --build-tests --force-resolved-versions -Xswiftc -warnings-as-errors \
+            2>&1 | tee .build/verification/xpc-build.log
+      - name: Repeat real XPC callbacks and progress boundary tests 25 times
+        timeout-minutes: 1
+        run: |
+          set -o pipefail
+          for attempt in {1..25}; do
+            echo "XPC/progress repetition ${attempt}/25"
+            swift test --skip-build --no-parallel --force-resolved-versions \
+              --filter 'RecoveryProgress(XPC)?Tests' \
+              --xunit-output ".build/verification/xpc-${attempt}.xml"
+          done 2>&1 | tee .build/verification/xpc-tests.log
+      - name: Preserve focused test reports and diagnostics
+        if: always()
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: xpc-progress-results
+          path: .build/verification/xpc-*
+          retention-days: 3
