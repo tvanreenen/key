@@ -19,13 +19,24 @@ concurrency:
 # Standalone PRs verify normally; registered stacks verify their complete top.
 # Main, scheduled, and manual verification keep their existing scopes.
 jobs:
-  swift-tests:
-    name: Verify Swift tests
+  swift-test-suites:
+    name: Verify Swift tests (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: core-content
+            name: Core and content
+          - group: recovery-lifecycle
+            name: Recovery lifecycle
+          - group: recovery-coordination
+            name: Recovery coordination
     if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
     runs-on: macos-26
     timeout-minutes: 20
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+      SWIFT_TEST_GROUP: ${{ matrix.group }}
     steps:
       - name: Check out source without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -41,13 +52,23 @@ jobs:
           set -o pipefail
           swift build --build-tests --force-resolved-versions -Xswiftc -warnings-as-errors \
             2>&1 | tee .build/verification/swift-build.log
-      - name: Run all Swift test suites
+      - name: Discover tests and require complete group assignments
+        id: test-group
+        run: |
+          swift test list --skip-build > .build/verification/swift-test-list.txt
+          python3 scripts/swift-test-groups.py .build/verification/swift-test-list.txt \
+            --group "$SWIFT_TEST_GROUP" --report .build/verification/swift-test-groups.json \
+            >> "$GITHUB_OUTPUT"
+      - name: Run ${{ matrix.name }} test suites
         id: tests
+        env:
+          SWIFT_TEST_FILTER: ${{ steps.test-group.outputs.filter }}
         run: |
           mkdir -p .build/verification
           rm -f .build/verification/swift-tests*.xml
           set -o pipefail
           swift test --skip-build --no-parallel --force-resolved-versions \
+            --filter "$SWIFT_TEST_FILTER" \
             --xunit-output .build/verification/swift-tests.xml \
             2>&1 | tee .build/verification/swift-tests.log
       - name: Summarize executed tests and expected qualification skips
@@ -57,9 +78,21 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: swift-test-results
+          name: swift-test-results-${{ matrix.group }}
           path: .build/verification/swift-*
           retention-days: 3
+
+  swift-tests:
+    name: Verify Swift tests
+    needs: swift-test-suites
+    if: always() && github.event_name != 'schedule' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require every Swift test group to pass
+        env:
+          GROUP_RESULT: ${{ needs.swift-test-suites.result }}
+        run: test "$GROUP_RESULT" = success
 
   products:
     name: Verify products (${{ matrix.name }})
