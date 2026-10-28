@@ -369,11 +369,12 @@ The Swift package and release-script checks run with:
 just test
 ```
 
-CI verifies ready pull requests and pushes to `main`. For a registered PR stack,
+CI verifies ready pull requests. For a registered PR stack,
 only its ready top PR runs the complete merge gate; intermediate PRs do not
 repeat the same work. Draft PRs skip verification until marked ready.
+Merging a PR does not start another full verification run on `main`.
 
-| PR/main check | Local command | Scope |
+| PR check | Local command | Scope |
 |---|---|---|
 | Verify Swift tests | `just verify-tests` | All Swift suites in four independently reported groups; compile with warnings as errors |
 | Verify products (Stable Release) | `just verify-product stable release` | Unsigned Release build, product identities, helper isolation, and bundled CLI behavior |
@@ -442,7 +443,7 @@ runtime tests continue to run on Apple Silicon.
 CodeQL runs weekly or on demand rather than blocking each PR. Its analysis
 job and GitHub's **Code scanning results / CodeQL** check are distinct. Review
 scheduled findings and scanner failures; a skipped PR analysis is not evidence
-of a clean scan. Keep merge requirements aligned with the PR/main checks in
+of a clean scan. Keep merge requirements aligned with the PR checks in
 the table above, including the aggregate `Verify Swift tests` check.
 
 On Mondays the workflow reruns online workflow audits, CodeQL, the additional
