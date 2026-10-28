@@ -19,6 +19,7 @@ struct V3RecoveryKeyRotationPublisher: Sendable {
   private let cache: any V3CheckpointManifestCaching
   private let limits: V3ManifestRepositoryLimits
   private let phaseObserver: any V3ImmutableTransactionPhaseObserving
+  private let validateScope: @Sendable () throws -> Void
 
   init(
     mutationOwner: any VaultTransactionMutationOwning, objectStore: any V3TransactionArtifactStore,
@@ -28,7 +29,8 @@ struct V3RecoveryKeyRotationPublisher: Sendable {
     adoptionAnchorStore: any V3ImmutableTransactionRecoveryAnchorStoring,
     cache: any V3CheckpointManifestCaching, limits: V3ManifestRepositoryLimits = .standard,
     phaseObserver: any V3ImmutableTransactionPhaseObserving =
-      V3NoopContentTransactionPhaseObserver()
+      V3NoopContentTransactionPhaseObserver(),
+    validateScope: @escaping @Sendable () throws -> Void = {}
   ) {
     self.mutationOwner = mutationOwner
     self.objectStore = objectStore
@@ -39,6 +41,7 @@ struct V3RecoveryKeyRotationPublisher: Sendable {
     self.cache = cache
     self.limits = limits
     self.phaseObserver = phaseObserver
+    self.validateScope = validateScope
   }
 
   func publish(
@@ -107,6 +110,7 @@ struct V3RecoveryKeyRotationPublisher: Sendable {
   }
 
   private func requireFreshStart(_ checkpoint: V3ManifestCheckpoint) throws {
+    try validateScope()
     if let bytes = try recoveryAnchorStore.loadRecoveryAnchor(vaultID: checkpoint.vaultID) {
       guard let anchor = try? V3ImmutableTransactionRecoveryAnchor(canonicalBytes: bytes),
         anchor.vaultID == checkpoint.vaultID
@@ -127,7 +131,7 @@ struct V3RecoveryKeyRotationPublisher: Sendable {
     .init(
       objectStore: objectStore, registrationAnchorStore: registrationAnchorStore,
       adoptionAnchorStore: adoptionAnchorStore, currentVaultKey: currentVaultKey,
-      expectedOwner: expectedOwner, limits: limits)
+      expectedOwner: expectedOwner, limits: limits, validateScope: validateScope)
   }
 
   private func publisher(
@@ -151,10 +155,12 @@ struct V3RecoveryKeyRotationTransactionValidator: V3ContentTransactionValidating
   let currentVaultKey: Data?
   let expectedOwner: V3EnrollmentDeviceIdentity
   let limits: V3ManifestRepositoryLimits
+  var validateScope: @Sendable () throws -> Void = {}
   private var objects: V3ExactTransitionRepository { .init(source: objectStore, limits: limits) }
   private var snapshots: V3EntrySnapshotValidator { .init(limits: limits) }
 
   func requireAvailable(vaultID: String) throws {
+    try validateScope()
     for store in [registrationAnchorStore, adoptionAnchorStore] {
       guard try store.loadRecoveryAnchor(vaultID: vaultID) == nil else {
         throw V3RecoveryContentPublicationError.otherMutationPending
@@ -243,6 +249,7 @@ struct V3RecoveryKeyRotationTransactionValidator: V3ContentTransactionValidating
   func validateStagedObjects(
     _ validated: V3RecoveryValidatedContentTransaction, operationID: VaultTransactionOperationID
   ) throws {
+    try validateScope()
     for (key, entry) in validated.stagedEntries {
       try exact(
         objectStore.readStagedEntry(
@@ -251,6 +258,7 @@ struct V3RecoveryKeyRotationTransactionValidator: V3ContentTransactionValidating
     }
   }
   func validatePublishedEntries(_ validated: V3RecoveryValidatedContentTransaction) throws {
+    try validateScope()
     for (key, entry) in validated.completeEntries {
       try exact(
         objectStore.readEntry(
@@ -259,6 +267,7 @@ struct V3RecoveryKeyRotationTransactionValidator: V3ContentTransactionValidating
     }
   }
   func validatePublishedManifest(_ validated: V3RecoveryValidatedContentTransaction) throws {
+    try validateScope()
     try exact(
       objectStore.readManifest(
         digest: validated.envelope.digest, maximumBytes: limits.maximumManifestBytes),
