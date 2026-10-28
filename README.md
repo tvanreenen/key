@@ -382,6 +382,26 @@ Merging a PR does not start another full verification run on `main`.
 | Verify workflows | `just verify-workflows` | actionlint plus zizmor workflow security and Action advisories |
 | Verify secrets | `just verify-secrets` | Redacted Gitleaks scanning of introduced Git history; accepts an optional `base..head` range |
 
+The [Protect main ruleset](https://github.com/tvr-works/key/rules/26076183)
+requires pull requests and the five PR checks listed above, with results from
+GitHub Actions. It blocks force pushes and branch deletion and permits squash
+merges. No external reviewer approval is mandatory. The named maintainer can
+make an explicit exception through a PR; direct pushes have no bypass.
+The versioned policy reference is `.github/main-ruleset.json`. GitHub's live
+settings enforce the rules; edits to that file must also be applied to the
+repository ruleset by an administrator.
+
+For a registered stack, keep intermediate PRs as drafts while the ready top PR
+runs the complete gate. Once the top passes, mark the remaining PRs ready and
+merge the complete stack with `gh stack merge --yes --squash`. Intermediate
+checks are deliberately skipped and retain fixed names so the required checks
+can be satisfied without repeated full runs. A skipped check does not certify
+that layer as an independently tested result. Before a partial merge, use the
+native stack tools to make the intended result a stack top and verify it.
+GitHub applies the trunk's protections to every stack layer and allows bypass
+only when merging the bottom PR; a whole-stack merge must meet its requirements.
+See [GitHub's stack rules](https://docs.github.com/en/pull-requests/reference/stacked-pull-requests).
+
 Weekly and manual verification additionally run CodeQL, Stable Debug, both
 Preview configurations, and migration-scale qualification. Manual runs include
 the complete PR gate as well. `just verify-products stable` and
