@@ -13,19 +13,20 @@ struct V3RecoveryReadOnlyVaultRuntimeTests {
   @Test func readsListsAndStatusReuseOneMacUnwrapAndPreserveExactPlaintext() throws {
     let f = try Fixture()
     defer { f.disk.remove() }
-    let secret = try f.reader.read(name: "fixture/secret", allowStale: false)
+    let reader: any VaultReadServicing & VaultReadPolicyServicing = f.reader
+    let secret = try reader.read(name: "fixture/secret", allowStale: false)
     #expect(secret.type == .secret && secret.plaintext == "Software fixture secret e\u{301}\r\n")
-    let otp = try f.reader.read(name: "fixture/totp", allowStale: false)
+    let otp = try reader.read(name: "fixture/totp", allowStale: false)
     #expect(otp.type == .totp && otp.plaintext == "JBSWY3DPEHPK3PXP")
-    #expect(try f.reader.list(allowStale: false) == ["fixture/secret", "fixture/totp"])
-    let status = try f.reader.status()
+    #expect(try reader.list(allowStale: false) == ["fixture/secret", "fixture/totp"])
+    let status = try reader.status()
     #expect(status.health == .ready && status.entries == .effective(2) && status.issues.isEmpty)
     #expect(status.trustedVersionID == String(v3LowercaseHex(f.disk.parent.digest).prefix(16)))
-    try f.reader.authorizeRead(name: "fixture/secret", allowStale: false)
+    try reader.authorizeRead(name: "fixture/secret", allowStale: false)
     #expect(f.disk.core.owner.unwraps == 1 && f.loader.loads == 1)
     #expect(f.source.listings == 0 && f.disk.checkpoints.value == f.disk.checkpoint.canonicalBytes)
     f.unlock.lock()
-    _ = try f.reader.read(name: "fixture/secret", allowStale: false)
+    _ = try reader.read(name: "fixture/secret", allowStale: false)
     #expect(f.disk.core.owner.unwraps == 2)
   }
 
@@ -181,19 +182,6 @@ struct V3RecoveryReadOnlyVaultRuntimeTests {
       try f.reader.authorizeRead(name: "fixture/secret", allowStale: false)
     }
     #expect(f.disk.core.owner.unwraps == 0 && f.loader.loads == 0)
-  }
-
-  @Test func historyAndWritesAreNotFalselyReportedAsSupported() throws {
-    let f = try Fixture()
-    defer { f.disk.remove() }
-    #expect(throws: AppError.self) { try f.reader.authorizeMutation() }
-    #expect(throws: AppError.self) { try f.reader.resolve([]) }
-    #expect(throws: AppError.self) { try f.reader.conflicts() }
-    #expect(throws: AppError.self) { try f.reader.conflict(id: "unknown") }
-    #expect(throws: AppError.self) {
-      try f.reader.conflictValue(id: "unknown", versionID: "unknown")
-    }
-    #expect(f.loader.loads == 0 && f.source.entryReads == 0 && f.source.listings == 0)
   }
 
   @Test func readsFollowActualSameEpochPublicationAndColdReopen() throws {

@@ -5,6 +5,56 @@ import Testing
 
 @Suite
 struct V3DeviceWrappedVaultRuntimeTests {
+    @Test(arguments: [false, true])
+    func uncomposedWritesNeverReachReaderOrLegacyStorage(
+        supplyMutator: Bool
+    ) throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        // This inner runtime implements only reads and read policy. The outer
+        // runtime must refuse writes even when supplied as the handler mutator.
+        let inner = RecordingPermanentRuntimeStub()
+        let runtime = V3DeviceWrappedVaultRuntime(
+            runtime: inner,
+            session: V3DeviceWrappedVaultKeySessionStore(),
+            lockSession: {}
+        )
+        let keys = MemoryVaultKeyStore()
+        let mutator: (any VaultMutationServicing)? = supplyMutator ? runtime : nil
+        let handler = KeyServiceHandler(
+            keyStore: keys,
+            entryStore: EntryStore(rootURL: root),
+            mutationOwner: VaultTransactionMutationOwner(),
+            vaultUXService: runtime,
+            vaultReader: runtime,
+            vaultMutator: mutator,
+            configuredVaultID: "018f4d38-7d5a-7b20-b0f1-97d6e96c44b3"
+        )
+        let requests: [KeyServiceRequest] = [
+            .addManual(name: "added", secret: "value", type: .secret),
+            .editManual(name: "edited", secret: "value", type: .secret),
+            .copyEntry(source: "source", destination: "copy", force: false),
+            .moveEntry(source: "source", destination: "moved", force: false),
+            .removeEntry(name: "removed"),
+            .resolveConflicts([]),
+        ]
+        for request in requests {
+            #expect(handler.handle(request).errorCode == .operationRefused)
+        }
+        #expect(inner.unlockCount == 0 && inner.readCount == 0)
+        #expect(keys.loadCount == 0 && keys.storeCount == 0)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
+        #expect(try runtime.conflicts().isEmpty)
+        #expect(throws: VaultUXServiceError.conflictNotFound) {
+            try runtime.conflict(id: "unknown")
+        }
+        #expect(throws: VaultUXServiceError.conflictNotFound) {
+            try runtime.conflictValue(id: "unknown", versionID: "unknown")
+        }
+    }
+
     @Test
     func mapsMissingProviderBytesToTemporaryUnavailable() throws {
         let runtime = makeRuntime(failure: .temporaryUnavailable)
@@ -342,7 +392,7 @@ struct V3DeviceWrappedVaultRuntimeTests {
 
 private final class RecordingPermanentRuntimeStub:
     VaultReadServicing,
-    VaultUXServicing,
+    VaultReadPolicyServicing,
     @unchecked Sendable
 {
     private let lock = NSLock()
@@ -377,23 +427,12 @@ private final class RecordingPermanentRuntimeStub:
     }
 
     func authorizeRead(name _: String, allowStale _: Bool) throws {}
-    func authorizeMutation() throws {}
-    func conflicts() throws -> [VaultConflictSummary] { [] }
 
-    func conflict(id _: String) throws -> VaultConflictDetail {
-        throw VaultUXServiceError.conflictNotFound
-    }
-
-    func conflictValue(id _: String, versionID _: String) throws -> String {
-        throw VaultUXServiceError.conflictVersionNotFound
-    }
-
-    func resolve(_: [VaultConflictResolution]) throws {}
 }
 
 private final class BlockingPermanentRuntimeStub:
     VaultReadServicing,
-    VaultUXServicing,
+    VaultReadPolicyServicing,
     @unchecked Sendable
 {
     let didBeginUnlock = DispatchSemaphore(value: 0)
@@ -447,28 +486,11 @@ private final class BlockingPermanentRuntimeStub:
 
     func authorizeRead(name _: String, allowStale _: Bool) throws {}
 
-    func authorizeMutation() throws {
-        throw AppError.operationRefused("Writes are not enabled.")
-    }
-
-    func conflicts() throws -> [VaultConflictSummary] { [] }
-
-    func conflict(id _: String) throws -> VaultConflictDetail {
-        throw VaultUXServiceError.conflictNotFound
-    }
-
-    func conflictValue(id _: String, versionID _: String) throws -> String {
-        throw VaultUXServiceError.conflictVersionNotFound
-    }
-
-    func resolve(_: [VaultConflictResolution]) throws {
-        throw AppError.operationRefused("Writes are not enabled.")
-    }
 }
 
 private struct PermanentRuntimeStub:
     VaultReadServicing,
-    VaultUXServicing,
+    VaultReadPolicyServicing,
     @unchecked Sendable
 {
     let failure: V3DeviceWrappedVaultUnlockRuntimeError?
@@ -500,21 +522,4 @@ private struct PermanentRuntimeStub:
         if let failure { throw failure }
     }
 
-    func authorizeMutation() throws {
-        throw AppError.operationRefused("Writes are not enabled.")
-    }
-
-    func conflicts() throws -> [VaultConflictSummary] { [] }
-
-    func conflict(id _: String) throws -> VaultConflictDetail {
-        throw VaultUXServiceError.conflictNotFound
-    }
-
-    func conflictValue(id _: String, versionID _: String) throws -> String {
-        throw VaultUXServiceError.conflictVersionNotFound
-    }
-
-    func resolve(_: [VaultConflictResolution]) throws {
-        throw AppError.operationRefused("Writes are not enabled.")
-    }
 }

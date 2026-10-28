@@ -9,7 +9,7 @@ import Foundation
 /// alpha graph model.
 struct V3DeviceWrappedReadOnlyVaultRuntime:
     VaultReadServicing,
-    VaultUXServicing,
+    VaultReadPolicyServicing,
     Sendable
 {
     private let source: any V3ImmutableObjectReading
@@ -158,29 +158,6 @@ struct V3DeviceWrappedReadOnlyVaultRuntime:
         )
     }
 
-    func authorizeMutation() throws {
-        throw readOnlyMutationError()
-    }
-
-    func conflicts() throws -> [VaultConflictSummary] {
-        []
-    }
-
-    func conflict(id _: String) throws -> VaultConflictDetail {
-        throw VaultUXServiceError.conflictNotFound
-    }
-
-    func conflictValue(
-        id _: String,
-        versionID _: String
-    ) throws -> String {
-        throw VaultUXServiceError.conflictNotFound
-    }
-
-    func resolve(_: [VaultConflictResolution]) throws {
-        throw readOnlyMutationError()
-    }
-
     private func authenticatedCheckpoint(
         reason: String
     ) throws -> V3DeviceWrappedTrustedCheckpoint {
@@ -233,12 +210,6 @@ struct V3DeviceWrappedReadOnlyVaultRuntime:
         case .invalidEntryObject, .entryObjectTooLarge:
             .recoveryRequired
         }
-    }
-
-    private func readOnlyMutationError() -> AppError {
-        AppError.operationRefused(
-            "Permanent version 3 vault writes are not enabled yet."
-        )
     }
 }
 

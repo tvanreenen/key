@@ -61,12 +61,20 @@ enum VaultUXServiceError: Error, Equatable, LocalizedError {
     }
 }
 
-/// Supplies vault policy and conflict operations to concurrent helper requests.
+/// Supplies status and read policy without implying mutation or graph support.
 ///
 /// Conforming types must make every requirement safe for simultaneous calls.
-protocol VaultUXServicing: Sendable {
+/// Policy approval is not a decrypted read; `VaultReadServicing` still owns the
+/// complete trust-to-read operation.
+protocol VaultReadPolicyServicing: Sendable {
     func status() throws -> VaultStatus
     func authorizeRead(name: String, allowStale: Bool) throws
+}
+
+/// Full policy and conflict interface used by the helper's request dispatcher.
+/// Exact-checkpoint readers supply only `VaultReadPolicyServicing`; the composed
+/// runtime owns write admission and history-review policy.
+protocol VaultUXServicing: VaultReadPolicyServicing {
     func authorizeMutation() throws
     func conflicts() throws -> [VaultConflictSummary]
     func conflict(id: String) throws -> VaultConflictDetail
