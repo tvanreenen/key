@@ -25,11 +25,14 @@ enum V3VaultKeyHPKEError: Error, Equatable, LocalizedError {
     }
 }
 
-/// Self-contained public context for one permanent-profile vault-key wrapper.
-///
-/// The random transition ID distinguishes separate authority changes without
-/// pretending to be a globally ordered generation. Context is bound through
-/// both HPKE `info` and authenticated data.
+/// Explicit versions only; shipping callers retain the profile-2 default.
+enum V3DeviceWrappingProfile: UInt64, Sendable {
+    case permanent = 2
+    case recovery = 3
+}
+
+/// Self-contained device-wrapper context. The random transition ID is not a
+/// globally ordered generation. HPKE binds the complete context in info/AAD.
 struct V3VaultKeyHPKEContext: Equatable, Sendable {
     static let profile = "device-wrapped"
     static let profileVersion: UInt64 = 2
@@ -45,12 +48,14 @@ struct V3VaultKeyHPKEContext: Equatable, Sendable {
     let keyID: V3VaultKeyID
     let authorityTransitionID: String
     let recipientDeviceID: String
+    let wrappingProfile: V3DeviceWrappingProfile
 
     init(
         vaultID: String,
         keyID: V3VaultKeyID,
         authorityTransitionID: String,
-        recipientDeviceID: String
+        recipientDeviceID: String,
+        wrappingProfile: V3DeviceWrappingProfile = .permanent
     ) throws {
         guard isValidV3UUID(vaultID),
               isValidV3UUID(authorityTransitionID),
@@ -63,6 +68,7 @@ struct V3VaultKeyHPKEContext: Equatable, Sendable {
         self.keyID = keyID
         self.authorityTransitionID = authorityTransitionID
         self.recipientDeviceID = recipientDeviceID
+        self.wrappingProfile = wrappingProfile
     }
 
     var canonicalBytes: Data {
@@ -70,7 +76,7 @@ struct V3VaultKeyHPKEContext: Equatable, Sendable {
             ("format", .string("key-vault-wrapped-key-context")),
             ("version", .integer(1)),
             ("profile", .string(Self.profile)),
-            ("profileVersion", .integer(Self.profileVersion)),
+            ("profileVersion", .integer(wrappingProfile.rawValue)),
             ("vaultID", .string(vaultID)),
             ("keyID", .string(keyID.rawValue)),
             ("authorityTransitionID", .string(authorityTransitionID)),
@@ -85,7 +91,7 @@ struct V3VaultKeyHPKEContext: Equatable, Sendable {
     }
 }
 
-/// RFC 9180 output carried by one permanent-profile device wrapper.
+/// RFC 9180 output shared by device and recovery vault-key wrappers.
 struct V3HPKEWrappedVaultKey: Equatable, Sendable {
     static let encapsulatedKeyByteCount = 65
     static let ciphertextByteCount = 32 + 16
@@ -148,6 +154,20 @@ struct V3VaultKeyHPKE: Sendable {
         recipientPublicKey: Data,
         context: V3VaultKeyHPKEContext
     ) throws -> V3HPKEWrappedVaultKey {
+        try Self.seal(
+            vaultKey: vaultKey,
+            recipientPublicKey: recipientPublicKey,
+            inputs: Self.inputs(for: context)
+        )
+    }
+
+    /// Shared CryptoKit sender operation. Typed device/recovery boundaries own
+    /// their context validation and domains; profile-2 inputs remain unchanged.
+    static func seal(
+        vaultKey: Data,
+        recipientPublicKey: Data,
+        inputs: Inputs
+    ) throws -> V3HPKEWrappedVaultKey {
         guard vaultKey.count == 32 else {
             throw V3VaultKeyHPKEError.invalidVaultKey
         }
@@ -163,7 +183,6 @@ struct V3VaultKeyHPKE: Sendable {
         }
 
         do {
-            let inputs = Self.inputs(for: context)
             // CryptoKit HPKE and Secure Enclave P-256 HPKE conformance are
             // available beginning in macOS 14, which is Key's minimum target.
             var sender = try HPKE.Sender(

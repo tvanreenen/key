@@ -76,12 +76,34 @@ final class V3NewVaultDirectory {
     /// Staging must have been removed. Only this attempt's empty genesis may
     /// remain before selection; any delivered or concurrently added data stops it.
     func requireInstalledGenesis(digest: Data) throws {
-        try requireRootNames(["manifests"])
+        try requireInstalledSnapshot(digest: digest, entries: [])
+    }
+
+    /// Only the exact newly installed objects may remain before selection.
+    /// Checks directory contents as well as object readback, so unexpected
+    /// delivered files and leftover staging cannot be adopted silently.
+    func requireInstalledSnapshot(digest: Data, entries: [V3EntryObjectKey]) throws {
+        guard digest.count == 32,
+              entries.allSatisfy({ isValidV3UUID($0.entryID) && $0.digest.count == 32 }),
+              Set(entries.map(\.entryID)).count == entries.count else {
+            throw AppError.operationRefused("The new-vault snapshot has invalid object identifiers.")
+        }
+        try requireRootNames(entries.isEmpty ? ["manifests"] : ["manifests", "entries"])
         try rootHandle.withResolvedDescriptor(at: "manifests", expecting: .directory) {
             try requireNames(
                 ["\(v3LowercaseHex(digest)).json"],
                 descriptor: $0.rawValue
             )
+        }
+        if !entries.isEmpty {
+            try rootHandle.withResolvedDescriptor(at: "entries", expecting: .directory) {
+                try requireNames(Set(entries.map(\.entryID)), descriptor: $0.rawValue)
+            }
+            for entry in entries {
+                try rootHandle.withResolvedDescriptor(at: "entries/\(entry.entryID)", expecting: .directory) {
+                    try requireNames(["\(v3LowercaseHex(entry.digest)).json"], descriptor: $0.rawValue)
+                }
+            }
         }
     }
 

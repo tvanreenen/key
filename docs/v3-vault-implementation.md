@@ -2206,6 +2206,34 @@ Stable stabilization ledger:
   Developer ID and Gatekeeper verification, and retained Stable/Preview helper
   isolation.
 
+## PIV recovery implementation track
+
+The [PIV recovery plan](piv-recovery-plan.md#completion-contract) owns package
+statuses and acceptance through Stable completion. `REC-801` through `REC-803`
+were the feasibility parent track; `REC-804` through `REC-815` track integrated
+implementation, qualification, adoption, and release.
+
+The [evidence summary](piv-feasibility-results.md) records one-token, two-Mac
+agreement/HPKE and public-anchor results, frozen-checkpoint source-only restore,
+and token-free ordinary read/edit/reopen with disposable entries. The experiments
+are archived locally, not supported product commands. No public prerelease
+was cut for this work. The latest private artifact was `0.2.0-piv-test.2 (21)`.
+
+Current work is `REC-806`: an isolated epoch-key capsule is implemented and
+AI-reviewed; recipient contexts/wrappers, profile codecs, and boundary transcripts
+are implemented as internal domain components, alongside bounded anchored
+selection and complete current-snapshot verification. Native token provenance,
+domain acceptance/review and product lifecycle integration remain. The
+[contract](piv-recovery-contract.md) and [review dispositions](piv-recovery-ai-review.md)
+record the single-approval
+experimental direction and historical-verification/alternative-lineage limits.
+Remaining 804 graph/platform/adoption decisions stay explicit in the tracker.
+
+Protected token administration, independent backup recovery, authenticated
+resume, supported-product/OS qualification, and opt-in adoption are later gates.
+This does not change the released continuity promise or authorize hardware
+operations, credential changes, real-vault activation, installation, or release.
+
 ## Immediate Next Action
 
 Review config simplification and explicit v3 initialization, as selected on 2026-09-05. Continue observing ordinary Stable use. Any artifact or code correction must use a new version and build; do not replace the published `v0.2.0` tag or asset.

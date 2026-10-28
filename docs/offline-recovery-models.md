@@ -71,13 +71,20 @@ the vault; neither token contains an exportable clone of the other.
 
 **Recovery experience**
 
-1. Install Key on a new Mac and select the existing provider-backed vault.
+1. Install Key on a new Mac and identify the existing provider-backed source
+   and a new destination.
 2. Insert either registered recovery key.
 3. Enter its activation PIN and physically touch the token.
-4. Authenticate locally while Key creates a new enrolled Secure Enclave
-   identity.
-5. Key recovers the current vault key, revokes the lost roster, rotates the
-   vault key, and asks the user to restore two-key recovery redundancy.
+4. Authenticate locally while Key creates a fresh vault key and Secure Enclave
+   identity for the destination.
+5. Key restores the verified entries into a new vault, preserves the source,
+   and asks the user to establish two-key recovery redundancy for the new vault.
+
+The owner selected new-vault restoration for the first milestone on
+2026-10-02. Existing Macs must join that new vault separately. The old vault
+and its roster are not revoked; same-vault authority takeover remains a
+separate design. The disposable transaction prototype is archived, not a
+released recovery capability. See the [implementation plan](piv-recovery-plan.md).
 
 **Why this is stronger than a password**
 
@@ -98,6 +105,14 @@ This is the leading later candidate because its primary-plus-backup UX is
 recognizable and its authority remains hardware-bound. It must first pass a
 physical feasibility prototype on both Macs. The vault format should describe
 a generic compatible PIV P-256 recipient rather than depend on one vendor.
+
+The [feasibility evidence](piv-feasibility-results.md), recorded on 2026-09-06
+and extended on 2026-09-19, establishes native hardware key agreement on two
+Macs with one YubiKey 5C NFC. First-Mac tests cover observed touch withholding,
+successful use after reconnection, and PIN-dialog cancellation. It also records
+the required CHUID setup and the driver's ambiguous missed-touch error. This
+completes the two-Mac baseline, not two-token or reliability qualification
+or a recovery-format decision. The current token holds only a test credential.
 
 FIDO, CTAP, and U2F credentials are not substitutes for this operation: they
 authenticate possession to a relying party but do not expose the general P-256
@@ -251,6 +266,25 @@ permanent-loss warning. Migration cleanup must likewise explain that deleting
 the retained source removes any fallback outside the new device-bound vault.
 
 ## Later Recovery Track
+
+The [implementation tracker](piv-recovery-plan.md#completion-contract), updated
+2026-10-04, maps PIV recovery onto the current code through Stable completion.
+The owner selected new-vault restoration rather than same-vault takeover and
+requires vault files, a registered YubiKey, and its PIN, without another
+mandatory receipt. Token-held anchor storage and the bounded two-Mac
+new-vault recovery/read/edit/reopen rehearsal passed. These establish
+feasibility, not an ongoing recovery format or real-vault readiness.
+
+Current work is `REC-806`: the isolated epoch capsule is implemented and
+AI-reviewed; recipient contexts/wrappers, profile codecs, and boundary transcripts
+are implemented as internal domain components, alongside bounded anchored
+selection and complete current-snapshot verification. Native token provenance,
+domain acceptance/review and product integration remain. Remaining `REC-804`
+platform/adoption decisions stay explicit. Implementation integrates registration, ordinary edits, key rotation,
+history verification, and restore into product services.
+Independent backup-token recovery, protected administration, compatibility,
+interruption handling, and security review remain qualification gates.
+Provider completeness remains external by design, not a gate Key must solve.
 
 Offline catastrophe recovery is deferred to a later minor release and is not
 a stable `0.2.0` compatibility promise. Before selecting a permanent format,
