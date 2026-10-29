@@ -121,7 +121,7 @@ verify-release app_path:
 notarize archive_path:
   scripts/notarize-release.sh "{{archive_path}}"
 
-# Update the Xcode version fields and commit the release version on main.
+# Commit the release version on a PR branch or final stack layer before verification.
 bump-version tag:
   scripts/bump-version.sh "{{tag}}"
 
@@ -129,7 +129,7 @@ bump-version tag:
 build-release tag:
   scripts/build-release.sh "{{tag}}"
 
-# Bump, build, and publish the source release; Homebrew remains a manual checkpoint.
+# Build and publish the already-merged version; Homebrew remains a manual checkpoint.
 release tag:
   scripts/release.sh "{{tag}}"
 
@@ -137,6 +137,6 @@ release tag:
 publish-homebrew tag:
   scripts/publish-homebrew.sh "{{tag}}"
 
-# Verify the ZIP, atomically publish main plus its tag, and upload the exact release assets.
+# Verify published main and the ZIP, publish its tag, and upload the exact release assets.
 publish-release tag zip_path:
   scripts/publish-release.sh "{{tag}}" "{{zip_path}}"

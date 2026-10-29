@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 export ZDOTDIR="${repo_root}/Tests/ScriptFixtures"
+"${repo_root}/Tests/ReleaseScripts/release-source-tests.sh"
 target_resolver="${repo_root}/scripts/release-target.sh"
 token_resolver="${repo_root}/scripts/homebrew-cask-token.sh"
 
@@ -508,6 +509,7 @@ cp "${artifact_verifier_bin}/xcrun" "${artifact_verifier_bin}/spctl" \
   "${publication_fake_bin}/"
 cp \
   "${repo_root}/scripts/publish-release.sh" \
+  "${repo_root}/scripts/verify-release-source.sh" \
   "${artifact_verifier_scripts}/project-version.sh" \
   "${artifact_verifier_scripts}/release-target.sh" \
   "${artifact_verifier_scripts}/verify-product-bundle.sh" \
@@ -540,23 +542,43 @@ if (
   KEY_SCRIPT_TEST_PATH="${publication_fake_bin}:${PATH}" \
   PATH="${publication_fake_bin}:${PATH}" \
     ./scripts/publish-release.sh "${publication_tag}" "${publication_artifact}" \
-    >/dev/null 2>&1
+    > "${test_root}/unpublished-source.out" 2>&1
 ); then
-  echo "expected publication to reject a conflicting remote tag" >&2
+  echo "expected publication to reject unpublished main" >&2
   exit 1
 fi
 
+grep -q 'must match published main' "${test_root}/unpublished-source.out"
+
 if git -C "${publication_repo}" rev-parse --verify --quiet "refs/tags/${publication_tag}" \
   >/dev/null; then
-  echo "failed atomic publication left its newly-created local tag behind" >&2
+  echo "failed publication left its newly-created local tag behind" >&2
   exit 1
 fi
 
 if [[ "$(git --git-dir="${publication_origin}" rev-parse refs/heads/main)" != \
       "${publication_initial_commit}" ]]; then
-  echo "failed atomic publication partially advanced remote main" >&2
+  echo "failed publication advanced remote main" >&2
   exit 1
 fi
+
+# Simulate the version PR being merged, then exercise the conflicting tag itself.
+git -C "${publication_repo}" push origin main >/dev/null 2>&1
+publication_merged_commit="$(git -C "${publication_repo}" rev-parse HEAD)"
+if (
+  cd "${publication_repo}"
+  KEY_SCRIPT_TEST_PATH="${publication_fake_bin}:${PATH}" \
+  PATH="${publication_fake_bin}:${PATH}" \
+    ./scripts/publish-release.sh "${publication_tag}" "${publication_artifact}" \
+    > "${test_root}/conflicting-tag.out" 2>&1
+); then
+  echo "expected publication to reject a conflicting remote tag" >&2
+  exit 1
+fi
+grep -q 'failed to confirm publication' "${test_root}/conflicting-tag.out"
+[[ -z "$(git -C "${publication_repo}" tag --list)" ]]
+[[ "$(git --git-dir="${publication_origin}" rev-parse refs/heads/main)" == "${publication_merged_commit}" ]]
+[[ "$(git --git-dir="${publication_origin}" rev-list -n 1 "${publication_tag}")" == "${publication_initial_commit}" ]]
 
 successful_origin="${test_root}/successful-origin.git"
 successful_repo="${test_root}/successful-repo"
@@ -580,6 +602,7 @@ cp "${artifact_verifier_bin}/xcrun" "${artifact_verifier_bin}/spctl" \
   "${successful_fake_bin}/"
 cp \
   "${repo_root}/scripts/publish-release.sh" \
+  "${repo_root}/scripts/verify-release-source.sh" \
   "${artifact_verifier_scripts}/project-version.sh" \
   "${artifact_verifier_scripts}/release-target.sh" \
   "${artifact_verifier_scripts}/verify-product-bundle.sh" \
@@ -594,6 +617,18 @@ git -C "${successful_repo}" add Key.xcodeproj scripts release-marker
 git -C "${successful_repo}" commit -m "Prepare release" >/dev/null
 git -C "${successful_repo}" remote add origin "${successful_origin}"
 git -C "${successful_repo}" push --set-upstream origin main >/dev/null 2>&1
+
+cat > "${successful_origin}/hooks/pre-receive" <<'HOOK'
+#!/bin/sh
+while read -r previous next ref; do
+  if [ "$ref" = refs/heads/main ]; then
+    echo 'main updates require a PR' >&2
+    exit 1
+  fi
+done
+HOOK
+chmod +x "${successful_origin}/hooks/pre-receive"
+successful_main="$(git --git-dir="${successful_origin}" rev-parse refs/heads/main)"
 
 cat > "${successful_fake_bin}/gh" <<'EOF'
 #!/bin/zsh
@@ -686,6 +721,8 @@ run_successful_publication() {
 }
 
 run_successful_publication > "${test_root}/first-publication.out" 2>&1
+[[ "$(git --git-dir="${successful_origin}" rev-parse refs/heads/main)" == "${successful_main}" ]]
+[[ "$(git --git-dir="${successful_origin}" rev-list -n 1 "${publication_tag}")" == "${successful_main}" ]]
 successful_sha="$(shasum -a 256 "${successful_artifact}" | awk '{print $1}')"
 if [[ "$(<"${successful_artifact_root}/checksums.txt")" != \
       "${successful_sha}  ${successful_artifact:t}" ]]; then

@@ -15,10 +15,6 @@ final_zip="${release_root}/${artifact_name}"
 
 echo "==> Product: ${product_variant}"
 
-echo "==> Bump version"
-"${repo_root}/scripts/bump-version.sh" "${version}"
-
-echo
 echo "==> Build release"
 "${repo_root}/scripts/build-release.sh" "${version}"
 
