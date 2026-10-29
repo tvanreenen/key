@@ -37,7 +37,7 @@ jobs:
             name: Recovery restore
             timeout: 30
     if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
-    runs-on: macos-26
+    runs-on: blacksmith-6vcpu-macos-26
     timeout-minutes: ${{ matrix.timeout }}
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
@@ -91,7 +91,7 @@ jobs:
     name: Verify Swift tests
     needs: swift-test-suites
     if: always() && github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 2
     steps:
       - name: Require every Swift test group to pass
@@ -102,7 +102,7 @@ jobs:
   products:
     name: Verify products (Stable Release)
     if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
-    runs-on: macos-26
+    runs-on: blacksmith-6vcpu-macos-26
     timeout-minutes: 25
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
@@ -134,7 +134,7 @@ jobs:
   extended-products:
     name: Verify products (${{ matrix.name }})
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: macos-26
+    runs-on: blacksmith-6vcpu-macos-26
     timeout-minutes: 25
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
@@ -188,7 +188,7 @@ jobs:
   repository-checks:
     name: Verify repository checks
     if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
-    runs-on: macos-26
+    runs-on: blacksmith-6vcpu-macos-26
     timeout-minutes: 10
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
@@ -245,7 +245,7 @@ jobs:
   workflows:
     name: Verify workflows
     if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size))
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
       - name: Check out source without persisted credentials
@@ -266,7 +266,7 @@ jobs:
   secrets:
     name: Verify secrets
     if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && (!github.event.pull_request.stack || github.event.pull_request.stack.position == github.event.pull_request.stack.size)))
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
       - name: Fetch complete commit history without persisted credentials
@@ -360,7 +360,7 @@ jobs:
   migration-scale:
     name: Verify migration scale
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: macos-26
+    runs-on: blacksmith-6vcpu-macos-26
     timeout-minutes: 15
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
