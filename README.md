@@ -369,10 +369,11 @@ The Swift package and release-script checks run with:
 just test
 ```
 
-CI verifies ready pull requests. For a registered PR stack,
-only its ready top PR runs the complete merge gate; intermediate PRs do not
-repeat the same work. Draft PRs skip verification until marked ready.
-Merging a PR does not start another full verification run on `main`.
+Follow the [development and verification workflow](docs/development-workflow.md)
+for draft stacks, ready candidates, Stable fixes, optional Preview qualification,
+and releases. Draft standalone PRs and registered stack tops run inexpensive
+checks. Ready candidates also run the complete merge gate. Intermediate layers
+skip repeated verification, and merging does not start another full run.
 
 | PR check | Local command | Scope |
 |---|---|---|
@@ -391,23 +392,12 @@ The versioned policy reference is `.github/main-ruleset.json`. GitHub's live
 settings enforce the rules; edits to that file must also be applied to the
 repository ruleset by an administrator.
 
-For a registered stack, keep intermediate PRs as drafts while the ready top PR
-runs the complete gate. Once the top passes, mark the remaining PRs ready and
-merge the complete stack with `gh stack merge --yes --squash`. Intermediate
-checks are deliberately skipped and retain fixed names so the required checks
-can be satisfied without repeated full runs. A skipped check does not certify
-that layer as an independently tested result. Before a partial merge, use the
-native stack tools to make the intended result a stack top and verify it.
-GitHub applies the trunk's protections to every stack layer and allows bypass
-only when merging the bottom PR; a whole-stack merge must meet its requirements.
-See [GitHub's stack rules](https://docs.github.com/en/pull-requests/reference/stacked-pull-requests).
-
-Weekly and manual verification additionally run Stable Debug, both Preview
-configurations, and migration-scale qualification. Manual Verify runs include
-the complete PR gate as well. CodeQL runs separately each month or on demand.
-`just verify-products stable` and
-`just verify-products preview` remain available for checking both configurations
-of either product locally.
+The workflow names are **Verify pull request**, **Verify release candidate**,
+and **Verify CodeQL**. PR events drive the first; the other two are manual.
+Release qualification selects a product and optional migration-scale and CodeQL
+checks. There are no weekly or monthly runs. Manual candidate verification is
+also available; commands and stack merge rules are in the
+[development runbook](docs/development-workflow.md).
 
 The workflow selects Xcode 26.4.1 / Swift 6.3 explicitly. Exit tests that capture
 state from the parent process require Swift 6.3 or later. Local commands use the selected
@@ -418,11 +408,11 @@ those tests still exercise their own concurrent operations. SwiftPM's xUnit
 reports and failure logs are retained for three days, including suffixed Swift
 Testing reports. Test verification rejects empty or entirely skipped runs.
 
-PR and weekly macOS jobs use Blacksmith's `blacksmith-6vcpu-macos-26`
+PR and manual qualification macOS jobs use Blacksmith's `blacksmith-6vcpu-macos-26`
 Apple Silicon runners; Linux jobs use `blacksmith-4vcpu-ubuntu-2404`. CodeQL
 stays on GitHub's `macos-26-intel` runner because its Swift build tracer needs
-Intel. Xcode remains pinned to 26.4.1, and required check names and stack
-eligibility are unchanged. The Blacksmith GitHub App must have access to this
+Intel. Xcode remains pinned to 26.4.1. The five required check names are unchanged;
+draft stack tops run inexpensive checks and ready tops run the complete gate. The Blacksmith GitHub App must have access to this
 repository. The first comparison keeps the existing pinned GitHub Actions,
 with no new build caches, sticky disks, or cached checkout Action. To roll back
 the runner migration, restore `macos-26` and `ubuntu-24.04` in `verify.yml`.
@@ -479,24 +469,15 @@ the runner's actual arm64 Mac and execute the resulting bundled CLIs.
 Static analysis runs on the standard Intel macOS runner so the tracer and
 compiler run natively; it cross-compiles the same arm64 product. Product and
 runtime tests continue to run on Apple Silicon.
-CodeQL runs on the first day of each month at 09:17 UTC, or independently on
-demand, rather than blocking each PR. Before a release containing production
-changes, run `gh workflow run verify-codeql.yml --ref <candidate-branch-or-tag>`
-and review the resulting findings and extraction diagnostics. This starts only
-CodeQL; `gh workflow run verify.yml` starts the broader verification suite.
-The analysis job and GitHub's **Code scanning results / CodeQL** check are distinct. Review
-scheduled findings and scanner failures; a skipped PR analysis is not evidence
-of a clean scan. Keep merge requirements aligned with the PR checks in
-the table above, including the aggregate `Verify Swift tests` check.
+CodeQL is manual. It can run independently or as an explicit option in release
+qualification. Before a Stable release containing production changes, request
+it on the candidate and inspect its findings and extraction diagnostics. Its
+analysis job and GitHub's **Code scanning results / CodeQL** check are distinct.
+A skipped analysis is not evidence of a clean scan.
 
-On Mondays the workflow reruns online workflow audits, the additional
-product configurations, and **Verify migration scale**, the existing opt-in
-300-entry migration gate.
-The Verify manual trigger runs all PR and weekly checks, including that scale
-gate; the separate Verify CodeQL trigger runs security analysis only. Signing,
-notarization, Gatekeeper assessment, and installed Secure Enclave/user-presence
-qualification remain part of the existing release process; unsigned CI builds
-do not establish those properties.
+Signing, notarization, Gatekeeper assessment, and installed Secure Enclave and
+user-presence qualification remain part of the existing release process;
+unsigned CI builds do not establish those properties.
 
 Run `just test-cli-help` to build the CLI and check help alignment, narrow and wide terminal widths, output streams, and usage exits without accessing a vault. The product build workflow runs these checks against both bundled CLIs.
 

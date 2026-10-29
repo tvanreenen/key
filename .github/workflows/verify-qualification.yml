@@ -1,0 +1,109 @@
+name: Verify release candidate
+
+# Additional qualification is an explicit operator choice, never a calendar job.
+on:
+  workflow_dispatch:
+    inputs:
+      product:
+        description: Product to qualify (Debug and Release)
+        type: choice
+        required: true
+        default: stable
+        options:
+          - stable
+          - preview
+      migration_scale:
+        description: Include the 300-entry migration qualification
+        type: boolean
+        default: false
+      codeql:
+        description: Include CodeQL security analysis on the Intel runner
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-qualification-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  products:
+    name: Verify release candidate (${{ inputs.product == 'preview' && 'Preview' || 'Stable' }} ${{ matrix.name }})
+    runs-on: blacksmith-6vcpu-macos-26
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Debug
+            mode: debug
+          - name: Release
+            mode: release
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Confirm pinned Xcode and Swift toolchain
+        run: |
+          sw_vers
+          uname -m
+          sysctl -n hw.logicalcpu hw.memsize
+          xcodebuild -version
+          swift --version
+      - name: Build the selected product configuration with warnings as errors
+        env:
+          VARIANT: ${{ inputs.product }}
+          MODE: ${{ matrix.mode }}
+        run: |
+          mkdir -p .build/verification
+          set -o pipefail
+          scripts/verify-product.sh "$VARIANT" "$MODE" build \
+            2>&1 | tee .build/verification/product-build.log
+      - name: Validate product identities and helper isolation
+        env:
+          VARIANT: ${{ inputs.product }}
+          MODE: ${{ matrix.mode }}
+        run: scripts/verify-product.sh "$VARIANT" "$MODE" bundle
+      - name: Test bundled CLI help, output streams, exits, and completions
+        env:
+          VARIANT: ${{ inputs.product }}
+          MODE: ${{ matrix.mode }}
+        run: scripts/verify-product.sh "$VARIANT" "$MODE" cli
+      - name: Retain product build diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: qualification-build-${{ inputs.product }}-${{ matrix.mode }}
+          path: .build/verification/product-build.log
+          retention-days: 3
+
+  migration-scale:
+    name: Verify migration scale
+    if: inputs.migration_scale
+    runs-on: blacksmith-6vcpu-macos-26
+    timeout-minutes: 15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Resolve committed Swift dependency versions
+        run: swift package resolve --force-resolved-versions
+      - name: Qualify a 300-entry migration without changing the source vault
+        run: scripts/test-migration-qualification.sh
+
+  codeql:
+    name: Verify CodeQL
+    if: inputs.codeql
+    permissions:
+      contents: read
+      security-events: write
+    # Same-commit local call; pinned actionlint does not yet support GitHub's $/ syntax.
+    uses: ./.github/workflows/verify-codeql.yml # zizmor: ignore[self-repository]

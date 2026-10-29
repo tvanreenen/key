@@ -1,9 +1,8 @@
 name: Verify CodeQL
 
-# Run independently so pre-release security analysis does not start the full suite.
+# Run independently or reuse this job from manual release qualification.
 on:
-  schedule:
-    - cron: '17 9 1 * *'
+  workflow_call:
   workflow_dispatch:
 
 permissions:
