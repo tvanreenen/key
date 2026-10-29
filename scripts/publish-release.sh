@@ -12,6 +12,7 @@ repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 IFS=$'\t' read -r product_variant _ _ \
   <<< "$("${repo_root}/scripts/release-target.sh" "${version}")"
 
+"${repo_root}/scripts/verify-release-source.sh" "${version}"
 "${repo_root}/scripts/verify-release-artifact.sh" "${version}" "${zip_path}"
 
 tag="${version}"
@@ -32,6 +33,7 @@ fi
 
 cd "${repo_root}"
 
+# Recheck local source after artifact verification before creating the tag.
 branch="$(git symbolic-ref --quiet --short HEAD || true)"
 if [[ "${branch}" != "main" ]]; then
   echo "publish-release must run from main (current branch: ${branch:-detached HEAD})" >&2
@@ -56,12 +58,11 @@ if [[ -z "${tag_commit}" ]]; then
   created_tag=1
 fi
 
-if ! git push --atomic origin main "${tag}"; then
+if ! git push origin "refs/tags/${tag}:refs/tags/${tag}"; then
   if [[ "${created_tag}" -eq 1 ]]; then
     git tag --delete "${tag}" >/dev/null
   fi
-  echo "failed to confirm atomic publication of main and ${tag}" >&2
-  echo "main and the tag cannot advance independently; inspect the remote refs before retrying" >&2
+  echo "failed to confirm publication of ${tag}; inspect the remote tag before retrying" >&2
   exit 1
 fi
 

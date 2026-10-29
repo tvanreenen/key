@@ -28,6 +28,7 @@ case "${variant}" in
 esac
 
 repo_root="$(cd "${script_dir}/.." && pwd)"
+"${script_dir}/verify-release-source.sh" "${version}"
 notary_profile="key-notary"
 release_root="${HOME}/Library/Developer/Xcode/Releases/key/${version}"
 archive_path="${release_root}/${archive_name}"

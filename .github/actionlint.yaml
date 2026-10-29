@@ -1,0 +1,5 @@
+# Blacksmith uses ephemeral runners registered through GitHub's self-hosted API.
+self-hosted-runner:
+  labels:
+    - blacksmith-6vcpu-macos-26
+    - blacksmith-4vcpu-ubuntu-2404

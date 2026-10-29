@@ -1,6 +1,8 @@
 # Release notes
 
 The checked-in [Key.xcodeproj](../Key.xcodeproj) is the project source of truth.
+Use the [development workflow](development-workflow.md) to decide when a draft
+stack is ready to merge and which additional qualification the release needs.
 
 Apple-side identifiers, profiles, and notarization prerequisites are documented in:
 
@@ -80,14 +82,17 @@ and the `key` cask. A numbered alpha, beta, or release-candidate tag selects
 `Key Preview.app`, `key-preview`, and the matching opt-in cask. The later stages
 all use that same decision; there is no independent product switch to mistype.
 
-The version bump creates an ordinary commit on `main`, but not a tag. The build
-must then produce a ZIP containing the signed, notarized, and stapled app. The
-final gate extracts that ZIP and verifies its exact layout, product identity,
+The version bump creates an ordinary commit on a PR branch or final stack layer,
+but not a tag. Merge that version through the usual checks. Building and
+publication require clean local `main` matching the current remote `main` and
+the requested version. The build must produce a ZIP containing the signed,
+notarized, and stapled app. The final gate extracts that ZIP and verifies its
+exact layout, product identity,
 marketing and build versions, Developer ID signatures, hardened runtime, and
 entitlement allowlists. Publication will run the same gate again.
 
-Only after the ZIP passes does publication create the annotated tag. It pushes
-`main` and the tag atomically, so GitHub receives both or neither. The GitHub
+Only after the ZIP passes does publication create and push its annotated tag.
+Publication never advances `main`; its source must already be merged. The GitHub
 release contains exactly the ZIP and a deterministic `checksums.txt`. A retry
 uploads only a missing asset, accepts an exact published asset, and refuses to
 replace different bytes or tolerate another asset. This matches GitHub's
@@ -107,43 +112,67 @@ with every version bump. The semver or prerelease string is the public version.
 
 ## Operator runbook
 
-Use the staged flow for prereleases and any release you intend to inspect one
-step at a time. `just release <tag>` runs steps 1 through 3. Step 4 always
-requires a separate command.
+Use the staged flow for prereleases and any release whose artifact you want to
+inspect before publication. `just release <tag>` runs steps 2 and 3 for an
+already-merged version. It no longer bumps the version. Step 4 always requires a
+separate command.
 
-### 1. Prepare the version commit
+### 1. Prepare and merge the version commit
 
-Start from clean, current `main`:
+Include the version bump in the fix PR or as the final layer of the feature
+stack before marking its top ready. For a separate version PR, start a branch
+from current main:
 
 ```bash
-git checkout main
-git pull --ff-only
-git status --short
-just bump-version vX.Y.Z[-channel.N]
+release_tag=v0.2.1
+git fetch origin
+git switch -c "release/${release_tag}" origin/main
+just bump-version "${release_tag}"
 ```
 
-Review the resulting commit. At this point no release tag or remote release
-state exists.
+Replace the example tag with the intended version. A Preview release uses a
+numbered prerelease such as `v0.3.0-beta.1`.
+
+The helper requires a clean PR branch and commits the marketing version and
+incremented build counter. Review the version commit, push the PR or stack, and
+pass the normal merge checks. At this point no tag or remote release exists.
+Merge through GitHub or the native stack tools; do not push the version directly
+to main. A small Stable fix can include this commit in its own PR and does not
+need a Preview release.
+
+Run the [applicable manual qualification](development-workflow.md#choose-additional-qualification)
+on the candidate, including CodeQL before a Stable release containing production
+changes. After the version PR or stack is merged, update local main:
+
+```bash
+git switch main
+git pull --ff-only
+```
+
+If an older local version commit has not reached remote main, put it through a
+PR first. The release commands reject unpublished, stale, dirty, or detached
+source before building or publishing.
 
 ### 2. Build the final artifact
 
 ```bash
-just build-release vX.Y.Z[-channel.N]
+just build-release "${release_tag}"
 ```
 
 The command prints the selected product, final ZIP path, and SHA-256. Do not
 publish if its final extracted-artifact verification fails.
 
-### 3. Publish GitHub state atomically
+### 3. Publish the tag and release
 
 ```bash
-just publish-release vX.Y.Z[-channel.N] <zip-path>
+just publish-release "${release_tag}" <zip-path>
 ```
 
-This rechecks the ZIP, creates the tag at the version commit, atomically pushes
-`main` and the tag, and creates or resumes the GitHub release. Keep `main` at
-that commit until the GitHub release upload completes. The supported release
-assets are the channel-specific ZIP and `checksums.txt`; the tap resolves both
+This confirms clean main still matches the published version commit, rechecks
+the ZIP, creates and pushes the tag, and creates or resumes the GitHub release.
+It never pushes main. Keep main at that commit until the release upload
+completes. The supported release assets are the channel-specific ZIP and
+`checksums.txt`; the tap resolves both
 from the published tag.
 
 ### 4. Dispatch the Homebrew update
@@ -184,12 +213,14 @@ at a test vault.
 
 - If the build fails, fix the cause and rerun `just build-release <tag>`; no tag
   or GitHub release exists yet.
-- If the atomic Git push reports failure, `main` and the tag cannot have
-  advanced independently, but a lost network response can leave the client
-  unsure whether both advanced. Fetch or inspect the remote `main` and tag,
-  keep the local checkout on the version commit, and rerun publication. The
-  retry safely handles either outcome.
-- If GitHub release creation or upload fails after the atomic push, immediately
+- If source validation fails, merge the version PR or update local main before
+  retrying. Do not bypass main protections or move published main backward.
+- If the tag push reports failure, inspect the remote tag before retrying. A
+  lost network response can leave the client unsure whether it was created.
+  Publication removes a newly created local tag after a failed push; fetch the
+  matching remote tag if the push actually succeeded. A conflicting remote tag
+  is an error; do not replace it. Main is never updated by publication.
+- If GitHub release creation or upload fails after the tag push, immediately
   rerun the same `just publish-release` command from the unchanged version
   commit with the same ZIP. It resumes missing uploads and verifies exact
   existing assets. If an existing asset differs or the release contains an

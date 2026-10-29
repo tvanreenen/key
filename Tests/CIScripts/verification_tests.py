@@ -121,7 +121,11 @@ class ProductBuildInvocationTests(unittest.TestCase):
             compiler = work / "xcodebuild"
             compiler.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$CI_TEST_BUILD_ARGS"\n')
             compiler.chmod(0o755)
-            environment = dict(os.environ, PATH=f"{work}:{os.environ['PATH']}", CI_TEST_BUILD_ARGS=str(capture))
+            fixture_path = f"{work}:{os.environ['PATH']}"
+            # Restore fixture commands after the runner's system Zsh startup.
+            environment = dict(os.environ, PATH=fixture_path,
+                               ZDOTDIR=str(ROOT / "Tests/ScriptFixtures"),
+                               KEY_SCRIPT_TEST_PATH=fixture_path, CI_TEST_BUILD_ARGS=str(capture))
             for operation in ("build", "codeql"):
                 command = [
                     str(ROOT / "scripts/verify-product.sh"), "stable", "release", operation,
@@ -130,7 +134,9 @@ class ProductBuildInvocationTests(unittest.TestCase):
                     command = [sys.executable, str(ROOT / "scripts/verify-codeql-build.py"),
                                "--derived-data", str(work / "DerivedData"),
                                "--log-directory", str(work / "logs"), "--timeout-seconds", "5"]
-                subprocess.run(command, env=environment, check=True, stdout=subprocess.DEVNULL)
+                capture.unlink(missing_ok=True)
+                subprocess.run(command, env=environment, check=True, stdout=subprocess.DEVNULL,
+                               timeout=10)
                 args = capture.read_text().splitlines()
                 self.assertIn("CODE_SIGNING_ALLOWED=NO", args)
                 self.assertIn("ARCHS=arm64", args)

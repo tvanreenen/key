@@ -12,8 +12,8 @@ repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 project_file="${repo_root}/Key.xcodeproj/project.pbxproj"
 
 branch="$(git -C "${repo_root}" symbolic-ref --quiet --short HEAD || true)"
-if [[ "${branch}" != "main" ]]; then
-  echo "version bumps must be created on main (current branch: ${branch:-detached HEAD})" >&2
+if [[ -z "${branch}" || "${branch}" == "main" ]]; then
+  echo "prepare the version on a PR branch or final stack layer, not ${branch:-detached HEAD}" >&2
   exit 1
 fi
 
@@ -81,4 +81,5 @@ echo "  commit:                ${commit_sha}"
 echo "  planned tag:           ${tag}"
 echo
 echo "Next:"
-echo "  just build-release \"${tag}\""
+echo "  Push this version commit through its PR or stack and pass the merge checks."
+echo "  After merging, update local main and run: just build-release \"${tag}\""
