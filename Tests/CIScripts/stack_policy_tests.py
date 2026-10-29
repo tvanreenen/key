@@ -27,7 +27,7 @@ class StackVerificationPolicyTests(unittest.TestCase):
             name = block.split(":", 1)[0].strip()
             condition = re.search(r"^    if: (.+)$", block, re.MULTILINE)
             self.assertIsNotNone(condition, name)
-            if name in {"migration-scale", "static-analysis", "extended-products"}:
+            if name in {"migration-scale", "extended-products"}:
                 self.assertEqual(condition[1],
                                  "github.event_name == 'schedule' || "
                                  "github.event_name == 'workflow_dispatch'")
@@ -35,6 +35,23 @@ class StackVerificationPolicyTests(unittest.TestCase):
             self.assertIn(gate, condition[1], name)
             checked.append(name)
         self.assertTrue(checked)
+
+    def test_codeql_has_its_own_monthly_and_manual_workflow(self):
+        workflow = (ROOT / ".github/workflows/verify.yml").read_text()
+        self.assertNotIn("  static-analysis:", workflow)
+        self.assertIn("    - cron: '17 9 * * 1'", workflow)
+        for name in ("verify.yml", "verify-codeql.yml"):
+            contents = (ROOT / ".github/workflows" / name).read_text()
+            triggers = contents.split("on:\n", 1)[1].split("\npermissions:", 1)[0]
+            self.assertNotRegex(triggers, re.compile(r"^  push:", re.MULTILINE))
+        codeql = (ROOT / ".github/workflows/verify-codeql.yml").read_text()
+        self.assertIn("    - cron: '17 9 1 * *'", codeql)
+        self.assertIn("  workflow_dispatch:", codeql)
+        self.assertNotRegex(codeql, re.compile(r"^  pull_request", re.MULTILINE))
+        # The Swift build tracer needs the Intel host even though it builds arm64 products.
+        self.assertIn("    runs-on: macos-26-intel", codeql)
+        self.assertIn("      security-events: write", codeql)
+        self.assertIn("          queries: security-extended", codeql)
 
     def test_required_merge_checks_have_stable_non_matrix_job_names(self):
         policy = json.loads((ROOT / ".github/main-ruleset.json").read_text())

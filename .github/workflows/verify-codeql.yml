@@ -1,0 +1,65 @@
+name: Verify CodeQL
+
+# Run independently so pre-release security analysis does not start the full suite.
+on:
+  schedule:
+    - cron: '17 9 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-codeql-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  static-analysis:
+    name: Verify static analysis
+    # CodeQL's build tracer is x86_64. Avoid emulating the entire Xcode build.
+    runs-on: macos-26-intel
+    # Bound the traced build separately so timeout diagnostics can still upload.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Confirm the supported compiler used for Swift extraction
+        run: xcodebuild -version && swift --version
+      - name: Install checksum-pinned SwiftLint
+        run: python3 scripts/ci-tool.py install swiftlint
+      - name: Check Swift correctness rules without formatting rules
+        run: python3 scripts/ci-tool.py run swiftlint lint --strict --no-cache
+      - name: Initialize CodeQL Swift extraction and security queries
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        with:
+          languages: swift
+          build-mode: manual
+          tools: linked
+          queries: security-extended
+      - name: Build host, CLI, helper, and shared code with bounded diagnostics
+        timeout-minutes: 32
+        run: |
+          python3 scripts/verify-codeql-build.py \
+            --derived-data "${RUNNER_TEMP}/CodeQLDerivedData" \
+            --timeout-seconds 1800
+      - name: Analyze Swift and publish CodeQL findings
+        timeout-minutes: 8
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        with:
+          category: /language:swift
+          output: .build/verification/codeql
+      - name: Retain static-analysis diagnostics after success, failure, or cancellation
+        if: always()
+        timeout-minutes: 2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: static-analysis-results
+          path: .build/verification/codeql*
+          retention-days: 3

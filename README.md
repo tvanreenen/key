@@ -402,9 +402,10 @@ GitHub applies the trunk's protections to every stack layer and allows bypass
 only when merging the bottom PR; a whole-stack merge must meet its requirements.
 See [GitHub's stack rules](https://docs.github.com/en/pull-requests/reference/stacked-pull-requests).
 
-Weekly and manual verification additionally run CodeQL, Stable Debug, both
-Preview configurations, and migration-scale qualification. Manual runs include
-the complete PR gate as well. `just verify-products stable` and
+Weekly and manual verification additionally run Stable Debug, both Preview
+configurations, and migration-scale qualification. Manual Verify runs include
+the complete PR gate as well. CodeQL runs separately each month or on demand.
+`just verify-products stable` and
 `just verify-products preview` remain available for checking both configurations
 of either product locally.
 
@@ -416,6 +417,24 @@ cross-test parallel scheduling because concurrency tests use bounded waits;
 those tests still exercise their own concurrent operations. SwiftPM's xUnit
 reports and failure logs are retained for three days, including suffixed Swift
 Testing reports. Test verification rejects empty or entirely skipped runs.
+
+PR and weekly macOS jobs use Blacksmith's `blacksmith-6vcpu-macos-26`
+Apple Silicon runners; Linux jobs use `blacksmith-4vcpu-ubuntu-2404`. CodeQL
+stays on GitHub's `macos-26-intel` runner because its Swift build tracer needs
+Intel. Xcode remains pinned to 26.4.1, and required check names and stack
+eligibility are unchanged. The Blacksmith GitHub App must have access to this
+repository. The first comparison keeps the existing pinned GitHub Actions,
+with no new build caches, sticky disks, or cached checkout Action. To roll back
+the runner migration, restore `macos-26` and `ubuntu-24.04` in `verify.yml`.
+
+Blacksmith's free allowance is weighted: one minute on its six-vCPU Mac uses
+20 of the advertised 3,000 base minutes (about 150 Mac runner-minutes if used
+only for Macs). After the allowance, that Mac lists at $0.08 per minute;
+GitHub's standard runners remain free for this public repository. Compare
+elapsed time, occupied runner-minutes, and actual usage in Blacksmith's billing
+dashboard before deciding whether to keep the migration. See
+[Blacksmith runner specifications and billing weights](https://docs.blacksmith.sh/blacksmith-runners/overview)
+and [pricing](https://www.blacksmith.sh/pricing).
 
 Scanner versions, upstream download URLs, and SHA-256 checksums live in
 `.github/ci-tools.json`. Install each needed tool with, for example,
@@ -460,16 +479,21 @@ the runner's actual arm64 Mac and execute the resulting bundled CLIs.
 Static analysis runs on the standard Intel macOS runner so the tracer and
 compiler run natively; it cross-compiles the same arm64 product. Product and
 runtime tests continue to run on Apple Silicon.
-CodeQL runs weekly or on demand rather than blocking each PR. Its analysis
-job and GitHub's **Code scanning results / CodeQL** check are distinct. Review
+CodeQL runs on the first day of each month at 09:17 UTC, or independently on
+demand, rather than blocking each PR. Before a release containing production
+changes, run `gh workflow run verify-codeql.yml --ref <candidate-branch-or-tag>`
+and review the resulting findings and extraction diagnostics. This starts only
+CodeQL; `gh workflow run verify.yml` starts the broader verification suite.
+The analysis job and GitHub's **Code scanning results / CodeQL** check are distinct. Review
 scheduled findings and scanner failures; a skipped PR analysis is not evidence
 of a clean scan. Keep merge requirements aligned with the PR checks in
 the table above, including the aggregate `Verify Swift tests` check.
 
-On Mondays the workflow reruns online workflow audits, CodeQL, the additional
+On Mondays the workflow reruns online workflow audits, the additional
 product configurations, and **Verify migration scale**, the existing opt-in
 300-entry migration gate.
-`workflow_dispatch` runs all checks, including that scale gate. Signing,
+The Verify manual trigger runs all PR and weekly checks, including that scale
+gate; the separate Verify CodeQL trigger runs security analysis only. Signing,
 notarization, Gatekeeper assessment, and installed Secure Enclave/user-presence
 qualification remain part of the existing release process; unsigned CI builds
 do not establish those properties.
