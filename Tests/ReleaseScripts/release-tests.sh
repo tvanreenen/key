@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
+export ZDOTDIR="${repo_root}/Tests/ScriptFixtures"
 target_resolver="${repo_root}/scripts/release-target.sh"
 token_resolver="${repo_root}/scripts/homebrew-cask-token.sh"
 
@@ -205,6 +206,7 @@ EOF
 chmod +x "${signing_fixture_bin}/codesign"
 
 verify_signing_fixture() {
+  KEY_SCRIPT_TEST_PATH="${signing_fixture_bin}:${PATH}" \
   PATH="${signing_fixture_bin}:${PATH}" \
     "${repo_root}/scripts/verify-signing.sh" "$1" \
     > "${signing_fixture_root}/verification.log" 2>&1
@@ -364,6 +366,7 @@ preview_artifact="${artifact_fixture_root}/Key-Preview-v0.2.0-alpha.2.zip"
 )
 
 set_artifact_project_version "0.2.0" "11"
+KEY_SCRIPT_TEST_PATH="${artifact_verifier_bin}:${PATH}" \
 PATH="${artifact_verifier_bin}:${PATH}" \
 ARTIFACT_GATEKEEPER_LOG="${gatekeeper_verification_log}" \
 SIGNING_VERIFICATION_LOG="${signing_verification_log}" \
@@ -372,6 +375,7 @@ SIGNING_VERIFICATION_LOG="${signing_verification_log}" \
   "${stable_artifact}" \
   >/dev/null
 set_artifact_project_version "0.2.0-alpha.2" "11"
+KEY_SCRIPT_TEST_PATH="${artifact_verifier_bin}:${PATH}" \
 PATH="${artifact_verifier_bin}:${PATH}" \
 ARTIFACT_GATEKEEPER_LOG="${gatekeeper_verification_log}" \
 SIGNING_VERIFICATION_LOG="${signing_verification_log}" \
@@ -386,14 +390,16 @@ grep -q '^preview$' "${signing_verification_log}"
 [[ "$(grep -c '^spctl$' "${gatekeeper_verification_log}")" -eq 2 ]]
 
 set_artifact_project_version "0.2.0" "11"
-if PATH="${artifact_verifier_bin}:${PATH}" \
+if KEY_SCRIPT_TEST_PATH="${artifact_verifier_bin}:${PATH}" \
+  PATH="${artifact_verifier_bin}:${PATH}" \
   ARTIFACT_GATEKEEPER_FAILURE="stapler" \
   "${artifact_verifier}" "v0.2.0" "${stable_artifact}" \
   >/dev/null 2>&1; then
   echo "expected artifact verification to reject a missing staple" >&2
   exit 1
 fi
-if PATH="${artifact_verifier_bin}:${PATH}" \
+if KEY_SCRIPT_TEST_PATH="${artifact_verifier_bin}:${PATH}" \
+  PATH="${artifact_verifier_bin}:${PATH}" \
   ARTIFACT_GATEKEEPER_FAILURE="spctl" \
   "${artifact_verifier}" "v0.2.0" "${stable_artifact}" \
   >/dev/null 2>&1; then
@@ -531,6 +537,7 @@ ln -s /usr/bin/true "${publication_fake_bin}/gh"
 
 if (
   cd "${publication_repo}"
+  KEY_SCRIPT_TEST_PATH="${publication_fake_bin}:${PATH}" \
   PATH="${publication_fake_bin}:${PATH}" \
     ./scripts/publish-release.sh "${publication_tag}" "${publication_artifact}" \
     >/dev/null 2>&1
@@ -670,6 +677,7 @@ chmod +x "${successful_fake_bin}/gh"
 run_successful_publication() {
   (
     cd "${successful_repo}"
+    KEY_SCRIPT_TEST_PATH="${successful_fake_bin}:${PATH}" \
     PATH="${successful_fake_bin}:${PATH}" \
     FAKE_GH_STATE="${successful_gh_state}" \
     FAKE_GH_LOG="${successful_gh_log}" \
@@ -751,6 +759,7 @@ assert_dispatch() {
   local expected_cask="$2"
   local output="${test_root}/dispatch-${version}.out"
 
+  KEY_SCRIPT_TEST_PATH="${dispatcher_fake_bin}:${PATH}" \
   PATH="${dispatcher_fake_bin}:${PATH}" \
   DISPATCHER_LOG="${dispatcher_log}" \
     "${repo_root}/scripts/publish-homebrew.sh" "${version}" > "${output}"
@@ -769,7 +778,8 @@ for invalid_version in \
   "v01.2.3" \
   "v1.2.3-alpha.01" \
   "v1.2.3-preview.1"; do
-  if PATH="${dispatcher_fake_bin}:${PATH}" \
+  if KEY_SCRIPT_TEST_PATH="${dispatcher_fake_bin}:${PATH}" \
+    PATH="${dispatcher_fake_bin}:${PATH}" \
     DISPATCHER_LOG="${dispatcher_log}" \
       "${repo_root}/scripts/publish-homebrew.sh" "${invalid_version}" \
       >/dev/null 2>&1; then

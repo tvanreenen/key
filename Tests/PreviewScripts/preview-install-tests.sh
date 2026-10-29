@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
+export ZDOTDIR="${repo_root}/Tests/ScriptFixtures"
 test_root="$(mktemp -d)"
 trap 'rm -rf -- "${test_root}"' EXIT
 
@@ -93,7 +94,8 @@ exec /bin/mv "$@"
 SCRIPT
 chmod +x "${failure_bin}/mv"
 
-if PATH="${failure_bin}:${PATH}" \
+if KEY_SCRIPT_TEST_PATH="${failure_bin}:${PATH}" \
+  PATH="${failure_bin}:${PATH}" \
   KEY_PREVIEW_APPLICATIONS_DIR="${applications_dir}" \
   KEY_PREVIEW_CLI_BIN_DIR="${cli_bin_dir}" \
   KEY_PREVIEW_SKIP_PROCESS_STOP=1 \
